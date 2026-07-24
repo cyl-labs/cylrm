@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,19 +8,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getSession } from "@/lib/session";
-
-async function login(formData: FormData) {
-  "use server";
-  const password = formData.get("password");
-  if (typeof password !== "string" || password !== process.env.APP_PASSWORD) {
-    redirect("/login?error=1");
-  }
-  const session = await getSession();
-  session.loggedIn = true;
-  await session.save();
-  redirect("/");
-}
 
 export default async function LoginPage({
   searchParams,
@@ -37,7 +23,7 @@ export default async function LoginPage({
           <CardDescription>Enter the team password to sign in.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={login} className="grid gap-4">
+          <form method="post" action="/api/login" className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
               <Input

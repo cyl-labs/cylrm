@@ -1,15 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getSession } from "@/lib/session";
 import { NavLinks } from "@/components/nav-links";
-
-async function logout() {
-  "use server";
-  const session = await getSession();
-  session.destroy();
-  redirect("/login");
-}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,7 +13,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
         <NavLinks />
         <div className="mt-auto p-4">
-          <form action={logout}>
+          <form method="post" action="/api/logout">
             <Button variant="ghost" size="sm" className="w-full justify-start">
               Log out
             </Button>
