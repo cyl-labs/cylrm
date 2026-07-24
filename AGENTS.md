@@ -16,8 +16,9 @@ Internal cold outreach console. The full product spec — schema, scheduler/poll
 
 - Phase 0 (shell) complete: shared-password auth, nav, five screen stubs.
 - Phase 1 (leads) complete: CSV import, duplicate detection, Leads table.
-- Phase 2 (accounts) complete: Gmail app-password connect (SMTP-verified), daily caps, sends-today/bounce display, sending window.
-- Phases 3–7 pending (see BLUEPRINT.md "Build phases").
+- Phase 2 (accounts) complete: Gmail app-password connect (IMAP-verified), daily caps, sends-today/bounce display, sending window.
+- Phase 3 (manual single send) code complete: "Send email" action on Leads rows → `/api/send` → Gmail SMTP 587 STARTTLS, message row with `rfc_message_id`. Live-send verify still blocked on the DO SMTP unblock (ticket #12611746).
+- Phases 4–7 pending (see BLUEPRINT.md "Build phases").
 
 ## Stack
 
@@ -56,4 +57,4 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
 - Do NOT use Server Actions that set a cookie and then `redirect()` (e.g. login/logout): Next responds 303, the browser fetch follows it into a static page's HTML, and the client throws "An unexpected response was received from the server" (Next's error screen). Auth flows use plain `<form method="post">` to route handlers (`/api/login`, `/api/logout`) returning 303 with a **relative** `Location` (absolute URLs built from `request.url` leak the internal `localhost:3005` origin behind Caddy).
 - Verify UI flows with a real browser (Playwright), not just curl — curl takes the no-JS path and misses client-side failures.
 - HTTP/3 is disabled in Caddy (`protocols h1 h2` global option) — h3 was flaky on this droplet; leave it off.
-- **DigitalOcean blocks ALL outbound SMTP from the droplet (ports 25, 465, 587); IMAP 993 is open.** That's why account verification uses IMAP, not SMTP. Phase 3 (actual sending) is blocked on this: either get DO support to lift the SMTP block for the account, or route sends another way. Do not assume `smtp.gmail.com` is reachable from prod.
+- **DigitalOcean blocks ALL outbound SMTP from the droplet (ports 25, 465, 587); IMAP 993 is open.** That's why account verification uses IMAP, not SMTP. Actual sending is blocked on this; DO support ticket #12611746 is open to lift the block. Do not assume `smtp.gmail.com` is reachable from prod.

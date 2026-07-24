@@ -1,6 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { contact, leadList } from "@/db/schema";
+import { contact, leadList, sendingAccount } from "@/db/schema";
 import { PageShell } from "@/components/page-shell";
 import { ImportDialog } from "@/components/leads/import-dialog";
 import { LeadsTable } from "@/components/leads/leads-table";
@@ -8,7 +8,7 @@ import { LeadsTable } from "@/components/leads/leads-table";
 export const dynamic = "force-dynamic";
 
 export default async function LeadsPage() {
-  const [contacts, leadLists] = await Promise.all([
+  const [contacts, leadLists, accounts] = await Promise.all([
     db
       .select({
         id: contact.id,
@@ -30,6 +30,11 @@ export default async function LeadsPage() {
       .select({ id: leadList.id, name: leadList.name })
       .from(leadList)
       .orderBy(desc(leadList.createdAt)),
+    db
+      .select({ id: sendingAccount.id, email: sendingAccount.email })
+      .from(sendingAccount)
+      .where(eq(sendingAccount.active, true))
+      .orderBy(asc(sendingAccount.email)),
   ]);
 
   const rows = contacts.map((c) => ({
@@ -39,7 +44,7 @@ export default async function LeadsPage() {
 
   return (
     <PageShell title="Leads" actions={<ImportDialog />}>
-      <LeadsTable contacts={rows} leadLists={leadLists} />
+      <LeadsTable contacts={rows} leadLists={leadLists} accounts={accounts} />
     </PageShell>
   );
 }

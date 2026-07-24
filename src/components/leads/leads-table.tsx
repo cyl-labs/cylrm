@@ -8,7 +8,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  SendEmailDialog,
+  type SendTarget,
+} from "@/components/leads/send-email-dialog";
 
 export type ContactRow = {
   id: number;
@@ -134,10 +138,13 @@ const PAGE_SIZE = 50;
 export function LeadsTable({
   contacts,
   leadLists,
+  accounts,
 }: {
   contacts: ContactRow[];
   leadLists: { id: number; name: string }[];
+  accounts: { id: number; email: string }[];
 }) {
+  const [sendTarget, setSendTarget] = React.useState<SendTarget | null>(null);
   const [listFilter, setListFilter] = React.useState("all");
   const [nbFilter, setNbFilter] = React.useState("all");
   const [companyFilter, setCompanyFilter] = React.useState("");
@@ -162,9 +169,37 @@ export function LeadsTable({
     setPagination((p) => ({ ...p, pageIndex: 0 }));
   }, [listFilter, nbFilter, companyFilter]);
 
+  const allColumns = React.useMemo<ColumnDef<ContactRow>[]>(
+    () => [
+      ...columns,
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => setSendTarget(row.original)}
+            disabled={accounts.length === 0}
+            title={
+              accounts.length === 0
+                ? "Connect a sending account first"
+                : "Send email"
+            }
+          >
+            <Send />
+            <span className="sr-only">Send email to {row.original.email}</span>
+          </Button>
+        ),
+      },
+    ],
+    [accounts.length],
+  );
+
   const table = useReactTable({
     data: filtered,
-    columns,
+    columns: allColumns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     state: { pagination },
@@ -249,7 +284,7 @@ export function LeadsTable({
             {table.getRowModel().rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={allColumns.length}
                   className="h-24 text-center text-[13px] text-muted-foreground"
                 >
                   No contacts match the current filters.
@@ -302,6 +337,14 @@ export function LeadsTable({
           </Button>
         </div>
       </div>
+
+      <SendEmailDialog
+        target={sendTarget}
+        accounts={accounts}
+        onOpenChange={(open) => {
+          if (!open) setSendTarget(null);
+        }}
+      />
     </div>
   );
 }
