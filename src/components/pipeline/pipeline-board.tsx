@@ -126,9 +126,9 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <Badge
                       variant="outline"
-                      className="max-w-28 truncate text-[11px]"
+                      className="max-w-32 justify-start text-[11px]"
                     >
-                      {d.campaignName}
+                      <span className="min-w-0 truncate">{d.campaignName}</span>
                     </Badge>
                     <span className="whitespace-nowrap text-[11px] text-muted-foreground">
                       {daysIn(d.stageSince)}

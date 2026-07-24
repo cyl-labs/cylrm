@@ -94,7 +94,12 @@ export function demoCampaignDetail(id: number) {
 const DEAL_STAGES = ["replied", "interested", "demo_booked", "won", "lost"] as const;
 
 export function demoDeals() {
-  const spread = [4, 3, 2, 2, 3]; // cards per column
+  // One coherent story shared with the Stats fixtures: 955 sent, 68 human
+  // replies (one deal each), 17 demos booked (6 still there + 6 won + 5 of
+  // the lost), 6 won. Board columns therefore hold 30/15/6/6/11 deals.
+  const spread = [30, 15, 6, 6, 11];
+  const contacts = demoContacts();
+  const campaigns = demoCampaigns();
   const deals: {
     id: number;
     stage: (typeof DEAL_STAGES)[number];
@@ -107,15 +112,17 @@ export function demoDeals() {
   let n = 0;
   DEAL_STAGES.forEach((stage, si) => {
     for (let i = 0; i < spread[si]; i++) {
-      const c = demoContacts()[n * 4 + 1];
+      const c = contacts[(n * 7 + 3) % contacts.length];
+      // Campaign mix ~60/30/10, matching the per-campaign reply counts.
+      const campaign = campaigns[n % 10 < 6 ? 0 : n % 10 < 9 ? 1 : 2];
       deals.push({
         id: 9200 + n,
         stage,
         contactName: `${c.firstName} ${c.lastName}`,
         contactEmail: c.email,
         company: c.company,
-        campaignName: demoCampaigns()[n % 2].name,
-        stageSince: ago(si === 0 ? 1 + i : 2 + i * 3 + si).toISOString(),
+        campaignName: campaign.name,
+        stageSince: ago(si === 0 ? 1 + (i % 12) : 2 + (i % 14) * 2 + si).toISOString(),
       });
       n++;
     }
@@ -123,7 +130,9 @@ export function demoDeals() {
   return deals;
 }
 
-export const demoPipelineTiles = { sent: 791, replies: 60, demos: 15, won: 5 };
+// Totals match the Stats demo fixtures (486+305+164 sent, 41+19+8 replies,
+// 11+4+2 demos, 4+1+1 won) and reconcile with the board spread above.
+export const demoPipelineTiles = { sent: 955, replies: 68, demos: 17, won: 6 };
 
 export function demoThread(dealId: number) {
   const deal = demoDeals().find((d) => d.id === dealId);
