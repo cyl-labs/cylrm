@@ -39,6 +39,56 @@ export type SendingWindow = {
   sendingTimezone: string;
 };
 
+function useNow() {
+  // null until mounted so the server render never contains a clock value
+  // (avoids a hydration mismatch).
+  const [now, setNow] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+}
+
+function timeIn(now: Date, timeZone?: string) {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).format(now);
+  } catch {
+    return "—";
+  }
+}
+
+function TimezoneClock({ selectedTz }: { selectedTz: string }) {
+  const now = useNow();
+  const systemTz = React.useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    [],
+  );
+  if (!now) return null;
+  const sameTz = systemTz === selectedTz;
+  return (
+    <div className="space-y-1 rounded-lg bg-muted px-3 py-2.5 text-xs font-semibold">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-muted-foreground">Your time ({systemTz})</span>
+        <span className="tabular-nums">{timeIn(now, systemTz)}</span>
+      </div>
+      {!sameTz && (
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-muted-foreground">In {selectedTz}</span>
+          <span className="tabular-nums">{timeIn(now, selectedTz)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
   const router = useRouter();
   const [start, setStart] = React.useState(initial.sendingWindowStart);
@@ -130,6 +180,7 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
               </SelectContent>
             </Select>
           </div>
+          <TimezoneClock selectedTz={timezone} />
           <Button type="submit" size="sm" disabled={!dirty || saving}>
             {saving ? "Saving…" : "Save"}
           </Button>
