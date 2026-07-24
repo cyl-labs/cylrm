@@ -21,7 +21,8 @@ Internal cold outreach console. The full product spec — schema, scheduler/poll
 - Phase 4 (campaigns + scheduler) code complete: campaign/step editor, bulk enroll with re-engagement guard, scheduler in `src/lib/scheduler.ts` (window, caps, most-remaining-cap assignment with random tie-break, pinned accounts, pacing, in-thread steps 2+). Verified end-to-end against a local SMTP sink; live verify blocked on the same DO ticket.
 - Phase 5 (IMAP poller) complete and live-verified against real Gmail inboxes: `src/lib/poller.ts` + `/api/cron/poller`, asymmetric classification, reply→deal auto-creation, `/api/messages/[id]/mark-auto-reply` reclassify. Test data from the verification (campaign 1 "Phase 4 live test", its enrollments/messages/deal, one unsubscribe row for cyllabsdigital@gmail.com) is still in the prod DB — clear before real campaigns.
 - Phase 6 (pipeline board) complete and verified on prod: tiles + range picker, kanban drag writes `deal_stage_change`, thread sheet with mark-auto-reply and unsubscribe. `message` gained nullable `subject`/`body_text`, written by all send/receive paths.
-- Phase 7 (stats) pending (see BLUEPRINT.md "Build phases").
+- Phase 7 (stats) complete and known-answer-verified against the prod test data: `src/lib/stats.ts` computes everything live from enrollment/message/deal/deal_stage_change; comparison view pivots campaign ↔ lead list.
+- All phases 0–7 built. Outstanding: DO SMTP unblock (ticket #12611746) → then run the deferred Phase 3/4 live-send verifies; clear the prod test data (campaign 1 + enrollments/messages/deal + the cyllabsdigital unsubscribe row) before real campaigns.
 
 ## Stack
 
