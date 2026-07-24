@@ -24,9 +24,10 @@ function clientConfig() {
 /** Thrown when the refresh token is expired/revoked (GCP Testing mode
  * expires them ~every 7 days) — the account must be reconnected. */
 export class NeedsReconnectError extends Error {
-  constructor(email: string) {
+  constructor(email: string, message?: string) {
     super(
-      `Google authorization for ${email} has expired or been revoked — reconnect the account via Google on the Accounts screen.`,
+      message ??
+        `Google authorization for ${email} has expired or been revoked — reconnect the account via Google on the Accounts screen.`,
     );
     this.name = "NeedsReconnectError";
   }
@@ -49,9 +50,11 @@ export function buildAuthUrl(state: string, loginHint?: string): string {
   return `${AUTH_URL}?${params.toString()}`;
 }
 
+export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
+
 export async function exchangeCode(
   code: string,
-): Promise<{ refreshToken: string; email: string }> {
+): Promise<{ refreshToken: string; email: string; grantedScopes: string[] }> {
   const { clientId, clientSecret, redirectUri } = clientConfig();
   const res = await fetch(TOKEN_URL, {
     method: "POST",
@@ -67,6 +70,7 @@ export async function exchangeCode(
   const data = (await res.json()) as {
     refresh_token?: string;
     id_token?: string;
+    scope?: string;
     error?: string;
     error_description?: string;
   };
@@ -92,7 +96,11 @@ export async function exchangeCode(
   if (!email) {
     throw new Error("Google did not return the account email in the id_token.");
   }
-  return { refreshToken: data.refresh_token, email };
+  return {
+    refreshToken: data.refresh_token,
+    email,
+    grantedScopes: (data.scope ?? "").split(" ").filter(Boolean),
+  };
 }
 
 // Short-lived access tokens cached per refresh token, refreshed 2 min early.
@@ -167,15 +175,21 @@ export async function sendViaGmailApi(params: {
     },
     body: JSON.stringify({ raw: mime.toString("base64url") }),
   });
-  if (res.status === 401 || res.status === 403) {
-    accessTokenCache.delete(params.refreshToken);
-    throw new NeedsReconnectError(params.fromEmail);
-  }
-  const data = (await res.json()) as {
+  const data = (await res.json().catch(() => ({}))) as {
     id?: string;
     threadId?: string;
-    error?: { message?: string };
+    error?: { message?: string; status?: string };
   };
+  if (res.status === 401 || res.status === 403) {
+    accessTokenCache.delete(params.refreshToken);
+    if (JSON.stringify(data).includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT")) {
+      throw new NeedsReconnectError(
+        params.fromEmail,
+        `The Google connection for ${params.fromEmail} is missing the "Send email on your behalf" permission — reconnect and tick that checkbox on Google's consent screen.`,
+      );
+    }
+    throw new NeedsReconnectError(params.fromEmail);
+  }
   if (!res.ok || !data.id) {
     throw new Error(
       `Gmail API send failed (${res.status}): ${data.error?.message ?? "unknown error"}`,

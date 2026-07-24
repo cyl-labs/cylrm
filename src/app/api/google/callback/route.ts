@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/db";
 import { domain, sendingAccount } from "@/db/schema";
 import { encryptSecret } from "@/lib/crypto";
-import { exchangeCode } from "@/lib/google";
+import { exchangeCode, GMAIL_SEND_SCOPE } from "@/lib/google";
 import { getSession } from "@/lib/session";
 
 // Relative redirects only — absolute URLs built from request.url would leak
@@ -37,12 +37,20 @@ export async function GET(request: NextRequest) {
 
   let email: string;
   let refreshToken: string;
+  let grantedScopes: string[];
   try {
-    ({ email, refreshToken } = await exchangeCode(code));
+    ({ email, refreshToken, grantedScopes } = await exchangeCode(code));
   } catch (err) {
     return redirectToAccounts({
       google_error: err instanceof Error ? err.message.slice(0, 200) : "exchange_failed",
     });
+  }
+
+  // Google's consent screen shows gmail.send as an UNCHECKED checkbox in
+  // Testing mode — refuse connects that skipped it rather than storing a
+  // token that cannot send.
+  if (!grantedScopes.includes(GMAIL_SEND_SCOPE)) {
+    return redirectToAccounts({ google_error: "missing_send_permission" });
   }
 
   const encrypted = encryptSecret(refreshToken);
