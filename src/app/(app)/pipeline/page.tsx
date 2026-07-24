@@ -36,11 +36,18 @@ export default async function PipelinePage({
       )
     : and(eq(message.direction, "in"), eq(message.kind, "reply"));
 
+  // A transition only counts if the deal is still at (or past) that stage —
+  // otherwise a drag that was undone seconds later inflates the tile forever.
   const stageCount = (stage: "demo_booked" | "won") => {
-    const base = eq(dealStageChange.toStage, stage);
+    const stillThere =
+      stage === "won"
+        ? eq(deal.stage, "won")
+        : sql`${deal.stage} in ('demo_booked', 'won', 'lost')`;
+    const base = and(eq(dealStageChange.toStage, stage), stillThere);
     return db
       .select({ n: sql<number>`count(distinct ${dealStageChange.dealId})::int` })
       .from(dealStageChange)
+      .innerJoin(deal, eq(dealStageChange.dealId, deal.id))
       .where(since ? and(base, gte(dealStageChange.changedAt, since)) : base);
   };
 

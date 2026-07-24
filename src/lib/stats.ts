@@ -73,12 +73,14 @@ export async function getEntityStats(
     group by 1
   `)) as Row[];
 
+  // Transitions only count while the deal remains at/past that stage, so an
+  // undone drag doesn't inflate metrics (same rule as the Pipeline tiles).
   const dealRows = (await db.execute(sql`
     select ${groupDeal} as id,
       count(distinct d.id) as deals,
-      count(distinct d.id) filter (where sc.to_stage in ('interested','demo_booked','won')) as positive,
-      count(distinct d.id) filter (where sc.to_stage = 'demo_booked') as demos,
-      count(distinct d.id) filter (where sc.to_stage = 'won') as won
+      count(distinct d.id) filter (where sc.to_stage in ('interested','demo_booked','won') and d.stage in ('interested','demo_booked','won','lost')) as positive,
+      count(distinct d.id) filter (where sc.to_stage = 'demo_booked' and d.stage in ('demo_booked','won','lost')) as demos,
+      count(distinct d.id) filter (where sc.to_stage = 'won' and d.stage = 'won') as won
     from deal d
     ${contactJoinDeal}
     left join deal_stage_change sc on sc.deal_id = d.id
@@ -96,7 +98,7 @@ export async function getEntityStats(
       select min(changed_at) as first_demo from deal_stage_change
       where deal_id = d.id and to_stage = 'demo_booked'
         and ${since ? sql`changed_at >= ${since.toISOString()}::timestamptz` : sql`true`}
-    ) dd on dd.first_demo is not null
+    ) dd on dd.first_demo is not null and d.stage in ('demo_booked','won','lost')
     join lateral (
       select min(m.sent_at) as first_sent
       from message m join enrollment e2 on e2.id = m.enrollment_id
