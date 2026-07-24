@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: cylrm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cylrm
+      POSTGRES_PASSWORD: cylrm
+      POSTGRES_DB: cylrm
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - cylrm_pgdata:/var/lib/postgresql/data
+
+volumes:
+  cylrm_pgdata:
