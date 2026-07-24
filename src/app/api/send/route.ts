@@ -93,6 +93,8 @@ export async function POST(request: Request) {
         // The Phase 5 IMAP poller can backfill it via X-GM-MSGID if needed.
         gmailMessageId: null,
         rfcMessageId,
+        subject,
+        bodyText: text,
         sentAt: new Date(),
       })
       .returning({ id: message.id });

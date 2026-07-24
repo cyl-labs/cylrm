@@ -175,6 +175,8 @@ export const message = pgTable(
     kind: messageKindEnum("kind").notNull(),
     gmailMessageId: text("gmail_message_id"),
     rfcMessageId: text("rfc_message_id"),
+    subject: text("subject"),
+    bodyText: text("body_text"),
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
   (t) => [

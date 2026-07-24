@@ -310,6 +310,8 @@ export async function runSchedulerTick(): Promise<TickResult> {
           direction: "out",
           kind: "sent",
           rfcMessageId,
+          subject,
+          bodyText,
           sentAt,
         });
         await tx

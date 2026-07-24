@@ -315,6 +315,8 @@ async function pollAccount(
             kind,
             gmailMessageId: dedupeId,
             rfcMessageId: parsed.messageId ?? null,
+            subject: parsed.subject ?? null,
+            bodyText: parsed.text?.slice(0, 100_000) ?? null,
             sentAt: parsed.date ?? new Date(),
           })
           .onConflictDoNothing()
