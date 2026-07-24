@@ -202,7 +202,7 @@ Campaign comparison view: two campaigns side by side on the same date range, piv
 
 1. **Leads** — TanStack table. CSV import (Apollo columns + NeverBounce column) creates a named lead list per import. Filter by lead list, NeverBounce result, company, enrolled-or-not. Duplicate contacts are flagged and excluded from bulk enroll by default. Multi-select → "enroll in campaign", which runs the re-engagement guard and blocks with a confirmation step if any selected contact already has a non-terminal enrollment or any deal elsewhere.
 2. **Campaigns** — list view; detail view is the step editor (subject, body, wait days), enrolled count by status, activate/pause. A visible "unsubscribe" action is reachable from a reply thread view.
-3. **Accounts** — connect Gmail via app password (verified with a live SMTP login at connect time), per-account daily cap editor, sends today vs cap, bounce rate, rolled up per domain. App-level sending window (start time, end time, timezone) is configured here or in a settings panel.
+3. **Accounts** — connect Gmail via app password (verified with a live IMAP login at connect time), per-account daily cap editor, sends today vs cap, bounce rate, rolled up per domain. App-level sending window (start time, end time, timezone) is configured here or in a settings panel.
 4. **Pipeline** — summary tiles (sent, replies, demos, won, over a selectable date range), kanban below. Only contacts who replied ever appear; cold leads never show up on the board. Stages: Replied, Interested, Demo booked, Won, Lost. Card shows contact, company, campaign badge, days in stage; click opens the reply thread, with an unsubscribe action and a "mark as auto-reply" action available there. Dragging a card writes a `deal_stage_change` row and doubles as reply classification.
 5. **Stats** — metrics above. Default view is campaign comparison, including demos per 100 sends and win rate alongside reply rate.
 
@@ -214,10 +214,11 @@ Verify: log in on the real deployed URL.
 **Phase 1 — Contacts + CSV import.** Import creates a lead list, tags duplicates against every existing contact in the system.
 Verify: import a real Apollo/NeverBounce export, filter 1k rows fast, confirm duplicate flagging works against a re-imported row.
 
-**Phase 2 — Accounts.** App-password connect (SMTP-verified), caps, sending window.
+**Phase 2 — Accounts.** App-password connect (IMAP-verified), caps, sending window.
 Verify: both test accounts connected with real app passwords; a bad password is rejected with a clear error at connect time; passwords stored encrypted.
 
 **Phase 3 — Manual single send.** Send from a contact row, message logged with `rfc_message_id` captured.
+Open blocker: the DigitalOcean droplet blocks all outbound SMTP (25/465/587). Before building, either get DO to lift the block or pick an alternate sending route.
 Verify: arrives in test inbox, message row correct including the RFC message id. This milestone proves the plumbing.
 
 **Phase 4 — Campaigns + scheduler.** Sending window, pacing, tie-breaking, and the re-engagement guard are all live.
