@@ -1,10 +1,5 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { PageShell } from "@/components/page-shell";
 
 export function ScreenStub({
   title,
@@ -16,20 +11,18 @@ export function ScreenStub({
   phase: string;
 }) {
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        <p className="text-sm text-muted-foreground">{description}</p>
+    <PageShell title={title}>
+      <div className="flex h-full flex-col items-center justify-center px-6 py-16">
+        <Badge variant="secondary" className="text-xs font-medium">
+          Coming in {phase}
+        </Badge>
+        <h2 className="mt-3 text-sm font-semibold tracking-[-0.01em]">
+          {`${title} isn't built yet`}
+        </h2>
+        <p className="mt-1.5 max-w-sm text-center text-[13px] leading-relaxed text-muted-foreground">
+          {description}
+        </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Coming in {phase}</CardTitle>
-          <CardDescription>
-            This screen is scaffolded but not built yet.
-          </CardDescription>
-        </CardHeader>
-        <CardContent />
-      </Card>
-    </div>
+    </PageShell>
   );
 }
