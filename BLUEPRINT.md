@@ -52,6 +52,8 @@ Cold outreach today runs through an ad hoc n8n workflow with no visibility into 
 | app_password | text, encrypted | Gmail app password (AES-256-GCM at rest) |
 | daily_cap | int | manually edited for warmup ramp |
 | active | boolean | |
+| imap_uid_validity | bigint, nullable | IMAP poll cursor (phase 5): mailbox UIDVALIDITY the cursor belongs to |
+| imap_last_uid | bigint, nullable | IMAP poll cursor: last processed INBOX UID; first poll initializes to "now" and skips history |
 
 **app_setting**
 | column | type | notes |
@@ -170,8 +172,8 @@ Every stat on the Stats screen is a query over `enrollment` and `message` (plus 
 
 ## Reply / bounce / auto-reply polling (runs every 5 minutes)
 
-- Poll each connected account's inbox via IMAP (new messages since the last poll; Gmail's `X-GM-THRID`/`X-GM-MSGID` IMAP extensions supply thread and message ids).
-- Match incoming messages to enrollments by `gmail_thread_id`.
+- Poll each connected account's inbox via IMAP (new messages since the last poll, tracked by UID cursor per account).
+- Match incoming messages to enrollments, in order of reliability: (1) `In-Reply-To`/`References` header ids against stored `message.rfc_message_id` for the account; (2) Gmail thread id (`X-GM-THRID`, backfilled onto `enrollment.gmail_thread_id` at first match) — SMTP sends never learn a thread id, so this only works after one inbound match; (3) for non-bounces, sender email equals a contact with an enrollment assigned to this account. DSN bounces additionally get a raw-source scan for the original Message-ID embedded in the delivery report. For inbound rows, `message.gmail_message_id` stores the RFC Message-ID (dedupe key via the unique index) rather than Gmail's internal id.
 - Classification, asymmetric by design:
   - **Bounce**: hard signals only — mailer-daemon sender, delivery-status headers.
   - **Auto_reply**: hard signals only — `Auto-Submitted` header present.
