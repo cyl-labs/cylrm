@@ -56,7 +56,7 @@ export async function getEntityStats(
     from message m
     join enrollment e on e.id = m.enrollment_id
     ${contactJoinMsg}
-    where ${since ? sql`m.sent_at >= ${since}` : sql`true`}
+    where ${since ? sql`m.sent_at >= ${since.toISOString()}::timestamptz` : sql`true`}
     group by 1
   `)) as Row[];
 
@@ -67,7 +67,7 @@ export async function getEntityStats(
     where e.status = 'completed'
       and ${
         since
-          ? sql`exists (select 1 from message where enrollment_id = e.id and kind = 'sent' and sent_at >= ${since})`
+          ? sql`exists (select 1 from message where enrollment_id = e.id and kind = 'sent' and sent_at >= ${since.toISOString()}::timestamptz)`
           : sql`true`
       }
     group by 1
@@ -82,8 +82,8 @@ export async function getEntityStats(
     from deal d
     ${contactJoinDeal}
     left join deal_stage_change sc on sc.deal_id = d.id
-      and ${since ? sql`sc.changed_at >= ${since}` : sql`true`}
-    where ${since ? sql`d.created_at >= ${since}` : sql`true`}
+      and ${since ? sql`sc.changed_at >= ${since.toISOString()}::timestamptz` : sql`true`}
+    where ${since ? sql`d.created_at >= ${since.toISOString()}::timestamptz` : sql`true`}
     group by 1
   `)) as Row[];
 
@@ -95,7 +95,7 @@ export async function getEntityStats(
     join lateral (
       select min(changed_at) as first_demo from deal_stage_change
       where deal_id = d.id and to_stage = 'demo_booked'
-        and ${since ? sql`changed_at >= ${since}` : sql`true`}
+        and ${since ? sql`changed_at >= ${since.toISOString()}::timestamptz` : sql`true`}
     ) dd on dd.first_demo is not null
     join lateral (
       select min(m.sent_at) as first_sent
@@ -162,7 +162,7 @@ export async function getStepStats(since: Date | null): Promise<StepStat[]> {
     select e.campaign_id as cid, m.step_number as step, count(*) as sent
     from message m join enrollment e on e.id = m.enrollment_id
     where m.kind = 'sent' and m.step_number is not null
-      and ${since ? sql`m.sent_at >= ${since}` : sql`true`}
+      and ${since ? sql`m.sent_at >= ${since.toISOString()}::timestamptz` : sql`true`}
     group by 1, 2
   `)) as Row[];
   const replyRows = (await db.execute(sql`
@@ -175,7 +175,7 @@ export async function getStepStats(since: Date | null): Promise<StepStat[]> {
         and o.sent_at <= r.sent_at
     ) a on a.step is not null
     where r.kind = 'reply' and r.direction = 'in'
-      and ${since ? sql`r.sent_at >= ${since}` : sql`true`}
+      and ${since ? sql`r.sent_at >= ${since.toISOString()}::timestamptz` : sql`true`}
     group by 1, 2
   `)) as Row[];
 
@@ -204,7 +204,7 @@ export async function getAccountStats(since: Date | null): Promise<AccountStat[]
     from sending_account sa
     join domain dm on dm.id = sa.domain_id
     left join message m on m.account_id = sa.id
-      and ${since ? sql`m.sent_at >= ${since}` : sql`true`}
+      and ${since ? sql`m.sent_at >= ${since.toISOString()}::timestamptz` : sql`true`}
     group by 1, 2, 3
     order by dm.name, sa.email
   `)) as Row[];
