@@ -15,14 +15,16 @@ Internal cold outreach console. The full product spec — schema, scheduler/poll
 ## Status
 
 - Phase 0 (shell) complete: shared-password auth, nav, five screen stubs.
-- Phases 1–7 pending (see BLUEPRINT.md "Build phases").
+- Phase 1 (leads) complete: CSV import, duplicate detection, Leads table.
+- Phase 2 (accounts) complete: Gmail app-password connect (SMTP-verified), daily caps, sends-today/bounce display, sending window.
+- Phases 3–7 pending (see BLUEPRINT.md "Build phases").
 
 ## Stack
 
 - Next.js (App Router, `src/` dir), shadcn/ui + Tailwind v4, TanStack Table
 - Postgres via Drizzle ORM — schema in `src/db/schema.ts`, client in `src/db/index.ts`, config in `drizzle.config.ts`
 - Auth: single shared password (`APP_PASSWORD`) with iron-session cookie; middleware in `src/middleware.ts` guards everything except `/login` and `/api`
-- Gmail API direct (per-account OAuth refresh tokens, encrypted with `TOKEN_ENCRYPTION_KEY`) — not yet built
+- Gmail via per-account **app passwords** (no OAuth — deliberate, avoids Google's verification process): nodemailer SMTP (`smtp.gmail.com:465`) for sending, IMAP (`imap.gmail.com:993`) for polling later. App passwords encrypted at rest with AES-256-GCM (`src/lib/crypto.ts`, key = `TOKEN_ENCRYPTION_KEY`). Credentials are SMTP-verified at connect time (`src/lib/gmail.ts`).
 
 ## Local dev
 
@@ -33,7 +35,7 @@ npx drizzle-kit push        # apply schema (needs DATABASE_URL exported)
 npm run dev
 ```
 
-`.env.local` holds `DATABASE_URL`, `APP_PASSWORD`, `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, Google OAuth vars.
+`.env.local` holds `DATABASE_URL`, `APP_PASSWORD`, `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_SECRET`.
 
 ## Deployment (crm.cyllabs.com)
 

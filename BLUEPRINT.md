@@ -21,8 +21,8 @@ Cold outreach today runs through an ad hoc n8n workflow with no visibility into 
 1. Web app (Next.js) — five screens: Leads, Campaigns, Accounts, Pipeline, Stats.
 2. Postgres database — all state: contacts, campaigns, enrollments, messages, deals.
 3. Scheduler (cron, every 5 minutes) — sends outbound steps, respects caps, pacing, and the sending window.
-4. Poller (cron, every 5 minutes) — reads each connected inbox via the Gmail API, classifies incoming mail, updates enrollments, creates deals.
-5. Gmail API integration — direct, per-account OAuth refresh tokens stored encrypted. No third-party sending service.
+4. Poller (cron, every 5 minutes) — reads each connected inbox via IMAP, classifies incoming mail, updates enrollments, creates deals.
+5. Gmail integration via per-account **app passwords** (not OAuth — deliberate, avoids Google's OAuth verification process and token-expiry churn): SMTP (`smtp.gmail.com:465`) for sending, IMAP (`imap.gmail.com:993`) for reading. Gmail's IMAP extensions (`X-GM-THRID`, `X-GM-MSGID`) still provide thread/message ids. App passwords stored encrypted. No third-party sending service.
 
 ### Tech stack (already decided, not up for reconsideration)
 
@@ -30,7 +30,7 @@ Cold outreach today runs through an ad hoc n8n workflow with no visibility into 
 - Database: Postgres via Drizzle ORM
 - UI: shadcn/ui + Tailwind
 - Tables: TanStack Table
-- Email sending/reading: Gmail API direct, stored refresh tokens
+- Email sending/reading: Gmail app passwords — SMTP for sending, IMAP for reading; stored encrypted
 - Scheduling: cron tick every 5 minutes (no queue system needed at this volume)
 - Reference only, do not fork: Twenty, Attio (UI patterns only)
 
@@ -49,7 +49,7 @@ Cold outreach today runs through an ad hoc n8n workflow with no visibility into 
 | id | pk | |
 | email | text | |
 | domain_id | fk → domain | |
-| oauth_refresh_token | text, encrypted | |
+| app_password | text, encrypted | Gmail app password (AES-256-GCM at rest) |
 | daily_cap | int | manually edited for warmup ramp |
 | active | boolean | |
 
@@ -170,7 +170,7 @@ Every stat on the Stats screen is a query over `enrollment` and `message` (plus 
 
 ## Reply / bounce / auto-reply polling (runs every 5 minutes)
 
-- Poll each connected account's inbox via the Gmail API `history.list`.
+- Poll each connected account's inbox via IMAP (new messages since the last poll; Gmail's `X-GM-THRID`/`X-GM-MSGID` IMAP extensions supply thread and message ids).
 - Match incoming messages to enrollments by `gmail_thread_id`.
 - Classification, asymmetric by design:
   - **Bounce**: hard signals only — mailer-daemon sender, delivery-status headers.
@@ -202,7 +202,7 @@ Campaign comparison view: two campaigns side by side on the same date range, piv
 
 1. **Leads** — TanStack table. CSV import (Apollo columns + NeverBounce column) creates a named lead list per import. Filter by lead list, NeverBounce result, company, enrolled-or-not. Duplicate contacts are flagged and excluded from bulk enroll by default. Multi-select → "enroll in campaign", which runs the re-engagement guard and blocks with a confirmation step if any selected contact already has a non-terminal enrollment or any deal elsewhere.
 2. **Campaigns** — list view; detail view is the step editor (subject, body, wait days), enrolled count by status, activate/pause. A visible "unsubscribe" action is reachable from a reply thread view.
-3. **Accounts** — connect Gmail via OAuth, per-account daily cap editor, sends today vs cap, bounce rate, rolled up per domain. App-level sending window (start time, end time, timezone) is configured here or in a settings panel.
+3. **Accounts** — connect Gmail via app password (verified with a live SMTP login at connect time), per-account daily cap editor, sends today vs cap, bounce rate, rolled up per domain. App-level sending window (start time, end time, timezone) is configured here or in a settings panel.
 4. **Pipeline** — summary tiles (sent, replies, demos, won, over a selectable date range), kanban below. Only contacts who replied ever appear; cold leads never show up on the board. Stages: Replied, Interested, Demo booked, Won, Lost. Card shows contact, company, campaign badge, days in stage; click opens the reply thread, with an unsubscribe action and a "mark as auto-reply" action available there. Dragging a card writes a `deal_stage_change` row and doubles as reply classification.
 5. **Stats** — metrics above. Default view is campaign comparison, including demos per 100 sends and win rate alongside reply rate.
 
@@ -214,8 +214,8 @@ Verify: log in on the real deployed URL.
 **Phase 1 — Contacts + CSV import.** Import creates a lead list, tags duplicates against every existing contact in the system.
 Verify: import a real Apollo/NeverBounce export, filter 1k rows fast, confirm duplicate flagging works against a re-imported row.
 
-**Phase 2 — Accounts.** OAuth connect, token refresh, caps.
-Verify: both test accounts connected, token still valid after 1h+.
+**Phase 2 — Accounts.** App-password connect (SMTP-verified), caps, sending window.
+Verify: both test accounts connected with real app passwords; a bad password is rejected with a clear error at connect time; passwords stored encrypted.
 
 **Phase 3 — Manual single send.** Send from a contact row, message logged with `rfc_message_id` captured.
 Verify: arrives in test inbox, message row correct including the RFC message id. This milestone proves the plumbing.

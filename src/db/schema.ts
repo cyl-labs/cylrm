@@ -64,7 +64,7 @@ export const sendingAccount = pgTable("sending_account", {
   domainId: integer("domain_id")
     .notNull()
     .references(() => domain.id),
-  oauthRefreshToken: text("oauth_refresh_token"),
+  appPassword: text("app_password"),
   dailyCap: integer("daily_cap").notNull().default(0),
   active: boolean("active").notNull().default(true),
 });
