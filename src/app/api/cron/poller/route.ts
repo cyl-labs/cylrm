@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
+import { runPollerTick } from "@/lib/poller";
 
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  // Phase 5 implements inbox polling + reply/bounce/auto-reply classification here.
-  return NextResponse.json({
-    ok: true,
-    job: "poller",
-    at: new Date().toISOString(),
-  });
+  const result = await runPollerTick();
+  return NextResponse.json({ ok: true, job: "poller", ...result });
 }

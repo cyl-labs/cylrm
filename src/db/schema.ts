@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   integer,
   jsonb,
@@ -67,6 +68,10 @@ export const sendingAccount = pgTable("sending_account", {
   appPassword: text("app_password"),
   dailyCap: integer("daily_cap").notNull().default(0),
   active: boolean("active").notNull().default(true),
+  // IMAP poll cursor (phase 5): last processed INBOX UID and the mailbox
+  // UIDVALIDITY it belongs to. Cursor resets if UIDVALIDITY changes.
+  imapUidValidity: bigint("imap_uid_validity", { mode: "number" }),
+  imapLastUid: bigint("imap_last_uid", { mode: "number" }),
 });
 
 export const appSetting = pgTable("app_setting", {
