@@ -112,6 +112,9 @@ export type SendGmailResult = {
  * Send one plain-text email through Gmail SMTP (587, STARTTLS).
  * Throws SmtpBlockedError on connection failure, SmtpAuthError on bad
  * credentials; other errors propagate as-is.
+ *
+ * GMAIL_SMTP_HOST/GMAIL_SMTP_PORT/GMAIL_SMTP_INSECURE env vars redirect
+ * sends to a local sink for dev testing only — never set them in prod.
  */
 export async function sendGmail(params: {
   fromEmail: string;
@@ -119,12 +122,16 @@ export async function sendGmail(params: {
   to: string;
   subject: string;
   text: string;
+  /** rfc_message_id of the message being replied to (angle brackets included). */
+  inReplyTo?: string;
+  /** rfc_message_ids of the whole thread, oldest first. */
+  references?: string[];
 }): Promise<SendGmailResult> {
   const transporter = nodemailer.createTransport({
-    host: GMAIL_SMTP.host,
-    port: GMAIL_SMTP.port,
+    host: process.env.GMAIL_SMTP_HOST ?? GMAIL_SMTP.host,
+    port: Number(process.env.GMAIL_SMTP_PORT ?? GMAIL_SMTP.port),
     secure: false,
-    requireTLS: true,
+    requireTLS: process.env.GMAIL_SMTP_INSECURE !== "1",
     auth: { user: params.fromEmail, pass: params.appPassword },
     connectionTimeout: 15_000,
     greetingTimeout: 15_000,
@@ -135,6 +142,8 @@ export async function sendGmail(params: {
       to: params.to,
       subject: params.subject,
       text: params.text,
+      inReplyTo: params.inReplyTo,
+      references: params.references,
     });
     return { rfcMessageId: info.messageId };
   } catch (err) {

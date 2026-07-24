@@ -8,9 +8,10 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -31,6 +32,7 @@ import {
   SendEmailDialog,
   type SendTarget,
 } from "@/components/leads/send-email-dialog";
+import { EnrollDialog } from "@/components/leads/enroll-dialog";
 
 export type ContactRow = {
   id: number;
@@ -139,12 +141,16 @@ export function LeadsTable({
   contacts,
   leadLists,
   accounts,
+  campaigns,
 }: {
   contacts: ContactRow[];
   leadLists: { id: number; name: string }[];
   accounts: { id: number; email: string }[];
+  campaigns: { id: number; name: string }[];
 }) {
   const [sendTarget, setSendTarget] = React.useState<SendTarget | null>(null);
+  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+  const [enrollOpen, setEnrollOpen] = React.useState(false);
   const [listFilter, setListFilter] = React.useState("all");
   const [nbFilter, setNbFilter] = React.useState("all");
   const [companyFilter, setCompanyFilter] = React.useState("");
@@ -171,6 +177,26 @@ export function LeadsTable({
 
   const allColumns = React.useMemo<ColumnDef<ContactRow>[]>(
     () => [
+      {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() && "indeterminate")
+            }
+            onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+            aria-label="Select all on page"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(v) => row.toggleSelected(!!v)}
+            aria-label={`Select ${row.original.email}`}
+          />
+        ),
+      },
       ...columns,
       {
         id: "actions",
@@ -202,9 +228,15 @@ export function LeadsTable({
     columns: allColumns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    state: { pagination },
+    getRowId: (row) => String(row.id),
+    state: { pagination, rowSelection },
     onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
   });
+
+  const selectedIds = Object.keys(rowSelection)
+    .filter((k) => rowSelection[k])
+    .map(Number);
 
   if (contacts.length === 0) {
     return (
@@ -254,6 +286,12 @@ export function LeadsTable({
           placeholder="Filter by company…"
           className="h-8 w-56 text-[13px]"
         />
+        {selectedIds.length > 0 && (
+          <Button size="sm" onClick={() => setEnrollOpen(true)}>
+            <UserPlus data-icon="inline-start" />
+            Enroll {selectedIds.length} in campaign
+          </Button>
+        )}
         <span className="ml-auto text-[13px] text-muted-foreground">
           {filtered.length === contacts.length
             ? `${contacts.length.toLocaleString()} contacts`
@@ -344,6 +382,13 @@ export function LeadsTable({
         onOpenChange={(open) => {
           if (!open) setSendTarget(null);
         }}
+      />
+      <EnrollDialog
+        open={enrollOpen}
+        onOpenChange={setEnrollOpen}
+        contactIds={selectedIds}
+        campaigns={campaigns}
+        onEnrolled={() => setRowSelection({})}
       />
     </div>
   );
