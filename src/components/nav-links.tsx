@@ -22,7 +22,7 @@ const links = [
 export function NavLinks() {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-col gap-px px-2">
+    <nav className="flex flex-col gap-0.5 px-2.5">
       {links.map(({ href, label, icon: Icon }) => {
         const active = pathname.startsWith(href);
         return (
@@ -30,17 +30,11 @@ export function NavLinks() {
             key={href}
             href={href}
             className={cn(
-              "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
-              active && "bg-sidebar-accent text-sidebar-accent-foreground",
+              "flex h-[38px] items-center gap-2.5 rounded-lg px-3 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              active && "bg-primary/10 font-bold text-primary hover:bg-primary/10 hover:text-primary",
             )}
           >
-            <Icon
-              className={cn(
-                "size-4 text-muted-foreground",
-                active && "text-sidebar-accent-foreground",
-              )}
-              strokeWidth={1.75}
-            />
+            <Icon className="size-[17px]" strokeWidth={1.8} />
             {label}
           </Link>
         );

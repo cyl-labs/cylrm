@@ -2,15 +2,6 @@ import { Fragment } from "react";
 import { asc, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, leadList } from "@/db/schema";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { PageShell } from "@/components/page-shell";
 import { StatsControls } from "@/components/stats/stats-controls";
 import {
@@ -52,6 +43,9 @@ const EMPTY: Omit<EntityStats, "id"> = {
   avgSecondsToDemo: null,
 };
 
+const CARD = "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]";
+const GRID_COLS = "grid grid-cols-[minmax(0,1fr)_90px_90px_110px_90px] items-center";
+
 function ComparisonPanel({
   name,
   stats,
@@ -72,35 +66,41 @@ function ComparisonPanel({
     ["Time to demo (avg)", humanizeSeconds(stats.avgSecondsToDemo)],
   ];
   return (
-    <div className="rounded-lg border">
-      <div className="border-b px-4 py-3">
-        <p className="truncate text-sm font-semibold tracking-[-0.01em]">{name}</p>
-        <p className="mt-2 text-3xl font-semibold tabular-nums tracking-[-0.02em]">
+    <div className={CARD}>
+      <div className="border-b border-border/60 px-5 py-[18px]">
+        <p className="truncate text-sm font-extrabold tracking-[-0.01em]">{name}</p>
+        <p className="mt-2.5 text-[34px] font-extrabold leading-none tracking-[-0.02em] text-primary tabular-nums">
           {per100(stats.demos, stats.sent)}
         </p>
-        <p className="text-xs text-muted-foreground">demos per 100 sends</p>
+        <p className="mt-1.5 text-xs font-semibold text-muted-foreground/75">
+          demos per 100 sends
+        </p>
       </div>
-      <dl className="space-y-2 px-4 py-3">
+      <dl className="space-y-[9px] px-5 py-4">
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-baseline justify-between gap-3">
-            <dt className="text-[13px] text-muted-foreground">{label}</dt>
-            <dd className="text-[13px] font-medium tabular-nums">{value}</dd>
+            <dt className="text-[13px] font-semibold text-muted-foreground">
+              {label}
+            </dt>
+            <dd className="text-[13px] font-bold tabular-nums">{value}</dd>
           </div>
         ))}
       </dl>
       {steps && steps.length > 0 && (
-        <div className="border-t px-4 py-3">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">
+        <div className="border-t border-border/60 px-5 pb-[18px] pt-3.5">
+          <p className="mb-2.5 text-xs font-bold text-muted-foreground/75">
             Step attribution
           </p>
-          <div className="space-y-1.5">
+          <div className="space-y-[7px]">
             {steps.map((s) => (
               <div
                 key={s.step}
-                className="flex items-baseline justify-between gap-3 text-[13px]"
+                className="flex items-baseline justify-between gap-3"
               >
-                <span className="text-muted-foreground">Step {s.step}</span>
-                <span className="tabular-nums">
+                <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-0.5 text-[11.5px] font-bold text-primary">
+                  Step {s.step}
+                </span>
+                <span className="text-[12.5px] font-semibold text-muted-foreground tabular-nums">
                   {s.sent} sent · {s.replies} repl{s.replies === 1 ? "y" : "ies"} (
                   {pct(s.replies, s.sent)})
                 </span>
@@ -179,6 +179,9 @@ export default async function StatsPage({
     domains.set(acct.domain, d);
   }
 
+  const numCell = "px-3.5 py-[11px] text-right text-[13px] tabular-nums";
+  const headNum = "px-3.5 py-2.5 text-right text-xs font-bold text-muted-foreground";
+
   return (
     <PageShell
       title="Stats"
@@ -193,8 +196,8 @@ export default async function StatsPage({
         />
       }
     >
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 px-6 py-4">
-        <p className="text-xs text-muted-foreground">
+      <div className="mx-auto flex max-w-[920px] flex-col gap-[18px] px-7 pb-10 pt-6">
+        <p className="text-[12.5px] font-semibold leading-normal text-muted-foreground/75">
           Live comparison over the selected range. Differences under roughly 2×
           at low volume are noise — keep at most 2 active approach tests running
           and change one variable between them.
@@ -204,109 +207,90 @@ export default async function StatsPage({
             {panelA ? (
               <ComparisonPanel {...panelA} />
             ) : (
-              <div className="rounded-lg border border-dashed p-6 text-center text-[13px] text-muted-foreground">
+              <div className="rounded-[14px] border border-dashed p-6 text-center text-[13px] font-semibold text-muted-foreground">
                 Pick something to compare.
               </div>
             )}
             {panelB ? (
               <ComparisonPanel {...panelB} />
             ) : (
-              <div className="rounded-lg border border-dashed p-6 text-center text-[13px] text-muted-foreground">
+              <div className="rounded-[14px] border border-dashed p-6 text-center text-[13px] font-semibold text-muted-foreground">
                 Pick a second {by === "campaign" ? "campaign" : "lead list"} to
                 compare.
               </div>
             )}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed px-6 py-12 text-center text-[13px] text-muted-foreground">
+          <div className="rounded-[14px] border border-dashed px-6 py-12 text-center text-[13px] font-semibold text-muted-foreground">
             Nothing to compare yet — create a campaign and enroll contacts
             first.
           </div>
         )}
 
-        <div className="rounded-lg border">
-          <div className="border-b px-4 py-3">
-            <p className="text-sm font-semibold tracking-[-0.01em]">
+        <div className={CARD}>
+          <div className="border-b border-border/60 px-5 py-4">
+            <p className="text-sm font-extrabold tracking-[-0.01em]">
               Accounts &amp; domains
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-1 text-xs font-semibold text-muted-foreground/75">
               Bounce alarm at &gt;2% per domain — display-only, sending is not
               auto-paused.
             </p>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {["Account", "Sent", "Bounces", "Bounce rate", "Replies"].map(
-                  (h) => (
-                    <TableHead
-                      key={h}
-                      className="whitespace-nowrap text-xs font-medium text-muted-foreground"
-                    >
-                      {h}
-                    </TableHead>
-                  ),
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <div className="overflow-x-auto">
+            <div className="min-w-[560px]">
+              <div className={`${GRID_COLS} border-b border-border/60`}>
+                <div className="py-2.5 pl-5 pr-3.5 text-xs font-bold text-muted-foreground">
+                  Account
+                </div>
+                <div className={headNum}>Sent</div>
+                <div className={headNum}>Bounces</div>
+                <div className={headNum}>Bounce rate</div>
+                <div className={`${headNum} pr-5`}>Replies</div>
+              </div>
               {[...domains.entries()].map(([domainName, d]) => (
                 <Fragment key={domainName}>
-                  <TableRow className="bg-muted/40">
-                    <TableCell className="text-[13px] font-medium">
-                      {domainName}
-                      {d.sent > 0 && d.bounces / d.sent > BOUNCE_ALARM && (
-                        <Badge className="ml-2 bg-destructive/10 text-[11px] text-destructive">
-                          bounce alarm
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-[13px] tabular-nums">{d.sent}</TableCell>
-                    <TableCell className="text-[13px] tabular-nums">
-                      {d.bounces}
-                    </TableCell>
-                    <TableCell className="text-[13px] tabular-nums">
-                      {pct(d.bounces, d.sent)}
-                    </TableCell>
-                    <TableCell className="text-[13px] tabular-nums">
-                      {d.replies}
-                    </TableCell>
-                  </TableRow>
+                  <div className={`${GRID_COLS} border-b border-border/40 bg-[#fbfbfe] dark:bg-muted/30`}>
+                    <div className="truncate py-[11px] pl-5 pr-3.5 text-[13.5px] font-extrabold">
+                      <span className="inline-flex items-center gap-2">
+                        {domainName}
+                        {d.sent > 0 && d.bounces / d.sent > BOUNCE_ALARM && (
+                          <span className="inline-flex rounded-full bg-destructive px-2.5 py-0.5 text-[10.5px] font-bold text-white">
+                            bounce alarm
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className={numCell}>{d.sent}</div>
+                    <div className={numCell}>{d.bounces}</div>
+                    <div className={numCell}>{pct(d.bounces, d.sent)}</div>
+                    <div className={`${numCell} pr-5`}>{d.replies}</div>
+                  </div>
                   {accountStats
                     .filter((acct) => acct.domain === domainName)
                     .map((acct) => (
-                      <TableRow key={acct.accountId}>
-                        <TableCell className="pl-8 text-[13px] text-muted-foreground">
+                      <div
+                        key={acct.accountId}
+                        className={`${GRID_COLS} border-b border-border/40 last:border-b-0`}
+                      >
+                        <div className="truncate py-[11px] pl-[38px] pr-3.5 text-[13px] font-semibold text-muted-foreground">
                           {acct.email}
-                        </TableCell>
-                        <TableCell className="text-[13px] tabular-nums">
-                          {acct.sent}
-                        </TableCell>
-                        <TableCell className="text-[13px] tabular-nums">
-                          {acct.bounces}
-                        </TableCell>
-                        <TableCell className="text-[13px] tabular-nums">
-                          {pct(acct.bounces, acct.sent)}
-                        </TableCell>
-                        <TableCell className="text-[13px] tabular-nums">
-                          {acct.replies}
-                        </TableCell>
-                      </TableRow>
+                        </div>
+                        <div className={numCell}>{acct.sent}</div>
+                        <div className={numCell}>{acct.bounces}</div>
+                        <div className={numCell}>{pct(acct.bounces, acct.sent)}</div>
+                        <div className={`${numCell} pr-5`}>{acct.replies}</div>
+                      </div>
                     ))}
                 </Fragment>
               ))}
               {domains.size === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="h-16 text-center text-[13px] text-muted-foreground"
-                  >
-                    No sending accounts connected.
-                  </TableCell>
-                </TableRow>
+                <div className="px-5 py-8 text-center text-[13px] font-semibold text-muted-foreground">
+                  No sending accounts connected.
+                </div>
               )}
-            </TableBody>
-          </Table>
+            </div>
+          </div>
         </div>
       </div>
     </PageShell>
