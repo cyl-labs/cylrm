@@ -19,8 +19,9 @@ Internal cold outreach console. The full product spec — schema, scheduler/poll
 - Phase 2 (accounts) complete: Gmail app-password connect (IMAP-verified), daily caps, sends-today/bounce display, sending window.
 - Phase 3 (manual single send) code complete: "Send email" action on Leads rows → `/api/send` → Gmail SMTP 587 STARTTLS, message row with `rfc_message_id`. Live-send verify still blocked on the DO SMTP unblock (ticket #12611746).
 - Phase 4 (campaigns + scheduler) code complete: campaign/step editor, bulk enroll with re-engagement guard, scheduler in `src/lib/scheduler.ts` (window, caps, most-remaining-cap assignment with random tie-break, pinned accounts, pacing, in-thread steps 2+). Verified end-to-end against a local SMTP sink; live verify blocked on the same DO ticket.
-- Phase 5 (IMAP poller) complete and live-verified against real Gmail inboxes: `src/lib/poller.ts` + `/api/cron/poller`, asymmetric classification, reply→deal auto-creation, `/api/messages/[id]/mark-auto-reply` reclassify. Test data from the verification (campaign 1 "Phase 4 live test", its enrollments/messages/deal) is still in the prod DB — clear before real campaigns.
-- Phases 6–7 pending (see BLUEPRINT.md "Build phases").
+- Phase 5 (IMAP poller) complete and live-verified against real Gmail inboxes: `src/lib/poller.ts` + `/api/cron/poller`, asymmetric classification, reply→deal auto-creation, `/api/messages/[id]/mark-auto-reply` reclassify. Test data from the verification (campaign 1 "Phase 4 live test", its enrollments/messages/deal, one unsubscribe row for cyllabsdigital@gmail.com) is still in the prod DB — clear before real campaigns.
+- Phase 6 (pipeline board) complete and verified on prod: tiles + range picker, kanban drag writes `deal_stage_change`, thread sheet with mark-auto-reply and unsubscribe. `message` gained nullable `subject`/`body_text`, written by all send/receive paths.
+- Phase 7 (stats) pending (see BLUEPRINT.md "Build phases").
 
 ## Stack
 

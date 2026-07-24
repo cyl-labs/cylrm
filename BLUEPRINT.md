@@ -138,6 +138,8 @@ Hard rule: a contact can be in at most one enrollment with status `active` or `o
 | kind | enum | sent \| reply \| auto_reply \| bounce |
 | gmail_message_id | text | Gmail's internal message id |
 | rfc_message_id | text | the actual `Message-ID` email header; needed to build `In-Reply-To`/`References` on later sends so the thread displays correctly in every email client, not just Gmail's own UI |
+| subject | text, nullable | rendered subject as sent / as received (phase 6, for the thread view) |
+| body_text | text, nullable | plain-text body as sent / as received (phase 6) |
 | sent_at | timestamp | |
 
 **deal**
