@@ -39,33 +39,60 @@ export type AccountRow = {
   bounceTotal: number;
 };
 
-function GoogleStatusBadge({ account }: { account: AccountRow }) {
-  if (!account.hasGoogle) {
-    return <Badge variant="secondary">Google: not connected</Badge>;
-  }
-  if (account.needsReconnect) {
-    return (
+// GCP "Testing" publishing status expires refresh tokens after ~7 days.
+const GOOGLE_TOKEN_LIFETIME_DAYS = 7;
+const RECONNECT_SOON_DAYS_LEFT = 2;
+
+function googleState(account: AccountRow): {
+  kind: "none" | "ok" | "soon" | "expired";
+  daysLeft: number | null;
+} {
+  if (!account.hasGoogle) return { kind: "none", daysLeft: null };
+  if (account.needsReconnect) return { kind: "expired", daysLeft: 0 };
+  if (!account.googleConnectedAt) return { kind: "ok", daysLeft: null };
+  const elapsed =
+    (Date.now() - new Date(account.googleConnectedAt).getTime()) / 86_400_000;
+  const daysLeft = Math.max(
+    0,
+    Math.ceil(GOOGLE_TOKEN_LIFETIME_DAYS - elapsed),
+  );
+  // The 7-day figure is approximate, so expiry here is a display state; the
+  // scheduler still attempts sends and lets a real auth failure confirm it.
+  if (elapsed >= GOOGLE_TOKEN_LIFETIME_DAYS) return { kind: "expired", daysLeft: 0 };
+  if (daysLeft <= RECONNECT_SOON_DAYS_LEFT) return { kind: "soon", daysLeft };
+  return { kind: "ok", daysLeft };
+}
+
+function GoogleStatus({ account }: { account: AccountRow }) {
+  const { kind, daysLeft } = googleState(account);
+  const reconnectHref = `/api/google/connect?email=${encodeURIComponent(account.email)}`;
+  const badge =
+    kind === "none" ? (
+      <Badge variant="secondary">Google: not connected</Badge>
+    ) : kind === "expired" ? (
       <Badge className="bg-destructive/10 text-destructive">
-        Google: reconnect needed
+        Google: expired — reconnect
+      </Badge>
+    ) : kind === "soon" ? (
+      <Badge className="bg-warning/10 text-warning">
+        Google: reconnect soon · ~{daysLeft}d left
+      </Badge>
+    ) : (
+      <Badge className="bg-success/10 text-success">
+        Google: connected{daysLeft !== null ? ` · ~${daysLeft}d left` : ""}
       </Badge>
     );
-  }
-  const days = account.googleConnectedAt
-    ? Math.floor(
-        (Date.now() - new Date(account.googleConnectedAt).getTime()) / 86_400_000,
-      )
-    : null;
-  // GCP "Testing" mode expires refresh tokens ~weekly — surface age so a
-  // looming re-auth is visible before sends start failing.
-  const aging = days !== null && days >= 6;
   return (
-    <Badge
-      className={
-        aging ? "bg-warning/10 text-warning" : "bg-success/10 text-success"
-      }
-    >
-      Google: connected{days !== null ? ` ${days}d ago` : ""}
-    </Badge>
+    <span className="inline-flex items-center gap-1.5">
+      {badge}
+      {(kind === "none" || kind === "soon" || kind === "expired") && (
+        <Button asChild variant="outline" size="sm" className="h-6 px-2 text-xs">
+          <a href={reconnectHref}>
+            {kind === "none" ? "Connect" : "Reconnect"}
+          </a>
+        </Button>
+      )}
+    </span>
   );
 }
 
@@ -257,7 +284,7 @@ export function AccountsView({ accounts }: { accounts: AccountRow[] }) {
                             ) : (
                               <Badge variant="secondary">Inactive</Badge>
                             )}
-                            <GoogleStatusBadge account={account} />
+                            <GoogleStatus account={account} />
                             {!account.hasAppPassword && (
                               <Badge variant="secondary">No IMAP</Badge>
                             )}
