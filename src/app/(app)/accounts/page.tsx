@@ -1,6 +1,8 @@
 import { asc, eq, sql } from "drizzle-orm";
+import { Plug } from "lucide-react";
 import { db } from "@/db";
 import { appSetting, domain, message, sendingAccount } from "@/db/schema";
+import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/page-shell";
 import { AccountsView } from "@/components/accounts/accounts-view";
 import { ConnectAccountDialog } from "@/components/accounts/connect-account-dialog";
@@ -15,7 +17,13 @@ async function getOrCreateSetting() {
   return created;
 }
 
-export default async function AccountsPage() {
+export default async function AccountsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ google_connected?: string; google_error?: string }>;
+}) {
+  const { google_connected: googleConnected, google_error: googleError } =
+    await searchParams;
   const setting = await getOrCreateSetting();
   const tz = setting.sendingTimezone;
 
@@ -28,6 +36,10 @@ export default async function AccountsPage() {
         dailyCap: sendingAccount.dailyCap,
         domainId: sendingAccount.domainId,
         domainName: domain.name,
+        hasGoogle: sql<boolean>`${sendingAccount.googleRefreshToken} is not null`,
+        needsReconnect: sendingAccount.needsReconnect,
+        googleConnectedAt: sendingAccount.googleConnectedAt,
+        hasAppPassword: sql<boolean>`${sendingAccount.appPassword} is not null`,
       })
       .from(sendingAccount)
       .innerJoin(domain, eq(sendingAccount.domainId, domain.id))
@@ -52,6 +64,7 @@ export default async function AccountsPage() {
     const s = statsByAccount.get(a.id);
     return {
       ...a,
+      googleConnectedAt: a.googleConnectedAt?.toISOString() ?? null,
       sentToday: s?.sentToday ?? 0,
       sentTotal: s?.sentTotal ?? 0,
       bounceTotal: s?.bounceTotal ?? 0,
@@ -61,8 +74,32 @@ export default async function AccountsPage() {
   return (
     <PageShell
       title="Accounts"
-      actions={<ConnectAccountDialog domains={domains} />}
+      actions={
+        <>
+          <Button asChild size="sm" variant="outline">
+            {/* Route handler flow — plain link, no client JS needed. */}
+            <a href="/api/google/connect">
+              <Plug data-icon="inline-start" />
+              Connect via Google
+            </a>
+          </Button>
+          <ConnectAccountDialog domains={domains} />
+        </>
+      }
     >
+      {(googleConnected || googleError) && (
+        <div
+          className={`mx-6 mt-4 rounded-lg border px-4 py-2.5 text-[13px] ${
+            googleError
+              ? "border-destructive/30 bg-destructive/5 text-destructive"
+              : "border-success/30 bg-success/5 text-success"
+          }`}
+        >
+          {googleError
+            ? `Google connect failed: ${googleError}`
+            : `Google connected for ${googleConnected}.`}
+        </div>
+      )}
       <div className="grid grid-cols-1 items-start gap-4 px-6 py-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <AccountsView accounts={rows} />
         <SendingWindowCard

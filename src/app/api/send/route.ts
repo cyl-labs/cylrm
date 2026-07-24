@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { contact, message, sendingAccount } from "@/db/schema";
 import { decryptSecret } from "@/lib/crypto";
-import { sendGmail, SmtpAuthError, SmtpBlockedError } from "@/lib/gmail";
+import { NeedsReconnectError, sendViaGmailApi } from "@/lib/google";
 import { getSession } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -49,7 +49,8 @@ export async function POST(request: Request) {
       .select({
         id: sendingAccount.id,
         email: sendingAccount.email,
-        appPassword: sendingAccount.appPassword,
+        googleRefreshToken: sendingAccount.googleRefreshToken,
+        needsReconnect: sendingAccount.needsReconnect,
         active: sendingAccount.active,
       })
       .from(sendingAccount)
@@ -67,17 +68,23 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (!account.appPassword) {
+  if (!account.googleRefreshToken) {
     return Response.json(
-      { error: `${account.email} has no stored app password.` },
+      { error: `${account.email} has no Google connection — use "Connect via Google" on the Accounts screen.` },
+      { status: 400 },
+    );
+  }
+  if (account.needsReconnect) {
+    return Response.json(
+      { error: `${account.email} needs a Google reconnect (authorization expired).` },
       { status: 400 },
     );
   }
 
   try {
-    const { rfcMessageId } = await sendGmail({
+    const { rfcMessageId, gmailMessageId } = await sendViaGmailApi({
       fromEmail: account.email,
-      appPassword: decryptSecret(account.appPassword),
+      refreshToken: decryptSecret(account.googleRefreshToken),
       to: recipient.email,
       subject,
       text,
@@ -89,9 +96,7 @@ export async function POST(request: Request) {
         accountId: account.id,
         direction: "out",
         kind: "sent",
-        // gmail_message_id is Gmail's internal id — not exposed over SMTP.
-        // The Phase 5 IMAP poller can backfill it via X-GM-MSGID if needed.
-        gmailMessageId: null,
+        gmailMessageId,
         rfcMessageId,
         subject,
         bodyText: text,
@@ -99,9 +104,16 @@ export async function POST(request: Request) {
       })
       .returning({ id: message.id });
 
-    return Response.json({ ok: true, messageRowId: row.id, rfcMessageId });
+    return Response.json({ ok: true, messageRowId: row.id, rfcMessageId, gmailMessageId });
   } catch (err) {
-    if (err instanceof SmtpBlockedError || err instanceof SmtpAuthError) {
+    if (err instanceof NeedsReconnectError) {
+      await db
+        .update(sendingAccount)
+        .set({ needsReconnect: true })
+        .where(eq(sendingAccount.id, account.id));
+      return Response.json({ error: err.message }, { status: 502 });
+    }
+    if (err instanceof Error) {
       return Response.json({ error: err.message }, { status: 502 });
     }
     throw err;

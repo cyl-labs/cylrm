@@ -1,7 +1,5 @@
 import { connect as tlsConnect } from "node:tls";
-import nodemailer from "nodemailer";
 
-export const GMAIL_SMTP = { host: "smtp.gmail.com", port: 587 } as const;
 export const GMAIL_IMAP = { host: "imap.gmail.com", port: 993 } as const;
 
 /** Gmail shows app passwords as "abcd efgh ijkl mnop" — strip the spaces. */
@@ -85,80 +83,3 @@ export async function verifyGmailAppPassword(
   });
 }
 
-export class SmtpBlockedError extends Error {
-  constructor(public code: string) {
-    super(
-      `Connection to ${GMAIL_SMTP.host}:${GMAIL_SMTP.port} failed (${code}) — outbound SMTP from this server is likely still blocked at the network level.`,
-    );
-    this.name = "SmtpBlockedError";
-  }
-}
-
-export class SmtpAuthError extends Error {
-  constructor(email: string) {
-    super(
-      `Gmail rejected the stored app password for ${email}. Reconnect the account with a fresh app password.`,
-    );
-    this.name = "SmtpAuthError";
-  }
-}
-
-export type SendGmailResult = {
-  /** The RFC 5322 Message-ID header, angle brackets included. */
-  rfcMessageId: string;
-};
-
-/**
- * Send one plain-text email through Gmail SMTP (587, STARTTLS).
- * Throws SmtpBlockedError on connection failure, SmtpAuthError on bad
- * credentials; other errors propagate as-is.
- *
- * GMAIL_SMTP_HOST/GMAIL_SMTP_PORT/GMAIL_SMTP_INSECURE env vars redirect
- * sends to a local sink for dev testing only — never set them in prod.
- */
-export async function sendGmail(params: {
-  fromEmail: string;
-  appPassword: string;
-  to: string;
-  subject: string;
-  text: string;
-  /** rfc_message_id of the message being replied to (angle brackets included). */
-  inReplyTo?: string;
-  /** rfc_message_ids of the whole thread, oldest first. */
-  references?: string[];
-}): Promise<SendGmailResult> {
-  const transporter = nodemailer.createTransport({
-    host: process.env.GMAIL_SMTP_HOST ?? GMAIL_SMTP.host,
-    port: Number(process.env.GMAIL_SMTP_PORT ?? GMAIL_SMTP.port),
-    secure: false,
-    requireTLS: process.env.GMAIL_SMTP_INSECURE !== "1",
-    auth: { user: params.fromEmail, pass: params.appPassword },
-    connectionTimeout: 15_000,
-    greetingTimeout: 15_000,
-  });
-  try {
-    const info = await transporter.sendMail({
-      from: params.fromEmail,
-      to: params.to,
-      subject: params.subject,
-      text: params.text,
-      inReplyTo: params.inReplyTo,
-      references: params.references,
-    });
-    return { rfcMessageId: info.messageId };
-  } catch (err) {
-    const code = (err as { code?: string }).code;
-    if (code === "EAUTH") throw new SmtpAuthError(params.fromEmail);
-    if (
-      code === "ETIMEDOUT" ||
-      code === "ESOCKET" ||
-      code === "ECONNECTION" ||
-      code === "EDNS"
-    ) {
-      throw new SmtpBlockedError(code);
-    }
-    throw err;
-  } finally {
-    transporter.close();
-  }
-}

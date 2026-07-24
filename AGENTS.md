@@ -29,7 +29,10 @@ Internal cold outreach console. The full product spec — schema, scheduler/poll
 - Next.js (App Router, `src/` dir), shadcn/ui + Tailwind v4, TanStack Table
 - Postgres via Drizzle ORM — schema in `src/db/schema.ts`, client in `src/db/index.ts`, config in `drizzle.config.ts`
 - Auth: single shared password (`APP_PASSWORD`) with iron-session cookie; middleware in `src/middleware.ts` guards everything except `/login` and `/api`
-- Gmail via per-account **app passwords** (no OAuth — deliberate, avoids Google's verification process): SMTP (`smtp.gmail.com:465`) planned for sending, IMAP (`imap.gmail.com:993`) for verification and polling. App passwords encrypted at rest with AES-256-GCM (`src/lib/crypto.ts`, key = `TOKEN_ENCRYPTION_KEY`). Credentials are verified with a live IMAP login at connect time (`src/lib/gmail.ts`).
+- Gmail, split by direction:
+  - **Outbound: Gmail API over HTTPS** (`src/lib/google.ts`, `messages.send`) with per-account OAuth refresh tokens — this dodges the droplet's SMTP port block. GCP project `outreach-crm-503406`, OAuth client "Outreach CRM Production", app in **Testing** status: refresh tokens expire ~every 7 days, so accounts flip to `needs_reconnect` on auth failure and show a "Reconnect Google" action on the Accounts screen. Connect flow: `/api/google/connect` → consent → `/api/google/callback`.
+  - **Inbound: IMAP** (`imap.gmail.com:993`) with per-account **app passwords** — verification at connect time and the Phase 5 poller. Do not remove the app-password flow; sending and polling use different credentials.
+  - Both secrets encrypted at rest with AES-256-GCM (`src/lib/crypto.ts`, key = `TOKEN_ENCRYPTION_KEY`).
 
 ## Local dev
 
@@ -40,7 +43,7 @@ npx drizzle-kit push        # apply schema (needs DATABASE_URL exported)
 npm run dev
 ```
 
-`.env.local` holds `DATABASE_URL`, `APP_PASSWORD`, `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_SECRET`.
+`.env.local` holds `DATABASE_URL`, `APP_PASSWORD`, `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`.
 
 ## Deployment (crm.cyllabs.com)
 
@@ -63,4 +66,4 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
 - Verify UI flows with a real browser (Playwright), not just curl — curl takes the no-JS path and misses client-side failures.
 - HTTP/3 is disabled in Caddy (`protocols h1 h2` global option) — h3 was flaky on this droplet; leave it off.
 - `sendGmail()` honors `GMAIL_SMTP_HOST` / `GMAIL_SMTP_PORT` / `GMAIL_SMTP_INSECURE=1` env overrides so dev tests can point at a local SMTP sink (see the smtp-server pattern in Phase 4's verification). Never set these in prod.
-- **DigitalOcean blocks ALL outbound SMTP from the droplet (ports 25, 465, 587); IMAP 993 is open.** That's why account verification uses IMAP, not SMTP. Actual sending is blocked on this; DO support ticket #12611746 is open to lift the block. Do not assume `smtp.gmail.com` is reachable from prod.
+- **DigitalOcean blocks ALL outbound SMTP from the droplet (ports 25, 465, 587); IMAP 993 is open.** That's why account verification/polling use IMAP and outbound switched to the Gmail API over HTTPS (DO ticket #12611746 became moot). Do not reintroduce SMTP sending. Do not assume `smtp.gmail.com` is reachable from prod.

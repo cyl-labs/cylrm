@@ -22,7 +22,7 @@ Cold outreach today runs through an ad hoc n8n workflow with no visibility into 
 2. Postgres database — all state: contacts, campaigns, enrollments, messages, deals.
 3. Scheduler (cron, every 5 minutes) — sends outbound steps, respects caps, pacing, and the sending window.
 4. Poller (cron, every 5 minutes) — reads each connected inbox via IMAP, classifies incoming mail, updates enrollments, creates deals.
-5. Gmail integration via per-account **app passwords** (not OAuth — deliberate, avoids Google's OAuth verification process and token-expiry churn): SMTP (`smtp.gmail.com:465`) for sending, IMAP (`imap.gmail.com:993`) for reading. Gmail's IMAP extensions (`X-GM-THRID`, `X-GM-MSGID`) still provide thread/message ids. App passwords stored encrypted. No third-party sending service.
+5. Gmail integration, split by direction (revised after DigitalOcean's network-level SMTP block made SMTP sending impossible from the droplet): **outbound via the Gmail API** (`messages.send` over HTTPS) using per-account OAuth refresh tokens — GCP app in "Testing" status, so tokens expire ~every 7 days and accounts need a one-click reconnect (surfaced as `needs_reconnect` on the Accounts screen); **inbound via IMAP** (`imap.gmail.com:993`) using per-account app passwords. Both credentials stored encrypted. No third-party sending service.
 
 ### Tech stack (already decided, not up for reconsideration)
 
@@ -30,7 +30,7 @@ Cold outreach today runs through an ad hoc n8n workflow with no visibility into 
 - Database: Postgres via Drizzle ORM
 - UI: shadcn/ui + Tailwind
 - Tables: TanStack Table
-- Email sending/reading: Gmail app passwords — SMTP for sending, IMAP for reading; stored encrypted
+- Email sending: Gmail API + OAuth refresh tokens; email reading: IMAP + app passwords; both stored encrypted
 - Scheduling: cron tick every 5 minutes (no queue system needed at this volume)
 - Reference only, do not fork: Twenty, Attio (UI patterns only)
 
@@ -49,7 +49,10 @@ Cold outreach today runs through an ad hoc n8n workflow with no visibility into 
 | id | pk | |
 | email | text | |
 | domain_id | fk → domain | |
-| app_password | text, encrypted | Gmail app password (AES-256-GCM at rest) |
+| app_password | text, encrypted | Gmail app password — IMAP polling only (AES-256-GCM at rest) |
+| google_refresh_token | text, encrypted, nullable | OAuth refresh token for Gmail API sending |
+| google_connected_at | timestamptz, nullable | when the Google connection was last authorized |
+| needs_reconnect | boolean | set true when a send hits an auth error (Testing-mode tokens expire ~7 days); cleared on reconnect |
 | daily_cap | int | manually edited for warmup ramp |
 | active | boolean | |
 | imap_uid_validity | bigint, nullable | IMAP poll cursor (phase 5): mailbox UIDVALIDITY the cursor belongs to |

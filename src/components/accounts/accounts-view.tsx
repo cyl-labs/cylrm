@@ -30,10 +30,44 @@ export type AccountRow = {
   dailyCap: number;
   domainId: number;
   domainName: string;
+  hasGoogle: boolean;
+  needsReconnect: boolean;
+  googleConnectedAt: string | null;
+  hasAppPassword: boolean;
   sentToday: number;
   sentTotal: number;
   bounceTotal: number;
 };
+
+function GoogleStatusBadge({ account }: { account: AccountRow }) {
+  if (!account.hasGoogle) {
+    return <Badge variant="secondary">Google: not connected</Badge>;
+  }
+  if (account.needsReconnect) {
+    return (
+      <Badge className="bg-destructive/10 text-destructive">
+        Google: reconnect needed
+      </Badge>
+    );
+  }
+  const days = account.googleConnectedAt
+    ? Math.floor(
+        (Date.now() - new Date(account.googleConnectedAt).getTime()) / 86_400_000,
+      )
+    : null;
+  // GCP "Testing" mode expires refresh tokens ~weekly — surface age so a
+  // looming re-auth is visible before sends start failing.
+  const aging = days !== null && days >= 6;
+  return (
+    <Badge
+      className={
+        aging ? "bg-warning/10 text-warning" : "bg-success/10 text-success"
+      }
+    >
+      Google: connected{days !== null ? ` ${days}d ago` : ""}
+    </Badge>
+  );
+}
 
 function bounceRateLabel(bounces: number, sent: number) {
   if (sent === 0) return "—";
@@ -126,6 +160,11 @@ function AccountMenu({ account }: { account: AccountRow }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <a href={`/api/google/connect?email=${encodeURIComponent(account.email)}`}>
+            {account.hasGoogle ? "Reconnect Google" : "Connect Google"}
+          </a>
+        </DropdownMenuItem>
         {account.active ? (
           <DropdownMenuItem onSelect={() => setActive(false)}>
             Deactivate — stop assigning sends
@@ -210,13 +249,19 @@ export function AccountsView({ accounts }: { accounts: AccountRow[] }) {
                           {account.email}
                         </TableCell>
                         <TableCell>
-                          {account.active ? (
-                            <Badge className="bg-success/10 text-success">
-                              Active
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">Inactive</Badge>
-                          )}
+                          <div className="flex flex-wrap gap-1.5">
+                            {account.active ? (
+                              <Badge className="bg-success/10 text-success">
+                                Active
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary">Inactive</Badge>
+                            )}
+                            <GoogleStatusBadge account={account} />
+                            {!account.hasAppPassword && (
+                              <Badge variant="secondary">No IMAP</Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-[13px]">
                           {account.sentToday}{" "}

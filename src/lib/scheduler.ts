@@ -10,7 +10,7 @@ import {
   sequenceStep,
 } from "@/db/schema";
 import { decryptSecret } from "@/lib/crypto";
-import { sendGmail, SmtpAuthError, SmtpBlockedError } from "@/lib/gmail";
+import { NeedsReconnectError, sendViaGmailApi } from "@/lib/google";
 import { renderTemplate, type MergeContact } from "@/lib/templates";
 
 export type TickAction = {
@@ -25,7 +25,6 @@ export type TickAction = {
     | "skipped_paced"
     | "skipped_no_subject"
     | "error_auth"
-    | "error_smtp_blocked"
     | "error";
   detail?: string;
 };
@@ -41,13 +40,13 @@ export type TickResult = {
   };
   due: number;
   actions: TickAction[];
-  aborted?: string;
 };
 
 type AccountState = {
   id: number;
   email: string;
-  appPassword: string | null;
+  googleRefreshToken: string | null;
+  needsReconnect: boolean;
   dailyCap: number;
   active: boolean;
   sentToday: number;
@@ -121,7 +120,8 @@ export async function runSchedulerTick(): Promise<TickResult> {
     .select({
       id: sendingAccount.id,
       email: sendingAccount.email,
-      appPassword: sendingAccount.appPassword,
+      googleRefreshToken: sendingAccount.googleRefreshToken,
+      needsReconnect: sendingAccount.needsReconnect,
       dailyCap: sendingAccount.dailyCap,
       active: sendingAccount.active,
     })
@@ -152,6 +152,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
       campaignId: enrollment.campaignId,
       currentStep: enrollment.currentStep,
       assignedAccountId: enrollment.assignedAccountId,
+      gmailThreadId: enrollment.gmailThreadId,
       email: contact.email,
       firstName: contact.firstName,
       lastName: contact.lastName,
@@ -211,10 +212,13 @@ export async function runSchedulerTick(): Promise<TickResult> {
     let account: AccountState | undefined;
     if (stepNum === 1) {
       const eligible = accounts.filter(
-        (a) => a.active && a.appPassword && remaining(a) > 0,
+        (a) =>
+          a.active && a.googleRefreshToken && !a.needsReconnect && remaining(a) > 0,
       );
       if (eligible.length === 0) {
-        act("skipped_no_account", { detail: "No active account with remaining cap." });
+        act("skipped_no_account", {
+          detail: "No active Google-connected account with remaining cap.",
+        });
         continue;
       }
       const ready = eligible.filter((a) => paceReady(a, minutesRemaining, now));
@@ -229,9 +233,15 @@ export async function runSchedulerTick(): Promise<TickResult> {
       account = e.assignedAccountId
         ? accountById.get(e.assignedAccountId)
         : undefined;
-      if (!account || !account.active || !account.appPassword) {
+      if (
+        !account ||
+        !account.active ||
+        !account.googleRefreshToken ||
+        account.needsReconnect
+      ) {
         act("skipped_no_account", {
-          detail: "Pinned account missing, deactivated, or credential-less.",
+          detail:
+            "Pinned account missing, deactivated, or its Google connection needs a reconnect.",
         });
         continue;
       }
@@ -290,9 +300,9 @@ export async function runSchedulerTick(): Promise<TickResult> {
     }
 
     try {
-      const { rfcMessageId } = await sendGmail({
+      const { rfcMessageId, gmailMessageId, threadId } = await sendViaGmailApi({
         fromEmail: account.email,
-        appPassword: decryptSecret(account.appPassword!),
+        refreshToken: decryptSecret(account.googleRefreshToken!),
         to: e.email,
         subject,
         text: bodyText,
@@ -309,6 +319,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
           stepNumber: stepNum,
           direction: "out",
           kind: "sent",
+          gmailMessageId,
           rfcMessageId,
           subject,
           bodyText,
@@ -321,6 +332,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
               ? {
                   currentStep: stepNum,
                   assignedAccountId: account!.id,
+                  gmailThreadId: e.gmailThreadId ?? threadId,
                   nextSendAt: new Date(
                     sentAt.getTime() +
                       nextStep.waitDaysAfterPrevious * 24 * 60 * 60 * 1000,
@@ -329,6 +341,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
               : {
                   currentStep: stepNum,
                   assignedAccountId: account!.id,
+                  gmailThreadId: e.gmailThreadId ?? threadId,
                   status: "completed",
                   nextSendAt: null,
                 },
@@ -339,17 +352,14 @@ export async function runSchedulerTick(): Promise<TickResult> {
       account.lastSentAt = sentAt;
       act("sent", { accountEmail: account.email });
     } catch (err) {
-      if (err instanceof SmtpBlockedError) {
-        act("error_smtp_blocked", {
-          accountEmail: account.email,
-          detail: err.message,
-        });
-        result.aborted =
-          "Outbound SMTP unreachable — remaining sends left for the next tick.";
-        break;
-      }
-      if (err instanceof SmtpAuthError) {
-        // Dead credential: park this account for the rest of the tick.
+      if (err instanceof NeedsReconnectError) {
+        // Expired/revoked refresh token (GCP Testing mode expires them
+        // ~weekly): flag the account for reconnect and park it this tick.
+        await db
+          .update(sendingAccount)
+          .set({ needsReconnect: true })
+          .where(eq(sendingAccount.id, account.id));
+        account.needsReconnect = true;
         account.sentToday = account.dailyCap;
         act("error_auth", { accountEmail: account.email, detail: err.message });
         continue;

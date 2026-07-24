@@ -65,7 +65,14 @@ export const sendingAccount = pgTable("sending_account", {
   domainId: integer("domain_id")
     .notNull()
     .references(() => domain.id),
+  // App password: retained for IMAP polling (phase 5) — inbound leg only.
   appPassword: text("app_password"),
+  // Outbound leg (Gmail API): OAuth refresh token, encrypted like
+  // app_password. In GCP "Testing" publishing status these expire ~7 days;
+  // needs_reconnect flips true when a send hits an auth error.
+  googleRefreshToken: text("google_refresh_token"),
+  googleConnectedAt: timestamp("google_connected_at", { withTimezone: true }),
+  needsReconnect: boolean("needs_reconnect").notNull().default(false),
   dailyCap: integer("daily_cap").notNull().default(0),
   active: boolean("active").notNull().default(true),
   // IMAP poll cursor (phase 5): last processed INBOX UID and the mailbox
