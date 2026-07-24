@@ -2,6 +2,7 @@ import { inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { contact, leadList } from "@/db/schema";
 import { csvToRecords, type CsvRecord } from "@/lib/csv";
+import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const form = await request.formData();
   const file = form.get("file");

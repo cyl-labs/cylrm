@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { domain, sendingAccount } from "@/db/schema";
 import { encryptSecret } from "@/lib/crypto";
 import { normalizeAppPassword, verifyGmailAppPassword } from "@/lib/gmail";
+import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (await isDemoMode()) return demoReadOnlyResponse();
 
   let body: {
     email?: unknown;

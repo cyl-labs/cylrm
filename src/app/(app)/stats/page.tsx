@@ -2,6 +2,14 @@ import { Fragment } from "react";
 import { asc, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, leadList } from "@/db/schema";
+import { isDemoMode } from "@/lib/demo";
+import {
+  demoAccountStats,
+  demoCampaigns,
+  demoEntityStats,
+  demoLeadLists,
+  demoStepStats,
+} from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { StatsControls } from "@/components/stats/stats-controls";
 import {
@@ -125,20 +133,28 @@ export default async function StatsPage({
   const since =
     days === null ? null : new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const [campaigns, leadLists, entityStats, stepStats, accountStats] =
-    await Promise.all([
-      db
-        .select({ id: campaign.id, name: campaign.name })
-        .from(campaign)
-        .orderBy(desc(campaign.createdAt)),
-      db
-        .select({ id: leadList.id, name: leadList.name, niche: leadList.niche })
-        .from(leadList)
-        .orderBy(asc(leadList.name)),
-      getEntityStats(by, since),
-      getStepStats(since),
-      getAccountStats(since),
-    ]);
+  const demo = await isDemoMode();
+  const [campaigns, leadLists, entityStats, stepStats, accountStats] = demo
+    ? [
+        demoCampaigns().map((c) => ({ id: c.id, name: c.name })),
+        demoLeadLists,
+        demoEntityStats(by),
+        demoStepStats,
+        demoAccountStats,
+      ]
+    : await Promise.all([
+        db
+          .select({ id: campaign.id, name: campaign.name })
+          .from(campaign)
+          .orderBy(desc(campaign.createdAt)),
+        db
+          .select({ id: leadList.id, name: leadList.name, niche: leadList.niche })
+          .from(leadList)
+          .orderBy(asc(leadList.name)),
+        getEntityStats(by, since),
+        getStepStats(since),
+        getAccountStats(since),
+      ]);
 
   const entities =
     by === "campaign"

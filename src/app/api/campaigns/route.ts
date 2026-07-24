@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { campaign, sequenceStep } from "@/db/schema";
+import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -7,6 +8,7 @@ export async function POST(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (await isDemoMode()) return demoReadOnlyResponse();
 
   let body: { name?: unknown };
   try {

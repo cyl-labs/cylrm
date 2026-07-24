@@ -1,6 +1,8 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, contact, deal, dealStageChange, message } from "@/db/schema";
+import { isDemoMode } from "@/lib/demo";
+import { demoDeals, demoPipelineTiles } from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { PipelineBoard } from "@/components/pipeline/pipeline-board";
 import { RangeSelect } from "@/components/pipeline/range-select";
@@ -21,6 +23,36 @@ export default async function PipelinePage({
 }) {
   const { range: rawRange } = await searchParams;
   const range = rawRange && rawRange in RANGES ? rawRange : "30";
+
+  if (await isDemoMode()) {
+    const t = demoPipelineTiles;
+    const demoTiles = [
+      { label: "Sent", value: t.sent },
+      { label: "Replies", value: t.replies },
+      { label: "Demos booked", value: t.demos },
+      { label: "Won", value: t.won },
+    ];
+    return (
+      <PageShell title="Pipeline" actions={<RangeSelect value={range} />}>
+        <div className="flex h-full flex-col gap-4 px-6 py-4">
+          <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4">
+            {demoTiles.map((tile) => (
+              <div key={tile.label} className="rounded-lg border px-4 py-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {tile.label}
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.02em]">
+                  {tile.value.toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+          <PipelineBoard deals={demoDeals()} />
+        </div>
+      </PageShell>
+    );
+  }
+
   const days = RANGES[range];
   const since =
     days === null ? null : new Date(Date.now() - days * 24 * 60 * 60 * 1000);

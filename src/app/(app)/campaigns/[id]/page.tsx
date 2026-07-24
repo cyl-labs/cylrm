@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, enrollment, sequenceStep } from "@/db/schema";
+import { isDemoMode } from "@/lib/demo";
+import { demoCampaignDetail } from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { CampaignStatusControl } from "@/components/campaigns/campaign-status-control";
 import { StepsEditor } from "@/components/campaigns/steps-editor";
@@ -26,6 +28,36 @@ export default async function CampaignDetailPage({
   const { id } = await params;
   const campaignId = Number(id);
   if (!Number.isInteger(campaignId)) notFound();
+
+  if (await isDemoMode()) {
+    const demo = demoCampaignDetail(campaignId);
+    if (!demo) notFound();
+    return (
+      <PageShell
+        title={demo.campaign.name}
+        actions={
+          <CampaignStatusControl
+            campaignId={demo.campaign.id}
+            status={demo.campaign.status}
+          />
+        }
+      >
+        <div className="mx-auto flex max-w-3xl flex-col gap-4 px-6 py-4">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
+            {ENROLLMENT_STATUSES.map((s) => (
+              <span key={s}>
+                <span className="font-medium text-foreground">
+                  {demo.countByStatus.get(s) ?? 0}
+                </span>{" "}
+                {s.replace("_", " ")}
+              </span>
+            ))}
+          </div>
+          <StepsEditor campaignId={demo.campaign.id} steps={demo.steps} />
+        </div>
+      </PageShell>
+    );
+  }
 
   const [camp] = await db
     .select()

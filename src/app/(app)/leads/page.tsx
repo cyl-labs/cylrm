@@ -1,6 +1,13 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, contact, leadList, sendingAccount } from "@/db/schema";
+import { isDemoMode } from "@/lib/demo";
+import {
+  demoAccounts,
+  demoCampaigns,
+  demoContacts,
+  demoLeadLists,
+} from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { ImportDialog } from "@/components/leads/import-dialog";
 import { LeadsTable } from "@/components/leads/leads-table";
@@ -8,6 +15,19 @@ import { LeadsTable } from "@/components/leads/leads-table";
 export const dynamic = "force-dynamic";
 
 export default async function LeadsPage() {
+  if (await isDemoMode()) {
+    return (
+      <PageShell title="Leads" actions={<ImportDialog />}>
+        <LeadsTable
+          contacts={demoContacts()}
+          leadLists={demoLeadLists}
+          accounts={demoAccounts().filter((a) => a.active)}
+          campaigns={demoCampaigns()}
+        />
+      </PageShell>
+    );
+  }
+
   const [contacts, leadLists, accounts, campaigns] = await Promise.all([
     db
       .select({

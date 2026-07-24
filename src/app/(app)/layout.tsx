@@ -1,21 +1,20 @@
-import Link from "next/link";
 import { LogOut } from "lucide-react";
+import { isDemoMode } from "@/lib/demo";
 import { NavLinks } from "@/components/nav-links";
 import { Toaster } from "@/components/ui/sonner";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const demo = await isDemoMode();
   return (
     <div className="flex min-h-svh">
       <aside className="sticky top-0 flex h-svh w-[232px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
-        <div className="px-4 pb-2 pt-[18px]">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-[13px] font-extrabold text-primary-foreground">
-              O
-            </span>
-            <span className="text-[15px] font-extrabold tracking-[-0.01em] text-foreground">
-              Outreach CRM
-            </span>
-          </Link>
+        <div className="px-3 pb-2 pt-[18px]">
+          <WorkspaceSwitcher demo={demo} />
         </div>
         <div className="px-[18px] pb-1.5 pt-3.5">
           <span className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground/80">

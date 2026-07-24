@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Outreach CRM",
+  title: "cylrm",
   description: "Internal cold outreach console",
 };
 

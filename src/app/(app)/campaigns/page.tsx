@@ -2,6 +2,8 @@ import Link from "next/link";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, enrollment, sequenceStep } from "@/db/schema";
+import { isDemoMode } from "@/lib/demo";
+import { demoCampaigns } from "@/lib/demo-data";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -24,7 +26,9 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export default async function CampaignsPage() {
-  const rows = await db
+  const rows = (await isDemoMode())
+    ? demoCampaigns()
+    : await db
     .select({
       id: campaign.id,
       name: campaign.name,
