@@ -15,7 +15,12 @@ export function PageShell({
           <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
         )}
       </header>
-      <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+      {/* `relative` makes this the containing block for absolutely positioned
+          descendants. Without it, `sr-only` spans (position: absolute, no
+          positioned ancestor) resolve against the viewport instead, escape the
+          overflow clip, and give tall pages a second window-level scrollbar
+          into empty space. */}
+      <div className="relative min-h-0 flex-1 overflow-auto">{children}</div>
     </div>
   );
 }

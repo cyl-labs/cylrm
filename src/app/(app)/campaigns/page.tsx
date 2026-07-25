@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { campaign, enrollment, sequenceStep } from "@/db/schema";
+import { campaign } from "@/db/schema";
 import { isDemoMode } from "@/lib/demo";
 import { demoCampaigns } from "@/lib/demo-data";
 import { Badge } from "@/components/ui/badge";
@@ -34,9 +34,13 @@ export default async function CampaignsPage() {
       name: campaign.name,
       status: campaign.status,
       createdAt: campaign.createdAt,
-      stepCount: sql<number>`(select count(*) from ${sequenceStep} where ${sequenceStep.campaignId} = ${campaign.id})::int`,
-      activeCount: sql<number>`(select count(*) from ${enrollment} where ${enrollment.campaignId} = ${campaign.id} and ${enrollment.status} = 'active')::int`,
-      totalCount: sql<number>`(select count(*) from ${enrollment} where ${enrollment.campaignId} = ${campaign.id})::int`,
+      // Identifiers are spelled out rather than interpolated: drizzle renders
+      // ${table.column} unqualified inside a select-field template, so
+      // ${campaign.id} became a bare "id" that resolved to the subquery's own
+      // table — every count came back wrong (0 enrolled on every campaign).
+      stepCount: sql<number>`(select count(*) from "sequence_step" where "sequence_step"."campaign_id" = "campaign"."id")::int`,
+      activeCount: sql<number>`(select count(*) from "enrollment" where "enrollment"."campaign_id" = "campaign"."id" and "enrollment"."status" = 'active')::int`,
+      totalCount: sql<number>`(select count(*) from "enrollment" where "enrollment"."campaign_id" = "campaign"."id")::int`,
     })
     .from(campaign)
     .orderBy(desc(campaign.createdAt));

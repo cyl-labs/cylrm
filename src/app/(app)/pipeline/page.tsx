@@ -99,7 +99,11 @@ export default async function PipelinePage({
         contactEmail: contact.email,
         company: contact.company,
         campaignName: campaign.name,
-        stageSince: sql<string>`coalesce((select max(${dealStageChange.changedAt}) from ${dealStageChange} where ${dealStageChange.dealId} = ${deal.id}), ${deal.createdAt})`,
+        // Identifiers spelled out on purpose — drizzle renders
+        // ${table.column} unqualified in a select-field template, so the
+        // correlation read "deal_id" = "id" against deal_stage_change's own
+        // columns and every card fell back to the deal's creation date.
+        stageSince: sql<string>`coalesce((select max("changed_at") from "deal_stage_change" where "deal_stage_change"."deal_id" = "deal"."id"), "deal"."created_at")`,
       })
       .from(deal)
       .innerJoin(contact, eq(deal.contactId, contact.id))
