@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageShell } from "@/components/page-shell";
+import { CampaignRowActions } from "@/components/campaigns/campaign-row-actions";
 import { NewCampaignDialog } from "@/components/campaigns/new-campaign-dialog";
 import { CAMPAIGN_STATUS_BADGE } from "@/components/campaigns/status";
 
@@ -78,7 +79,7 @@ export default async function CampaignsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {["Name", "Status", "Steps", "Enrolled (active / total)", "Created"].map(
+                  {["Name", "Status", "Steps", "Enrolled (active / total)", "Created", ""].map(
                     (label) => (
                       <TableHead
                         key={label}
@@ -110,6 +111,13 @@ export default async function CampaignsPage() {
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-[13px] text-muted-foreground">
                       {dateFormatter.format(c.createdAt)}
+                    </TableCell>
+                    <TableCell className="w-0">
+                      <CampaignRowActions
+                        campaignId={c.id}
+                        name={c.name}
+                        enrolledCount={c.totalCount}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
