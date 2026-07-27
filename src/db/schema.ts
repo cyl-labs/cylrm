@@ -103,6 +103,10 @@ export const appSetting = pgTable("app_setting", {
   sendingTimezone: text("sending_timezone")
     .notNull()
     .default("America/New_York"),
+  /** Skip Saturday and Sunday, judged in `sendingTimezone`. Cold outreach to
+   *  businesses is wasted at the weekend, and a follow-up landing 72h after a
+   *  Thursday send would otherwise arrive on Sunday. */
+  sendWeekdaysOnly: boolean("send_weekdays_only").notNull().default(true),
 });
 
 export const leadList = pgTable("lead_list", {

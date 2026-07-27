@@ -61,6 +61,7 @@ export const demoSetting = {
   sendingWindowStart: "09:00",
   sendingWindowEnd: "17:30",
   sendingTimezone: "Asia/Singapore",
+  sendWeekdaysOnly: true,
 };
 
 // totalCount is enrollments, not sent messages: each enrollment receives

@@ -187,6 +187,9 @@ Every stat on the Stats screen is a query over `enrollment` and `message` (plus 
 4. Steps 2+: always use the pinned `assigned_account_id`, sent as a reply in `gmail_thread_id`, with `In-Reply-To` and `References` headers built from the `rfc_message_id` of the prior message(s) in that enrollment.
 5. Pacing: enforce a minimum gap between consecutive sends on the same account. Target spacing = (minutes remaining in today's sending window) / (remaining daily cap for that account), recalculated as sends happen through the day, with randomness layered on top so it is not perfectly metronomic. If fewer contacts are due than the remaining cap, sends simply space out over what is available; the scheduler never compresses sends to catch up or stretches artificially to fill the window.
 6. Skip (do not fail) enrollments when no account has remaining cap; retry next tick.
+7. Weekends are skipped when `app_setting.send_weekdays_only` is on, judged in the sending timezone.
+8. `ooo_paused` enrollments whose `next_send_at` has passed are set back to `active` at the top of each tick — the 7-day push the poller applies is meaningless otherwise.
+9. Due work is ordered follow-ups first, then by due time. Both touches draw on the same daily cap, and a bulk enrollment stamps every row with an earlier due time than any follow-up (a follow-up is dated from its step-1 send), so ordering purely by due time lets a step-1 backlog starve follow-ups and stretch a 3-day gap into ten. A first touch slipping a day costs nothing; a follow-up landing late in a live thread does.
 
 ## Reply / bounce / auto-reply polling (runs every 5 minutes)
 

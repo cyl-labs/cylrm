@@ -264,9 +264,13 @@ export async function getCampaignPreflight(
   }
 
   // --- Window and pace ----------------------------------------------------
+  const [settingRow] = (await db.execute(sql`
+    select send_weekdays_only from app_setting limit 1
+  `)) as Row[];
+  const weekdaysOnly = settingRow?.send_weekdays_only === true;
   checks.push({
     level: "ok",
-    title: `Sends ${progress.window.start.slice(0, 5)}–${progress.window.end.slice(0, 5)} ${progress.window.timezone}`,
+    title: `Sends ${progress.window.start.slice(0, 5)}–${progress.window.end.slice(0, 5)} ${progress.window.timezone}${weekdaysOnly ? ", weekdays only" : ", every day including weekends"}`,
     detail: progress.window.open
       ? `The window is open now, with ${progress.window.minutesRemaining} minutes left today.`
       : "The window is closed right now — the first send goes out when it next opens.",
@@ -291,10 +295,10 @@ export async function getCampaignPreflight(
 
   if (progress.oooPaused > 0) {
     checks.push({
-      level: "warning",
+      level: "ok",
       title: `${progress.oooPaused} enrollment${progress.oooPaused === 1 ? "" : "s"} paused on out-of-office`,
       detail:
-        "Known gap: nothing moves these back to active, so they stay stalled and are excluded from the counts above.",
+        "These resume automatically once their 7 days are up, and the steps they still owe are included in the counts above.",
     });
   }
 

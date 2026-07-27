@@ -26,6 +26,7 @@ export async function PUT(request: Request) {
     sendingWindowStart?: unknown;
     sendingWindowEnd?: unknown;
     sendingTimezone?: unknown;
+    sendWeekdaysOnly?: unknown;
   };
   try {
     body = await request.json();
@@ -59,10 +60,23 @@ export async function PUT(request: Request) {
     );
   }
 
+  if (
+    body.sendWeekdaysOnly !== undefined &&
+    typeof body.sendWeekdaysOnly !== "boolean"
+  ) {
+    return Response.json(
+      { error: "sendWeekdaysOnly must be a boolean." },
+      { status: 400 },
+    );
+  }
+
   const values = {
     sendingWindowStart: start,
     sendingWindowEnd: end,
     sendingTimezone: timezone,
+    ...(body.sendWeekdaysOnly === undefined
+      ? {}
+      : { sendWeekdaysOnly: body.sendWeekdaysOnly }),
   };
 
   const [existing] = await db

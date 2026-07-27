@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -37,6 +38,7 @@ export type SendingWindow = {
   sendingWindowStart: string;
   sendingWindowEnd: string;
   sendingTimezone: string;
+  sendWeekdaysOnly: boolean;
 };
 
 function useNow() {
@@ -94,6 +96,9 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
   const [start, setStart] = React.useState(initial.sendingWindowStart);
   const [end, setEnd] = React.useState(initial.sendingWindowEnd);
   const [timezone, setTimezone] = React.useState(initial.sendingTimezone);
+  const [weekdaysOnly, setWeekdaysOnly] = React.useState(
+    initial.sendWeekdaysOnly,
+  );
   const [saving, setSaving] = React.useState(false);
 
   const timezones = COMMON_TIMEZONES.includes(initial.sendingTimezone)
@@ -103,7 +108,8 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
   const dirty =
     start !== initial.sendingWindowStart ||
     end !== initial.sendingWindowEnd ||
-    timezone !== initial.sendingTimezone;
+    timezone !== initial.sendingTimezone ||
+    weekdaysOnly !== initial.sendWeekdaysOnly;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -117,6 +123,7 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
           sendingWindowStart: start,
           sendingWindowEnd: end,
           sendingTimezone: timezone,
+          sendWeekdaysOnly: weekdaysOnly,
         }),
       });
       if (!res.ok) {
@@ -138,7 +145,8 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
       <CardHeader className="px-4">
         <CardTitle className="text-sm">Sending window</CardTitle>
         <CardDescription className="text-[13px]">
-          The scheduler only sends between these times, app-wide.
+          The scheduler only sends inside this window, app-wide. It also sets
+          when daily caps reset.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-4">
@@ -179,6 +187,23 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <Checkbox
+              id="weekdays-only"
+              checked={weekdaysOnly}
+              onCheckedChange={(v) => setWeekdaysOnly(v === true)}
+              className="mt-0.5"
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="weekdays-only" className="font-normal">
+                Weekdays only
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Skip Saturday and Sunday, judged in the timezone above. A
+                follow-up due 72h after a Thursday send waits until Monday.
+              </p>
+            </div>
           </div>
           <TimezoneClock selectedTz={timezone} />
           <Button type="submit" size="sm" disabled={!dirty || saving}>

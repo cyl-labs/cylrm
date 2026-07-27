@@ -54,16 +54,21 @@ const timeToMinutes = (t: string) => {
   return h * 60 + m;
 };
 
-function zoneMinutes(tz: string): number {
+function zoneNow(tz: string): { minutes: number; isWeekend: boolean } {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: tz,
     hour12: false,
     hour: "2-digit",
     minute: "2-digit",
+    weekday: "short",
   }).formatToParts(new Date());
   const get = (type: string) =>
     Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return (get("hour") % 24) * 60 + get("minute");
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+  return {
+    minutes: (get("hour") % 24) * 60 + get("minute"),
+    isWeekend: weekday === "Sat" || weekday === "Sun",
+  };
 }
 
 /**
@@ -89,8 +94,11 @@ export async function getCampaignProgress(
   const tz = setting.sendingTimezone;
   const startMin = timeToMinutes(setting.sendingWindowStart);
   const endMin = timeToMinutes(setting.sendingWindowEnd);
-  const nowMin = zoneMinutes(tz);
-  const open = nowMin >= startMin && nowMin < endMin;
+  const { minutes: nowMin, isWeekend } = zoneNow(tz);
+  const open =
+    !(setting.sendWeekdaysOnly && isWeekend) &&
+    nowMin >= startMin &&
+    nowMin < endMin;
   const minutesRemaining = open ? endMin - nowMin : 0;
   const windowMinutes = Math.max(endMin - startMin, 0);
   const ticksPerDay = Math.floor(windowMinutes / TICK_MINUTES);
@@ -109,14 +117,18 @@ export async function getCampaignProgress(
   const stepCount = n(campRow?.step_count);
   const fullSequenceDays = n(campRow?.full_sequence_days);
 
+  // Out-of-office pauses resume once their 7 days elapse, so the steps they
+  // still owe are real work the estimate has to include — they are simply
+  // deferred, not cancelled.
+  const inPlay = sql`e.status in ('active', 'ooo_paused')`;
   const [counts] = (await db.execute(sql`
     select
-      count(*) filter (where e.status = 'active') as active,
-      count(*) filter (where e.status = 'active' and e.current_step = 0) as not_started,
+      count(*) filter (where ${inPlay}) as active,
+      count(*) filter (where ${inPlay} and e.current_step = 0) as not_started,
       count(*) filter (where e.status = 'active' and e.next_send_at <= now()) as due_now,
       count(*) filter (where e.status = 'ooo_paused') as ooo_paused,
       coalesce(sum(greatest(${stepCount} - e.current_step, 0))
-        filter (where e.status = 'active'), 0) as remaining
+        filter (where ${inPlay}), 0) as remaining
     from enrollment e where e.campaign_id = ${campaignId}
   `)) as Row[];
 
@@ -159,7 +171,7 @@ export async function getCampaignProgress(
     join campaign c on c.id = e.campaign_id and c.status = 'active'
     join (select campaign_id, count(*) as n from sequence_step group by campaign_id) sc
       on sc.campaign_id = e.campaign_id
-    where e.status = 'active'
+    where ${inPlay}
   `)) as Row[];
 
   // Longest sequence tail already in flight: time until this enrollment's
@@ -196,10 +208,18 @@ export async function getCampaignProgress(
 
   let etaDays: number | null = null;
   if (remaining > 0 && blockedReason === null && capacityPerDay > 0) {
-    const capacityDays = Math.ceil(globalRemaining / capacityPerDay);
+    // Capacity is spent per *sending* day, so with weekends off, 5 sending
+    // days cost 7 on the calendar. The schedule bound is already in calendar
+    // days (wait days elapse over a weekend), so only the capacity side is
+    // converted.
+    const calendarPerSendingDay = setting.sendWeekdaysOnly ? 7 / 5 : 1;
+    const toCalendar = (sendingDays: number) =>
+      Math.ceil(sendingDays * calendarPerSendingDay);
+
+    const capacityDays = toCalendar(globalRemaining / capacityPerDay);
     // The last contact to receive a first touch still owes the full follow-up
     // sequence after that, so a step-1 backlog stretches the tail.
-    const step1Days = Math.ceil(globalNotStarted / capacityPerDay);
+    const step1Days = toCalendar(globalNotStarted / capacityPerDay);
     const tailDays = notStarted > 0 ? step1Days + fullSequenceDays : 0;
     etaDays = Math.max(capacityDays, tailDays, Math.ceil(n(inFlight?.days)));
   }

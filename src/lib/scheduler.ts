@@ -40,6 +40,8 @@ export type TickResult = {
     minutesRemaining: number;
   };
   due: number;
+  /** Out-of-office pauses whose 7 days elapsed and were put back in play. */
+  resumedFromOoo: number;
   actions: TickAction[];
 };
 
@@ -54,16 +56,23 @@ type AccountState = {
   lastSentAt: Date | null;
 };
 
-function zoneNow(tz: string): { minutes: number } {
+function zoneNow(tz: string): { minutes: number; isWeekend: boolean } {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: tz,
     hour12: false,
     hour: "2-digit",
     minute: "2-digit",
+    weekday: "short",
   }).formatToParts(new Date());
   const get = (type: string) =>
     Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return { minutes: (get("hour") % 24) * 60 + get("minute") };
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+  return {
+    minutes: (get("hour") % 24) * 60 + get("minute"),
+    // Judged in the sending timezone, not the server's — a Sunday in Sydney
+    // is still Saturday in New York.
+    isWeekend: weekday === "Sat" || weekday === "Sun",
+  };
 }
 
 function timeToMinutes(t: string): number {
@@ -149,8 +158,9 @@ export async function runSchedulerTick(): Promise<TickResult> {
   const tz = setting.sendingTimezone;
   const startMin = timeToMinutes(setting.sendingWindowStart);
   const endMin = timeToMinutes(setting.sendingWindowEnd);
-  const { minutes: nowMin } = zoneNow(tz);
-  const open = nowMin >= startMin && nowMin < endMin;
+  const { minutes: nowMin, isWeekend } = zoneNow(tz);
+  const blockedByWeekend = setting.sendWeekdaysOnly && isWeekend;
+  const open = !blockedByWeekend && nowMin >= startMin && nowMin < endMin;
   const minutesRemaining = Math.max(endMin - nowMin, 1);
 
   const result: TickResult = {
@@ -163,9 +173,27 @@ export async function runSchedulerTick(): Promise<TickResult> {
       minutesRemaining: open ? minutesRemaining : 0,
     },
     due: 0,
+    resumedFromOoo: 0,
     actions: [],
   };
   if (!open) return result;
+
+  // Resume out-of-office pauses whose week is up. The poller parks these with
+  // status 'ooo_paused' and next_send_at pushed out 7 days, but the due query
+  // below only selects 'active' — so without this they sit forever, never
+  // getting their remaining steps and (because the enroll guard treats
+  // ooo_paused as live) never becoming enrollable in another campaign either.
+  const resumed = await db
+    .update(enrollment)
+    .set({ status: "active" })
+    .where(
+      and(
+        eq(enrollment.status, "ooo_paused"),
+        lte(enrollment.nextSendAt, now),
+      ),
+    )
+    .returning({ id: enrollment.id });
+  result.resumedFromOoo = resumed.length;
 
   // Per-account send state for today, in the sending timezone.
   const accountRows = await db
@@ -222,7 +250,19 @@ export async function runSchedulerTick(): Promise<TickResult> {
         lte(enrollment.nextSendAt, now),
       ),
     )
-    .orderBy(asc(enrollment.nextSendAt), asc(enrollment.id));
+    // Follow-ups first. Both touches draw on the same daily cap, and a bulk
+    // enrollment stamps thousands of rows with the same early next_send_at —
+    // earlier than any follow-up's, since a follow-up is dated from its step-1
+    // send. Ordering purely by due time therefore lets a step-1 backlog starve
+    // follow-ups until it drains, silently stretching a 3-day gap to ten. A
+    // follow-up is time-critical because it lands in a live thread; a first
+    // touch slipping a day costs nothing. (`current_step = 0` is false for
+    // follow-ups, and false sorts first.)
+    .orderBy(
+      asc(sql`${enrollment.currentStep} = 0`),
+      asc(enrollment.nextSendAt),
+      asc(enrollment.id),
+    );
   result.due = due.length;
   if (due.length === 0) return result;
 
