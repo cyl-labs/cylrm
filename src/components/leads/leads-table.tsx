@@ -43,25 +43,9 @@ export type ContactRow = {
   title: string | null;
   leadListId: number;
   leadListName: string;
-  neverbounceResult: "valid" | "invalid" | "accept_all" | "unknown";
   duplicateOfContactId: number | null;
   importedAt: string;
 };
-
-const NEVERBOUNCE_OPTIONS = [
-  { value: "valid", label: "Valid" },
-  { value: "invalid", label: "Invalid" },
-  { value: "accept_all", label: "Accept-all" },
-  { value: "unknown", label: "Unknown" },
-] as const;
-
-const NEVERBOUNCE_BADGE_CLASS: Record<ContactRow["neverbounceResult"], string> =
-  {
-    valid: "bg-success/10 text-success",
-    invalid: "bg-destructive/10 text-destructive",
-    accept_all: "bg-warning/10 text-warning",
-    unknown: "bg-secondary text-secondary-foreground",
-  };
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -116,15 +100,6 @@ const columns: ColumnDef<ContactRow>[] = [
     ),
   },
   {
-    accessorKey: "neverbounceResult",
-    header: "NeverBounce",
-    cell: ({ getValue }) => {
-      const value = getValue<ContactRow["neverbounceResult"]>();
-      const label = NEVERBOUNCE_OPTIONS.find((o) => o.value === value)?.label;
-      return <Badge className={NEVERBOUNCE_BADGE_CLASS[value]}>{label}</Badge>;
-    },
-  },
-  {
     accessorKey: "importedAt",
     header: "Imported",
     cell: ({ getValue }) => (
@@ -152,7 +127,6 @@ export function LeadsTable({
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
   const [enrollOpen, setEnrollOpen] = React.useState(false);
   const [listFilter, setListFilter] = React.useState("all");
-  const [nbFilter, setNbFilter] = React.useState("all");
   const [companyFilter, setCompanyFilter] = React.useState("");
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
@@ -164,16 +138,15 @@ export function LeadsTable({
     return contacts.filter((c) => {
       if (listFilter !== "all" && c.leadListId !== Number(listFilter))
         return false;
-      if (nbFilter !== "all" && c.neverbounceResult !== nbFilter) return false;
       if (company !== "" && !(c.company ?? "").toLowerCase().includes(company))
         return false;
       return true;
     });
-  }, [contacts, listFilter, nbFilter, companyFilter]);
+  }, [contacts, listFilter, companyFilter]);
 
   React.useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
-  }, [listFilter, nbFilter, companyFilter]);
+  }, [listFilter, companyFilter]);
 
   const allColumns = React.useMemo<ColumnDef<ContactRow>[]>(
     () => [
@@ -263,19 +236,6 @@ export function LeadsTable({
             {leadLists.map((list) => (
               <SelectItem key={list.id} value={String(list.id)}>
                 {list.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={nbFilter} onValueChange={setNbFilter}>
-          <SelectTrigger size="sm" className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All NeverBounce</SelectItem>
-            {NEVERBOUNCE_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
               </SelectItem>
             ))}
           </SelectContent>

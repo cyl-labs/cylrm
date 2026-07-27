@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 
 type Guarded = { contactId: number; email: string; reason: string };
-type Skipped = { duplicates: number; acceptAll: number; unsubscribed: number };
+type Skipped = { duplicates: number; unsubscribed: number };
 
 function summarize(data: {
   enrolled: number;
@@ -31,7 +31,6 @@ function summarize(data: {
 }) {
   const parts = [`${data.enrolled} enrolled`];
   if (data.skipped.duplicates) parts.push(`${data.skipped.duplicates} duplicates skipped`);
-  if (data.skipped.acceptAll) parts.push(`${data.skipped.acceptAll} accept-all skipped`);
   if (data.skipped.unsubscribed) parts.push(`${data.skipped.unsubscribed} unsubscribed skipped`);
   if (data.alreadyEnrolled.length)
     parts.push(`${data.alreadyEnrolled.length} already in an active sequence`);
@@ -142,8 +141,8 @@ export function EnrollDialog({
               <DialogTitle>Enroll in campaign</DialogTitle>
               <DialogDescription>
                 {contactIds.length} selected contact
-                {contactIds.length === 1 ? "" : "s"}. Duplicates, accept-all,
-                and unsubscribed emails are skipped automatically.
+                {contactIds.length === 1 ? "" : "s"}. Duplicates and
+                unsubscribed emails are skipped automatically.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2 py-4">

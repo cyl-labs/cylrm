@@ -12,7 +12,6 @@ const FIRST = ["James", "Mary", "Wei", "Aisha", "Carlos", "Mei", "David", "Priya
 const LAST = ["Tan", "Ivanova", "Sato", "Wong", "Novak", "Smith", "Ong", "Patel", "Chen", "Lim", "Koh", "Rahman", "Lee", "Goh", "Teo", "Ismail", "Petrova", "Ng", "Aziz", "Chua"];
 const COMPANIES = ["Acme Steel", "MetalCraft Pte Ltd", "SteelFlow Asia", "Alloy Partners", "Ironworks SG", "Precision Metals", "Forge Dynamics", "BuildRight Fabrication", "TitanWorks", "Smith & Sons", "Jurong Precision", "Straits Logistics", "Harbour Freight MY", "Meridian Brokers", "Northport Cargo"];
 const TITLES = ["Owner", "General Manager", "Operations Manager", "Sales Director", "Plant Manager", "Managing Director", "Procurement Lead"];
-const NB: ("valid" | "invalid" | "accept_all" | "unknown")[] = ["valid", "valid", "valid", "valid", "valid", "valid", "accept_all", "unknown", "valid", "invalid"];
 
 export const demoLeadLists = [
   { id: 9001, name: "Steel fabricators SG — Jul", niche: "steel fabricators" },
@@ -36,7 +35,6 @@ export function demoContacts() {
       title: TITLES[(i * 5) % TITLES.length],
       leadListId: list.id,
       leadListName: list.name,
-      neverbounceResult: NB[i % NB.length],
       duplicateOfContactId: i % 11 === 10 ? 9100 + (i % 9) : null,
       importedAt: ago(3 + (i % 3) * 22).toISOString(),
     });

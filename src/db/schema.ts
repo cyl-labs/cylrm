@@ -13,13 +13,6 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
-export const neverbounceResultEnum = pgEnum("neverbounce_result", [
-  "valid",
-  "invalid",
-  "accept_all",
-  "unknown",
-]);
-
 export const campaignStatusEnum = pgEnum("campaign_status", [
   "draft",
   "active",
@@ -110,9 +103,6 @@ export const contact = pgTable("contact", {
     .notNull()
     .references(() => leadList.id),
   apolloFields: jsonb("apollo_fields"),
-  neverbounceResult: neverbounceResultEnum("neverbounce_result")
-    .notNull()
-    .default("unknown"),
   duplicateOfContactId: integer("duplicate_of_contact_id").references(
     (): AnyPgColumn => contact.id,
   ),

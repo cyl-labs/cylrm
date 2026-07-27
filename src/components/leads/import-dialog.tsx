@@ -20,7 +20,6 @@ type ImportResult = {
   imported: number;
   duplicates: number;
   skippedNoEmail: number;
-  neverbounceColumn: string | null;
 };
 
 function nameFromFilename(filename: string) {
@@ -119,12 +118,6 @@ export function ImportDialog() {
                   {result.skippedNoEmail} rows skipped (no email address)
                 </p>
               )}
-              {!result.neverbounceColumn && (
-                <p className="text-warning">
-                  No NeverBounce column detected — all rows marked
-                  &ldquo;unknown&rdquo;.
-                </p>
-              )}
             </div>
             <DialogFooter>
               <Button onClick={() => handleOpenChange(false)}>Done</Button>
@@ -135,8 +128,7 @@ export function ImportDialog() {
             <DialogHeader>
               <DialogTitle>Import CSV</DialogTitle>
               <DialogDescription>
-                Apollo export with a NeverBounce result column. Each import
-                creates a new lead list.
+                Apollo CSV export. Each import creates a new lead list.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">

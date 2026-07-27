@@ -83,8 +83,7 @@ Cold outreach today runs through an ad hoc n8n workflow with no visibility into 
 | company | text | |
 | title | text | |
 | lead_list_id | fk → lead_list | |
-| apollo_fields | jsonb | raw Apollo columns |
-| neverbounce_result | enum | valid \| invalid \| accept_all \| unknown |
+| apollo_fields | jsonb | raw Apollo columns, including Apollo's own `Email Status` / catch-all fields |
 | duplicate_of_contact_id | fk → contact, nullable | set at import time if this email already exists on another contact row; surfaced in the Leads table and excluded from bulk enroll by default |
 | imported_at | timestamp | |
 
@@ -173,7 +172,6 @@ Every stat on the Stats screen is a query over `enrollment` and `message` (plus 
 4. Steps 2+: always use the pinned `assigned_account_id`, sent as a reply in `gmail_thread_id`, with `In-Reply-To` and `References` headers built from the `rfc_message_id` of the prior message(s) in that enrollment.
 5. Pacing: enforce a minimum gap between consecutive sends on the same account. Target spacing = (minutes remaining in today's sending window) / (remaining daily cap for that account), recalculated as sends happen through the day, with randomness layered on top so it is not perfectly metronomic. If fewer contacts are due than the remaining cap, sends simply space out over what is available; the scheduler never compresses sends to catch up or stretches artificially to fill the window.
 6. Skip (do not fail) enrollments when no account has remaining cap; retry next tick.
-7. Contacts with `neverbounce_result = accept_all` are excluded from enrollment by default (toggle to include later).
 
 ## Reply / bounce / auto-reply polling (runs every 5 minutes)
 
@@ -207,7 +205,7 @@ Campaign comparison view: two campaigns side by side on the same date range, piv
 
 ## Screens
 
-1. **Leads** — TanStack table. CSV import (Apollo columns + NeverBounce column) creates a named lead list per import. Filter by lead list, NeverBounce result, company, enrolled-or-not. Duplicate contacts are flagged and excluded from bulk enroll by default. Multi-select → "enroll in campaign", which runs the re-engagement guard and blocks with a confirmation step if any selected contact already has a non-terminal enrollment or any deal elsewhere.
+1. **Leads** — TanStack table. CSV import (Apollo columns) creates a named lead list per import. Filter by lead list, company, enrolled-or-not. Duplicate contacts are flagged and excluded from bulk enroll by default. Multi-select → "enroll in campaign", which runs the re-engagement guard and blocks with a confirmation step if any selected contact already has a non-terminal enrollment or any deal elsewhere.
 2. **Campaigns** — list view; detail view is the step editor (subject, body, wait days), enrolled count by status, activate/pause. A visible "unsubscribe" action is reachable from a reply thread view.
 3. **Accounts** — connect Gmail via app password (verified with a live IMAP login at connect time), per-account daily cap editor, sends today vs cap, bounce rate, rolled up per domain. App-level sending window (start time, end time, timezone) is configured here or in a settings panel.
 4. **Pipeline** — summary tiles (sent, replies, demos, won, over a selectable date range), kanban below. Only contacts who replied ever appear; cold leads never show up on the board. Stages: Replied, Interested, Demo booked, Won, Lost. Card shows contact, company, campaign badge, days in stage; click opens the reply thread, with an unsubscribe action and a "mark as auto-reply" action available there. Dragging a card writes a `deal_stage_change` row and doubles as reply classification.
@@ -219,7 +217,7 @@ Campaign comparison view: two campaigns side by side on the same date range, piv
 Verify: log in on the real deployed URL.
 
 **Phase 1 — Contacts + CSV import.** Import creates a lead list, tags duplicates against every existing contact in the system.
-Verify: import a real Apollo/NeverBounce export, filter 1k rows fast, confirm duplicate flagging works against a re-imported row.
+Verify: import a real Apollo export, filter 1k rows fast, confirm duplicate flagging works against a re-imported row.
 
 **Phase 2 — Accounts.** App-password connect (IMAP-verified), caps, sending window.
 Verify: both test accounts connected with real app passwords; a bad password is rejected with a clear error at connect time; passwords stored encrypted.

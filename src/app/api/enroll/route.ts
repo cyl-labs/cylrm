@@ -6,10 +6,9 @@ import { getSession } from "@/lib/session";
 /**
  * Bulk enroll contacts into a campaign.
  *
- * Always skipped (no override): duplicate-flagged rows, neverbounce
- * accept_all, unsubscribed emails, and emails with a non-terminal
- * (active/ooo_paused) enrollment anywhere — the one-active-enrollment
- * rule is hard.
+ * Always skipped (no override): duplicate-flagged rows, unsubscribed emails,
+ * and emails with a non-terminal (active/ooo_paused) enrollment anywhere —
+ * the one-active-enrollment rule is hard.
  *
  * Blocked pending confirmation (409 → resend with confirmGuarded: true):
  * emails that have a deal in any stage on any duplicate row.
@@ -60,20 +59,15 @@ export async function POST(request: Request) {
     .select({
       id: contact.id,
       email: contact.email,
-      neverbounceResult: contact.neverbounceResult,
       duplicateOfContactId: contact.duplicateOfContactId,
     })
     .from(contact)
     .where(inArray(contact.id, contactIds));
 
-  const skipped = { duplicates: 0, acceptAll: 0, unsubscribed: 0 };
+  const skipped = { duplicates: 0, unsubscribed: 0 };
   let candidates = selected.filter((c) => {
     if (c.duplicateOfContactId !== null) {
       skipped.duplicates++;
-      return false;
-    }
-    if (c.neverbounceResult === "accept_all") {
-      skipped.acceptAll++;
       return false;
     }
     return true;

@@ -39,7 +39,6 @@ export default async function LeadsPage() {
         title: contact.title,
         leadListId: contact.leadListId,
         leadListName: leadList.name,
-        neverbounceResult: contact.neverbounceResult,
         duplicateOfContactId: contact.duplicateOfContactId,
         importedAt: contact.importedAt,
       })

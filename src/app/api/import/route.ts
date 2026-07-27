@@ -8,15 +8,16 @@ import { getSession } from "@/lib/session";
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 500;
 
+// "name" is last for firstName: some Apollo exports label the first-name
+// column "Name" rather than "First Name". Last name always has its own column,
+// so a bare "Name" here is the first name, not a full name.
 const COLUMN_ALIASES = {
   email: ["email", "email address"],
-  firstName: ["first name"],
+  firstName: ["first name", "name"],
   lastName: ["last name"],
   company: ["company", "company name", "company name for emails"],
   title: ["title", "job title"],
 } as const;
-
-type NeverbounceResult = "valid" | "invalid" | "accept_all" | "unknown";
 
 function findColumn(headers: string[], aliases: readonly string[]) {
   for (const alias of aliases) {
@@ -24,19 +25,6 @@ function findColumn(headers: string[], aliases: readonly string[]) {
     if (match !== undefined) return match;
   }
   return undefined;
-}
-
-function findNeverbounceColumn(headers: string[]) {
-  return headers.find((h) => h.toLowerCase().includes("neverbounce"));
-}
-
-function mapNeverbounce(raw: string | undefined): NeverbounceResult {
-  const value = (raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (value === "valid") return "valid";
-  if (value === "invalid") return "invalid";
-  if (value === "catchall" || value === "catch_all" || value === "accept_all")
-    return "accept_all";
-  return "unknown";
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -85,7 +73,6 @@ export async function POST(request: Request) {
   const lastNameCol = findColumn(headers, COLUMN_ALIASES.lastName);
   const companyCol = findColumn(headers, COLUMN_ALIASES.company);
   const titleCol = findColumn(headers, COLUMN_ALIASES.title);
-  const neverbounceCol = findNeverbounceColumn(headers);
 
   type ParsedRow = {
     email: string;
@@ -94,7 +81,6 @@ export async function POST(request: Request) {
     lastName: string | null;
     company: string | null;
     title: string | null;
-    neverbounceResult: NeverbounceResult;
     raw: CsvRecord;
   };
 
@@ -113,7 +99,6 @@ export async function POST(request: Request) {
       lastName: (lastNameCol && rec[lastNameCol]) || null,
       company: (companyCol && rec[companyCol]) || null,
       title: (titleCol && rec[titleCol]) || null,
-      neverbounceResult: mapNeverbounce(neverbounceCol ? rec[neverbounceCol] : undefined),
       raw: rec,
     });
   }
@@ -184,7 +169,6 @@ export async function POST(request: Request) {
             title: r.title,
             leadListId: list.id,
             apolloFields: r.raw,
-            neverbounceResult: r.neverbounceResult,
           })),
         )
         .returning({ id: contact.id, email: contact.email });
@@ -204,7 +188,6 @@ export async function POST(request: Request) {
           title: r.title,
           leadListId: list.id,
           apolloFields: r.raw,
-          neverbounceResult: r.neverbounceResult,
           duplicateOfContactId: canonicalByEmail.get(r.emailKey),
         })),
       );
@@ -215,7 +198,6 @@ export async function POST(request: Request) {
       imported: rows.length,
       duplicates: duplicateRows.length,
       skippedNoEmail,
-      neverbounceColumn: neverbounceCol ?? null,
     };
   });
 
