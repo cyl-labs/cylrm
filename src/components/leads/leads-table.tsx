@@ -144,22 +144,30 @@ export function LeadsTable({
     });
   }, [contacts, listFilter, companyFilter]);
 
+  // Changing a filter also drops the selection. Selection is keyed by row id
+  // and survives filtering, so with whole-list select it was possible to
+  // filter to list A, select all, switch to list B and enrol A's contacts
+  // while looking at B's.
   React.useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
+    setRowSelection({});
   }, [listFilter, companyFilter]);
 
   const allColumns = React.useMemo<ColumnDef<ContactRow>[]>(
     () => [
       {
         id: "select",
+        // Selects every row matching the current filters, not just the 50 on
+        // screen — enrolling a whole lead list is the common case, and doing
+        // it a page at a time was the norm rather than the exception.
         header: ({ table }) => (
           <Checkbox
             checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && "indeterminate")
+              table.getIsAllRowsSelected() ||
+              (table.getIsSomeRowsSelected() && "indeterminate")
             }
-            onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-            aria-label="Select all on page"
+            onCheckedChange={(v) => table.toggleAllRowsSelected(!!v)}
+            aria-label="Select all matching contacts"
           />
         ),
         cell: ({ row }) => (
@@ -247,10 +255,19 @@ export function LeadsTable({
           className="h-8 w-56 text-[13px]"
         />
         {selectedIds.length > 0 && (
-          <Button size="sm" onClick={() => setEnrollOpen(true)}>
-            <UserPlus data-icon="inline-start" />
-            Enroll {selectedIds.length} in campaign
-          </Button>
+          <>
+            <Button size="sm" onClick={() => setEnrollOpen(true)}>
+              <UserPlus data-icon="inline-start" />
+              Enroll {selectedIds.length.toLocaleString()} in campaign
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRowSelection({})}
+            >
+              Clear
+            </Button>
+          </>
         )}
         <span className="ml-auto text-[13px] text-muted-foreground">
           {filtered.length === contacts.length

@@ -1,4 +1,4 @@
-import { inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { contact, leadList } from "@/db/schema";
 import { csvToRecords, type CsvRecord } from "@/lib/csv";
@@ -44,6 +44,13 @@ export async function POST(request: Request) {
   const file = form.get("file");
   const name = form.get("name");
   const niche = form.get("niche");
+  // Appending to an existing list is how a niche gets topped up across
+  // several scrapes without its lead-list stats splitting into batches.
+  const appendToRaw = form.get("leadListId");
+  const appendTo =
+    typeof appendToRaw === "string" && appendToRaw !== ""
+      ? Number(appendToRaw)
+      : null;
 
   if (!(file instanceof File)) {
     return Response.json({ error: "No CSV file provided." }, { status: 400 });
@@ -51,8 +58,23 @@ export async function POST(request: Request) {
   if (file.size > MAX_UPLOAD_BYTES) {
     return Response.json({ error: "File exceeds 20 MB limit." }, { status: 400 });
   }
-  if (typeof name !== "string" || name.trim() === "") {
+  if (appendTo !== null && !Number.isInteger(appendTo)) {
+    return Response.json({ error: "Invalid lead list." }, { status: 400 });
+  }
+  if (appendTo === null && (typeof name !== "string" || name.trim() === "")) {
     return Response.json({ error: "Lead list name is required." }, { status: 400 });
+  }
+
+  let existingList: { id: number; name: string } | null = null;
+  if (appendTo !== null) {
+    const [found] = await db
+      .select({ id: leadList.id, name: leadList.name })
+      .from(leadList)
+      .where(eq(leadList.id, appendTo));
+    if (!found) {
+      return Response.json({ error: "Lead list not found." }, { status: 404 });
+    }
+    existingList = found;
   }
 
   const { headers, records } = csvToRecords(await file.text());
@@ -135,13 +157,20 @@ export async function POST(request: Request) {
   }
 
   const result = await db.transaction(async (tx) => {
-    const [list] = await tx
-      .insert(leadList)
-      .values({
-        name: name.trim(),
-        niche: typeof niche === "string" && niche.trim() !== "" ? niche.trim() : null,
-      })
-      .returning({ id: leadList.id });
+    const list =
+      existingList ??
+      (
+        await tx
+          .insert(leadList)
+          .values({
+            name: (name as string).trim(),
+            niche:
+              typeof niche === "string" && niche.trim() !== ""
+                ? niche.trim()
+                : null,
+          })
+          .returning({ id: leadList.id, name: leadList.name })
+      )[0];
 
     // Pass 1: first occurrence of each email not already in the system —
     // inserted as canonical contacts.
@@ -157,6 +186,7 @@ export async function POST(request: Request) {
       }
     }
 
+    const newContactIds: number[] = [];
     for (const batch of chunk(canonicalRows, INSERT_CHUNK)) {
       const inserted = await tx
         .insert(contact)
@@ -174,6 +204,7 @@ export async function POST(request: Request) {
         .returning({ id: contact.id, email: contact.email });
       for (const row of inserted) {
         canonicalByEmail.set(row.email.toLowerCase(), row.id);
+        newContactIds.push(row.id);
       }
     }
 
@@ -195,7 +226,14 @@ export async function POST(request: Request) {
 
     return {
       leadListId: list.id,
+      leadListName: list.name,
+      appended: existingList !== null,
       imported: rows.length,
+      // Only these are enrollable — duplicates are excluded from bulk enroll
+      // by design. Returning the ids lets an import that tops up an existing
+      // list enroll just the new arrivals, rather than sweeping the whole
+      // list and re-enrolling earlier batches that already finished.
+      newContactIds,
       duplicates: duplicateRows.length,
       skippedNoEmail,
     };

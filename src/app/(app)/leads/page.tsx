@@ -17,7 +17,12 @@ export const dynamic = "force-dynamic";
 export default async function LeadsPage() {
   if (await isDemoMode()) {
     return (
-      <PageShell title="Leads" actions={<ImportDialog />}>
+      <PageShell
+        title="Leads"
+        actions={
+          <ImportDialog leadLists={demoLeadLists} campaigns={demoCampaigns()} />
+        }
+      >
         <LeadsTable
           contacts={demoContacts()}
           leadLists={demoLeadLists}
@@ -66,7 +71,10 @@ export default async function LeadsPage() {
   }));
 
   return (
-    <PageShell title="Leads" actions={<ImportDialog />}>
+    <PageShell
+      title="Leads"
+      actions={<ImportDialog leadLists={leadLists} campaigns={campaigns} />}
+    >
       <LeadsTable
         contacts={rows}
         leadLists={leadLists}
