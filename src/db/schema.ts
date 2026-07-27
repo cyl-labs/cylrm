@@ -19,6 +19,17 @@ export const campaignStatusEnum = pgEnum("campaign_status", [
   "paused",
 ]);
 
+/**
+ * A/B arm for a copy test inside one campaign.
+ *
+ * Variant "a" is canonical: it defines which steps exist and how long the
+ * sequence waits between them. A "b" row is a copy override for that one step
+ * (subject + body) and nothing else, so an A/B test can only ever change
+ * wording — never sequence length or timing, which would confound it.
+ * Steps with no "b" row send the "a" copy to both arms.
+ */
+export const stepVariantEnum = pgEnum("step_variant", ["a", "b"]);
+
 export const enrollmentStatusEnum = pgEnum("enrollment_status", [
   "active",
   "completed",
@@ -129,18 +140,29 @@ export const campaign = pgTable("campaign", {
     .defaultNow(),
 });
 
-export const sequenceStep = pgTable("sequence_step", {
-  id: serial("id").primaryKey(),
-  campaignId: integer("campaign_id")
-    .notNull()
-    .references(() => campaign.id),
-  stepNumber: integer("step_number").notNull(),
-  waitDaysAfterPrevious: integer("wait_days_after_previous")
-    .notNull()
-    .default(0),
-  subjectTemplate: text("subject_template"),
-  bodyTemplate: text("body_template").notNull().default(""),
-});
+export const sequenceStep = pgTable(
+  "sequence_step",
+  {
+    id: serial("id").primaryKey(),
+    campaignId: integer("campaign_id")
+      .notNull()
+      .references(() => campaign.id),
+    stepNumber: integer("step_number").notNull(),
+    variant: stepVariantEnum("variant").notNull().default("a"),
+    waitDaysAfterPrevious: integer("wait_days_after_previous")
+      .notNull()
+      .default(0),
+    subjectTemplate: text("subject_template"),
+    bodyTemplate: text("body_template").notNull().default(""),
+  },
+  (t) => [
+    uniqueIndex("sequence_step_campaign_step_variant_idx").on(
+      t.campaignId,
+      t.stepNumber,
+      t.variant,
+    ),
+  ],
+);
 
 export const enrollment = pgTable("enrollment", {
   id: serial("id").primaryKey(),
@@ -152,6 +174,9 @@ export const enrollment = pgTable("enrollment", {
     .references(() => campaign.id),
   currentStep: integer("current_step").notNull().default(0),
   status: enrollmentStatusEnum("status").notNull().default("active"),
+  /** Which arm of the campaign's copy test this contact is on, fixed at
+   *  enroll time so the whole thread stays on one voice. */
+  variant: stepVariantEnum("variant").notNull().default("a"),
   assignedAccountId: integer("assigned_account_id").references(
     () => sendingAccount.id,
   ),

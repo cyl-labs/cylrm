@@ -151,6 +151,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
       contactId: enrollment.contactId,
       campaignId: enrollment.campaignId,
       currentStep: enrollment.currentStep,
+      variant: enrollment.variant,
       assignedAccountId: enrollment.assignedAccountId,
       gmailThreadId: enrollment.gmailThreadId,
       email: contact.email,
@@ -178,17 +179,29 @@ export async function runSchedulerTick(): Promise<TickResult> {
     .select()
     .from(sequenceStep)
     .where(sql`${sequenceStep.campaignId} in ${campaignIds}`);
-  const stepsByCampaign = new Map<number, Map<number, typeof stepRows[number]>>();
+
+  // Variant "a" is the canonical row: it decides whether a step exists at all
+  // and how long to wait before it. "b" is a copy override and nothing else,
+  // so an A/B test can only change wording, never sequence shape or timing.
+  type StepRow = (typeof stepRows)[number];
+  type StepEntry = { a?: StepRow; b?: StepRow };
+  const stepsByCampaign = new Map<number, Map<number, StepEntry>>();
   for (const s of stepRows) {
-    const m = stepsByCampaign.get(s.campaignId) ?? new Map();
-    m.set(s.stepNumber, s);
+    const m = stepsByCampaign.get(s.campaignId) ?? new Map<number, StepEntry>();
+    const entry = m.get(s.stepNumber) ?? {};
+    entry[s.variant] = s;
+    m.set(s.stepNumber, entry);
     stepsByCampaign.set(s.campaignId, m);
   }
+  /** The copy this enrollment's arm should receive, falling back to "a". */
+  const copyFor = (entry: StepEntry | undefined, variant: "a" | "b") =>
+    (variant === "b" ? entry?.b : undefined) ?? entry?.a;
 
   for (const e of due) {
     const stepNum = e.currentStep + 1;
     const steps = stepsByCampaign.get(e.campaignId);
-    const step = steps?.get(stepNum);
+    const step = steps?.get(stepNum)?.a;
+    const copy = copyFor(steps?.get(stepNum), e.variant);
     const act = (action: TickAction["action"], extra?: Partial<TickAction>) =>
       result.actions.push({
         enrollmentId: e.id,
@@ -198,7 +211,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
         action,
       });
 
-    if (!step) {
+    if (!step || !copy) {
       // No such step (deleted mid-flight) — sequence is over.
       await db
         .update(enrollment)
@@ -265,7 +278,9 @@ export async function runSchedulerTick(): Promise<TickResult> {
       company: e.company,
       title: e.title,
     };
-    const step1 = steps?.get(1);
+    // Subject comes from step 1 of this enrollment's arm, so a subject-line
+    // A/B test carries through the whole thread's "Re:" chain.
+    const step1 = copyFor(steps?.get(1), e.variant);
     const step1Subject = renderTemplate(step1?.subjectTemplate ?? "", mergeContact).trim();
     const subject =
       stepNum === 1 ? step1Subject : step1Subject ? `Re: ${step1Subject}` : "";
@@ -275,7 +290,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
       });
       continue;
     }
-    const bodyText = renderTemplate(step.bodyTemplate, mergeContact);
+    const bodyText = renderTemplate(copy.bodyTemplate, mergeContact);
 
     // In-thread headers for steps 2+ from the enrollment's prior sends.
     let inReplyTo: string | undefined;
@@ -311,7 +326,8 @@ export async function runSchedulerTick(): Promise<TickResult> {
       });
 
       const sentAt = new Date();
-      const nextStep = steps?.get(stepNum + 1);
+      // Timing always comes from variant "a" — see the StepEntry note above.
+      const nextStep = steps?.get(stepNum + 1)?.a;
       await db.transaction(async (tx) => {
         await tx.insert(message).values({
           enrollmentId: e.id,

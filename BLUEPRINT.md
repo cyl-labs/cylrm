@@ -111,9 +111,12 @@ Enrollment is blocked at creation time (single or bulk) if the target email exis
 | id | pk | |
 | campaign_id | fk → campaign | |
 | step_number | int | |
-| wait_days_after_previous | int | |
+| variant | enum | a \| b — see A/B copy tests below |
+| wait_days_after_previous | int | read from variant `a` only |
 | subject_template | text | step 1 only, later steps reply in-thread |
 | body_template | text | merge fields |
+
+Unique on (campaign_id, step_number, variant).
 
 **enrollment**
 | column | type | notes |
@@ -123,11 +126,23 @@ Enrollment is blocked at creation time (single or bulk) if the target email exis
 | campaign_id | fk → campaign | |
 | current_step | int | |
 | status | enum | active \| completed \| replied \| bounced \| ooo_paused \| failed \| unsubscribed |
+| variant | enum | a \| b — which arm of the campaign's copy test, fixed at enroll time |
 | assigned_account_id | fk → sending_account, nullable | null until step 1 sends, then pinned for the rest of the sequence |
 | gmail_thread_id | text | |
 | next_send_at | timestamp | |
 
 Hard rule: a contact can be in at most one enrollment with status `active` or `ooo_paused` at a time. Before any enrollment is created (single or bulk), check across every contact row sharing that email (via `duplicate_of_contact_id`) for a non-terminal enrollment or any existing deal, any stage, including `won`/`lost`. If found, block by default and require explicit confirmation to proceed anyway.
+
+## A/B copy tests (within one campaign)
+
+A campaign can test two wordings of the same email without splitting into two campaigns.
+
+- Variant `a` is canonical: it decides which steps exist and how long the sequence waits between them. A `b` row is a copy override for that one step — subject and body only. An A/B test can therefore only ever change wording, never sequence length or timing, which would confound it.
+- Any step can carry a `b` row; steps without one send the `a` copy to both arms. Varying only step 1 while the follow-ups stay identical is the cleanest test.
+- Each contact is assigned an arm at enroll time and keeps it for the whole sequence, so a thread never mixes voices. Step 1's subject is taken from the contact's own arm, so a subject-line test carries through the thread's `Re:` chain.
+- The split is balanced to within one contact and derived from a hash of the contact's email, not selection order. Selection order mirrors the Leads table's import ordering — i.e. Apollo's own export ranking — so alternating over it would split the arms on lead quality.
+- Every enrollment gets an arm even when the campaign has no `b` copy; the split is then already fair if a `b` version is added later. Adding one mid-flight muddies the comparison (earlier emails went out as `a`), so the editor warns before doing it.
+- Results are reported on the campaign detail screen: sent, reply rate and demos per arm, with an explicit "too early to call" notice under 100 sends on either side.
 
 **message**
 | column | type | notes |

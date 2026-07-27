@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, contact, deal, enrollment, unsubscribe } from "@/db/schema";
+import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
 
 /**
@@ -13,11 +15,37 @@ import { getSession } from "@/lib/session";
  * Blocked pending confirmation (409 → resend with confirmGuarded: true):
  * emails that have a deal in any stage on any duplicate row.
  */
+
+/**
+ * Split contacts evenly between the campaign's two A/B arms, balanced to
+ * within one contact.
+ *
+ * Contacts are ordered by a hash of their email before alternating rather
+ * than left in selection order. Selection order mirrors the Leads table,
+ * which is sorted by import time — i.e. Apollo's own export ranking
+ * (seniority, company size, data completeness). Alternating over that order
+ * would split the arms on lead quality and confound the copy test.
+ *
+ * Every enrollment gets an arm even when the campaign has no "b" copy yet;
+ * those contacts just receive the "a" copy, and the split is already fair if
+ * a "b" version is added later.
+ */
+function assignVariants<T extends { email: string }>(
+  candidates: T[],
+): Map<T, "a" | "b"> {
+  const keyed = candidates.map((c) => ({
+    c,
+    key: createHash("sha256").update(c.email.toLowerCase()).digest("hex"),
+  }));
+  keyed.sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0));
+  return new Map(keyed.map(({ c }, i) => [c, i % 2 === 0 ? "a" : "b"] as const));
+}
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (await isDemoMode()) return demoReadOnlyResponse();
 
   let body: {
     campaignId?: unknown;
@@ -158,6 +186,7 @@ export async function POST(request: Request) {
     );
   }
 
+  const variants = assignVariants(candidates);
   if (candidates.length > 0) {
     const now = new Date();
     await db.insert(enrollment).values(
@@ -166,6 +195,7 @@ export async function POST(request: Request) {
         campaignId,
         currentStep: 0,
         status: "active" as const,
+        variant: variants.get(c)!,
         nextSendAt: now,
       })),
     );
@@ -173,6 +203,10 @@ export async function POST(request: Request) {
 
   return Response.json({
     enrolled: candidates.length,
+    variantSplit: {
+      a: candidates.filter((c) => variants.get(c) === "a").length,
+      b: candidates.filter((c) => variants.get(c) === "b").length,
+    },
     skipped,
     alreadyEnrolled,
   });

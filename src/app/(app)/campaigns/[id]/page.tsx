@@ -16,9 +16,30 @@ import {
   EnrollmentsTable,
   type EnrollmentRow,
 } from "@/components/campaigns/enrollments-table";
-import { StepsEditor, type StepData } from "@/components/campaigns/steps-editor";
+import { AbTestCard } from "@/components/campaigns/ab-test-card";
+import {
+  StepsEditor,
+  type StepData,
+  type StepGroup,
+} from "@/components/campaigns/steps-editor";
 import { ENROLLMENT_STATUSES, enrollmentStatusLabel } from "@/components/campaigns/status";
+import { getVariantStats, type VariantStats } from "@/lib/stats";
 import type { CampaignProgress } from "@/lib/campaign-progress";
+
+/** One card per step, with its optional B copy alongside the A copy. */
+function groupSteps(steps: StepData[]): StepGroup[] {
+  const byNumber = new Map<number, StepGroup>();
+  for (const s of steps.filter((s) => s.variant === "a")) {
+    byNumber.set(s.stepNumber, { stepNumber: s.stepNumber, a: s, b: null });
+  }
+  for (const s of steps.filter((s) => s.variant === "b")) {
+    const group = byNumber.get(s.stepNumber);
+    // A "b" with no "a" can't happen through the UI; ignore it rather than
+    // render a step the scheduler would never send.
+    if (group) group.b = s;
+  }
+  return [...byNumber.values()].sort((x, y) => x.stepNumber - y.stepNumber);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +51,7 @@ function CampaignDetail({
   countByStatus,
   steps,
   enrollments,
+  variantStats,
 }: {
   campaignId: number;
   name: string;
@@ -38,7 +60,10 @@ function CampaignDetail({
   countByStatus: Map<string, number>;
   steps: StepData[];
   enrollments: EnrollmentRow[];
+  variantStats: Record<"a" | "b", VariantStats> | null;
 }) {
+  const groups = groupSteps(steps);
+  const testedSteps = groups.filter((g) => g.b).map((g) => g.stepNumber);
   return (
     <PageShell
       title={name}
@@ -46,6 +71,10 @@ function CampaignDetail({
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-4">
         <CampaignProgressCard p={progress} />
+
+        {testedSteps.length > 0 && variantStats && (
+          <AbTestCard stats={variantStats} testedSteps={testedSteps} />
+        )}
 
         <section className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
@@ -65,9 +94,21 @@ function CampaignDetail({
           />
         </section>
 
-        <section className="flex max-w-3xl flex-col gap-3">
+        <section
+          className={
+            // Side-by-side A/B copy needs the full width; a single version
+            // reads better in a narrower column.
+            testedSteps.length > 0
+              ? "flex flex-col gap-3"
+              : "flex max-w-3xl flex-col gap-3"
+          }
+        >
           <h2 className="text-sm font-semibold tracking-[-0.01em]">Sequence</h2>
-          <StepsEditor campaignId={campaignId} steps={steps} />
+          <StepsEditor
+            campaignId={campaignId}
+            groups={groups}
+            hasEnrollments={enrollments.length > 0}
+          />
         </section>
       </div>
     </PageShell>
@@ -96,6 +137,9 @@ export default async function CampaignDetailPage({
         countByStatus={demo.countByStatus}
         steps={demo.steps}
         enrollments={demoCampaignEnrollments(campaignId)}
+        // No demo campaign runs an A/B test — fabricated arm totals would not
+        // reconcile with the sent counts the other demo screens report.
+        variantStats={null}
       />
     );
   }
@@ -106,12 +150,12 @@ export default async function CampaignDetailPage({
     .where(eq(campaign.id, campaignId));
   if (!camp) notFound();
 
-  const [steps, counts, enrollmentRows, progress] = await Promise.all([
+  const [steps, counts, enrollmentRows, progress, variantStats] = await Promise.all([
     db
       .select()
       .from(sequenceStep)
       .where(eq(sequenceStep.campaignId, campaignId))
-      .orderBy(asc(sequenceStep.stepNumber)),
+      .orderBy(asc(sequenceStep.stepNumber), asc(sequenceStep.variant)),
     db
       .select({
         status: enrollment.status,
@@ -147,6 +191,7 @@ export default async function CampaignDetailPage({
         asc(enrollment.id),
       ),
     getCampaignProgress(campaignId),
+    getVariantStats(campaignId),
   ]);
 
   return (
@@ -159,10 +204,12 @@ export default async function CampaignDetailPage({
       steps={steps.map((s) => ({
         id: s.id,
         stepNumber: s.stepNumber,
+        variant: s.variant,
         waitDaysAfterPrevious: s.waitDaysAfterPrevious,
         subjectTemplate: s.subjectTemplate,
         bodyTemplate: s.bodyTemplate,
       }))}
+      variantStats={variantStats}
       enrollments={enrollmentRows.map((r) => ({
         id: r.id,
         contactName:

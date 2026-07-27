@@ -91,12 +91,21 @@ export async function DELETE(
       id: sequenceStep.id,
       campaignId: sequenceStep.campaignId,
       stepNumber: sequenceStep.stepNumber,
+      variant: sequenceStep.variant,
     })
     .from(sequenceStep)
     .where(eq(sequenceStep.id, stepId));
   if (!step) {
     return Response.json({ error: "Step not found." }, { status: 404 });
   }
+
+  // Dropping the B version of a step just removes that copy override —
+  // the step itself survives and numbering is untouched.
+  if (step.variant === "b") {
+    await db.delete(sequenceStep).where(eq(sequenceStep.id, stepId));
+    return Response.json({ ok: true });
+  }
+
   if (step.stepNumber === 1) {
     return Response.json(
       { error: "Step 1 cannot be deleted — campaigns need an opening email." },
@@ -105,7 +114,15 @@ export async function DELETE(
   }
 
   await db.transaction(async (tx) => {
-    await tx.delete(sequenceStep).where(eq(sequenceStep.id, stepId));
+    // Both variants of this step go, then everything after it shifts down.
+    await tx
+      .delete(sequenceStep)
+      .where(
+        and(
+          eq(sequenceStep.campaignId, step.campaignId),
+          eq(sequenceStep.stepNumber, step.stepNumber),
+        ),
+      );
     await tx
       .update(sequenceStep)
       .set({ stepNumber: sql`${sequenceStep.stepNumber} - 1` })

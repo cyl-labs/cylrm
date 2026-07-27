@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { FlaskConical, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,23 +14,36 @@ import { Textarea } from "@/components/ui/textarea";
 export type StepData = {
   id: number;
   stepNumber: number;
+  variant: "a" | "b";
   waitDaysAfterPrevious: number;
   subjectTemplate: string | null;
   bodyTemplate: string;
 };
 
-function StepCard({ step, isLast }: { step: StepData; isLast: boolean }) {
+/** One step, with the optional B version of its copy alongside the A version. */
+export type StepGroup = {
+  stepNumber: number;
+  a: StepData;
+  b: StepData | null;
+};
+
+/** Subject + body for one arm. Each arm saves independently. */
+function VariantFields({
+  step,
+  label,
+  hasSibling,
+}: {
+  step: StepData;
+  label: string;
+  hasSibling: boolean;
+}) {
   const router = useRouter();
   const [subject, setSubject] = React.useState(step.subjectTemplate ?? "");
   const [bodyText, setBodyText] = React.useState(step.bodyTemplate);
-  const [waitDays, setWaitDays] = React.useState(String(step.waitDaysAfterPrevious));
   const [saving, setSaving] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
 
   const dirty =
-    subject !== (step.subjectTemplate ?? "") ||
-    bodyText !== step.bodyTemplate ||
-    Number(waitDays) !== step.waitDaysAfterPrevious;
+    subject !== (step.subjectTemplate ?? "") || bodyText !== step.bodyTemplate;
 
   async function save() {
     setSaving(true);
@@ -40,7 +54,6 @@ function StepCard({ step, isLast }: { step: StepData; isLast: boolean }) {
         body: JSON.stringify({
           subjectTemplate: step.stepNumber === 1 ? subject : undefined,
           bodyTemplate: bodyText,
-          waitDaysAfterPrevious: Number(waitDays),
         }),
       });
       if (!res.ok) {
@@ -48,7 +61,11 @@ function StepCard({ step, isLast }: { step: StepData; isLast: boolean }) {
         toast.error(data.error ?? "Failed to save step.");
         return;
       }
-      toast.success(`Step ${step.stepNumber} saved.`);
+      toast.success(
+        hasSibling
+          ? `Step ${step.stepNumber} ${label} saved.`
+          : `Step ${step.stepNumber} saved.`,
+      );
       router.refresh();
     } catch {
       toast.error("Failed to save step — network error.");
@@ -57,30 +74,155 @@ function StepCard({ step, isLast }: { step: StepData; isLast: boolean }) {
     }
   }
 
-  async function remove() {
-    setDeleting(true);
+  return (
+    <div className="space-y-3">
+      {step.stepNumber === 1 ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={`step-${step.id}-subject`}>Subject</Label>
+          <Input
+            id={`step-${step.id}-subject`}
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="e.g. Quick question, {{first_name}}"
+          />
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Sends as a reply in the same thread (&ldquo;Re: step 1 subject&rdquo;).
+        </p>
+      )}
+      <div className="space-y-1.5">
+        <Label htmlFor={`step-${step.id}-body`}>Body</Label>
+        <Textarea
+          id={`step-${step.id}-body`}
+          value={bodyText}
+          onChange={(e) => setBodyText(e.target.value)}
+          rows={7}
+          placeholder="Hi {{first_name}}, …"
+        />
+      </div>
+      <Button size="sm" onClick={save} disabled={!dirty || saving}>
+        {saving ? "Saving…" : "Save"}
+      </Button>
+    </div>
+  );
+}
+
+function StepCard({
+  group,
+  isLast,
+  hasEnrollments,
+}: {
+  group: StepGroup;
+  isLast: boolean;
+  hasEnrollments: boolean;
+}) {
+  const router = useRouter();
+  const { a, b, stepNumber } = group;
+  const [waitDays, setWaitDays] = React.useState(String(a.waitDaysAfterPrevious));
+  const [savingWait, setSavingWait] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+
+  const waitDirty = Number(waitDays) !== a.waitDaysAfterPrevious;
+
+  async function saveWaitDays() {
+    setSavingWait(true);
     try {
-      const res = await fetch(`/api/steps/${step.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/steps/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ waitDaysAfterPrevious: Number(waitDays) }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to save wait days.");
+        return;
+      }
+      router.refresh();
+    } catch {
+      toast.error("Failed to save wait days — network error.");
+    } finally {
+      setSavingWait(false);
+    }
+  }
+
+  async function addVariant() {
+    if (
+      hasEnrollments &&
+      !window.confirm(
+        "This campaign already has contacts enrolled. Half of them are on arm B and " +
+          "will switch to this new copy from their next email onwards — emails they " +
+          "have already received stay as they were, so the comparison will be muddied. " +
+          "Add it anyway?",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/steps/${a.id}/variant`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to add B version.");
+        return;
+      }
+      toast.success(`Step ${stepNumber} B version added — edit the wording.`);
+      router.refresh();
+    } catch {
+      toast.error("Failed to add B version — network error.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeVariant() {
+    if (!b) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/steps/${b.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to remove B version.");
+        return;
+      }
+      toast.success(`Step ${stepNumber} B version removed — everyone gets A.`);
+      router.refresh();
+    } catch {
+      toast.error("Failed to remove B version — network error.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeStep() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/steps/${a.id}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? "Failed to delete step.");
         return;
       }
-      toast.success(`Step ${step.stepNumber} deleted.`);
+      toast.success(`Step ${stepNumber} deleted.`);
       router.refresh();
     } catch {
       toast.error("Failed to delete step — network error.");
     } finally {
-      setDeleting(false);
+      setBusy(false);
     }
   }
 
   return (
     <Card className="py-4">
       <CardHeader className="px-4">
-        <div className="flex items-center gap-3">
-          <CardTitle className="text-sm">Step {step.stepNumber}</CardTitle>
-          {step.stepNumber > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <CardTitle className="text-sm">Step {stepNumber}</CardTitle>
+          {b && (
+            <Badge variant="secondary" className="text-[11px]">
+              A/B test
+            </Badge>
+          )}
+          {stepNumber > 1 && (
             <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
               after
               <Input
@@ -89,59 +231,72 @@ function StepCard({ step, isLast }: { step: StepData; isLast: boolean }) {
                 step={1}
                 value={waitDays}
                 onChange={(e) => setWaitDays(e.target.value)}
+                onBlur={() => waitDirty && saveWaitDays()}
+                disabled={savingWait}
                 className="h-7 w-16 text-[13px]"
-                aria-label={`Wait days before step ${step.stepNumber}`}
+                aria-label={`Wait days before step ${stepNumber}`}
               />
               day(s)
             </div>
           )}
           <div className="ml-auto flex items-center gap-1.5">
-            {step.stepNumber > 1 && isLast && (
+            {b ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={removeVariant}
+                disabled={busy}
+              >
+                <X data-icon="inline-start" />
+                Remove B version
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addVariant}
+                disabled={busy}
+              >
+                <FlaskConical data-icon="inline-start" />
+                Add B version
+              </Button>
+            )}
+            {stepNumber > 1 && isLast && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="size-7 text-muted-foreground hover:text-destructive"
-                onClick={remove}
-                disabled={deleting}
+                onClick={removeStep}
+                disabled={busy}
                 title="Delete step"
               >
                 <Trash2 />
-                <span className="sr-only">Delete step {step.stepNumber}</span>
+                <span className="sr-only">Delete step {stepNumber}</span>
               </Button>
             )}
-            <Button size="sm" onClick={save} disabled={!dirty || saving}>
-              {saving ? "Saving…" : "Save"}
-            </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 px-4">
-        {step.stepNumber === 1 ? (
-          <div className="space-y-1.5">
-            <Label htmlFor={`step-${step.id}-subject`}>Subject</Label>
-            <Input
-              id={`step-${step.id}-subject`}
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="e.g. Quick question, {{first_name}}"
-            />
+      <CardContent className="px-4">
+        {b ? (
+          <div className="grid gap-5 md:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Version A
+              </p>
+              <VariantFields step={a} label="version A" hasSibling />
+            </div>
+            <div className="space-y-3 md:border-l md:pl-5">
+              <p className="text-xs font-medium text-muted-foreground">
+                Version B
+              </p>
+              <VariantFields step={b} label="version B" hasSibling />
+            </div>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">
-            Sends as a reply in the same thread (&ldquo;Re: step 1
-            subject&rdquo;).
-          </p>
+          <VariantFields step={a} label="version A" hasSibling={false} />
         )}
-        <div className="space-y-1.5">
-          <Label htmlFor={`step-${step.id}-body`}>Body</Label>
-          <Textarea
-            id={`step-${step.id}-body`}
-            value={bodyText}
-            onChange={(e) => setBodyText(e.target.value)}
-            rows={7}
-            placeholder="Hi {{first_name}}, …"
-          />
-        </div>
       </CardContent>
     </Card>
   );
@@ -149,10 +304,12 @@ function StepCard({ step, isLast }: { step: StepData; isLast: boolean }) {
 
 export function StepsEditor({
   campaignId,
-  steps,
+  groups,
+  hasEnrollments,
 }: {
   campaignId: number;
-  steps: StepData[];
+  groups: StepGroup[];
+  hasEnrollments: boolean;
 }) {
   const router = useRouter();
   const [adding, setAdding] = React.useState(false);
@@ -181,8 +338,13 @@ export function StepsEditor({
       <p className="text-xs text-muted-foreground">
         Merge fields: {"{{first_name}} {{last_name}} {{company}} {{title}} {{email}}"}
       </p>
-      {steps.map((s) => (
-        <StepCard key={s.id} step={s} isLast={s.stepNumber === steps.length} />
+      {groups.map((g) => (
+        <StepCard
+          key={g.a.id}
+          group={g}
+          isLast={g.stepNumber === groups.length}
+          hasEnrollments={hasEnrollments}
+        />
       ))}
       <Button
         variant="outline"

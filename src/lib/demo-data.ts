@@ -171,9 +171,9 @@ export function demoCampaignDetail(id: number) {
   const campaign = demoCampaigns().find((c) => c.id === id);
   if (!campaign) return null;
   const steps = [
-    { id: 9101, stepNumber: 1, waitDaysAfterPrevious: 0, subjectTemplate: "Quick question, {{first_name}}", bodyTemplate: "Hi {{first_name}},\n\nSaw {{company}} while researching fabricators in SG — most teams your size tell us quoting eats 2–3 hours a day.\n\nWorth a 15-minute look at how we cut that to minutes?" },
-    { id: 9102, stepNumber: 2, waitDaysAfterPrevious: 3, subjectTemplate: null, bodyTemplate: "Bumping this, {{first_name}} — happy to send the 2-page case study instead if a call is too much right now." },
-    { id: 9103, stepNumber: 3, waitDaysAfterPrevious: 4, subjectTemplate: null, bodyTemplate: "Last nudge, {{first_name}} — if quoting speed isn't a priority this quarter, no worries at all. Door's open." },
+    { id: 9101, variant: "a" as const, stepNumber: 1, waitDaysAfterPrevious: 0, subjectTemplate: "Quick question, {{first_name}}", bodyTemplate: "Hi {{first_name}},\n\nSaw {{company}} while researching fabricators in SG — most teams your size tell us quoting eats 2–3 hours a day.\n\nWorth a 15-minute look at how we cut that to minutes?" },
+    { id: 9102, variant: "a" as const, stepNumber: 2, waitDaysAfterPrevious: 3, subjectTemplate: null, bodyTemplate: "Bumping this, {{first_name}} — happy to send the 2-page case study instead if a call is too much right now." },
+    { id: 9103, variant: "a" as const, stepNumber: 3, waitDaysAfterPrevious: 4, subjectTemplate: null, bodyTemplate: "Last nudge, {{first_name}} — if quoting speed isn't a priority this quarter, no worries at all. Door's open." },
   ].slice(0, campaign.stepCount);
   const countByStatus = new Map<string, number>();
   for (const spec of CAMPAIGN_ENROLLMENTS[id] ?? []) {

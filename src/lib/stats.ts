@@ -157,6 +157,65 @@ export async function getEntityStats(
   return out;
 }
 
+export type VariantStats = {
+  variant: "a" | "b";
+  contacts: number;
+  sent: number;
+  replies: number;
+  demos: number;
+};
+
+/**
+ * A vs B inside one campaign, all time.
+ *
+ * The unit is the enrollment, not the message: a contact is pinned to one arm
+ * at enroll time and stays there for the whole thread, so replies and demos
+ * attribute cleanly to the arm even though they arrive at the sequence level
+ * rather than at any one step.
+ */
+export async function getVariantStats(
+  campaignId: number,
+): Promise<Record<"a" | "b", VariantStats>> {
+  const msgRows = (await db.execute(sql`
+    select e.variant as variant,
+      count(distinct e.id) as contacts,
+      count(m.id) filter (where m.kind = 'sent') as sent,
+      count(m.id) filter (where m.kind = 'reply' and m.direction = 'in') as replies
+    from enrollment e
+    left join message m on m.enrollment_id = e.id
+    where e.campaign_id = ${campaignId}
+    group by 1
+  `)) as Row[];
+
+  // Same at/past-stage rule as the Pipeline tiles, so an undone drag doesn't
+  // inflate one arm.
+  const demoRows = (await db.execute(sql`
+    select e.variant as variant,
+      count(distinct d.id) filter (where sc.to_stage = 'demo_booked' and d.stage in ('demo_booked','won','lost')) as demos
+    from deal d
+    join enrollment e on e.contact_id = d.contact_id and e.campaign_id = d.campaign_id
+    left join deal_stage_change sc on sc.deal_id = d.id
+    where d.campaign_id = ${campaignId}
+    group by 1
+  `)) as Row[];
+
+  const out: Record<"a" | "b", VariantStats> = {
+    a: { variant: "a", contacts: 0, sent: 0, replies: 0, demos: 0 },
+    b: { variant: "b", contacts: 0, sent: 0, replies: 0, demos: 0 },
+  };
+  for (const r of msgRows) {
+    const v = r.variant === "b" ? "b" : "a";
+    out[v].contacts = n(r.contacts);
+    out[v].sent = n(r.sent);
+    out[v].replies = n(r.replies);
+  }
+  for (const r of demoRows) {
+    const v = r.variant === "b" ? "b" : "a";
+    out[v].demos = n(r.demos);
+  }
+  return out;
+}
+
 /** Per-step sent counts and reply attribution (the step whose outbound
  * message most recently preceded each reply). Campaign dimension only. */
 export async function getStepStats(since: Date | null): Promise<StepStat[]> {
