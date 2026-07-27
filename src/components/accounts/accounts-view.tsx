@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
+import { AppPasswordDialog } from "@/components/accounts/app-password-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -157,6 +158,7 @@ function DailyCapInput({ account }: { account: AccountRow }) {
 function AccountMenu({ account }: { account: AccountRow }) {
   const router = useRouter();
   const [deleting, setDeleting] = React.useState(false);
+  const [pwOpen, setPwOpen] = React.useState(false);
 
   async function setActive(active: boolean) {
     try {
@@ -230,6 +232,11 @@ function AccountMenu({ account }: { account: AccountRow }) {
             Activate
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem onSelect={() => setPwOpen(true)}>
+          {account.hasAppPassword
+            ? "Replace app password"
+            : "Add app password — enables replies"}
+        </DropdownMenuItem>
         <DropdownMenuItem
           variant="destructive"
           disabled={deleting}
@@ -238,6 +245,13 @@ function AccountMenu({ account }: { account: AccountRow }) {
           Delete account
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <AppPasswordDialog
+        accountId={account.id}
+        email={account.email}
+        hasAppPassword={account.hasAppPassword}
+        open={pwOpen}
+        onOpenChange={setPwOpen}
+      />
     </DropdownMenu>
   );
 }
@@ -329,7 +343,9 @@ export function AccountsView({ accounts }: { accounts: AccountRow[] }) {
                             )}
                             <GoogleStatus account={account} />
                             {!account.hasAppPassword && (
-                              <Badge variant="secondary">No IMAP</Badge>
+                              <Badge className="bg-warning/10 text-warning">
+                                No app password — replies not detected
+                              </Badge>
                             )}
                           </div>
                         </TableCell>

@@ -184,9 +184,34 @@ export async function getCampaignPreflight(
   const accountRows = (await db.execute(sql`
     select a.email, a.daily_cap, a.active, a.needs_reconnect,
       a.google_refresh_token is not null as has_google,
+      a.app_password is not null as has_app_password,
       a.google_connected_at
     from sending_account a order by a.email
   `)) as Row[];
+
+  // Sending and reply detection use different credentials: Gmail API over
+  // HTTPS out, IMAP app password in. An account with only the former sends
+  // happily and never learns that anyone answered.
+  const sendReady = accountRows.filter(
+    (a) => a.active && a.has_google && !a.needs_reconnect,
+  );
+  const blindSenders = sendReady.filter((a) => !a.has_app_password);
+  if (sendReady.length > 0 && blindSenders.length === sendReady.length) {
+    checks.push({
+      level: "blocker",
+      title: "No replies can be detected",
+      detail:
+        `None of the ${sendReady.length} sending account${sendReady.length === 1 ? " has" : "s have"} a Gmail app password, which is what the reply poller logs in with. ` +
+        "Emails would go out, but every reply would be invisible: nobody gets marked as replied, no deals appear on the pipeline, and follow-up steps keep sending to people who already answered. " +
+        'Add one per account from the Accounts screen ("Add app password").',
+    });
+  } else if (blindSenders.length > 0) {
+    checks.push({
+      level: "warning",
+      title: `${blindSenders.length} of ${sendReady.length} accounts cannot detect replies`,
+      detail: `${blindSenders.map((a) => a.email).join(", ")} — no Gmail app password, so replies to anything they send are never seen. Contacts are spread across the whole pool, so roughly ${Math.round((blindSenders.length / sendReady.length) * 100)}% of this campaign would be affected.`,
+    });
+  }
 
   if (progress.eligibleAccounts === 0) {
     const why =

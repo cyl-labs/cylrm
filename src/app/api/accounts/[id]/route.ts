@@ -1,6 +1,8 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { domain, enrollment, message, sendingAccount } from "@/db/schema";
+import { encryptSecret } from "@/lib/crypto";
+import { normalizeAppPassword, verifyGmailAppPassword } from "@/lib/gmail";
 import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
 
@@ -12,6 +14,7 @@ export async function PATCH(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const { id } = await params;
   const accountId = Number(id);
@@ -19,14 +22,52 @@ export async function PATCH(
     return Response.json({ error: "Invalid account id." }, { status: 400 });
   }
 
-  let body: { dailyCap?: unknown; active?: unknown };
+  let body: { dailyCap?: unknown; active?: unknown; appPassword?: unknown };
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const updates: Partial<{ dailyCap: number; active: boolean }> = {};
+  const updates: Partial<{
+    dailyCap: number;
+    active: boolean;
+    appPassword: string;
+  }> = {};
+
+  // Accounts connected through Google OAuth arrive with no app password, and
+  // the create endpoint refuses an email it already knows — so this is the
+  // only way such an account can ever gain the IMAP credential the reply
+  // poller needs. Without it the account sends but never sees replies.
+  if (body.appPassword !== undefined) {
+    const appPassword =
+      typeof body.appPassword === "string"
+        ? normalizeAppPassword(body.appPassword)
+        : "";
+    if (appPassword.length !== 16) {
+      return Response.json(
+        {
+          error:
+            "Gmail app passwords are 16 characters (spaces are ignored). Check the value and try again.",
+        },
+        { status: 400 },
+      );
+    }
+    const [account] = await db
+      .select({ email: sendingAccount.email })
+      .from(sendingAccount)
+      .where(eq(sendingAccount.id, accountId));
+    if (!account) {
+      return Response.json({ error: "Account not found." }, { status: 404 });
+    }
+    // Verified with a real IMAP login before storing, same as at connect time
+    // — a typo here would otherwise fail silently every poll.
+    const verified = await verifyGmailAppPassword(account.email, appPassword);
+    if (!verified.ok) {
+      return Response.json({ error: verified.error }, { status: 422 });
+    }
+    updates.appPassword = encryptSecret(appPassword);
+  }
   if (body.dailyCap !== undefined) {
     const dailyCap = Number(body.dailyCap);
     if (!Number.isInteger(dailyCap) || dailyCap < 0) {
