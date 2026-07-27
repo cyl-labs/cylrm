@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { sendingAccount } from "@/db/schema";
+import { domain, enrollment, message, sendingAccount } from "@/db/schema";
+import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
 
 export async function PATCH(
@@ -56,4 +57,86 @@ export async function PATCH(
   }
 
   return Response.json({ ok: true });
+}
+
+/**
+ * Remove a sending account entirely, along with its stored Google refresh
+ * token and IMAP app password.
+ *
+ * Refused while anything still points at the account: `message.account_id`
+ * is what every stat on the Accounts and Stats screens is counted from, and
+ * `enrollment.assigned_account_id` is the pin that keeps a sequence's steps
+ * 2+ in the same thread. Deleting through either would silently rewrite
+ * history or strand a live sequence, so those cases get "deactivate instead".
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await getSession();
+  if (!session.loggedIn) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (await isDemoMode()) return demoReadOnlyResponse();
+
+  const { id } = await params;
+  const accountId = Number(id);
+  if (!Number.isInteger(accountId)) {
+    return Response.json({ error: "Invalid account id." }, { status: 400 });
+  }
+
+  const [account] = await db
+    .select({
+      id: sendingAccount.id,
+      email: sendingAccount.email,
+      domainId: sendingAccount.domainId,
+    })
+    .from(sendingAccount)
+    .where(eq(sendingAccount.id, accountId));
+  if (!account) {
+    return Response.json({ error: "Account not found." }, { status: 404 });
+  }
+
+  const [{ count: messageCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(message)
+    .where(eq(message.accountId, accountId));
+  if (messageCount > 0) {
+    return Response.json(
+      {
+        error: `${account.email} has ${messageCount} message${messageCount === 1 ? "" : "s"} in its history — deleting it would change past stats. Deactivate it instead to stop it being assigned sends.`,
+      },
+      { status: 409 },
+    );
+  }
+
+  const [{ count: enrollmentCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(enrollment)
+    .where(eq(enrollment.assignedAccountId, accountId));
+  if (enrollmentCount > 0) {
+    return Response.json(
+      {
+        error: `${account.email} is pinned to ${enrollmentCount} enrollment${enrollmentCount === 1 ? " that still needs" : "s that still need"} it to stay in-thread. Deactivate it instead.`,
+      },
+      { status: 409 },
+    );
+  }
+
+  const domainRemoved = await db.transaction(async (tx) => {
+    await tx.delete(sendingAccount).where(eq(sendingAccount.id, accountId));
+    // A domain exists only to group accounts, so drop it once its last one
+    // goes rather than leaving an empty card on the Accounts screen.
+    const [{ count: siblings }] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(sendingAccount)
+      .where(eq(sendingAccount.domainId, account.domainId));
+    if (siblings === 0) {
+      await tx.delete(domain).where(eq(domain.id, account.domainId));
+      return true;
+    }
+    return false;
+  });
+
+  return Response.json({ ok: true, email: account.email, domainRemoved });
 }

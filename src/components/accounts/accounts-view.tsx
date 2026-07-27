@@ -156,6 +156,7 @@ function DailyCapInput({ account }: { account: AccountRow }) {
 
 function AccountMenu({ account }: { account: AccountRow }) {
   const router = useRouter();
+  const [deleting, setDeleting] = React.useState(false);
 
   async function setActive(active: boolean) {
     try {
@@ -175,6 +176,34 @@ function AccountMenu({ account }: { account: AccountRow }) {
       router.refresh();
     } catch {
       toast.error("Failed to update account — network error.");
+    }
+  }
+
+  async function remove() {
+    if (
+      !window.confirm(
+        `Delete ${account.email}?\n\nIts stored Google connection and IMAP app password are removed too — ` +
+          `reconnecting later means going through Google's consent screen again. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to delete account.");
+        return;
+      }
+      toast.success(`${account.email} deleted.`);
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete account — network error.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -201,6 +230,13 @@ function AccountMenu({ account }: { account: AccountRow }) {
             Activate
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem
+          variant="destructive"
+          disabled={deleting}
+          onSelect={remove}
+        >
+          Delete account
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -235,7 +271,13 @@ export function AccountsView({ accounts }: { accounts: AccountRow[] }) {
     <div className="flex flex-col gap-4">
       {[...byDomain.entries()].map(([domainId, group]) => {
         const sentToday = group.accounts.reduce((n, a) => n + a.sentToday, 0);
-        const capTotal = group.accounts.reduce((n, a) => n + a.dailyCap, 0);
+        // Only active accounts can be assigned sends, so an inactive one must
+        // not inflate the domain's headline capacity.
+        const capTotal = group.accounts.reduce(
+          (n, a) => n + (a.active ? a.dailyCap : 0),
+          0,
+        );
+        const inactiveCount = group.accounts.filter((a) => !a.active).length;
         const sentTotal = group.accounts.reduce((n, a) => n + a.sentTotal, 0);
         const bounceTotal = group.accounts.reduce(
           (n, a) => n + a.bounceTotal,
@@ -247,7 +289,8 @@ export function AccountsView({ accounts }: { accounts: AccountRow[] }) {
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <CardTitle className="text-sm">{group.name}</CardTitle>
                 <span className="ml-auto text-[13px] text-muted-foreground">
-                  {sentToday} / {capTotal} today · bounce{" "}
+                  {sentToday} / {capTotal} today
+                  {inactiveCount > 0 && ` · ${inactiveCount} inactive`} · bounce{" "}
                   {bounceRateLabel(bounceTotal, sentTotal)}
                 </span>
               </div>
