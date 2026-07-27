@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign } from "@/db/schema";
 import { isDemoMode } from "@/lib/demo";
+import { countSendIssues } from "@/lib/send-issues";
 import { demoCampaigns } from "@/lib/demo-data";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,7 +28,9 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export default async function CampaignsPage() {
-  const rows = (await isDemoMode())
+  const demo = await isDemoMode();
+  const issueCount = demo ? 0 : await countSendIssues();
+  const rows = demo
     ? demoCampaigns()
     : await db
     .select({
@@ -59,6 +63,17 @@ export default async function CampaignsPage() {
         </div>
       ) : (
         <div className="px-6 py-4">
+          {issueCount > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-[13px] text-destructive">
+              <AlertTriangle className="size-4 shrink-0" />
+              {issueCount === 1
+                ? "1 problem is stopping emails from sending."
+                : `${issueCount} problems are stopping emails from sending.`}
+              <span className="text-muted-foreground">
+                Open the affected campaign below for details.
+              </span>
+            </div>
+          )}
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>

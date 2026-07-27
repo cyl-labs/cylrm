@@ -1,4 +1,4 @@
-import { and, asc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   appSetting,
@@ -6,6 +6,7 @@ import {
   contact,
   enrollment,
   message,
+  sendIssue,
   sendingAccount,
   sequenceStep,
 } from "@/db/schema";
@@ -71,6 +72,57 @@ function timeToMinutes(t: string): number {
 }
 
 const remaining = (a: AccountState) => a.dailyCap - a.sentToday;
+
+/**
+ * Record something that stopped an email going out.
+ *
+ * Keyed by `signature` rather than by occurrence: this runs every 5 minutes,
+ * so a standing problem would otherwise write a row per enrollment per tick.
+ * Re-seeing the same problem bumps the counter and un-resolves it.
+ */
+async function recordIssue(issue: {
+  signature: string;
+  kind: "send_failed" | "auth_expired" | "no_subject" | "no_capacity";
+  campaignId?: number | null;
+  accountId?: number | null;
+  detail: string;
+}) {
+  await db
+    .insert(sendIssue)
+    .values({
+      signature: issue.signature,
+      kind: issue.kind,
+      campaignId: issue.campaignId ?? null,
+      accountId: issue.accountId ?? null,
+      detail: issue.detail,
+    })
+    .onConflictDoUpdate({
+      target: sendIssue.signature,
+      set: {
+        detail: issue.detail,
+        occurrences: sql`${sendIssue.occurrences} + 1`,
+        lastSeenAt: new Date(),
+        resolvedAt: null,
+      },
+    });
+}
+
+/** A successful send clears the problems it proves are over. */
+async function resolveIssues(campaignId: number, accountId: number) {
+  await db
+    .update(sendIssue)
+    .set({ resolvedAt: new Date() })
+    .where(
+      and(
+        isNull(sendIssue.resolvedAt),
+        or(
+          eq(sendIssue.campaignId, campaignId),
+          eq(sendIssue.accountId, accountId),
+          eq(sendIssue.kind, "no_capacity"),
+        ),
+      ),
+    );
+}
 
 /**
  * Pacing (blueprint rule 5): target gap between consecutive sends on one
@@ -229,9 +281,18 @@ export async function runSchedulerTick(): Promise<TickResult> {
           a.active && a.googleRefreshToken && !a.needsReconnect && remaining(a) > 0,
       );
       if (eligible.length === 0) {
-        act("skipped_no_account", {
-          detail: "No active Google-connected account with remaining cap.",
+        const detail =
+          accounts.length === 0
+            ? "No sending accounts exist."
+            : accounts.some((a) => a.active && a.googleRefreshToken && !a.needsReconnect)
+              ? "Every eligible account has hit its daily cap. Sending resumes tomorrow, or raise the caps on the Accounts screen."
+              : "No account is active and connected to Google. Check the Accounts screen.";
+        await recordIssue({
+          signature: "no_capacity",
+          kind: "no_capacity",
+          detail,
         });
+        act("skipped_no_account", { detail });
         continue;
       }
       const ready = eligible.filter((a) => paceReady(a, minutesRemaining, now));
@@ -252,10 +313,15 @@ export async function runSchedulerTick(): Promise<TickResult> {
         !account.googleRefreshToken ||
         account.needsReconnect
       ) {
-        act("skipped_no_account", {
-          detail:
-            "Pinned account missing, deactivated, or its Google connection needs a reconnect.",
+        const detail = `${e.email} is mid-sequence on a pinned account that is now missing, deactivated, or needs a Google reconnect. Later steps must reuse it to stay in the same thread, so this contact is stuck until it is back.`;
+        await recordIssue({
+          signature: `pinned_account:${e.assignedAccountId ?? "none"}`,
+          kind: "auth_expired",
+          campaignId: e.campaignId,
+          accountId: e.assignedAccountId,
+          detail,
         });
+        act("skipped_no_account", { detail });
         continue;
       }
       if (remaining(account) <= 0) {
@@ -285,9 +351,15 @@ export async function runSchedulerTick(): Promise<TickResult> {
     const subject =
       stepNum === 1 ? step1Subject : step1Subject ? `Re: ${step1Subject}` : "";
     if (subject === "") {
-      act("skipped_no_subject", {
-        detail: "Step 1 has no subject template — edit the campaign.",
+      const detail =
+        "Step 1 has no subject, so no email can be built. Every step takes its subject from step 1 — add one in the campaign's sequence editor.";
+      await recordIssue({
+        signature: `no_subject:${e.campaignId}`,
+        kind: "no_subject",
+        campaignId: e.campaignId,
+        detail,
       });
+      act("skipped_no_subject", { detail });
       continue;
     }
     const bodyText = renderTemplate(copy.bodyTemplate, mergeContact);
@@ -366,6 +438,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
       });
       account.sentToday += 1;
       account.lastSentAt = sentAt;
+      await resolveIssues(e.campaignId, account.id);
       act("sent", { accountEmail: account.email });
     } catch (err) {
       if (err instanceof NeedsReconnectError) {
@@ -377,13 +450,24 @@ export async function runSchedulerTick(): Promise<TickResult> {
           .where(eq(sendingAccount.id, account.id));
         account.needsReconnect = true;
         account.sentToday = account.dailyCap;
+        await recordIssue({
+          signature: `auth_expired:${account.id}`,
+          kind: "auth_expired",
+          accountId: account.id,
+          detail: `${account.email} can no longer send — its Google connection expired or was revoked. Use "Reconnect Google" on the Accounts screen. (${err.message})`,
+        });
         act("error_auth", { accountEmail: account.email, detail: err.message });
         continue;
       }
-      act("error", {
-        accountEmail: account.email,
-        detail: err instanceof Error ? err.message : String(err),
+      const detail = err instanceof Error ? err.message : String(err);
+      await recordIssue({
+        signature: `send_failed:${account.id}:${detail.slice(0, 120)}`,
+        kind: "send_failed",
+        campaignId: e.campaignId,
+        accountId: account.id,
+        detail: `Gmail rejected a send from ${account.email} to ${e.email}: ${detail}`,
       });
+      act("error", { accountEmail: account.email, detail });
     }
   }
 

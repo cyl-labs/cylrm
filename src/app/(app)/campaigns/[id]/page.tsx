@@ -17,6 +17,7 @@ import {
   type EnrollmentRow,
 } from "@/components/campaigns/enrollments-table";
 import { AbTestCard } from "@/components/campaigns/ab-test-card";
+import { SendIssuesCard } from "@/components/campaigns/send-issues-card";
 import {
   StepsEditor,
   type StepData,
@@ -24,6 +25,7 @@ import {
 } from "@/components/campaigns/steps-editor";
 import { ENROLLMENT_STATUSES, enrollmentStatusLabel } from "@/components/campaigns/status";
 import { getVariantStats, type VariantStats } from "@/lib/stats";
+import { getSendIssues, type SendIssue } from "@/lib/send-issues";
 import type { CampaignProgress } from "@/lib/campaign-progress";
 
 /** One card per step, with its optional B copy alongside the A copy. */
@@ -52,6 +54,7 @@ function CampaignDetail({
   steps,
   enrollments,
   variantStats,
+  issues,
 }: {
   campaignId: number;
   name: string;
@@ -61,6 +64,7 @@ function CampaignDetail({
   steps: StepData[];
   enrollments: EnrollmentRow[];
   variantStats: Record<"a" | "b", VariantStats> | null;
+  issues: SendIssue[];
 }) {
   const groups = groupSteps(steps);
   const testedSteps = groups.filter((g) => g.b).map((g) => g.stepNumber);
@@ -70,6 +74,8 @@ function CampaignDetail({
       actions={<CampaignStatusControl campaignId={campaignId} status={status} />}
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-4">
+        <SendIssuesCard issues={issues} />
+
         <CampaignProgressCard p={progress} />
 
         {testedSteps.length > 0 && variantStats && (
@@ -140,6 +146,7 @@ export default async function CampaignDetailPage({
         // No demo campaign runs an A/B test — fabricated arm totals would not
         // reconcile with the sent counts the other demo screens report.
         variantStats={null}
+        issues={[]}
       />
     );
   }
@@ -150,7 +157,8 @@ export default async function CampaignDetailPage({
     .where(eq(campaign.id, campaignId));
   if (!camp) notFound();
 
-  const [steps, counts, enrollmentRows, progress, variantStats] = await Promise.all([
+  const [steps, counts, enrollmentRows, progress, variantStats, issues] =
+    await Promise.all([
     db
       .select()
       .from(sequenceStep)
@@ -192,6 +200,7 @@ export default async function CampaignDetailPage({
       ),
     getCampaignProgress(campaignId),
     getVariantStats(campaignId),
+    getSendIssues(campaignId),
   ]);
 
   return (
@@ -210,6 +219,7 @@ export default async function CampaignDetailPage({
         bodyTemplate: s.bodyTemplate,
       }))}
       variantStats={variantStats}
+      issues={issues}
       enrollments={enrollmentRows.map((r) => ({
         id: r.id,
         contactName:

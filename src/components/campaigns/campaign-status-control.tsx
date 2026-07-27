@@ -6,6 +6,7 @@ import { Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ActivateDialog } from "@/components/campaigns/activate-dialog";
 import { CAMPAIGN_STATUS_BADGE } from "@/components/campaigns/status";
 
 export function CampaignStatusControl({
@@ -17,6 +18,7 @@ export function CampaignStatusControl({
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   async function setStatus(next: "active" | "paused") {
     setBusy(true);
@@ -32,6 +34,7 @@ export function CampaignStatusControl({
         return;
       }
       toast.success(next === "active" ? "Campaign activated." : "Campaign paused.");
+      setConfirmOpen(false);
       router.refresh();
     } catch {
       toast.error("Failed to update status — network error.");
@@ -49,11 +52,18 @@ export function CampaignStatusControl({
           Pause
         </Button>
       ) : (
-        <Button size="sm" disabled={busy} onClick={() => setStatus("active")}>
+        <Button size="sm" disabled={busy} onClick={() => setConfirmOpen(true)}>
           <Play data-icon="inline-start" />
           Activate
         </Button>
       )}
+      <ActivateDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        campaignId={campaignId}
+        confirming={busy}
+        onConfirm={() => setStatus("active")}
+      />
     </div>
   );
 }

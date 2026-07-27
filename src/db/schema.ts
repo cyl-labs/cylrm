@@ -49,6 +49,17 @@ export const messageKindEnum = pgEnum("message_kind", [
   "bounce",
 ]);
 
+export const sendIssueKindEnum = pgEnum("send_issue_kind", [
+  /** Gmail rejected the send outright. */
+  "send_failed",
+  /** Refresh token expired or revoked; the account needs reconnecting. */
+  "auth_expired",
+  /** Step 1 has no subject, so the scheduler cannot build the email. */
+  "no_subject",
+  /** No active, connected account had cap left — nothing could be assigned. */
+  "no_capacity",
+]);
+
 export const dealStageEnum = pgEnum("deal_stage", [
   "replied",
   "interested",
@@ -233,4 +244,31 @@ export const dealStageChange = pgTable("deal_stage_change", {
   changedAt: timestamp("changed_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+});
+
+/**
+ * Anything that stopped an email going out.
+ *
+ * The scheduler runs every 5 minutes, so a standing problem (an expired
+ * token, a campaign with no subject) would otherwise write a row per
+ * enrollment per tick. Rows are therefore keyed by a stable `signature`
+ * describing the problem rather than the occurrence, and re-seeing one bumps
+ * `occurrences` and `lastSeenAt`. A successful send for the same account or
+ * campaign resolves it.
+ */
+export const sendIssue = pgTable("send_issue", {
+  id: serial("id").primaryKey(),
+  signature: text("signature").notNull().unique(),
+  kind: sendIssueKindEnum("kind").notNull(),
+  campaignId: integer("campaign_id").references(() => campaign.id),
+  accountId: integer("account_id").references(() => sendingAccount.id),
+  detail: text("detail").notNull(),
+  occurrences: integer("occurrences").notNull().default(1),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
 });

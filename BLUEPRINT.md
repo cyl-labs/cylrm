@@ -218,6 +218,14 @@ Per campaign, per step, per lead list (niche), and per account/domain, over a se
 
 Campaign comparison view: two campaigns side by side on the same date range, pivotable to lead list ("same pitch, which niche replies" and "same niche, which pitch converts" are both one click). UI note: differences under roughly 2x at low volume are noise. Max 2 active approach tests running at once; change one variable between them.
 
+## Activation preflight and send issues
+
+Activating a campaign opens a confirmation showing what will happen: contacts, emails owed, daily capacity, estimated finish, the A/B split if one is running, and the actual copy of every step rendered against a real enrolled contact so merge gaps are visible rather than theoretical.
+
+Checks are split into blockers and warnings. **Blockers** disable the confirm: no steps, step 1 with no subject, nobody enrolled, no account able to send. **Warnings** inform but do not stop: empty step bodies, unknown merge fields, contacts missing a field the copy interpolates, Google connections near their ~7-day expiry, accounts awaiting reconnect, other campaigns sharing the same account pool, a finish date beyond 60 days, and OOO-paused enrollments.
+
+Anything that stops an email going out is recorded in `send_issue` and surfaced on the campaign detail screen, with a count banner on the campaigns list. The scheduler runs every 5 minutes, so rows are keyed by a `signature` describing the problem rather than the occurrence — re-seeing one bumps `occurrences` and `last_seen_at` instead of writing a new row. A successful send for the same campaign or account resolves the issue automatically, so the list only ever shows live problems.
+
 ## Screens
 
 1. **Leads** — TanStack table. CSV import (Apollo columns) either creates a named lead list or appends to an existing one, so a niche scraped across several batches stays a single list and its lead-list stats stay comparable. An import can enrol its new contacts into a campaign in the same step; only the rows that import adds are enrolled, never earlier batches already in the list. Filter by lead list, company, enrolled-or-not. The header checkbox selects every row matching the current filters, not just the visible page; changing a filter clears the selection. Duplicate contacts are flagged and excluded from bulk enroll by default. Multi-select → "enroll in campaign", which runs the re-engagement guard and blocks with a confirmation step if any selected contact already has a non-terminal enrollment or any deal elsewhere.
