@@ -47,9 +47,22 @@ export function verifyUnsubscribeToken(token: string): number | null {
   return timingSafeEqual(given, expected) ? contactId : null;
 }
 
-/** Absolute base for links that have to work from inside an email client. */
+/**
+ * Absolute base for links that have to work from inside an email client.
+ *
+ * Deliberately NOT `APP_URL`: that is the worker's internal base and is set
+ * to http://localhost:3005 in production so cron calls don't depend on DNS or
+ * TLS. Using it here would put a localhost link in every email.
+ */
 export function appBaseUrl(): string {
-  return (process.env.APP_URL ?? "https://crm.cyllabs.com").replace(/\/$/, "");
+  const base = process.env.PUBLIC_APP_URL;
+  if (!base) {
+    throw new Error(
+      "PUBLIC_APP_URL must be set to the externally reachable origin " +
+        "(e.g. https://crm.cyllabs.com) — unsubscribe links go out in email.",
+    );
+  }
+  return base.replace(/\/$/, "");
 }
 
 export function unsubscribeUrl(contactId: number): string {
