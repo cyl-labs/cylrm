@@ -87,6 +87,9 @@ function timeToMinutes(t: string): number {
   return h * 60 + m;
 }
 
+/** How long a first touch waits behind follow-ups before it jumps the queue. */
+export const FIRST_TOUCH_PATIENCE_DAYS = 1;
+
 const remaining = (a: AccountState) => a.dailyCap - a.sentToday;
 
 /**
@@ -258,16 +261,29 @@ export async function runSchedulerTick(): Promise<TickResult> {
         lte(enrollment.nextSendAt, now),
       ),
     )
-    // Follow-ups first. Both touches draw on the same daily cap, and a bulk
-    // enrollment stamps thousands of rows with the same early next_send_at —
-    // earlier than any follow-up's, since a follow-up is dated from its step-1
-    // send. Ordering purely by due time therefore lets a step-1 backlog starve
-    // follow-ups until it drains, silently stretching a 3-day gap to ten. A
-    // follow-up is time-critical because it lands in a live thread; a first
-    // touch slipping a day costs nothing. (`current_step = 0` is false for
-    // follow-ups, and false sorts first.)
+    // Follow-ups first, but only while a first touch is still fresh.
+    //
+    // Both touches draw on the same daily cap, and a bulk enrollment stamps
+    // thousands of rows with the same early next_send_at — earlier than any
+    // follow-up's, since a follow-up is dated from its step-1 send. Ordering
+    // purely by due time therefore lets a step-1 backlog starve follow-ups
+    // until it drains, stretching a 3-day gap to ten.
+    //
+    // Absolute priority has the opposite failure though: when a day's first
+    // touches don't divide evenly into capacity, the handful left over lose
+    // to a fresh wave of follow-ups every morning and can wait a week, each
+    // then owing its own follow-up on top. Three such contacts once added
+    // five days to a finish estimate.
+    //
+    // So a first touch overdue by more than FIRST_TOUCH_PATIENCE_DAYS is
+    // promoted to sit alongside follow-ups, ordered by due time. Stragglers
+    // clear the next day; follow-ups still beat anything freshly enrolled.
     .orderBy(
-      asc(sql`${enrollment.currentStep} = 0`),
+      asc(
+        sql`case when ${enrollment.currentStep} > 0 then 0
+                 when ${enrollment.nextSendAt} < now() - ${sql.raw(`interval '${FIRST_TOUCH_PATIENCE_DAYS} days'`)} then 0
+                 else 1 end`,
+      ),
       asc(enrollment.nextSendAt),
       asc(enrollment.id),
     );

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appSetting } from "@/db/schema";
+import { FIRST_TOUCH_PATIENCE_DAYS } from "@/lib/scheduler";
 
 /** The scheduler ticks every 5 minutes and sends at most one email per
  * account per tick (see the pacing rule in `scheduler.ts`), so an account's
@@ -271,12 +272,16 @@ export async function getCampaignProgress(
         let budget = perDay;
         // Follow-ups first, matching the scheduler's ordering, then by due
         // date so the longest-waiting cohort goes next.
+        // Mirrors the scheduler's ordering: follow-ups first, plus any first
+        // touch left waiting past its patience window, then by due date.
+        const rank = (c: Cohort) =>
+          c.stepsLeft < stepCount || day - c.due > FIRST_TOUCH_PATIENCE_DAYS
+            ? 0
+            : 1;
         const ready = cohorts
           .filter((c) => c.count > 0 && c.due <= day)
           .sort((a, b) =>
-            a.stepsLeft === b.stepsLeft
-              ? a.due - b.due
-              : a.stepsLeft - b.stepsLeft,
+            rank(a) === rank(b) ? a.due - b.due : rank(a) - rank(b),
           );
         for (const c of ready) {
           if (budget <= 0) break;
