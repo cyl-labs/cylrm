@@ -50,6 +50,13 @@ export type CampaignProgress = {
 type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
 
+/** Why a non-active campaign sends nothing. Shared so the demo twin and the
+ *  real query can't drift apart in wording. */
+export function notActiveReason(status: string): string {
+  const described = status === "draft" ? "still a draft" : status;
+  return `This campaign is ${described} — the scheduler skips it, so nothing will send.`;
+}
+
 const timeToMinutes = (t: string) => {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
@@ -201,7 +208,7 @@ export async function getCampaignProgress(
   if (remaining === 0) blockedReason = null;
   else if (stepCount === 0) blockedReason = "This campaign has no steps yet.";
   else if (campRow?.status !== "active")
-    blockedReason = `Campaign is ${String(campRow?.status ?? "unknown")} — the scheduler skips it.`;
+    blockedReason = notActiveReason(String(campRow?.status ?? "unknown"));
   else if (eligibleAccounts === 0)
     blockedReason =
       "No active Google-connected account — nothing can send until one is reconnected.";

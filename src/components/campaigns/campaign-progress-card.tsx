@@ -104,13 +104,14 @@ export function CampaignProgressCard({ p }: { p: CampaignProgress }) {
         </div>
 
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Capacity is about {p.capacityPerDay.toLocaleString()} emails/day
+          Capacity is about {p.capacityPerDay.toLocaleString()} emails a day
           across {p.eligibleAccounts} connected account
           {p.eligibleAccounts === 1 ? "" : "s"}
-          {shared}, sending {hhmm(p.window.start)}–{hhmm(p.window.end)}{" "}
-          {p.window.timezone.replace("_", " ")}. The estimate assumes caps and
-          accounts stay as they are, and will come in early as replies and
-          bounces cancel remaining steps.
+          {shared}, sending between {hhmm(p.window.start)} and{" "}
+          {hhmm(p.window.end)} {p.window.timezone.replace("_", " ")}. The
+          estimate assumes your caps, accounts and sending window stay as they
+          are, and it will tend to run early, because replies and bounces
+          cancel the steps a contact had left.
         </p>
 
         {p.blockedReason && (

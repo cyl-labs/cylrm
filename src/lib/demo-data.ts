@@ -1,4 +1,5 @@
 import type { EntityStats, StepStat, AccountStat } from "@/lib/stats";
+import { notActiveReason } from "@/lib/campaign-progress";
 
 // Static fixtures for demo mode ("Demo CRM" in the logo switcher). All ids
 // live in the 9000+ range so they can never collide with real rows; write
@@ -253,7 +254,7 @@ export function demoCampaignProgress(id: number) {
     remaining === 0
       ? null
       : campaign.status !== "active"
-        ? `Campaign is ${campaign.status} — the scheduler skips it.`
+        ? notActiveReason(campaign.status)
         : null;
 
   let etaDays: number | null = null;
