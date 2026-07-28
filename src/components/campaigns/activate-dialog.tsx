@@ -71,6 +71,14 @@ function Version({
       <p className="mt-1 whitespace-pre-wrap text-[13px] text-muted-foreground">
         {v.body || "(empty)"}
       </p>
+      {/* Drawn the way the HTML part displays — recipients see the word, not
+          the URL, and a raw token here would overflow the column anyway. */}
+      <p className="mt-3 text-[13px] text-muted-foreground">
+        --
+        <br />
+        Not interested?{" "}
+        <span className="text-primary underline">Unsubscribe</span>
+      </p>
     </div>
   );
 }

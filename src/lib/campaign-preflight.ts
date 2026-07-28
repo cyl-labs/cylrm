@@ -2,7 +2,6 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCampaignProgress, type CampaignProgress } from "@/lib/campaign-progress";
 import { MERGE_FIELDS, renderTemplate } from "@/lib/templates";
-import { buildEmailBody } from "@/lib/unsubscribe-footer";
 
 export type CheckLevel = "blocker" | "warning" | "ok";
 
@@ -87,7 +86,7 @@ export async function getCampaignPreflight(
   // A real enrolled contact to render previews against — a made-up sample
   // would hide exactly the merge gaps this screen exists to surface.
   const [sample] = (await db.execute(sql`
-    select c.id, c.email, c.first_name, c.last_name, c.company, c.title
+    select c.email, c.first_name, c.last_name, c.company, c.title
     from enrollment e join contact c on c.id = e.contact_id
     where e.campaign_id = ${campaignId} and e.status = 'active'
     order by e.id limit 1
@@ -326,7 +325,6 @@ export async function getCampaignPreflight(
     });
   }
 
-  const sampleContactId = sample ? n(sample.id) : null;
   const sampleContact = sample
     ? {
         email: sample.email as string,
@@ -362,7 +360,7 @@ export async function getCampaignPreflight(
             ? renderTemplate(rawSubject, sampleContact, sender)
             : rawSubject || null
           : null,
-      body: sampleContactId ? buildEmailBody(body, sampleContactId).text : body,
+      body,
     };
   };
 
