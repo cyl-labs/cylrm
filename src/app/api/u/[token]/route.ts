@@ -27,9 +27,15 @@ export async function POST(
 }
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  return NextResponse.redirect(new URL(`/u/${token}`, request.url), 303);
+  // Relative Location on purpose. Building an absolute URL from request.url
+  // leaks the internal localhost:3005 origin behind Caddy — the same trap the
+  // login/logout handlers document.
+  return new Response(null, {
+    status: 303,
+    headers: { Location: `/u/${encodeURIComponent(token)}` },
+  });
 }
