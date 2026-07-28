@@ -6,6 +6,7 @@ import {
   BarChart3,
   Inbox,
   Kanban,
+  MailOpen,
   Send,
   Users,
 } from "lucide-react";
@@ -15,6 +16,7 @@ const links = [
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/campaigns", label: "Campaigns", icon: Send },
   { href: "/accounts", label: "Accounts", icon: Inbox },
+  { href: "/replies", label: "Replies", icon: MailOpen },
   { href: "/pipeline", label: "Pipeline", icon: Kanban },
   { href: "/stats", label: "Stats", icon: BarChart3 },
 ];

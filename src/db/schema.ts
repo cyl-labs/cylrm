@@ -226,6 +226,9 @@ export const message = pgTable(
      *  on automatically — "no need to unsubscribe me, this is interesting"
      *  matches the same words. */
     unsubscribeIntent: boolean("unsubscribe_intent").notNull().default(false),
+    /** When this inbound message was opened on the Replies screen. Null means
+     *  unread; outbound messages leave it null and are never listed there. */
+    readAt: timestamp("read_at", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
   (t) => [
