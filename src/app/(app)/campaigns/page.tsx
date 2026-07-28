@@ -43,7 +43,9 @@ export default async function CampaignsPage() {
       // ${table.column} unqualified inside a select-field template, so
       // ${campaign.id} became a bare "id" that resolved to the subquery's own
       // table — every count came back wrong (0 enrolled on every campaign).
-      stepCount: sql<number>`(select count(*) from "sequence_step" where "sequence_step"."campaign_id" = "campaign"."id")::int`,
+      // distinct step_number, not row count: an A/B test adds a second row on
+      // the same step and would otherwise read as an extra step.
+      stepCount: sql<number>`(select count(distinct "step_number") from "sequence_step" where "sequence_step"."campaign_id" = "campaign"."id")::int`,
       activeCount: sql<number>`(select count(*) from "enrollment" where "enrollment"."campaign_id" = "campaign"."id" and "enrollment"."status" = 'active')::int`,
       totalCount: sql<number>`(select count(*) from "enrollment" where "enrollment"."campaign_id" = "campaign"."id")::int`,
     })

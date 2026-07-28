@@ -20,8 +20,9 @@ export type CampaignProgress = {
   notStarted: number;
   /** Due right now and waiting on the next tick. */
   dueNow: number;
-  /** OOO-paused enrollments. They are excluded from `remaining` because the
-   * scheduler only picks up `active` rows and nothing moves them back. */
+  /** OOO-paused enrollments. Counted in `remaining` — the scheduler resumes
+   * them once their 7 days elapse, so the steps they owe are deferred work,
+   * not cancelled work. */
   oooPaused: number;
   percentComplete: number;
   /** Sends per day the whole system can make, across every eligible account. */
@@ -108,9 +109,9 @@ export async function getCampaignProgress(
 
   const [campRow] = (await db.execute(sql`
     select c.status,
-      (select count(*) from sequence_step s where s.campaign_id = c.id) as step_count,
+      (select count(distinct s.step_number) from sequence_step s where s.campaign_id = c.id) as step_count,
       (select coalesce(sum(s.wait_days_after_previous), 0) from sequence_step s
-        where s.campaign_id = c.id and s.step_number >= 2) as full_sequence_days
+        where s.campaign_id = c.id and s.step_number >= 2 and s.variant = 'a') as full_sequence_days
     from campaign c where c.id = ${campaignId}
   `)) as Row[];
 
@@ -169,7 +170,7 @@ export async function getCampaignProgress(
       count(*) filter (where e.current_step = 0) as global_not_started
     from enrollment e
     join campaign c on c.id = e.campaign_id and c.status = 'active'
-    join (select campaign_id, count(*) as n from sequence_step group by campaign_id) sc
+    join (select campaign_id, count(distinct step_number) as n from sequence_step group by campaign_id) sc
       on sc.campaign_id = e.campaign_id
     where ${inPlay}
   `)) as Row[];
@@ -185,6 +186,7 @@ export async function getCampaignProgress(
       select coalesce(sum(s.wait_days_after_previous), 0) as wait_after
       from sequence_step s
       where s.campaign_id = e.campaign_id and s.step_number >= e.current_step + 2
+        and s.variant = 'a'
     ) w on true
     where e.campaign_id = ${campaignId} and e.status = 'active' and e.current_step >= 1
   `)) as Row[];
