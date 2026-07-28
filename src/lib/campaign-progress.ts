@@ -64,7 +64,15 @@ const timeToMinutes = (t: string) => {
   return h * 60 + m;
 };
 
-function zoneNow(tz: string): { minutes: number; isWeekend: boolean } {
+const WEEKDAY_INDEX: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+function zoneNow(tz: string): {
+  minutes: number;
+  isWeekend: boolean;
+  weekdayIndex: number;
+} {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: tz,
     hour12: false,
@@ -78,6 +86,7 @@ function zoneNow(tz: string): { minutes: number; isWeekend: boolean } {
   return {
     minutes: (get("hour") % 24) * 60 + get("minute"),
     isWeekend: weekday === "Sat" || weekday === "Sun",
+    weekdayIndex: WEEKDAY_INDEX[weekday] ?? 0,
   };
 }
 
@@ -104,7 +113,7 @@ export async function getCampaignProgress(
   const tz = setting.sendingTimezone;
   const startMin = timeToMinutes(setting.sendingWindowStart);
   const endMin = timeToMinutes(setting.sendingWindowEnd);
-  const { minutes: nowMin, isWeekend } = zoneNow(tz);
+  const { minutes: nowMin, isWeekend, weekdayIndex } = zoneNow(tz);
   const open =
     !(setting.sendWeekdaysOnly && isWeekend) &&
     nowMin >= startMin &&
@@ -118,14 +127,11 @@ export async function getCampaignProgress(
 
   const [campRow] = (await db.execute(sql`
     select c.status,
-      (select count(distinct s.step_number) from sequence_step s where s.campaign_id = c.id) as step_count,
-      (select coalesce(sum(s.wait_days_after_previous), 0) from sequence_step s
-        where s.campaign_id = c.id and s.step_number >= 2 and s.variant = 'a') as full_sequence_days
+      (select count(distinct s.step_number) from sequence_step s where s.campaign_id = c.id) as step_count
     from campaign c where c.id = ${campaignId}
   `)) as Row[];
 
   const stepCount = n(campRow?.step_count);
-  const fullSequenceDays = n(campRow?.full_sequence_days);
 
   // Out-of-office pauses resume once their 7 days elapse, so the steps they
   // still owe are real work the estimate has to include — they are simply
@@ -175,8 +181,7 @@ export async function getCampaignProgress(
   // Everything the shared pool still owes, across active campaigns.
   const [global] = (await db.execute(sql`
     select count(distinct c.id) as active_campaigns,
-      coalesce(sum(greatest(sc.n - e.current_step, 0)), 0) as global_remaining,
-      count(*) filter (where e.current_step = 0) as global_not_started
+      coalesce(sum(greatest(sc.n - e.current_step, 0)), 0) as global_remaining
     from enrollment e
     join campaign c on c.id = e.campaign_id and c.status = 'active'
     join (select campaign_id, count(distinct step_number) as n from sequence_step group by campaign_id) sc
@@ -186,25 +191,33 @@ export async function getCampaignProgress(
 
   // Longest sequence tail already in flight: time until this enrollment's
   // next send, plus the wait days of every step after that one.
-  const [inFlight] = (await db.execute(sql`
-    select coalesce(max(
-      greatest(extract(epoch from (e.next_send_at - now())) / 86400, 0) + w.wait_after
-    ), 0) as days
+  // Inputs for the finish simulation: how much work each cohort still owes
+  // and when its next send falls due.
+  const backlog = (await db.execute(sql`
+    select
+      greatest(0, ceil(extract(epoch from (e.next_send_at - now())) / 86400))::int as days_until,
+      greatest(${stepCount} - e.current_step, 0) as steps_left,
+      count(*)::int as n
     from enrollment e
-    join lateral (
-      select coalesce(sum(s.wait_days_after_previous), 0) as wait_after
-      from sequence_step s
-      where s.campaign_id = e.campaign_id and s.step_number >= e.current_step + 2
-        and s.variant = 'a'
-    ) w on true
-    where e.campaign_id = ${campaignId} and e.status = 'active' and e.current_step >= 1
+    where e.campaign_id = ${campaignId} and ${inPlay}
+      and greatest(${stepCount} - e.current_step, 0) > 0
+    group by 1, 2
   `)) as Row[];
+
+  const waitRows = (await db.execute(sql`
+    select step_number, wait_days_after_previous
+    from sequence_step
+    where campaign_id = ${campaignId} and variant = 'a'
+    order by step_number
+  `)) as Row[];
+  const waitBeforeStep = new Map<number, number>(
+    waitRows.map((r) => [n(r.step_number), n(r.wait_days_after_previous)]),
+  );
 
   const remaining = n(counts?.remaining);
   const sent = n(sentRow?.sent);
   const notStarted = n(counts?.not_started);
   const globalRemaining = n(global?.global_remaining);
-  const globalNotStarted = n(global?.global_not_started);
 
   let blockedReason: string | null = null;
   if (remaining === 0) blockedReason = null;
@@ -217,22 +230,74 @@ export async function getCampaignProgress(
   else if (capacityPerDay === 0)
     blockedReason = "Every eligible account has a daily cap of 0.";
 
+  /**
+   * Walk the queue forward a day at a time instead of dividing total work by
+   * daily capacity.
+   *
+   * Division assumes capacity is always usable, but a sequence stalls itself:
+   * once the first touches are out, nothing is due until their wait days
+   * elapse, so whole days pass sending nothing. On a 1,300-contact two-step
+   * campaign that gap made the old estimate about four days early.
+   */
   let etaDays: number | null = null;
   if (remaining > 0 && blockedReason === null && capacityPerDay > 0) {
-    // Capacity is spent per *sending* day, so with weekends off, 5 sending
-    // days cost 7 on the calendar. The schedule bound is already in calendar
-    // days (wait days elapse over a weekend), so only the capacity side is
-    // converted.
-    const calendarPerSendingDay = setting.sendWeekdaysOnly ? 7 / 5 : 1;
-    const toCalendar = (sendingDays: number) =>
-      Math.ceil(sendingDays * calendarPerSendingDay);
+    // The pool is shared, so this campaign only gets its share of a day.
+    const share =
+      globalRemaining > 0 ? Math.min(1, remaining / globalRemaining) : 1;
+    const perDay = Math.max(1, Math.floor(capacityPerDay * share));
 
-    const capacityDays = toCalendar(globalRemaining / capacityPerDay);
-    // The last contact to receive a first touch still owes the full follow-up
-    // sequence after that, so a step-1 backlog stretches the tail.
-    const step1Days = toCalendar(globalNotStarted / capacityPerDay);
-    const tailDays = notStarted > 0 ? step1Days + fullSequenceDays : 0;
-    etaDays = Math.max(capacityDays, tailDays, Math.ceil(n(inFlight?.days)));
+    type Cohort = { due: number; stepsLeft: number; count: number };
+    const cohorts: Cohort[] = backlog.map((r) => ({
+      due: n(r.days_until),
+      stepsLeft: n(r.steps_left),
+      count: n(r.n),
+    }));
+
+    // Judged in the sending timezone, not the server's — a campaign on New
+    // York hours read from a UTC box on a Sunday evening would otherwise
+    // shift the whole weekend pattern by a day.
+    const todayIndex = weekdayIndex;
+    const isSendingDay = (day: number) => {
+      if (!setting.sendWeekdaysOnly) return true;
+      const wd = (todayIndex + day) % 7;
+      return wd !== 0 && wd !== 6;
+    };
+
+    const MAX_DAYS = 400;
+    let day = 0;
+    let outstanding = cohorts.reduce((acc, c) => acc + c.count * c.stepsLeft, 0);
+    while (outstanding > 0 && day < MAX_DAYS) {
+      if (isSendingDay(day)) {
+        let budget = perDay;
+        // Follow-ups first, matching the scheduler's ordering, then by due
+        // date so the longest-waiting cohort goes next.
+        const ready = cohorts
+          .filter((c) => c.count > 0 && c.due <= day)
+          .sort((a, b) =>
+            a.stepsLeft === b.stepsLeft
+              ? a.due - b.due
+              : a.stepsLeft - b.stepsLeft,
+          );
+        for (const c of ready) {
+          if (budget <= 0) break;
+          const take = Math.min(c.count, budget);
+          budget -= take;
+          c.count -= take;
+          outstanding -= take;
+          const stepJustSent = stepCount - c.stepsLeft + 1;
+          if (c.stepsLeft > 1) {
+            const wait = waitBeforeStep.get(stepJustSent + 1) ?? 0;
+            cohorts.push({
+              due: day + wait,
+              stepsLeft: c.stepsLeft - 1,
+              count: take,
+            });
+          }
+        }
+      }
+      if (outstanding > 0) day++;
+    }
+    etaDays = outstanding > 0 ? null : day;
   }
 
   const etaDate =
