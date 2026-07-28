@@ -50,11 +50,11 @@ export const demoDomains = [
 
 export function demoAccounts() {
   return [
-    { id: 9001, email: "sara@outreachmail.co", active: true, dailyCap: 50, domainId: 9001, domainName: "outreachmail.co", hasGoogle: true, needsReconnect: false, googleConnectedAt: ago(1).toISOString(), hasAppPassword: true, sentToday: 14, sentTotal: 1240, bounceTotal: 11 },
-    { id: 9002, email: "ben@outreachmail.co", active: true, dailyCap: 50, domainId: 9001, domainName: "outreachmail.co", hasGoogle: true, needsReconnect: false, googleConnectedAt: ago(5.4).toISOString(), hasAppPassword: true, sentToday: 18, sentTotal: 1516, bounceTotal: 19 },
-    { id: 9003, email: "ops@outreachmail.co", active: false, dailyCap: 15, domainId: 9001, domainName: "outreachmail.co", hasGoogle: false, needsReconnect: false, googleConnectedAt: null, hasAppPassword: true, sentToday: 0, sentTotal: 388, bounceTotal: 4 },
-    { id: 9004, email: "mei@cylermail.com", active: true, dailyCap: 40, domainId: 9002, domainName: "cylermail.com", hasGoogle: true, needsReconnect: false, googleConnectedAt: ago(0.2).toISOString(), hasAppPassword: true, sentToday: 9, sentTotal: 2044, bounceTotal: 12 },
-    { id: 9005, email: "dev@cylermail.com", active: true, dailyCap: 40, domainId: 9002, domainName: "cylermail.com", hasGoogle: true, needsReconnect: true, googleConnectedAt: ago(9).toISOString(), hasAppPassword: true, sentToday: 11, sentTotal: 1873, bounceTotal: 58 },
+    { id: 9001, email: "sara@outreachmail.co", senderName: "Sara Lim", active: true, dailyCap: 50, domainId: 9001, domainName: "outreachmail.co", hasGoogle: true, needsReconnect: false, googleConnectedAt: ago(1).toISOString(), hasAppPassword: true, sentToday: 14, sentTotal: 1240, bounceTotal: 11 },
+    { id: 9002, email: "ben@outreachmail.co", senderName: "Ben Ortiz", active: true, dailyCap: 50, domainId: 9001, domainName: "outreachmail.co", hasGoogle: true, needsReconnect: false, googleConnectedAt: ago(5.4).toISOString(), hasAppPassword: true, sentToday: 18, sentTotal: 1516, bounceTotal: 19 },
+    { id: 9003, email: "ops@outreachmail.co", senderName: "Ops Inbox", active: false, dailyCap: 15, domainId: 9001, domainName: "outreachmail.co", hasGoogle: false, needsReconnect: false, googleConnectedAt: null, hasAppPassword: true, sentToday: 0, sentTotal: 388, bounceTotal: 4 },
+    { id: 9004, email: "mei@cylermail.com", senderName: "Mei Tan", active: true, dailyCap: 40, domainId: 9002, domainName: "cylermail.com", hasGoogle: true, needsReconnect: false, googleConnectedAt: ago(0.2).toISOString(), hasAppPassword: true, sentToday: 9, sentTotal: 2044, bounceTotal: 12 },
+    { id: 9005, email: "dev@cylermail.com", senderName: "Dev Rao", active: true, dailyCap: 40, domainId: 9002, domainName: "cylermail.com", hasGoogle: true, needsReconnect: true, googleConnectedAt: ago(9).toISOString(), hasAppPassword: true, sentToday: 11, sentTotal: 1873, bounceTotal: 58 },
   ];
 }
 

@@ -12,7 +12,11 @@ import {
 } from "@/db/schema";
 import { decryptSecret } from "@/lib/crypto";
 import { NeedsReconnectError, sendViaGmailApi } from "@/lib/google";
-import { renderTemplate, type MergeContact } from "@/lib/templates";
+import {
+  renderTemplate,
+  type MergeContact,
+  type MergeSender,
+} from "@/lib/templates";
 
 export type TickAction = {
   enrollmentId: number;
@@ -48,6 +52,7 @@ export type TickResult = {
 type AccountState = {
   id: number;
   email: string;
+  senderName: string | null;
   googleRefreshToken: string | null;
   needsReconnect: boolean;
   dailyCap: number;
@@ -200,6 +205,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
     .select({
       id: sendingAccount.id,
       email: sendingAccount.email,
+      senderName: sendingAccount.senderName,
       googleRefreshToken: sendingAccount.googleRefreshToken,
       needsReconnect: sendingAccount.needsReconnect,
       dailyCap: sendingAccount.dailyCap,
@@ -386,8 +392,16 @@ export async function runSchedulerTick(): Promise<TickResult> {
     };
     // Subject comes from step 1 of this enrollment's arm, so a subject-line
     // A/B test carries through the whole thread's "Re:" chain.
+    const sender: MergeSender = {
+      name: account.senderName,
+      email: account.email,
+    };
     const step1 = copyFor(steps?.get(1), e.variant);
-    const step1Subject = renderTemplate(step1?.subjectTemplate ?? "", mergeContact).trim();
+    const step1Subject = renderTemplate(
+      step1?.subjectTemplate ?? "",
+      mergeContact,
+      sender,
+    ).trim();
     const subject =
       stepNum === 1 ? step1Subject : step1Subject ? `Re: ${step1Subject}` : "";
     if (subject === "") {
@@ -402,7 +416,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
       act("skipped_no_subject", { detail });
       continue;
     }
-    const bodyText = renderTemplate(copy.bodyTemplate, mergeContact);
+    const bodyText = renderTemplate(copy.bodyTemplate, mergeContact, sender);
 
     // In-thread headers for steps 2+ from the enrollment's prior sends.
     let inReplyTo: string | undefined;
@@ -429,6 +443,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
     try {
       const { rfcMessageId, gmailMessageId, threadId } = await sendViaGmailApi({
         fromEmail: account.email,
+        fromName: account.senderName,
         refreshToken: decryptSecret(account.googleRefreshToken!),
         to: e.email,
         subject,

@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       .select({
         id: sendingAccount.id,
         email: sendingAccount.email,
+        senderName: sendingAccount.senderName,
         googleRefreshToken: sendingAccount.googleRefreshToken,
         needsReconnect: sendingAccount.needsReconnect,
         active: sendingAccount.active,
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
   try {
     const { rfcMessageId, gmailMessageId } = await sendViaGmailApi({
       fromEmail: account.email,
+      fromName: account.senderName,
       refreshToken: decryptSecret(account.googleRefreshToken),
       to: recipient.email,
       subject,

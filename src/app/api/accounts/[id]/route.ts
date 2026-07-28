@@ -22,7 +22,12 @@ export async function PATCH(
     return Response.json({ error: "Invalid account id." }, { status: 400 });
   }
 
-  let body: { dailyCap?: unknown; active?: unknown; appPassword?: unknown };
+  let body: {
+    dailyCap?: unknown;
+    active?: unknown;
+    appPassword?: unknown;
+    senderName?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -33,7 +38,19 @@ export async function PATCH(
     dailyCap: number;
     active: boolean;
     appPassword: string;
+    senderName: string | null;
   }> = {};
+  if (body.senderName !== undefined) {
+    const name =
+      typeof body.senderName === "string" ? body.senderName.trim() : "";
+    if (name.length > 60) {
+      return Response.json(
+        { error: "Keep the sender name to 60 characters or fewer." },
+        { status: 400 },
+      );
+    }
+    updates.senderName = name === "" ? null : name;
+  }
 
   // Accounts connected through Google OAuth arrive with no app password, and
   // the create endpoint refuses an email it already knows — so this is the

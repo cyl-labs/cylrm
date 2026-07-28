@@ -77,6 +77,10 @@ export const domain = pgTable("domain", {
 export const sendingAccount = pgTable("sending_account", {
   id: serial("id").primaryKey(),
   email: text("email").notNull(),
+  /** Who this mailbox is, e.g. "Chin Teck". Used as the From display name and
+   *  available to copy as {{sender_name}}, so one campaign can go out from
+   *  several people and still sign off correctly. */
+  senderName: text("sender_name"),
   domainId: integer("domain_id")
     .notNull()
     .references(() => domain.id),

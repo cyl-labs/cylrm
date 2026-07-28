@@ -27,6 +27,7 @@ import {
 export type AccountRow = {
   id: number;
   email: string;
+  senderName: string | null;
   active: boolean;
   dailyCap: number;
   domainId: number;
@@ -151,6 +152,58 @@ function DailyCapInput({ account }: { account: AccountRow }) {
       }}
       className="h-8 w-20 text-[13px]"
       aria-label={`Daily cap for ${account.email}`}
+    />
+  );
+}
+
+/** The name recipients see, and what {{sender_name}} renders to. */
+function SenderNameInput({ account }: { account: AccountRow }) {
+  const router = useRouter();
+  const [value, setValue] = React.useState(account.senderName ?? "");
+  const [saving, setSaving] = React.useState(false);
+
+  async function save() {
+    const next = value.trim();
+    if (next === (account.senderName ?? "")) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderName: next }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to save sender name.");
+        setValue(account.senderName ?? "");
+        return;
+      }
+      toast.success(
+        next === ""
+          ? `${account.email} will send with no display name.`
+          : `${account.email} will send as “${next}”.`,
+      );
+      router.refresh();
+    } catch {
+      toast.error("Failed to save sender name — network error.");
+      setValue(account.senderName ?? "");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Input
+      value={value}
+      disabled={saving}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+      placeholder="e.g. Chin Teck"
+      className="h-8 w-36 text-[13px]"
+      aria-label={`Sender name for ${account.email}`}
     />
   );
 }
@@ -314,7 +367,7 @@ export function AccountsView({ accounts }: { accounts: AccountRow[] }) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {["Email", "Status", "Sends today", "Bounce rate", "Daily cap", ""].map(
+                      {["Email", "Sends as", "Status", "Sends today", "Bounce rate", "Daily cap", ""].map(
                         (label) => (
                           <TableHead
                             key={label}
@@ -331,6 +384,9 @@ export function AccountsView({ accounts }: { accounts: AccountRow[] }) {
                       <TableRow key={account.id}>
                         <TableCell className="whitespace-nowrap text-[13px] font-medium">
                           {account.email}
+                        </TableCell>
+                        <TableCell>
+                          <SenderNameInput account={account} />
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1.5">

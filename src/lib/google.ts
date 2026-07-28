@@ -147,6 +147,7 @@ export type GmailApiSendResult = {
  * unaffected by the droplet's SMTP port block). */
 export async function sendViaGmailApi(params: {
   fromEmail: string;
+  fromName?: string | null;
   refreshToken: string;
   to: string;
   subject: string;
@@ -157,7 +158,10 @@ export async function sendViaGmailApi(params: {
   const accessToken = await getAccessToken(params.refreshToken, params.fromEmail);
 
   const mime = await new MailComposer({
-    from: params.fromEmail,
+    // A bare address reads as automation; a display name reads as a person.
+    from: params.fromName
+      ? { name: params.fromName, address: params.fromEmail }
+      : params.fromEmail,
     to: params.to,
     subject: params.subject,
     text: params.text,

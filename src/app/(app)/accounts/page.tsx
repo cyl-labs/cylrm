@@ -58,6 +58,7 @@ export default async function AccountsPage({
       .select({
         id: sendingAccount.id,
         email: sendingAccount.email,
+        senderName: sendingAccount.senderName,
         active: sendingAccount.active,
         dailyCap: sendingAccount.dailyCap,
         domainId: sendingAccount.domainId,

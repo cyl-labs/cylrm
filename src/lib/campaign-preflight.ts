@@ -185,6 +185,7 @@ export async function getCampaignPreflight(
     select a.email, a.daily_cap, a.active, a.needs_reconnect,
       a.google_refresh_token is not null as has_google,
       a.app_password is not null as has_app_password,
+      a.sender_name,
       a.google_connected_at
     from sending_account a order by a.email
   `)) as Row[];
@@ -196,6 +197,18 @@ export async function getCampaignPreflight(
     (a) => a.active && a.has_google && !a.needs_reconnect,
   );
   const blindSenders = sendReady.filter((a) => !a.has_app_password);
+  // {{sender_name}} resolves per sending mailbox, so an unnamed one silently
+  // signs off with nothing.
+  if (fields.includes("sender_name")) {
+    const unnamed = sendReady.filter((a) => !a.sender_name);
+    if (unnamed.length > 0) {
+      checks.push({
+        level: "warning",
+        title: `${unnamed.length} mailbox${unnamed.length === 1 ? "" : "es"} have no sender name`,
+        detail: `${unnamed.map((a) => a.email).join(", ")} — your copy signs off with {{sender_name}}, which renders as nothing for anything sent from ${unnamed.length === 1 ? "it" : "them"}. Set it on the Accounts screen.`,
+      });
+    }
+  }
   if (sendReady.length > 0 && blindSenders.length === sendReady.length) {
     checks.push({
       level: "blocker",
@@ -312,6 +325,14 @@ export async function getCampaignPreflight(
       }
     : null;
 
+  const previewSender = sendReady.find((a) => a.sender_name) ?? sendReady[0];
+  const sender = previewSender
+    ? {
+        name: (previewSender.sender_name as string | null) ?? null,
+        email: previewSender.email as string,
+      }
+    : undefined;
+
   const steps: PreflightStep[] = ordered.map(([stepNumber, entry]) => ({
     stepNumber,
     waitDaysAfterPrevious: n(entry.a?.wait_days_after_previous),
@@ -319,12 +340,16 @@ export async function getCampaignPreflight(
     subjectPreview:
       stepNumber === 1
         ? sampleContact
-          ? renderTemplate(subject, sampleContact)
+          ? renderTemplate(subject, sampleContact, sender)
           : subject || null
         : null,
     bodyPreview: truncate(
       sampleContact
-        ? renderTemplate((entry.a?.body_template as string) ?? "", sampleContact)
+        ? renderTemplate(
+            (entry.a?.body_template as string) ?? "",
+            sampleContact,
+            sender,
+          )
         : ((entry.a?.body_template as string) ?? ""),
     ),
   }));
