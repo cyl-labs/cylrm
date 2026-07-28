@@ -35,10 +35,15 @@ const hhmm = (t: string) => t.slice(0, 5);
  */
 function dueHint(p: CampaignProgress): string {
   if (p.dueNow === 0) return "queue is clear";
+  // Whatever is blocking the campaign is spelled out under the tiles; don't
+  // promise a schedule the scheduler is not going to honour.
+  if (p.blockedReason) return "on hold — see below";
   const perTick = p.eligibleAccounts;
   if (perTick === 0) return "no account can send";
+  if (!p.window.open) return "waiting for the sending window";
   if (p.dueNow <= perTick) return "all of it goes out next tick";
   const today = Math.min(p.dueNow, p.capacityLeftToday);
+  if (today === 0) return "no capacity left today";
   if (today < p.dueNow) {
     return `${perTick} per tick — ${today.toLocaleString()} today, the rest tomorrow`;
   }
@@ -99,8 +104,8 @@ export function CampaignProgressCard({ p }: { p: CampaignProgress }) {
             value={p.remaining.toLocaleString()}
             hint={
               p.notStarted > 0
-                ? `${p.notStarted.toLocaleString()} not started`
-                : "all first touches out"
+                ? `emails — ${p.notStarted.toLocaleString()} contact${p.notStarted === 1 ? "" : "s"} not started`
+                : "emails — every contact has had a first touch"
             }
           />
           <Tile
