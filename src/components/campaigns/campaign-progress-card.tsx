@@ -148,10 +148,11 @@ export function CampaignProgressCard({ p }: { p: CampaignProgress }) {
         )}
 
         {p.oooPaused > 0 && (
-          <p className="flex items-start gap-1.5 text-xs text-warning">
-            <AlertTriangle className="mt-px size-3.5 shrink-0" />
-            {p.oooPaused} enrollment{p.oooPaused === 1 ? " is" : "s are"} OOO-paused
-            and not counted above — nothing currently moves them back to active.
+          <p className="text-xs text-muted-foreground">
+            {p.oooPaused} contact{p.oooPaused === 1 ? " replied" : "s replied"} with
+            an out-of-office, so {p.oooPaused === 1 ? "their" : "their"} sequence is
+            paused for 7 days and resumes automatically. The steps still owed are
+            included above.
           </p>
         )}
       </CardContent>
