@@ -42,6 +42,8 @@ export type CampaignProgress = {
     timezone: string;
     open: boolean;
     minutesRemaining: number;
+    /** Needed by the live clock to work out when the window next opens. */
+    weekdaysOnly: boolean;
   };
   /** Set when nothing can send at all; the ETA is null in that case. */
   blockedReason: string | null;
@@ -263,6 +265,7 @@ export async function getCampaignProgress(
       timezone: tz,
       open,
       minutesRemaining,
+      weekdaysOnly: setting.sendWeekdaysOnly,
     },
     blockedReason,
   };

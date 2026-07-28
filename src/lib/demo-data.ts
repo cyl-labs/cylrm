@@ -309,6 +309,7 @@ export function demoCampaignProgress(id: number) {
       timezone: demoSetting.sendingTimezone,
       open,
       minutesRemaining,
+      weekdaysOnly: demoSetting.sendWeekdaysOnly,
     },
     blockedReason,
   };
