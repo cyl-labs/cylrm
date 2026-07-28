@@ -76,6 +76,7 @@ export async function GET(
           kind: message.kind,
           stepNumber: message.stepNumber,
           subject: message.subject,
+          unsubscribeIntent: message.unsubscribeIntent,
           bodyText: message.bodyText,
           sentAt: message.sentAt,
           accountEmail: sendingAccount.email,

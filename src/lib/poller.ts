@@ -43,6 +43,23 @@ export type PollResult = {
 
 /** Bounce: hard signals only — mailer-daemon/postmaster sender or a
  * multipart/report delivery-status payload. */
+/**
+ * Does this reply read like "take me off the list"?
+ *
+ * Matched against the first part of the message only, before any quoted
+ * original — the outbound email now carries the word "Unsubscribe" in its
+ * footer, so scanning the whole body would flag every single reply.
+ */
+export function looksLikeRemovalRequest(text: string): boolean {
+  const firstPart = text
+    .split(/^\s*(?:>|On .+ wrote:|-{2,}\s*$)/m)[0]
+    .toLowerCase()
+    .slice(0, 400);
+  return /\b(unsubscribe|opt[\s-]?out|remove me|take me off|stop emailing|do not (?:contact|email))\b/.test(
+    firstPart,
+  );
+}
+
 function classify(parsed: ParsedMail): "reply" | "auto_reply" | "bounce" {
   const from = parsed.from?.value?.[0]?.address?.toLowerCase() ?? "";
   const ct = parsed.headers.get("content-type") as
@@ -317,6 +334,11 @@ async function pollAccount(
             rfcMessageId: parsed.messageId ?? null,
             subject: parsed.subject ?? null,
             bodyText: parsed.text?.slice(0, 100_000) ?? null,
+            unsubscribeIntent:
+              kind === "reply" &&
+              looksLikeRemovalRequest(
+                `${parsed.subject ?? ""}\n${parsed.text ?? ""}`,
+              ),
             sentAt: parsed.date ?? new Date(),
           })
           .onConflictDoNothing()

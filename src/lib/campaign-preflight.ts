@@ -278,9 +278,25 @@ export async function getCampaignPreflight(
 
   // --- Window and pace ----------------------------------------------------
   const [settingRow] = (await db.execute(sql`
-    select send_weekdays_only from app_setting limit 1
+    select send_weekdays_only, postal_address from app_setting limit 1
   `)) as Row[];
   const weekdaysOnly = settingRow?.send_weekdays_only === true;
+  const postalAddress = (settingRow?.postal_address as string | null) ?? "";
+  if (postalAddress.trim() === "") {
+    checks.push({
+      level: "warning",
+      title: "No postal address set",
+      detail:
+        "Every send carries an unsubscribe link, but US commercial email is also required to include a real postal address. Set one on the Accounts screen.",
+    });
+  } else {
+    checks.push({
+      level: "ok",
+      title: "Unsubscribe link and postal address on every send",
+      detail:
+        "One-click unsubscribe is offered in the mail client too, which keeps annoyed recipients away from the spam button.",
+    });
+  }
   checks.push({
     level: "ok",
     title: `Sends ${progress.window.start.slice(0, 5)}–${progress.window.end.slice(0, 5)} ${progress.window.timezone}${weekdaysOnly ? ", weekdays only" : ", every day including weekends"}`,

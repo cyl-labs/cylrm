@@ -104,6 +104,13 @@ export default async function PipelinePage({
         // correlation read "deal_id" = "id" against deal_stage_change's own
         // columns and every card fell back to the deal's creation date.
         stageSince: sql<string>`coalesce((select max("changed_at") from "deal_stage_change" where "deal_stage_change"."deal_id" = "deal"."id"), "deal"."created_at")`,
+        // Surfaced on the card so a removal request is not missed behind a
+        // click, which is the whole point of flagging it.
+        asksToBeRemoved: sql<boolean>`exists (select 1 from "message" m
+          join "enrollment" e on e.id = m."enrollment_id"
+          where e."contact_id" = "deal"."contact_id"
+            and e."campaign_id" = "deal"."campaign_id"
+            and m."unsubscribe_intent")`,
       })
       .from(deal)
       .innerJoin(contact, eq(deal.contactId, contact.id))

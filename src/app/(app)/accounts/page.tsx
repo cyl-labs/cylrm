@@ -137,6 +137,7 @@ export default async function AccountsPage({
             sendingWindowEnd: setting.sendingWindowEnd.slice(0, 5),
             sendingTimezone: setting.sendingTimezone,
             sendWeekdaysOnly: setting.sendWeekdaysOnly,
+            postalAddress: setting.postalAddress,
           }}
         />
       </div>

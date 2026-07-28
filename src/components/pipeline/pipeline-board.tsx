@@ -14,6 +14,7 @@ export type DealCard = {
   contactEmail: string;
   company: string | null;
   campaignName: string;
+  asksToBeRemoved?: boolean;
   stageSince: string;
 };
 
@@ -122,6 +123,11 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {d.company}
                     </p>
+                  )}
+                  {d.asksToBeRemoved && (
+                    <Badge className="mt-2 bg-warning/10 text-[11px] text-warning">
+                      Asks to be removed
+                    </Badge>
                   )}
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <Badge

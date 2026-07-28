@@ -11,6 +11,8 @@ import {
   sequenceStep,
 } from "@/db/schema";
 import { decryptSecret } from "@/lib/crypto";
+import { withUnsubscribeFooter } from "@/lib/unsubscribe-footer";
+import { unsubscribePostUrl } from "@/lib/unsubscribe-token";
 import { NeedsReconnectError, sendViaGmailApi } from "@/lib/google";
 import {
   renderTemplate,
@@ -416,7 +418,11 @@ export async function runSchedulerTick(): Promise<TickResult> {
       act("skipped_no_subject", { detail });
       continue;
     }
-    const bodyText = renderTemplate(copy.bodyTemplate, mergeContact, sender);
+    const bodyText = withUnsubscribeFooter(
+      renderTemplate(copy.bodyTemplate, mergeContact, sender),
+      e.contactId,
+      setting.postalAddress,
+    );
 
     // In-thread headers for steps 2+ from the enrollment's prior sends.
     let inReplyTo: string | undefined;
@@ -450,6 +456,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
         text: bodyText,
         inReplyTo,
         references,
+        unsubscribeUrl: unsubscribePostUrl(e.contactId),
       });
 
       const sentAt = new Date();

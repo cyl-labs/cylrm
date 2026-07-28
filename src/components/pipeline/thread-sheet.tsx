@@ -20,6 +20,7 @@ type ThreadMessage = {
   kind: "sent" | "reply" | "auto_reply" | "bounce";
   stepNumber: number | null;
   subject: string | null;
+  unsubscribeIntent?: boolean;
   bodyText: string | null;
   sentAt: string | null;
   accountEmail: string;
@@ -188,6 +189,11 @@ export function ThreadSheet({
                   {KIND_LABEL[m.kind]}
                   {m.stepNumber ? ` · step ${m.stepNumber}` : ""}
                 </Badge>
+                {m.unsubscribeIntent && (
+                  <Badge className="bg-warning/10 text-[10px] text-warning">
+                    asks to be removed
+                  </Badge>
+                )}
                 {m.sentAt && <span>{dateFormatter.format(new Date(m.sentAt))}</span>}
               </div>
               {m.subject && (

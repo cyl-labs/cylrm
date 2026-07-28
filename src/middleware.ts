@@ -22,5 +22,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // `u` is the public unsubscribe page — recipients have no login, and
+  // bouncing them to /login would make the link in every email dead.
+  matcher: ["/((?!api|u/|_next/static|_next/image|favicon.ico).*)"],
 };

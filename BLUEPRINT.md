@@ -230,6 +230,16 @@ Checks are split into blockers and warnings. **Blockers** disable the confirm: n
 
 Anything that stops an email going out is recorded in `send_issue` and surfaced on the campaign detail screen, with a count banner on the campaigns list. The scheduler runs every 5 minutes, so rows are keyed by a `signature` describing the problem rather than the occurrence — re-seeing one bumps `occurrences` and `last_seen_at` instead of writing a new row. A successful send for the same campaign or account resolves the issue automatically, so the list only ever shows live problems.
 
+## Unsubscribe
+
+Every campaign send carries a one-click unsubscribe, appended by the scheduler rather than written into templates so a new campaign cannot ship without it.
+
+- The link is a signed token, `<contactId>.<hmac>`, so it needs no login and cannot be guessed or walked by incrementing an id. `/u/<token>` is a public page that **confirms** rather than acting on load — link scanners and mail previews fetch URLs, and would otherwise unsubscribe people who never clicked.
+- `List-Unsubscribe` and `List-Unsubscribe-Post` headers point at `/api/u/<token>`, which accepts the POST mail clients send for one-click (RFC 8058) and redirects humans to the page. This matters mainly because without it the easiest way for an annoyed recipient to stop the emails is the spam button, which costs the whole sending domain.
+- The footer also carries `app_setting.postal_address`. US commercial email is required to include a real postal address; the activation preflight warns while it is unset.
+- Suppression is keyed by email address, not contact row, so a re-import under a new lead list cannot resurrect someone. Every non-terminal enrollment on any row sharing that address is cancelled. The operator action on the pipeline and the public link share one implementation.
+- The poller flags replies that read like removal requests (`message.unsubscribe_intent`), shown as a badge on the pipeline card and in the thread. It never acts automatically — "no need to unsubscribe me, this is interesting" contains the same words — and the match ignores quoted text so the footer cannot trigger on itself.
+
 ## Screens
 
 1. **Leads** — TanStack table. CSV import (Apollo columns) either creates a named lead list or appends to an existing one, so a niche scraped across several batches stays a single list and its lead-list stats stay comparable. An import can enrol its new contacts into a campaign in the same step; only the rows that import adds are enrolled, never earlier batches already in the list. Filter by lead list, company, enrolled-or-not. The header checkbox selects every row matching the current filters, not just the visible page; changing a filter clears the selection. Duplicate contacts are flagged and excluded from bulk enroll by default. Multi-select → "enroll in campaign", which runs the re-engagement guard and blocks with a confirmation step if any selected contact already has a non-terminal enrollment or any deal elsewhere.

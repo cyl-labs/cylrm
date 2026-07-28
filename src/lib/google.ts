@@ -154,6 +154,9 @@ export async function sendViaGmailApi(params: {
   text: string;
   inReplyTo?: string;
   references?: string[];
+  /** RFC 8058 one-click unsubscribe. Without it a recipient's easiest exit is
+   *  the spam button, which costs the whole sending domain. */
+  unsubscribeUrl?: string;
 }): Promise<GmailApiSendResult> {
   const accessToken = await getAccessToken(params.refreshToken, params.fromEmail);
 
@@ -167,6 +170,12 @@ export async function sendViaGmailApi(params: {
     text: params.text,
     inReplyTo: params.inReplyTo,
     references: params.references,
+    headers: params.unsubscribeUrl
+      ? {
+          "List-Unsubscribe": `<${params.unsubscribeUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        }
+      : undefined,
   })
     .compile()
     .build();

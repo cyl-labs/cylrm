@@ -63,6 +63,7 @@ export const demoSetting = {
   sendingWindowEnd: "17:30",
   sendingTimezone: "Asia/Singapore",
   sendWeekdaysOnly: true,
+  postalAddress: "Cyl Labs Pte Ltd\n1 Example Road #01-01\nSingapore 000000",
 };
 
 // totalCount is enrollments, not sent messages: each enrollment receives

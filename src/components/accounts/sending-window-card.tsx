@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -39,6 +40,7 @@ export type SendingWindow = {
   sendingWindowEnd: string;
   sendingTimezone: string;
   sendWeekdaysOnly: boolean;
+  postalAddress: string | null;
 };
 
 function useNow() {
@@ -99,6 +101,9 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
   const [weekdaysOnly, setWeekdaysOnly] = React.useState(
     initial.sendWeekdaysOnly,
   );
+  const [postalAddress, setPostalAddress] = React.useState(
+    initial.postalAddress ?? "",
+  );
   const [saving, setSaving] = React.useState(false);
 
   const timezones = COMMON_TIMEZONES.includes(initial.sendingTimezone)
@@ -109,7 +114,8 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
     start !== initial.sendingWindowStart ||
     end !== initial.sendingWindowEnd ||
     timezone !== initial.sendingTimezone ||
-    weekdaysOnly !== initial.sendWeekdaysOnly;
+    weekdaysOnly !== initial.sendWeekdaysOnly ||
+    postalAddress !== (initial.postalAddress ?? "");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -124,6 +130,7 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
           sendingWindowEnd: end,
           sendingTimezone: timezone,
           sendWeekdaysOnly: weekdaysOnly,
+          postalAddress,
         }),
       });
       if (!res.ok) {
@@ -204,6 +211,20 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
                 follow-up due 72h after a Thursday send waits until Monday.
               </p>
             </div>
+          </div>
+          <div className="space-y-2 border-t pt-4">
+            <Label htmlFor="postal-address">Postal address</Label>
+            <Textarea
+              id="postal-address"
+              value={postalAddress}
+              onChange={(e) => setPostalAddress(e.target.value)}
+              rows={3}
+              placeholder={"Cyl Labs Pte Ltd\n1 Example Road #01-01\nSingapore 000000"}
+            />
+            <p className="text-xs text-muted-foreground">
+              Appended to every campaign email alongside the unsubscribe link.
+              US commercial email is required to carry a real postal address.
+            </p>
           </div>
           <TimezoneClock selectedTz={timezone} />
           <Button type="submit" size="sm" disabled={!dirty || saving}>

@@ -111,6 +111,9 @@ export const appSetting = pgTable("app_setting", {
    *  businesses is wasted at the weekend, and a follow-up landing 72h after a
    *  Thursday send would otherwise arrive on Sunday. */
   sendWeekdaysOnly: boolean("send_weekdays_only").notNull().default(true),
+  /** Physical postal address appended to every campaign send. US commercial
+   *  email is required to carry one, and 96% of the lead base is US. */
+  postalAddress: text("postal_address"),
 });
 
 export const leadList = pgTable("lead_list", {
@@ -222,6 +225,10 @@ export const message = pgTable(
     rfcMessageId: text("rfc_message_id"),
     subject: text("subject"),
     bodyText: text("body_text"),
+    /** Inbound reply that reads like a removal request. Flagged, never acted
+     *  on automatically — "no need to unsubscribe me, this is interesting"
+     *  matches the same words. */
+    unsubscribeIntent: boolean("unsubscribe_intent").notNull().default(false),
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
   (t) => [
