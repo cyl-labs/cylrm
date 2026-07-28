@@ -1,6 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import type { CampaignProgress } from "@/lib/campaign-progress";
+import { TICK_MINUTES, type CampaignProgress } from "@/lib/campaign-progress";
 
 function Tile({
   label,
@@ -24,6 +24,27 @@ function Tile({
 
 /** Postgres `time` columns come back as HH:MM:SS. */
 const hhmm = (t: string) => t.slice(0, 5);
+
+/**
+ * What "due now" will actually do on the next tick.
+ *
+ * The ceiling is one email per account per tick, not the whole queue — so
+ * saying "goes out next tick" is only true while the number due fits inside
+ * the account pool. Beyond that it drains a tick at a time, and beyond
+ * today's remaining cap it doesn't finish today at all.
+ */
+function dueHint(p: CampaignProgress): string {
+  if (p.dueNow === 0) return "queue is clear";
+  const perTick = p.eligibleAccounts;
+  if (perTick === 0) return "no account can send";
+  if (p.dueNow <= perTick) return "all of it goes out next tick";
+  const today = Math.min(p.dueNow, p.capacityLeftToday);
+  if (today < p.dueNow) {
+    return `${perTick} per tick — ${today.toLocaleString()} today, the rest tomorrow`;
+  }
+  const mins = Math.ceil(today / perTick) * TICK_MINUTES;
+  return `${perTick} per tick — about ${mins} min to clear`;
+}
 
 function etaLabel(days: number | null) {
   if (days === null) return "—";
@@ -94,7 +115,7 @@ export function CampaignProgressCard({ p }: { p: CampaignProgress }) {
           <Tile
             label="Due now"
             value={p.dueNow.toLocaleString()}
-            hint={p.dueNow > 0 ? "goes out next tick" : "queue is clear"}
+            hint={dueHint(p)}
           />
           <Tile
             label="Est. finish"

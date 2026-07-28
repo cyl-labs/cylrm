@@ -6,7 +6,7 @@ import { appSetting } from "@/db/schema";
  * account per tick (see the pacing rule in `scheduler.ts`), so an account's
  * real ceiling is the lower of its daily cap and the number of ticks left in
  * the sending window. */
-const TICK_MINUTES = 5;
+export const TICK_MINUTES = 5;
 
 export type CampaignProgress = {
   campaignStatus: string;
