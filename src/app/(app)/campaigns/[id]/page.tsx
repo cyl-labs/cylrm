@@ -17,6 +17,7 @@ import {
   type EnrollmentRow,
 } from "@/components/campaigns/enrollments-table";
 import { AbTestCard } from "@/components/campaigns/ab-test-card";
+import { TodayCard } from "@/components/campaigns/today-card";
 import { SendIssuesCard } from "@/components/campaigns/send-issues-card";
 import {
   StepsEditor,
@@ -77,6 +78,8 @@ function CampaignDetail({
         <SendIssuesCard issues={issues} />
 
         <CampaignProgressCard p={progress} />
+
+        <TodayCard p={progress} />
 
         {testedSteps.length > 0 && variantStats && (
           <AbTestCard stats={variantStats} testedSteps={testedSteps} />

@@ -1,7 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { TICK_MINUTES, type CampaignProgress } from "@/lib/campaign-progress";
-import { WindowClock } from "@/components/campaigns/window-clock";
 
 function Tile({
   label,
@@ -140,13 +139,6 @@ export function CampaignProgressCard({ p }: { p: CampaignProgress }) {
           are, and it will tend to run early, because replies and bounces
           cancel the steps a contact had left.
         </p>
-
-        <WindowClock
-          start={p.window.start}
-          end={p.window.end}
-          timezone={p.window.timezone}
-          weekdaysOnly={p.window.weekdaysOnly}
-        />
 
         {p.blockedReason && (
           <p className="flex items-start gap-1.5 text-xs text-warning">
