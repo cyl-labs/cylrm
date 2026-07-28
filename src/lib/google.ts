@@ -152,6 +152,9 @@ export async function sendViaGmailApi(params: {
   to: string;
   subject: string;
   text: string;
+  /** Optional HTML alternative. Sent as multipart/alternative alongside
+   *  `text`, which stays the part most spam filters read. */
+  html?: string;
   inReplyTo?: string;
   references?: string[];
   /** RFC 8058 one-click unsubscribe. Without it a recipient's easiest exit is
@@ -168,6 +171,7 @@ export async function sendViaGmailApi(params: {
     to: params.to,
     subject: params.subject,
     text: params.text,
+    html: params.html,
     inReplyTo: params.inReplyTo,
     references: params.references,
     headers: params.unsubscribeUrl

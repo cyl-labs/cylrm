@@ -11,7 +11,7 @@ import {
   sequenceStep,
 } from "@/db/schema";
 import { decryptSecret } from "@/lib/crypto";
-import { withUnsubscribeFooter } from "@/lib/unsubscribe-footer";
+import { buildEmailBody } from "@/lib/unsubscribe-footer";
 import { unsubscribePostUrl } from "@/lib/unsubscribe-token";
 import { NeedsReconnectError, sendViaGmailApi } from "@/lib/google";
 import {
@@ -418,7 +418,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
       act("skipped_no_subject", { detail });
       continue;
     }
-    const bodyText = withUnsubscribeFooter(
+    const { text: bodyText, html: bodyHtml } = buildEmailBody(
       renderTemplate(copy.bodyTemplate, mergeContact, sender),
       e.contactId,
       setting.postalAddress,
@@ -454,6 +454,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
         to: e.email,
         subject,
         text: bodyText,
+        html: bodyHtml,
         inReplyTo,
         references,
         unsubscribeUrl: unsubscribePostUrl(e.contactId),

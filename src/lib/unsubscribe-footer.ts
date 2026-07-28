@@ -1,24 +1,50 @@
 import { unsubscribeUrl } from "@/lib/unsubscribe-token";
 
+const ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ESCAPES[c]);
+
 /**
- * The compliance footer appended to every campaign send.
+ * The body of a campaign email, in both parts a mail client expects.
  *
- * Appended by the scheduler rather than written into each template, so a new
- * campaign cannot ship without it — which is exactly how it would go missing.
+ * Sent as multipart/alternative so the footer can read "Unsubscribe" as a
+ * link rather than a bare URL. The HTML is deliberately the plainest thing
+ * that can carry an anchor — no styles, tables, images or wrapper markup —
+ * since anything resembling a marketing template costs deliverability on cold
+ * outreach, and the text part remains what most filters actually read.
+ *
+ * The footer is appended here rather than written into templates so a new
+ * campaign cannot ship without it.
  */
-export function withUnsubscribeFooter(
+export function buildEmailBody(
   body: string,
   contactId: number,
   postalAddress: string | null,
-): string {
-  const lines = [
-    body.trimEnd(),
-    "",
-    "--",
-    `Not interested? Unsubscribe: ${unsubscribeUrl(contactId)}`,
+): { text: string; html: string } {
+  const url = unsubscribeUrl(contactId);
+  const trimmed = body.trimEnd();
+  const address =
+    postalAddress && postalAddress.trim() !== ""
+      ? postalAddress.trim().replace(/\s*\n\s*/g, ", ")
+      : null;
+
+  const textLines = [trimmed, "", "--", `Not interested? Unsubscribe: ${url}`];
+  if (address) textLines.push(address);
+
+  const htmlParts = [
+    // Company names arrive from Apollo and can contain & or <, so the body is
+    // escaped before newlines become breaks.
+    escapeHtml(trimmed).replace(/\r?\n/g, "<br>"),
+    "<br><br>--<br>",
+    `Not interested? <a href="${url}">Unsubscribe</a>`,
   ];
-  if (postalAddress && postalAddress.trim() !== "") {
-    lines.push(postalAddress.trim().replace(/\s*\n\s*/g, ", "));
-  }
-  return lines.join("\n");
+  if (address) htmlParts.push(`<br>${escapeHtml(address)}`);
+
+  return { text: textLines.join("\n"), html: htmlParts.join("") };
 }
