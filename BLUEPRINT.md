@@ -142,6 +142,7 @@ A campaign can test two wordings of the same email without splitting into two ca
 - Each contact is assigned an arm at enroll time and keeps it for the whole sequence, so a thread never mixes voices. Step 1's subject is taken from the contact's own arm, so a subject-line test carries through the thread's `Re:` chain.
 - The split is balanced to within one contact and derived from a hash of the contact's email, not selection order. Selection order mirrors the Leads table's import ordering — i.e. Apollo's own export ranking — so alternating over it would split the arms on lead quality.
 - Every enrollment gets an arm even when the campaign has no `b` copy; the split is then already fair if a `b` version is added later. Adding one mid-flight muddies the comparison (earlier emails went out as `a`), so the editor warns before doing it.
+- Each version can carry a short `label` saying what it is trying ("shorter opener", "company name in subject"). It names the arm on the results card, taken from the earliest tested step, so a finished test still records what it was testing.
 - Results are reported on the campaign detail screen: sent, reply rate and demos per arm, with an explicit "too early to call" notice under 100 sends on either side.
 
 **message**

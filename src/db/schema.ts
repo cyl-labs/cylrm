@@ -164,6 +164,10 @@ export const sequenceStep = pgTable(
       .references(() => campaign.id),
     stepNumber: integer("step_number").notNull(),
     variant: stepVariantEnum("variant").notNull().default("a"),
+    /** What this wording is trying — "shorter opener", "case-study angle".
+     *  Names the arm on the results card so a finished test still says what
+     *  it was testing. */
+    label: text("label"),
     waitDaysAfterPrevious: integer("wait_days_after_previous")
       .notNull()
       .default(0),

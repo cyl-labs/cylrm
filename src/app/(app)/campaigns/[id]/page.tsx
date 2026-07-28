@@ -214,6 +214,7 @@ export default async function CampaignDetailPage({
         id: s.id,
         stepNumber: s.stepNumber,
         variant: s.variant,
+        label: s.label,
         waitDaysAfterPrevious: s.waitDaysAfterPrevious,
         subjectTemplate: s.subjectTemplate,
         bodyTemplate: s.bodyTemplate,

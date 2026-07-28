@@ -22,6 +22,7 @@ export async function PATCH(
     subjectTemplate?: unknown;
     bodyTemplate?: unknown;
     waitDaysAfterPrevious?: unknown;
+    label?: unknown;
   };
   try {
     body = await request.json();
@@ -33,7 +34,18 @@ export async function PATCH(
     subjectTemplate: string | null;
     bodyTemplate: string;
     waitDaysAfterPrevious: number;
+    label: string | null;
   }> = {};
+  if (body.label !== undefined) {
+    const label = typeof body.label === "string" ? body.label.trim() : "";
+    if (label.length > 60) {
+      return Response.json(
+        { error: "Keep the label to 60 characters or fewer." },
+        { status: 400 },
+      );
+    }
+    updates.label = label === "" ? null : label;
+  }
   if (body.subjectTemplate !== undefined) {
     updates.subjectTemplate =
       typeof body.subjectTemplate === "string" && body.subjectTemplate !== ""

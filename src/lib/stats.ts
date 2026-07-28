@@ -159,6 +159,8 @@ export async function getEntityStats(
 
 export type VariantStats = {
   variant: "a" | "b";
+  /** What this arm was trying, from the earliest tested step. Null until named. */
+  label: string | null;
   contacts: number;
   sent: number;
   replies: number;
@@ -199,9 +201,22 @@ export async function getVariantStats(
     group by 1
   `)) as Row[];
 
+  // Name each arm from its earliest tested step — that is the difference the
+  // recipient meets first, and with several tested steps the card already
+  // spells out which ones differ.
+  const labelRows = (await db.execute(sql`
+    select distinct on (variant) variant, label
+    from sequence_step
+    where campaign_id = ${campaignId} and label is not null
+    order by variant, step_number
+  `)) as Row[];
+  const labels = new Map(
+    labelRows.map((r) => [r.variant === "b" ? "b" : "a", r.label as string]),
+  );
+
   const out: Record<"a" | "b", VariantStats> = {
-    a: { variant: "a", contacts: 0, sent: 0, replies: 0, demos: 0 },
-    b: { variant: "b", contacts: 0, sent: 0, replies: 0, demos: 0 },
+    a: { variant: "a", label: labels.get("a") ?? null, contacts: 0, sent: 0, replies: 0, demos: 0 },
+    b: { variant: "b", label: labels.get("b") ?? null, contacts: 0, sent: 0, replies: 0, demos: 0 },
   };
   for (const r of msgRows) {
     const v = r.variant === "b" ? "b" : "a";

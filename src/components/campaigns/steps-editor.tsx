@@ -15,6 +15,7 @@ export type StepData = {
   id: number;
   stepNumber: number;
   variant: "a" | "b";
+  label: string | null;
   waitDaysAfterPrevious: number;
   subjectTemplate: string | null;
   bodyTemplate: string;
@@ -30,20 +31,23 @@ export type StepGroup = {
 /** Subject + body for one arm. Each arm saves independently. */
 function VariantFields({
   step,
-  label,
+  armName,
   hasSibling,
 }: {
   step: StepData;
-  label: string;
+  armName: string;
   hasSibling: boolean;
 }) {
   const router = useRouter();
   const [subject, setSubject] = React.useState(step.subjectTemplate ?? "");
   const [bodyText, setBodyText] = React.useState(step.bodyTemplate);
+  const [label, setLabel] = React.useState(step.label ?? "");
   const [saving, setSaving] = React.useState(false);
 
   const dirty =
-    subject !== (step.subjectTemplate ?? "") || bodyText !== step.bodyTemplate;
+    subject !== (step.subjectTemplate ?? "") ||
+    bodyText !== step.bodyTemplate ||
+    label !== (step.label ?? "");
 
   async function save() {
     setSaving(true);
@@ -54,6 +58,7 @@ function VariantFields({
         body: JSON.stringify({
           subjectTemplate: step.stepNumber === 1 ? subject : undefined,
           bodyTemplate: bodyText,
+          label,
         }),
       });
       if (!res.ok) {
@@ -63,7 +68,7 @@ function VariantFields({
       }
       toast.success(
         hasSibling
-          ? `Step ${step.stepNumber} ${label} saved.`
+          ? `Step ${step.stepNumber} ${armName} saved.`
           : `Step ${step.stepNumber} saved.`,
       );
       router.refresh();
@@ -76,6 +81,20 @@ function VariantFields({
 
   return (
     <div className="space-y-3">
+      {hasSibling && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`step-${step.id}-label`}>
+            What this version is trying
+          </Label>
+          <Input
+            id={`step-${step.id}-label`}
+            value={label}
+            maxLength={60}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="e.g. shorter opener, no question"
+          />
+        </div>
+      )}
       {step.stepNumber === 1 ? (
         <div className="space-y-1.5">
           <Label htmlFor={`step-${step.id}-subject`}>Subject</Label>
@@ -285,17 +304,17 @@ function StepCard({
               <p className="text-xs font-medium text-muted-foreground">
                 Version A
               </p>
-              <VariantFields step={a} label="version A" hasSibling />
+              <VariantFields step={a} armName="version A" hasSibling />
             </div>
             <div className="space-y-3 md:border-l md:pl-5">
               <p className="text-xs font-medium text-muted-foreground">
                 Version B
               </p>
-              <VariantFields step={b} label="version B" hasSibling />
+              <VariantFields step={b} armName="version B" hasSibling />
             </div>
           </div>
         ) : (
-          <VariantFields step={a} label="version A" hasSibling={false} />
+          <VariantFields step={a} armName="version A" hasSibling={false} />
         )}
       </CardContent>
     </Card>

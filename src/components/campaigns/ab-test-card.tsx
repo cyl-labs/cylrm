@@ -5,18 +5,23 @@ const pct = (num: number, den: number) =>
   den === 0 ? "—" : `${((num / den) * 100).toFixed(1)}%`;
 
 function Arm({
-  label,
+  armName,
   stats,
   testedSteps,
 }: {
-  label: string;
+  armName: string;
   stats: VariantStats;
   testedSteps: number[];
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-baseline gap-2">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <p className="text-xs font-medium text-muted-foreground">
+          {armName}
+          {stats.label && (
+            <span className="text-foreground"> · {stats.label}</span>
+          )}
+        </p>
         {testedSteps.length > 0 && (
           <p className="text-[11px] text-muted-foreground">
             differs at step{testedSteps.length === 1 ? "" : "s"}{" "}
@@ -63,9 +68,9 @@ export function AbTestCard({
       </CardHeader>
       <CardContent className="space-y-4 px-4">
         <div className="grid gap-5 sm:grid-cols-2">
-          <Arm label="Version A" stats={stats.a} testedSteps={testedSteps} />
+          <Arm armName="Version A" stats={stats.a} testedSteps={testedSteps} />
           <div className="sm:border-l sm:pl-5">
-            <Arm label="Version B" stats={stats.b} testedSteps={testedSteps} />
+            <Arm armName="Version B" stats={stats.b} testedSteps={testedSteps} />
           </div>
         </div>
         {sent === 0 ? (
