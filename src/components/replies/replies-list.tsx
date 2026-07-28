@@ -108,7 +108,7 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
             <SelectItem value="bounce">Bounces</SelectItem>
           </SelectContent>
         </Select>
-        {campaigns.length > 1 && (
+        {campaigns.length > 0 && (
           <Select value={campaignId} onValueChange={setCampaignId}>
             <SelectTrigger size="sm" className="w-56">
               <SelectValue />
