@@ -421,7 +421,6 @@ export async function runSchedulerTick(): Promise<TickResult> {
     const { text: bodyText, html: bodyHtml } = buildEmailBody(
       renderTemplate(copy.bodyTemplate, mergeContact, sender),
       e.contactId,
-      setting.postalAddress,
     );
 
     // In-thread headers for steps 2+ from the enrollment's prior sends.

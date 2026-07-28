@@ -25,26 +25,18 @@ const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ESCAPES[c]);
 export function buildEmailBody(
   body: string,
   contactId: number,
-  postalAddress: string | null,
 ): { text: string; html: string } {
   const url = unsubscribeUrl(contactId);
   const trimmed = body.trimEnd();
-  const address =
-    postalAddress && postalAddress.trim() !== ""
-      ? postalAddress.trim().replace(/\s*\n\s*/g, ", ")
-      : null;
 
-  const textLines = [trimmed, "", "--", `Not interested? Unsubscribe: ${url}`];
-  if (address) textLines.push(address);
-
-  const htmlParts = [
-    // Company names arrive from Apollo and can contain & or <, so the body is
-    // escaped before newlines become breaks.
-    escapeHtml(trimmed).replace(/\r?\n/g, "<br>"),
-    "<br><br>--<br>",
-    `Not interested? <a href="${url}">Unsubscribe</a>`,
-  ];
-  if (address) htmlParts.push(`<br>${escapeHtml(address)}`);
-
-  return { text: textLines.join("\n"), html: htmlParts.join("") };
+  return {
+    text: [trimmed, "", "--", `Not interested? Unsubscribe: ${url}`].join("\n"),
+    html: [
+      // Company names arrive from Apollo and can contain & or <, so the body
+      // is escaped before newlines become breaks.
+      escapeHtml(trimmed).replace(/\r?\n/g, "<br>"),
+      "<br><br>--<br>",
+      `Not interested? <a href="${url}">Unsubscribe</a>`,
+    ].join(""),
+  };
 }

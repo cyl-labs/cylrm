@@ -27,7 +27,6 @@ export async function PUT(request: Request) {
     sendingWindowEnd?: unknown;
     sendingTimezone?: unknown;
     sendWeekdaysOnly?: unknown;
-    postalAddress?: unknown;
   };
   try {
     body = await request.json();
@@ -78,15 +77,6 @@ export async function PUT(request: Request) {
     ...(body.sendWeekdaysOnly === undefined
       ? {}
       : { sendWeekdaysOnly: body.sendWeekdaysOnly }),
-    ...(body.postalAddress === undefined
-      ? {}
-      : {
-          postalAddress:
-            typeof body.postalAddress === "string" &&
-            body.postalAddress.trim() !== ""
-              ? body.postalAddress.trim()
-              : null,
-        }),
   };
 
   const [existing] = await db

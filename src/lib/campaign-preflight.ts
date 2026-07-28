@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCampaignProgress, type CampaignProgress } from "@/lib/campaign-progress";
 import { MERGE_FIELDS, renderTemplate } from "@/lib/templates";
+import { buildEmailBody } from "@/lib/unsubscribe-footer";
 
 export type CheckLevel = "blocker" | "warning" | "ok";
 
@@ -11,12 +12,19 @@ export type PreflightCheck = {
   detail: string;
 };
 
+/** One rendered version of a step, exactly as it will leave the server. */
+export type PreflightVersion = {
+  label: string | null;
+  /** Only step 1 carries a subject; later steps reply in-thread. */
+  subject: string | null;
+  body: string;
+};
+
 export type PreflightStep = {
   stepNumber: number;
   waitDaysAfterPrevious: number;
-  hasVariantB: boolean;
-  subjectPreview: string | null;
-  bodyPreview: string;
+  a: PreflightVersion;
+  b: PreflightVersion | null;
 };
 
 export type CampaignPreflight = {
@@ -44,9 +52,6 @@ const usedMergeFields = (text: string): string[] => {
   return [...found];
 };
 
-const truncate = (s: string, max = 220) =>
-  s.length > max ? `${s.slice(0, max)}…` : s;
-
 /**
  * Everything worth knowing before a campaign starts sending, as a list of
  * checks plus the copy that will actually go out.
@@ -66,7 +71,7 @@ export async function getCampaignPreflight(
   if (!camp) return null;
 
   const stepRows = (await db.execute(sql`
-    select step_number, variant, wait_days_after_previous, subject_template, body_template
+    select step_number, variant, label, wait_days_after_previous, subject_template, body_template
     from sequence_step where campaign_id = ${campaignId}
     order by step_number, variant
   `)) as Row[];
@@ -82,7 +87,7 @@ export async function getCampaignPreflight(
   // A real enrolled contact to render previews against — a made-up sample
   // would hide exactly the merge gaps this screen exists to surface.
   const [sample] = (await db.execute(sql`
-    select c.email, c.first_name, c.last_name, c.company, c.title
+    select c.id, c.email, c.first_name, c.last_name, c.company, c.title
     from enrollment e join contact c on c.id = e.contact_id
     where e.campaign_id = ${campaignId} and e.status = 'active'
     order by e.id limit 1
@@ -278,25 +283,15 @@ export async function getCampaignPreflight(
 
   // --- Window and pace ----------------------------------------------------
   const [settingRow] = (await db.execute(sql`
-    select send_weekdays_only, postal_address from app_setting limit 1
+    select send_weekdays_only from app_setting limit 1
   `)) as Row[];
   const weekdaysOnly = settingRow?.send_weekdays_only === true;
-  const postalAddress = (settingRow?.postal_address as string | null) ?? "";
-  if (postalAddress.trim() === "") {
-    checks.push({
-      level: "warning",
-      title: "No postal address set",
-      detail:
-        "Every send carries an unsubscribe link, but US commercial email is also required to include a real postal address. Set one on the Accounts screen.",
-    });
-  } else {
-    checks.push({
-      level: "ok",
-      title: "Unsubscribe link and postal address on every send",
-      detail:
-        "One-click unsubscribe is offered in the mail client too, which keeps annoyed recipients away from the spam button.",
-    });
-  }
+  checks.push({
+    level: "ok",
+    title: "Unsubscribe link on every send",
+    detail:
+      "One-click unsubscribe is offered in the mail client too, which keeps annoyed recipients away from the spam button.",
+  });
   checks.push({
     level: "ok",
     title: `Sends ${progress.window.start.slice(0, 5)}–${progress.window.end.slice(0, 5)} ${progress.window.timezone}${weekdaysOnly ? ", weekdays only" : ", every day including weekends"}`,
@@ -331,6 +326,7 @@ export async function getCampaignPreflight(
     });
   }
 
+  const sampleContactId = sample ? n(sample.id) : null;
   const sampleContact = sample
     ? {
         email: sample.email as string,
@@ -349,25 +345,32 @@ export async function getCampaignPreflight(
       }
     : undefined;
 
+  // Rendered in full, footer included, so the dialog shows the email as the
+  // recipient receives it rather than an excerpt of the template.
+  const renderVersion = (row: Row | undefined): PreflightVersion | null => {
+    if (!row) return null;
+    const rawSubject = ((row.subject_template as string | null) ?? "").trim();
+    const rawBody = (row.body_template as string) ?? "";
+    const body = sampleContact
+      ? renderTemplate(rawBody, sampleContact, sender)
+      : rawBody;
+    return {
+      label: (row.label as string | null) ?? null,
+      subject:
+        n(row.step_number) === 1
+          ? sampleContact
+            ? renderTemplate(rawSubject, sampleContact, sender)
+            : rawSubject || null
+          : null,
+      body: sampleContactId ? buildEmailBody(body, sampleContactId).text : body,
+    };
+  };
+
   const steps: PreflightStep[] = ordered.map(([stepNumber, entry]) => ({
     stepNumber,
     waitDaysAfterPrevious: n(entry.a?.wait_days_after_previous),
-    hasVariantB: entry.b !== undefined,
-    subjectPreview:
-      stepNumber === 1
-        ? sampleContact
-          ? renderTemplate(subject, sampleContact, sender)
-          : subject || null
-        : null,
-    bodyPreview: truncate(
-      sampleContact
-        ? renderTemplate(
-            (entry.a?.body_template as string) ?? "",
-            sampleContact,
-            sender,
-          )
-        : ((entry.a?.body_template as string) ?? ""),
-    ),
+    a: renderVersion(entry.a) ?? { label: null, subject: null, body: "" },
+    b: renderVersion(entry.b),
   }));
 
   return {

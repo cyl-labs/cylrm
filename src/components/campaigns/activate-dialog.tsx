@@ -12,7 +12,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { CampaignPreflight, CheckLevel } from "@/lib/campaign-preflight";
+import type {
+  CampaignPreflight,
+  CheckLevel,
+  PreflightVersion,
+} from "@/lib/campaign-preflight";
 
 const ICON: Record<CheckLevel, React.ElementType> = {
   blocker: XCircle,
@@ -40,6 +44,34 @@ function CheckRow({ level, title, detail }: { level: CheckLevel; title: string; 
         )}
       </div>
     </li>
+  );
+}
+
+function Version({
+  v,
+  name,
+}: {
+  v: PreflightVersion;
+  name: string | null;
+}) {
+  return (
+    <div>
+      {name && (
+        <p className="mb-1 text-xs font-medium text-muted-foreground">
+          {name}
+          {v.label && <span className="text-foreground"> · {v.label}</span>}
+        </p>
+      )}
+      {v.subject !== null && (
+        <p className="text-[13px]">
+          <span className="text-muted-foreground">Subject: </span>
+          {v.subject || <span className="text-destructive">(empty)</span>}
+        </p>
+      )}
+      <p className="mt-1 whitespace-pre-wrap text-[13px] text-muted-foreground">
+        {v.body || "(empty)"}
+      </p>
+    </div>
   );
 }
 
@@ -220,7 +252,7 @@ function PreflightDialog({
               <div className="space-y-2">
                 {data.steps.map((s) => (
                   <div key={s.stepNumber} className="rounded-lg border p-3">
-                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
                       <span className="text-[13px] font-medium">
                         Step {s.stepNumber}
                       </span>
@@ -229,23 +261,22 @@ function PreflightDialog({
                           ? "sends immediately"
                           : `${s.waitDaysAfterPrevious} day${s.waitDaysAfterPrevious === 1 ? "" : "s"} after the previous`}
                       </span>
-                      {s.hasVariantB && (
+                      {s.b && (
                         <Badge variant="secondary" className="text-[11px]">
                           A/B
                         </Badge>
                       )}
                     </div>
-                    {s.subjectPreview !== null && (
-                      <p className="text-[13px]">
-                        <span className="text-muted-foreground">Subject: </span>
-                        {s.subjectPreview || (
-                          <span className="text-destructive">(empty)</span>
-                        )}
-                      </p>
+                    {s.b ? (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Version v={s.a} name="Version A" />
+                        <div className="md:border-l md:pl-4">
+                          <Version v={s.b} name="Version B" />
+                        </div>
+                      </div>
+                    ) : (
+                      <Version v={s.a} name={null} />
                     )}
-                    <p className="mt-1 whitespace-pre-wrap text-[13px] text-muted-foreground">
-                      {s.bodyPreview || "(empty)"}
-                    </p>
                   </div>
                 ))}
               </div>
