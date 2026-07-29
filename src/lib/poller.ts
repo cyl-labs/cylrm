@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { decryptSecret } from "@/lib/crypto";
 import { GMAIL_IMAP } from "@/lib/gmail";
+import { readableBody } from "@/lib/html-to-text";
 
 export const OOO_PAUSE_DAYS = 7;
 
@@ -323,6 +324,7 @@ async function pollAccount(
 
         // Idempotency via the (account_id, gmail_message_id) unique index.
         const dedupeId = parsed.messageId ?? `imap-${uidValidity}-${uid}`;
+        const bodyText = readableBody(parsed);
         const inserted = await db
           .insert(message)
           .values({
@@ -333,11 +335,11 @@ async function pollAccount(
             gmailMessageId: dedupeId,
             rfcMessageId: parsed.messageId ?? null,
             subject: parsed.subject ?? null,
-            bodyText: parsed.text?.slice(0, 100_000) ?? null,
+            bodyText: bodyText?.slice(0, 100_000) ?? null,
             unsubscribeIntent:
               kind === "reply" &&
               looksLikeRemovalRequest(
-                `${parsed.subject ?? ""}\n${parsed.text ?? ""}`,
+                `${parsed.subject ?? ""}\n${bodyText ?? ""}`,
               ),
             sentAt: parsed.date ?? new Date(),
           })
