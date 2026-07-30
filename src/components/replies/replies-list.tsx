@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { stripUnsubscribeFooter, trimReplyBody } from "@/lib/reply-text";
 import type { ReplyRow } from "@/lib/replies";
 
 const KIND_LABEL: Record<ReplyRow["kind"], string> = {
@@ -38,15 +39,12 @@ const when = (iso: string) => {
 };
 
 /** First line or two, so the list scans without opening anything. */
-const snippet = (body: string | null) => {
-  if (!body) return "";
-  const firstPart = body.split(/^\s*(?:>|On .+ wrote:|-{2,}\s*$)/m)[0];
-  return firstPart.replace(/\s+/g, " ").trim().slice(0, 150);
-};
+const snippet = (body: string) => body.replace(/\s+/g, " ").trim().slice(0, 150);
 
 export function RepliesList({ replies }: { replies: ReplyRow[] }) {
   const router = useRouter();
   const [openId, setOpenId] = React.useState<number | null>(null);
+  const [fullId, setFullId] = React.useState<number | null>(null);
   const [kind, setKind] = React.useState("all");
   const [campaignId, setCampaignId] = React.useState("all");
   const [readLocally, setReadLocally] = React.useState<Set<number>>(new Set());
@@ -133,6 +131,8 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
         {shown.map((r) => {
           const read = isRead(r);
           const expanded = openId === r.id;
+          const written = trimReplyBody(r.body);
+          const showingFull = fullId === r.id;
           return (
             <div
               key={r.id}
@@ -184,9 +184,9 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
                   )}
                   {r.mailbox && <span>· to {r.mailbox}</span>}
                 </div>
-                {!expanded && snippet(r.body) && (
+                {!expanded && written.text && (
                   <p className="line-clamp-2 text-[13px] text-muted-foreground">
-                    {snippet(r.body)}
+                    {snippet(written.text)}
                   </p>
                 )}
               </button>
@@ -199,20 +199,34 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
                       {r.subject ? ` — ${r.subject}` : ""}
                     </p>
                     <p className="mt-1 whitespace-pre-wrap text-[13px]">
-                      {r.body?.trim() || "(no text content)"}
+                      {(showingFull ? r.body?.trim() : written.text) ||
+                        "(no text content)"}
                     </p>
+                    {written.trimmed && (
+                      <button
+                        type="button"
+                        onClick={() => setFullId(showingFull ? null : r.id)}
+                        className="mt-1.5 text-[11px] font-medium text-muted-foreground underline underline-offset-2"
+                      >
+                        {showingFull
+                          ? "Hide quoted text and signature"
+                          : "Show full message"}
+                      </button>
+                    )}
                   </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-[11px] font-medium text-muted-foreground">
+                  <details className="rounded-lg bg-muted/50 p-3">
+                    <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
                       {r.repliedToStep !== null
                         ? `They were answering step ${r.repliedToStep}`
                         : "The email they were answering"}
                       {r.repliedToSubject ? ` — ${r.repliedToSubject}` : ""}
-                    </p>
+                    </summary>
                     <p className="mt-1 whitespace-pre-wrap text-[13px] text-muted-foreground">
-                      {r.repliedToBody?.trim() || "(not recorded)"}
+                      {r.repliedToBody
+                        ? stripUnsubscribeFooter(r.repliedToBody).trim()
+                        : "(not recorded)"}
                     </p>
-                  </div>
+                  </details>
                   <Button asChild variant="outline" size="sm">
                     <Link href={`/campaigns/${r.campaignId}`}>
                       Open {r.campaignName}

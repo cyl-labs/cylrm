@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { stripUnsubscribeFooter, trimReplyBody } from "@/lib/reply-text";
 
 type ThreadMessage = {
   id: number;
@@ -60,6 +61,7 @@ export function ThreadSheet({
   const [data, setData] = React.useState<ThreadData | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [fullId, setFullId] = React.useState<number | null>(null);
 
   const load = React.useCallback(async (id: number) => {
     setLoading(true);
@@ -164,7 +166,16 @@ export function ThreadSheet({
               No messages recorded for this enrollment.
             </p>
           )}
-          {data?.messages.map((m) => (
+          {data?.messages.map((m) => {
+            const written =
+              m.direction === "in"
+                ? trimReplyBody(m.bodyText)
+                : {
+                    text: stripUnsubscribeFooter(m.bodyText ?? "").trim(),
+                    trimmed: false,
+                  };
+            const showingFull = fullId === m.id;
+            return (
             <div
               key={m.id}
               className={cn(
@@ -200,8 +211,18 @@ export function ThreadSheet({
                 <p className="mt-1.5 text-[13px] font-medium">{m.subject}</p>
               )}
               <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-muted-foreground">
-                {m.bodyText ?? "(content not captured for this message)"}
+                {(showingFull ? m.bodyText?.trim() : written.text) ||
+                  "(content not captured for this message)"}
               </p>
+              {written.trimmed && (
+                <button
+                  type="button"
+                  onClick={() => setFullId(showingFull ? null : m.id)}
+                  className="mt-1 text-[11px] font-medium text-muted-foreground underline underline-offset-2"
+                >
+                  {showingFull ? "Hide quoted text" : "Show full message"}
+                </button>
+              )}
               {m.direction === "in" && m.kind === "reply" && (
                 <Button
                   variant="outline"
@@ -214,7 +235,8 @@ export function ThreadSheet({
                 </Button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {data && (

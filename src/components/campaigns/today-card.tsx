@@ -48,9 +48,13 @@ export function TodayCard({ p }: { p: CampaignProgress }) {
 
         <p className="text-xs leading-relaxed text-muted-foreground">
           {p.window.open
-            ? `Room for about ${couldStillSend.toLocaleString()} more before the window shuts — a ceiling, not a promise, since each mailbox sends at most one email every 5 minutes and paces itself across the day.`
+            ? couldStillSend > 0
+              ? `Room for about ${couldStillSend.toLocaleString()} more before the window shuts — a ceiling, not a promise, since each mailbox sends at most one email every 5 minutes and paces itself across the day.`
+              : p.remaining > 0
+                ? `Today's sending finished — ${p.sentToday.toLocaleString()} went out and every mailbox has reached its daily cap. The remaining ${p.remaining.toLocaleString()} pick up when the window next opens, or sooner if you raise the caps on the Accounts screen.`
+                : `Today's sending finished — ${p.sentToday.toLocaleString()} went out and this campaign owes nothing more.`
             : p.sentToday > 0
-              ? "The window is shut for today. Sending picks up when it next opens."
+              ? `The window is shut for today — ${p.sentToday.toLocaleString()} went out. Sending picks up when it next opens.`
               : "Nothing has gone out today. Sending starts when the window opens."}
           {p.activeCampaigns > 1 &&
             ` Today's room is shared with ${p.activeCampaigns - 1} other active campaign${p.activeCampaigns > 2 ? "s" : ""}.`}

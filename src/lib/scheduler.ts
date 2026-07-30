@@ -313,6 +313,11 @@ export async function runSchedulerTick(): Promise<TickResult> {
   const copyFor = (entry: StepEntry | undefined, variant: "a" | "b") =>
     (variant === "b" ? entry?.b : undefined) ?? entry?.a;
 
+  // The pool is the same for every enrollment in this tick, so its verdict is
+  // written once rather than once per due row — a 1,300-contact backlog used
+  // to fire that many upserts every five minutes.
+  let poolIssueRecorded = false;
+
   for (const e of due) {
     const stepNum = e.currentStep + 1;
     const steps = stepsByCampaign.get(e.campaignId);
@@ -345,17 +350,26 @@ export async function runSchedulerTick(): Promise<TickResult> {
           a.active && a.googleRefreshToken && !a.needsReconnect && remaining(a) > 0,
       );
       if (eligible.length === 0) {
-        const detail =
-          accounts.length === 0
+        // A pool that is merely capped out has done its day's work — that is
+        // the cap doing its job, not a fault, and reporting it as one left a
+        // red "emails are stopping" banner up all night after a perfectly
+        // normal day. Only a pool that *cannot* send is an issue.
+        const usable = accounts.some(
+          (a) => a.active && a.googleRefreshToken && !a.needsReconnect,
+        );
+        const detail = usable
+          ? "Every eligible account has hit its daily cap. Sending resumes when the window next opens."
+          : accounts.length === 0
             ? "No sending accounts exist."
-            : accounts.some((a) => a.active && a.googleRefreshToken && !a.needsReconnect)
-              ? "Every eligible account has hit its daily cap. Sending resumes tomorrow, or raise the caps on the Accounts screen."
-              : "No account is active and connected to Google. Check the Accounts screen.";
-        await recordIssue({
-          signature: "no_capacity",
-          kind: "no_capacity",
-          detail,
-        });
+            : "No account is active and connected to Google. Check the Accounts screen.";
+        if (!usable && !poolIssueRecorded) {
+          await recordIssue({
+            signature: "no_capacity",
+            kind: "no_capacity",
+            detail,
+          });
+          poolIssueRecorded = true;
+        }
         act("skipped_no_account", { detail });
         continue;
       }
