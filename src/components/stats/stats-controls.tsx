@@ -61,7 +61,7 @@ export function StatsControls({
       value={value !== null ? String(value) : ""}
       onValueChange={(v) => navigate({ [slot]: v })}
     >
-      <SelectTrigger size="sm" className="w-56">
+      <SelectTrigger size="sm" className="w-full sm:w-56">
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>

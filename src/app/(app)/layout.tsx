@@ -12,7 +12,9 @@ export default async function AppLayout({
   const demo = await isDemoMode();
   return (
     <div className="flex min-h-svh">
-      <aside className="sticky top-0 flex h-svh w-[232px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
+      {/* Below `lg` this is a drawer instead — see `MobileNav`, whose trigger
+          sits in the page header. */}
+      <aside className="sticky top-0 hidden h-svh w-[232px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
         <div className="px-3 pb-2 pt-[18px]">
           <WorkspaceSwitcher demo={demo} />
         </div>

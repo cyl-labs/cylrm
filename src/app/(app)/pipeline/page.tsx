@@ -34,7 +34,7 @@ export default async function PipelinePage({
     ];
     return (
       <PageShell title="Pipeline" actions={<RangeSelect value={range} />}>
-        <div className="flex h-full flex-col gap-4 px-6 py-4">
+        <div className="flex h-full flex-col gap-4 px-4 py-4 sm:px-6">
           <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4">
             {demoTiles.map((tile) => (
               <div key={tile.label} className="rounded-lg border px-4 py-3">
@@ -127,7 +127,7 @@ export default async function PipelinePage({
 
   return (
     <PageShell title="Pipeline" actions={<RangeSelect value={range} />}>
-      <div className="flex h-full flex-col gap-4 px-6 py-4">
+      <div className="flex h-full flex-col gap-4 px-4 py-4 sm:px-6">
         <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4">
           {tiles.map((t) => (
             <div key={t.label} className="rounded-lg border px-4 py-3">

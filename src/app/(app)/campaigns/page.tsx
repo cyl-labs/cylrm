@@ -65,7 +65,7 @@ export default async function CampaignsPage() {
           </p>
         </div>
       ) : (
-        <div className="px-6 py-4">
+        <div className="px-4 py-4 sm:px-6">
           {issueCount > 0 && (
             <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-[13px] text-destructive">
               <AlertTriangle className="size-4 shrink-0" />

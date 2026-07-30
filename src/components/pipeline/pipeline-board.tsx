@@ -3,7 +3,14 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ArrowRightLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { ThreadSheet } from "@/components/pipeline/thread-sheet";
 
@@ -71,14 +78,17 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
   const stageOf = (d: DealCard) => overrides[d.id] ?? d.stage;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-5 gap-3">
+    // Five columns only fit a wide screen. Narrower than `lg` the board
+    // becomes a snapping horizontal scroller — one column at a time, which is
+    // how a phone reads a kanban anyway.
+    <div className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-x-visible lg:px-0">
       {STAGES.map((stage) => {
         const cards = deals.filter((d) => stageOf(d) === stage.key);
         return (
           <div
             key={stage.key}
             className={cn(
-              "flex min-h-0 flex-col rounded-lg border bg-muted/30",
+              "flex min-h-0 w-[78vw] max-w-[320px] shrink-0 snap-start flex-col rounded-lg border bg-muted/30 lg:w-auto lg:max-w-none lg:shrink",
               dragOver === stage.key && "border-primary/50 bg-primary/5",
             )}
             onDragOver={(e) => {
@@ -113,7 +123,7 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
                   }}
                   onDragEnd={() => setDragId(null)}
                   onClick={() => setOpenDealId(d.id)}
-                  className="cursor-grab rounded-md border bg-card p-3 shadow-xs transition-colors hover:border-ring/60 active:cursor-grabbing"
+                  className="group cursor-grab rounded-md border bg-card p-3 shadow-xs transition-colors hover:border-ring/60 active:cursor-grabbing"
                   data-deal-id={d.id}
                 >
                   <p className="text-[13px] font-medium leading-tight">
@@ -140,6 +150,33 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
                       {daysIn(d.stageSince)}
                     </span>
                   </div>
+                  {/* Dragging is a mouse gesture — HTML5 drag events never
+                      fire on touch — so the stage is also movable from a
+                      menu. Always visible where dragging cannot work; on a
+                      pointer screen it waits for hover or keyboard focus so
+                      it does not clutter every card. */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed py-1 text-[11px] text-muted-foreground transition-[color,opacity] hover:border-solid hover:text-foreground lg:opacity-0 lg:group-focus-within:opacity-100 lg:group-hover:opacity-100 lg:data-[state=open]:opacity-100"
+                    >
+                      <ArrowRightLeft className="size-3" />
+                      Move
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {STAGES.filter((s) => s.key !== stage.key).map((s) => (
+                        <DropdownMenuItem
+                          key={s.key}
+                          onSelect={() => moveDeal(d.id, s.key)}
+                        >
+                          {s.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               ))}
             </div>

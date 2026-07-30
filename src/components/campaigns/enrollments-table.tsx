@@ -106,7 +106,7 @@ export function EnrollmentsTable({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger size="sm" className="w-44">
+          <SelectTrigger size="sm" className="w-full sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -122,7 +122,7 @@ export function EnrollmentsTable({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Filter by name, email, company…"
-          className="h-8 w-64 text-[13px]"
+          className="h-8 w-full text-[13px] sm:w-64"
         />
         <span className="ml-auto text-[13px] text-muted-foreground">
           {filtered.length === rows.length

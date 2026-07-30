@@ -93,10 +93,10 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 px-6 py-4">
+    <div className="flex flex-col gap-3 px-4 py-4 sm:px-6">
       <div className="flex flex-wrap items-center gap-2">
         <Select value={kind} onValueChange={setKind}>
-          <SelectTrigger size="sm" className="w-44">
+          <SelectTrigger size="sm" className="w-full sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -108,7 +108,7 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
         </Select>
         {campaigns.length > 0 && (
           <Select value={campaignId} onValueChange={setCampaignId}>
-            <SelectTrigger size="sm" className="w-56">
+            <SelectTrigger size="sm" className="w-full sm:w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -43,7 +43,7 @@ export default async function AccountsPage({
           </>
         }
       >
-        <div className="grid grid-cols-1 items-start gap-4 px-6 py-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid grid-cols-1 items-start gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <AccountsView accounts={demoAccounts()} />
           <SendingWindowCard initial={demoSetting} />
         </div>
@@ -129,7 +129,7 @@ export default async function AccountsPage({
             : `Google connected for ${googleConnected}.`}
         </div>
       )}
-      <div className="grid grid-cols-1 items-start gap-4 px-6 py-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-1 items-start gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <AccountsView accounts={rows} />
         <SendingWindowCard
           initial={{

@@ -212,7 +212,7 @@ export default async function StatsPage({
         />
       }
     >
-      <div className="mx-auto flex max-w-[920px] flex-col gap-[18px] px-7 pb-10 pt-6">
+      <div className="mx-auto flex max-w-[920px] flex-col gap-[18px] px-4 pb-10 pt-6 sm:px-7">
         <p className="text-[12.5px] font-semibold leading-normal text-muted-foreground/75">
           Live comparison over the selected range. Differences under roughly 2×
           at low volume are noise — keep at most 2 active approach tests running

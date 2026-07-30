@@ -74,7 +74,7 @@ function CampaignDetail({
       title={name}
       actions={<CampaignStatusControl campaignId={campaignId} status={status} />}
     >
-      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-4">
+      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-4 sm:px-6">
         <SendIssuesCard issues={issues} />
 
         <CampaignProgressCard p={progress} />

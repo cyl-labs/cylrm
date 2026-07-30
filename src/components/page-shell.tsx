@@ -1,4 +1,7 @@
-export function PageShell({
+import { isDemoMode } from "@/lib/demo";
+import { MobileNav } from "@/components/mobile-nav";
+
+export async function PageShell({
   title,
   actions,
   children,
@@ -7,10 +10,14 @@ export function PageShell({
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const demo = await isDemoMode();
   return (
     <div className="flex h-svh flex-col">
-      <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 gap-y-2 border-b bg-card px-7 py-2.5">
-        <h1 className="text-xl font-extrabold tracking-[-0.02em]">{title}</h1>
+      <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 gap-y-2 border-b bg-card px-4 py-2.5 sm:px-7">
+        <MobileNav demo={demo} />
+        <h1 className="text-lg font-extrabold tracking-[-0.02em] sm:text-xl">
+          {title}
+        </h1>
         {actions && (
           <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
         )}

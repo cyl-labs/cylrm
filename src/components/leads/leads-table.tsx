@@ -233,10 +233,10 @@ export function LeadsTable({
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 px-6 py-4">
+    <div className="flex h-full flex-col gap-3 px-4 py-4 sm:px-6">
       <div className="flex flex-wrap items-center gap-2">
         <Select value={listFilter} onValueChange={setListFilter}>
-          <SelectTrigger size="sm" className="w-52">
+          <SelectTrigger size="sm" className="w-full sm:w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -252,7 +252,7 @@ export function LeadsTable({
           value={companyFilter}
           onChange={(e) => setCompanyFilter(e.target.value)}
           placeholder="Filter by company…"
-          className="h-8 w-56 text-[13px]"
+          className="h-8 w-full text-[13px] sm:w-56"
         />
         {selectedIds.length > 0 && (
           <>
