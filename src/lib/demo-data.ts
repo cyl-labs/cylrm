@@ -201,6 +201,11 @@ export function demoCampaignProgress(id: number) {
     .filter((s) => s.step === 0)
     .reduce((acc, s) => acc + s.count, 0);
   const sent = specs.reduce((acc, s) => acc + s.step * s.count, 0);
+  const sum = (s: EnrollSpec[]) => s.reduce((acc, x) => acc + x.count, 0);
+  const contactsEnrolled = sum(specs);
+  const contactsMessaged = sum(specs.filter((s) => s.step > 0));
+  const secondTouchesLeft =
+    stepCount >= 2 ? sum(active.filter((s) => s.step < 2)) : 0;
 
   // Other active campaigns share the same account pool.
   const activeIds = demoCampaigns()
@@ -290,6 +295,9 @@ export function demoCampaignProgress(id: number) {
     sentToday,
     remaining,
     notStarted,
+    contactsMessaged,
+    contactsEnrolled,
+    secondTouchesLeft,
     dueNow: rows.filter((r) => r.due).length,
     oooPaused: detail.countByStatus.get("ooo_paused") ?? 0,
     percentComplete: total === 0 ? 0 : Math.round((sent / total) * 100),

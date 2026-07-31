@@ -19,6 +19,14 @@ export type CampaignProgress = {
   remaining: number;
   /** Active enrollments that have not received step 1 yet. */
   notStarted: number;
+  /** Contacts that have had at least one email, whatever happened after —
+   * replied, bounced and unsubscribed all count as messaged. */
+  contactsMessaged: number;
+  /** Contacts enrolled, ever. */
+  contactsEnrolled: number;
+  /** Contacts still owed their step-2 email, including the ones that have not
+   * had step 1 yet. Zero for a one-step campaign. */
+  secondTouchesLeft: number;
   /** Due right now and waiting on the next tick. */
   dueNow: number;
   /** OOO-paused enrollments. Counted in `remaining` — the scheduler resumes
@@ -142,6 +150,9 @@ export async function getCampaignProgress(
     select
       count(*) filter (where ${inPlay}) as active,
       count(*) filter (where ${inPlay} and e.current_step = 0) as not_started,
+      count(*) as enrolled,
+      count(*) filter (where e.current_step > 0) as contacts_messaged,
+      count(*) filter (where ${inPlay} and e.current_step < 2) as second_touches_left,
       count(*) filter (where e.status = 'active' and e.next_send_at <= now()) as due_now,
       count(*) filter (where e.status = 'ooo_paused') as ooo_paused,
       coalesce(sum(greatest(${stepCount} - e.current_step, 0))
@@ -319,6 +330,11 @@ export async function getCampaignProgress(
     sentToday: n(sentRow?.sent_today),
     remaining,
     notStarted,
+    contactsMessaged: n(counts?.contacts_messaged),
+    contactsEnrolled: n(counts?.enrolled),
+    // A one-step campaign owes no second touch, however many contacts are
+    // sitting below step 2.
+    secondTouchesLeft: stepCount >= 2 ? n(counts?.second_touches_left) : 0,
     dueNow: n(counts?.due_now),
     oooPaused: n(counts?.ooo_paused),
     percentComplete: total === 0 ? 0 : Math.round((sent / total) * 100),

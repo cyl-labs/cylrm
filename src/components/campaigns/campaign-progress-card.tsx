@@ -1,6 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { TICK_MINUTES, type CampaignProgress } from "@/lib/campaign-progress";
+import { type CampaignProgress } from "@/lib/campaign-progress";
 
 function Tile({
   label,
@@ -24,32 +24,6 @@ function Tile({
 
 /** Postgres `time` columns come back as HH:MM:SS. */
 const hhmm = (t: string) => t.slice(0, 5);
-
-/**
- * What "due now" will actually do on the next tick.
- *
- * The ceiling is one email per account per tick, not the whole queue — so
- * saying "goes out next tick" is only true while the number due fits inside
- * the account pool. Beyond that it drains a tick at a time, and beyond
- * today's remaining cap it doesn't finish today at all.
- */
-function dueHint(p: CampaignProgress): string {
-  if (p.dueNow === 0) return "queue is clear";
-  // Whatever is blocking the campaign is spelled out under the tiles; don't
-  // promise a schedule the scheduler is not going to honour.
-  if (p.blockedReason) return "on hold — see below";
-  const perTick = p.eligibleAccounts;
-  if (perTick === 0) return "no account can send";
-  if (!p.window.open) return "waiting for the sending window";
-  if (p.dueNow <= perTick) return "all of it goes out next tick";
-  const today = Math.min(p.dueNow, p.capacityLeftToday);
-  if (today === 0) return "no capacity left today";
-  if (today < p.dueNow) {
-    return `${perTick} per tick — ${today.toLocaleString()} today, the rest tomorrow`;
-  }
-  const mins = Math.ceil(today / perTick) * TICK_MINUTES;
-  return `${perTick} per tick — about ${mins} min to clear`;
-}
 
 function etaLabel(days: number | null) {
   if (days === null) return "—";
@@ -98,29 +72,36 @@ export function CampaignProgressCard({ p }: { p: CampaignProgress }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <Tile
             label="Left to send"
             value={p.remaining.toLocaleString()}
+            hint="emails across every step"
+          />
+          <Tile
+            label="Leads messaged"
+            value={p.contactsMessaged.toLocaleString()}
+            hint={`of ${p.contactsEnrolled.toLocaleString()} enrolled`}
+          />
+          <Tile
+            label="New leads left"
+            value={p.notStarted.toLocaleString()}
             hint={
               p.notStarted > 0
-                ? `emails — ${p.notStarted.toLocaleString()} contact${p.notStarted === 1 ? "" : "s"} not started`
-                : "emails — every contact has had a first touch"
+                ? "first touches not sent yet"
+                : "every contact has had a first touch"
             }
           />
           <Tile
-            label="Sent today"
-            value={p.sentToday.toLocaleString()}
+            label="Second touches left"
+            value={p.secondTouchesLeft.toLocaleString()}
             hint={
-              p.window.open
-                ? `${p.capacityLeftToday.toLocaleString()} of today's capacity left`
-                : "sending window closed"
+              p.stepCount < 2
+                ? "this campaign has one step"
+                : p.secondTouchesLeft > 0
+                  ? `${p.notStarted.toLocaleString()} of them wait on a first touch`
+                  : "every contact has had a second touch"
             }
-          />
-          <Tile
-            label="Due now"
-            value={p.dueNow.toLocaleString()}
-            hint={dueHint(p)}
           />
           <Tile
             label="Est. finish"
@@ -137,7 +118,9 @@ export function CampaignProgressCard({ p }: { p: CampaignProgress }) {
           {hhmm(p.window.end)} {p.window.timezone.replace("_", " ")}. The
           estimate assumes your caps, accounts and sending window stay as they
           are, and it will tend to run early, because replies and bounces
-          cancel the steps a contact had left.
+          cancel the steps a contact had left.{" "}
+          {p.dueNow > 0 &&
+            `${p.dueNow.toLocaleString()} email${p.dueNow === 1 ? " is" : "s are"} due right now.`}
         </p>
 
         {p.blockedReason && (
