@@ -3,6 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
+import { CheckCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +50,7 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
   const [kind, setKind] = React.useState("all");
   const [campaignId, setCampaignId] = React.useState("all");
   const [readLocally, setReadLocally] = React.useState<Set<number>>(new Set());
+  const [clearing, setClearing] = React.useState(false);
 
   const campaigns = React.useMemo(() => {
     const seen = new Map<number, string>();
@@ -63,6 +66,40 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
 
   const isRead = (r: ReplyRow) => r.readAt !== null || readLocally.has(r.id);
   const unread = replies.filter((r) => !isRead(r)).length;
+  // Auto-replies and bounces arrive in bulk and need no individual attention;
+  // a genuine reply always does, so it is never cleared this way.
+  const noise = replies.filter(
+    (r) => (r.kind === "auto_reply" || r.kind === "bounce") && !isRead(r),
+  );
+  const clearable = noise.length;
+
+  async function clearNoise() {
+    setClearing(true);
+    const ids = noise.map((r) => r.id);
+    setReadLocally((prev) => new Set([...prev, ...ids]));
+    try {
+      const res = await fetch("/api/replies/read-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kinds: ["auto_reply", "bounce"] }),
+      });
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { cleared: number };
+      toast.success(
+        `Marked ${data.cleared.toLocaleString()} message${data.cleared === 1 ? "" : "s"} read.`,
+      );
+      router.refresh();
+    } catch {
+      setReadLocally((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      toast.error("Could not mark those read.");
+    } finally {
+      setClearing(false);
+    }
+  }
 
   async function open(r: ReplyRow) {
     const next = openId === r.id ? null : r.id;
@@ -120,6 +157,17 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
               ))}
             </SelectContent>
           </Select>
+        )}
+        {clearable > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={clearing}
+            onClick={clearNoise}
+          >
+            <CheckCheck data-icon="inline-start" />
+            Mark {clearable.toLocaleString()} out-of-office &amp; bounces read
+          </Button>
         )}
         <span className="ml-auto text-[13px] text-muted-foreground">
           {unread > 0 ? `${unread} unread · ` : ""}
