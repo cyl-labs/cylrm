@@ -166,7 +166,10 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
             onClick={clearNoise}
           >
             <CheckCheck data-icon="inline-start" />
-            Mark {clearable.toLocaleString()} out-of-office &amp; bounces read
+            {/* One string, not text-around-an-expression: Button is a flex
+                container, so separate text nodes become separate flex items
+                and the space between them collapses. */}
+            {`Mark ${clearable.toLocaleString()} out-of-office & bounces read`}
           </Button>
         )}
         <span className="ml-auto text-[13px] text-muted-foreground">
