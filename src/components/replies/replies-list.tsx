@@ -182,9 +182,11 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
                   {r.repliedToStep !== null && (
                     <span>answering step {r.repliedToStep}</span>
                   )}
-                  {/* Which arm of the copy test they got — only shown while a
-                      test is actually running on this campaign. */}
-                  {r.variant && (
+                  {/* Which arm of the copy test they got — only on genuine
+                      replies, and only while a test is actually running on
+                      this campaign. An out-of-office says nothing about the
+                      copy, so labelling it is noise. */}
+                  {r.variant && r.kind === "reply" && (
                     <Badge variant="outline" className="text-[10px]">
                       Version {r.variant.toUpperCase()}
                       {r.variantLabel ? ` · ${r.variantLabel}` : ""}
