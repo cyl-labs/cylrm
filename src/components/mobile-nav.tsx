@@ -18,16 +18,27 @@ import {
  * The trigger lives in the page header rather than a bar of its own so a
  * phone still gets one header, not two.
  */
-export function MobileNav({ demo }: { demo: boolean }) {
+export function MobileNav({
+  demo,
+  unreadReplies = 0,
+}: {
+  demo: boolean;
+  unreadReplies?: number;
+}) {
   const [open, setOpen] = React.useState(false);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
-        className="-ml-1 flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:hidden"
+        className="relative -ml-1 flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:hidden"
         aria-label="Open navigation"
       >
         <Menu className="size-5" strokeWidth={1.8} />
+        {/* With the nav closed the badge inside it is invisible, so the
+            trigger carries the fact that something is waiting. */}
+        {unreadReplies > 0 && (
+          <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" />
+        )}
       </SheetTrigger>
       <SheetContent
         side="left"
@@ -48,7 +59,7 @@ export function MobileNav({ demo }: { demo: boolean }) {
             covers the page it just moved to. Closing on click beats watching
             the pathname, which needs a state-setting effect. */}
         <div onClick={() => setOpen(false)}>
-          <NavLinks />
+          <NavLinks unreadReplies={unreadReplies} />
         </div>
         <div className="mt-auto px-2.5 pb-3.5">
           <form method="post" action="/api/logout">

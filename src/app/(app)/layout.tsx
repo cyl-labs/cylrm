@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import { isDemoMode } from "@/lib/demo";
+import { countUnreadReplies } from "@/lib/replies";
 import { NavLinks } from "@/components/nav-links";
 import { Toaster } from "@/components/ui/sonner";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -10,6 +11,8 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const demo = await isDemoMode();
+  // The demo workspace has no inbox of its own.
+  const unread = demo ? 0 : await countUnreadReplies();
   return (
     <div className="flex min-h-svh">
       {/* Below `lg` this is a drawer instead — see `MobileNav`, whose trigger
@@ -23,7 +26,7 @@ export default async function AppLayout({
             Workspace
           </span>
         </div>
-        <NavLinks />
+        <NavLinks unreadReplies={unread} />
         <div className="mt-auto px-2.5 pb-3.5">
           <form method="post" action="/api/logout">
             <button

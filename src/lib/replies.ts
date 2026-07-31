@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, contact, enrollment, message, sendingAccount } from "@/db/schema";
@@ -103,10 +104,12 @@ export async function getReplies(): Promise<ReplyRow[]> {
   );
 }
 
-export async function countUnreadReplies(): Promise<number> {
+/** Wrapped in `cache` because the sidebar and the mobile drawer both ask for
+ * it while rendering the same page. */
+export const countUnreadReplies = cache(async (): Promise<number> => {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(message)
     .where(and(eq(message.direction, "in"), isNull(message.readAt)));
   return row?.count ?? 0;
-}
+});

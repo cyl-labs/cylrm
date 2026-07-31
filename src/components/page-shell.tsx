@@ -1,4 +1,5 @@
 import { isDemoMode } from "@/lib/demo";
+import { countUnreadReplies } from "@/lib/replies";
 import { MobileNav } from "@/components/mobile-nav";
 
 export async function PageShell({
@@ -11,10 +12,11 @@ export async function PageShell({
   children: React.ReactNode;
 }) {
   const demo = await isDemoMode();
+  const unread = demo ? 0 : await countUnreadReplies();
   return (
     <div className="flex h-svh flex-col">
       <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 gap-y-2 border-b bg-card px-4 py-2.5 sm:px-7">
-        <MobileNav demo={demo} />
+        <MobileNav demo={demo} unreadReplies={unread} />
         <h1 className="text-lg font-extrabold tracking-[-0.02em] sm:text-xl">
           {title}
         </h1>

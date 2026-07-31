@@ -21,7 +21,7 @@ const links = [
   { href: "/stats", label: "Stats", icon: BarChart3 },
 ];
 
-export function NavLinks() {
+export function NavLinks({ unreadReplies = 0 }: { unreadReplies?: number }) {
   const pathname = usePathname();
   return (
     <nav className="flex flex-col gap-0.5 px-2.5">
@@ -38,6 +38,11 @@ export function NavLinks() {
           >
             <Icon className="size-[17px]" strokeWidth={1.8} />
             {label}
+            {href === "/replies" && unreadReplies > 0 && (
+              <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-primary-foreground">
+                {unreadReplies > 99 ? "99+" : unreadReplies}
+              </span>
+            )}
           </Link>
         );
       })}

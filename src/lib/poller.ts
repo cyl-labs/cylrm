@@ -12,6 +12,9 @@ import {
 import { decryptSecret } from "@/lib/crypto";
 import { GMAIL_IMAP } from "@/lib/gmail";
 import { readableBody } from "@/lib/html-to-text";
+import { trimReplyBody } from "@/lib/reply-text";
+import { notificationsConfigured, notifyReply } from "@/lib/notify";
+import { campaign } from "@/db/schema";
 
 export const OOO_PAUSE_DAYS = 7;
 
@@ -29,6 +32,9 @@ export type PollAction = {
     | "no_match"
     | "already_seen";
   dealCreated?: boolean;
+  /** Push alert outcome: absent when nothing was owed, "skipped" when no
+   * Telegram credentials are set, or the error that stopped it. */
+  notified?: "sent" | "skipped" | string;
 };
 
 export type PollResult = {
@@ -228,6 +234,55 @@ async function applyTransition(
   return { result: "logged_only", dealCreated: false };
 }
 
+/**
+ * Push a reply to Telegram. Never throws: a poll that filed the reply
+ * correctly has done its job whether or not the alert got out, and the
+ * outcome rides back in the tick result for debugging.
+ */
+async function announceReply(params: {
+  enrollmentId: number;
+  accountEmail: string;
+  subject: string | null;
+  body: string | null;
+}): Promise<PollAction["notified"]> {
+  if (!notificationsConfigured()) return "skipped";
+  try {
+    const [row] = await db
+      .select({
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        email: contact.email,
+        company: contact.company,
+        campaignName: campaign.name,
+      })
+      .from(enrollment)
+      .innerJoin(contact, eq(contact.id, enrollment.contactId))
+      .innerJoin(campaign, eq(campaign.id, enrollment.campaignId))
+      .where(eq(enrollment.id, params.enrollmentId))
+      .limit(1);
+    if (!row) return "enrollment vanished";
+
+    await notifyReply({
+      contactName:
+        [row.firstName, row.lastName].filter(Boolean).join(" ") || null,
+      contactEmail: row.email,
+      company: row.company,
+      campaignName: row.campaignName,
+      mailbox: params.accountEmail,
+      subject: params.subject,
+      // The same trim the Replies screen shows — a phone alert has no room
+      // for a signature block and a quoted copy of our own email.
+      body: trimReplyBody(params.body).text || null,
+      asksToBeRemoved: looksLikeRemovalRequest(
+        `${params.subject ?? ""}\n${params.body ?? ""}`,
+      ),
+    });
+    return "sent";
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
+}
+
 async function pollAccount(
   account: {
     id: number;
@@ -370,6 +425,19 @@ async function pollAccount(
           enrollmentId,
           kind,
         );
+
+        // Only genuine replies buzz the phone. Out-of-office notices and
+        // bounces are five times more common and would train you to ignore it.
+        let notified: PollAction["notified"];
+        if (kind === "reply") {
+          notified = await announceReply({
+            enrollmentId,
+            accountEmail: account.email,
+            subject: parsed.subject ?? null,
+            body: bodyText,
+          });
+        }
+
         result.actions.push({
           accountEmail: account.email,
           uid,
@@ -378,6 +446,7 @@ async function pollAccount(
           enrollmentId,
           result: transition,
           dealCreated,
+          notified,
         });
       }
 
