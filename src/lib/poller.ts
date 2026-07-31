@@ -1,6 +1,6 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser, type ParsedMail } from "mailparser";
-import { and, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   contact,
@@ -110,14 +110,32 @@ function collectReferencedIds(parsed: ParsedMail, raw: string, isBounce: boolean
   return [...ids];
 }
 
+/**
+ * The address a delivery-status notification says failed.
+ *
+ * Bounces are not "from" the contact — they come from a postmaster — so the
+ * only reliable link back to an enrollment is the failed recipient the DSN
+ * names. Reference matching cannot do it: Gmail rewrites Message-ID on send
+ * and we store the id we composed, not the one it delivered, so the ids
+ * embedded in a DSN never match anything we hold.
+ */
+export function bouncedRecipient(raw: string): string | null {
+  const m =
+    /^(?:Final|Original)-Recipient:\s*(?:rfc822;)?\s*<?([^\s<>;]+@[^\s<>;]+?)>?\s*$/im.exec(
+      raw,
+    );
+  return m ? m[1].toLowerCase().replace(/[.,;]+$/, "") : null;
+}
+
 async function matchEnrollment(params: {
   accountId: number;
   referencedIds: string[];
   threadId: string | null;
   fromAddr: string | null;
   isBounce: boolean;
+  raw: string;
 }): Promise<number | null> {
-  const { accountId, referencedIds, threadId, fromAddr, isBounce } = params;
+  const { accountId, referencedIds, threadId, fromAddr, isBounce, raw } = params;
 
   if (referencedIds.length > 0) {
     const [hit] = await db
@@ -148,19 +166,30 @@ async function matchEnrollment(params: {
     if (hit) return hit.id;
   }
 
-  if (!isBounce && fromAddr) {
+  // Whose address the message concerns: the sender for a reply, the failed
+  // recipient for a bounce.
+  const subject = isBounce ? bouncedRecipient(raw) : fromAddr;
+  if (subject) {
     const [hit] = await db
       .select({ id: enrollment.id })
       .from(enrollment)
       .innerJoin(contact, eq(enrollment.contactId, contact.id))
       .where(
         and(
-          eq(sql`lower(${contact.email})`, fromAddr),
+          eq(sql`lower(${contact.email})`, subject),
           eq(enrollment.assignedAccountId, accountId),
-          or(eq(enrollment.status, "active"), eq(enrollment.status, "ooo_paused")),
         ),
       )
-      .orderBy(desc(enrollment.id))
+      // Any status, deliberately. Restricting this to live enrollments meant a
+      // contact who replied twice had their second reply dropped on the floor
+      // — not stored, not shown, not alerted — because the first reply had
+      // already moved them to `replied`. Same for anyone answering after their
+      // sequence completed. `applyTransition` decides what a match may change;
+      // matching itself should just say who this is about.
+      .orderBy(
+        sql`case when ${enrollment.status} in ('active', 'ooo_paused') then 0 else 1 end`,
+        desc(enrollment.id),
+      )
       .limit(1);
     if (hit) return hit.id;
   }
@@ -364,6 +393,7 @@ async function pollAccount(
           threadId,
           fromAddr,
           isBounce: kind === "bounce",
+          raw,
         });
         if (enrollmentId === null) {
           result.actions.push({
