@@ -1,7 +1,14 @@
 import { cache } from "react";
 import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { campaign, contact, enrollment, message, sendingAccount } from "@/db/schema";
+import {
+  campaign,
+  contact,
+  enrollment,
+  message,
+  sendingAccount,
+  sequenceStep,
+} from "@/db/schema";
 
 export type ReplyRow = {
   id: number;
@@ -21,6 +28,11 @@ export type ReplyRow = {
   repliedToStep: number | null;
   repliedToSubject: string | null;
   repliedToBody: string | null;
+  /** Which arm of the A/B test this contact is pinned to, and its label —
+   * null when the campaign has no B copy, since "Version A" against no
+   * alternative says nothing. */
+  variant: "a" | "b" | null;
+  variantLabel: string | null;
 };
 
 /**
@@ -48,6 +60,7 @@ export async function getReplies(): Promise<ReplyRow[]> {
       campaignName: campaign.name,
       mailbox: sendingAccount.email,
       enrollmentId: message.enrollmentId,
+      variant: enrollment.variant,
     })
     .from(message)
     .innerJoin(enrollment, eq(enrollment.id, message.enrollmentId))
@@ -57,6 +70,24 @@ export async function getReplies(): Promise<ReplyRow[]> {
     .where(eq(message.direction, "in"))
     .orderBy(desc(message.sentAt))
     .limit(500);
+
+  // Which campaigns are actually running a copy test, and what each arm is
+  // called. Without a B copy every contact is on "a" by default and the label
+  // would be noise on every row.
+  const variantRows = await db
+    .selectDistinctOn([sequenceStep.campaignId, sequenceStep.variant], {
+      campaignId: sequenceStep.campaignId,
+      variant: sequenceStep.variant,
+      label: sequenceStep.label,
+    })
+    .from(sequenceStep)
+    .orderBy(sequenceStep.campaignId, sequenceStep.variant, sequenceStep.stepNumber);
+  const testedCampaigns = new Set(
+    variantRows.filter((v) => v.variant === "b").map((v) => v.campaignId),
+  );
+  const variantLabels = new Map(
+    variantRows.map((v) => [`${v.campaignId}:${v.variant}`, v.label]),
+  );
 
   // The outbound email each reply answers: the last one sent on that
   // enrollment before it arrived.
@@ -99,6 +130,10 @@ export async function getReplies(): Promise<ReplyRow[]> {
         repliedToStep: prior?.stepNumber ?? null,
         repliedToSubject: prior?.subject ?? null,
         repliedToBody: prior?.bodyText ?? null,
+        variant: testedCampaigns.has(r.campaignId) ? r.variant : null,
+        variantLabel: testedCampaigns.has(r.campaignId)
+          ? (variantLabels.get(`${r.campaignId}:${r.variant}`) ?? null)
+          : null,
       };
     }),
   );

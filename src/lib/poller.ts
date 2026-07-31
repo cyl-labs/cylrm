@@ -14,7 +14,7 @@ import { GMAIL_IMAP } from "@/lib/gmail";
 import { readableBody } from "@/lib/html-to-text";
 import { trimReplyBody } from "@/lib/reply-text";
 import { notificationsConfigured, notifyReply } from "@/lib/notify";
-import { campaign } from "@/db/schema";
+import { campaign, sequenceStep } from "@/db/schema";
 
 export const OOO_PAUSE_DAYS = 7;
 
@@ -283,6 +283,8 @@ async function announceReply(params: {
         email: contact.email,
         company: contact.company,
         campaignName: campaign.name,
+        campaignId: campaign.id,
+        variant: enrollment.variant,
       })
       .from(enrollment)
       .innerJoin(contact, eq(contact.id, enrollment.contactId))
@@ -290,6 +292,15 @@ async function announceReply(params: {
       .where(eq(enrollment.id, params.enrollmentId))
       .limit(1);
     if (!row) return "enrollment vanished";
+
+    // Only worth naming the arm while a B copy exists to contrast with.
+    const armRows = await db
+      .select({ variant: sequenceStep.variant, label: sequenceStep.label })
+      .from(sequenceStep)
+      .where(eq(sequenceStep.campaignId, row.campaignId));
+    const testing = armRows.some((a) => a.variant === "b");
+    const label =
+      armRows.find((a) => a.variant === row.variant && a.label)?.label ?? null;
 
     await notifyReply({
       contactName:
@@ -302,6 +313,8 @@ async function announceReply(params: {
       // The same trim the Replies screen shows — a phone alert has no room
       // for a signature block and a quoted copy of our own email.
       body: trimReplyBody(params.body).text || null,
+      variant: testing ? row.variant : null,
+      variantLabel: testing ? label : null,
       asksToBeRemoved: looksLikeRemovalRequest(
         `${params.subject ?? ""}\n${params.body ?? ""}`,
       ),

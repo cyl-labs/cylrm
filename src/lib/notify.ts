@@ -57,6 +57,9 @@ export type ReplyNotification = {
   /** Already trimmed of quoted original and signature by the caller. */
   body: string | null;
   asksToBeRemoved: boolean;
+  /** A/B arm, null when this campaign is not running a copy test. */
+  variant: "a" | "b" | null;
+  variantLabel: string | null;
 };
 
 /** Fired when the poller files a genuine human reply. */
@@ -69,6 +72,11 @@ export async function notifyReply(r: ReplyNotification): Promise<void> {
     `${r.asksToBeRemoved ? "🚫" : "📬"} Reply from ${who}${r.company ? ` — ${r.company}` : ""}`,
     `${r.contactEmail} · ${r.campaignName} · to ${r.mailbox}`,
   ];
+  if (r.variant) {
+    lines.push(
+      `Version ${r.variant.toUpperCase()}${r.variantLabel ? ` · ${r.variantLabel}` : ""}`,
+    );
+  }
   if (r.asksToBeRemoved) lines.push("Reads as an unsubscribe request.");
   if (r.subject) lines.push("", r.subject);
   if (body) {

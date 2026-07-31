@@ -182,6 +182,14 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
                   {r.repliedToStep !== null && (
                     <span>answering step {r.repliedToStep}</span>
                   )}
+                  {/* Which arm of the copy test they got — only shown while a
+                      test is actually running on this campaign. */}
+                  {r.variant && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Version {r.variant.toUpperCase()}
+                      {r.variantLabel ? ` · ${r.variantLabel}` : ""}
+                    </Badge>
+                  )}
                   {r.mailbox && <span>· to {r.mailbox}</span>}
                 </div>
                 {!expanded && written.text && (
