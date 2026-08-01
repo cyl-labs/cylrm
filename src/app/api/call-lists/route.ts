@@ -73,7 +73,17 @@ const COLUMN_ALIASES = {
     "organization",
     "org name",
   ],
-  title: ["decision maker title", "dm title", "title", "job title", "role"],
+  title: [
+    "decision maker title",
+    // Some scrapes call this "role" rather than "title"; without it the
+    // job title is silently dropped on import.
+    "decision maker role",
+    "dm title",
+    "dm role",
+    "title",
+    "job title",
+    "role",
+  ],
   email: [
     "personal direct email",
     "decision maker email",
