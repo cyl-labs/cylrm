@@ -451,7 +451,10 @@ function demoCallLeads(listId: number) {
   const count = listId === 9501 ? 18 : 11;
   const rows = [];
   for (let i = 0; i < count; i++) {
-    const company = CALL_COMPANIES[(i * 3 + listId) % CALL_COMPANIES.length];
+    // Stride must be coprime with the array length or it revisits a fraction
+    // of it — i*3 over 18 companies only ever reached six of them, so the
+    // demo queue showed the same business several times over.
+    const company = CALL_COMPANIES[(i * 5 + listId) % CALL_COMPANIES.length];
     // Roughly a third never tried, a third mid-flow, a third closed out.
     const phase = spread(i, 9);
     const outcome = phase < 3 ? null : CALL_OUTCOMES[spread(i, 8)];

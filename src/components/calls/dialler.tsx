@@ -114,10 +114,13 @@ function relative(iso: string | null) {
  */
 function CallForm({
   lead,
+  demo = false,
   onLogged,
   onSkip,
 }: {
   lead: QueueLead;
+  /** Demo workspace: run the flow, save nothing. */
+  demo?: boolean;
   onLogged: () => void;
   onSkip: () => void;
 }) {
@@ -132,6 +135,14 @@ function CallForm({
     // is the whole point of that outcome, so it should not default silently.
     if (outcome === "callback" && !showCallback) {
       setShowCallback(true);
+      return;
+    }
+    // The demo advances the queue locally rather than hiding these buttons:
+    // a dialler whose outcome buttons are missing does not demonstrate a
+    // dialler. Nothing is written, and the toast says so.
+    if (demo) {
+      toast.success(`${OUTCOME_LABELS[outcome]} — demo, not saved`);
+      onLogged();
       return;
     }
     setSaving(true);
@@ -242,9 +253,13 @@ function CallForm({
 export function Dialler({
   leads,
   readOnly = false,
+  demo = false,
 }: {
   leads: QueueLead[];
+  /** Closed view: these calls are finished, there is nothing to log. */
   readOnly?: boolean;
+  /** Demo workspace: the flow works, nothing is written. */
+  demo?: boolean;
 }) {
   const router = useRouter();
   // Worked leads drop out of the local queue immediately so the next number is
@@ -261,7 +276,9 @@ export function Dialler({
 
   function handleLogged(leadId: number) {
     setDone((prev) => new Set(prev).add(leadId));
-    router.refresh();
+    // Nothing was written in the demo, so refetching would only put the lead
+    // straight back and make the queue look stuck.
+    if (!demo) router.refresh();
   }
 
   if (!current) {
@@ -332,7 +349,10 @@ export function Dialler({
           </div>
         )}
 
-        <CopyNumber key={current.id} phone={current.phone} />
+        {/* Keys are prefixed because this and CallForm below are siblings:
+            keying both on the bare lead id gave one parent two children with
+            the same key, which React is entitled to conflate. */}
+        <CopyNumber key={`number-${current.id}`} phone={current.phone} />
         {current.email && (
           <p className="mt-2 truncate text-center text-xs text-muted-foreground">
             {current.email}
@@ -344,8 +364,9 @@ export function Dialler({
           // notes and the callback picker reset by construction rather than by
           // an effect that clears them after the fact.
           <CallForm
-            key={current.id}
+            key={`form-${current.id}`}
             lead={current}
+            demo={demo}
             onLogged={() => handleLogged(current.id)}
             onSkip={() => setSkipped((prev) => [...prev, current.id])}
           />

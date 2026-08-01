@@ -106,9 +106,10 @@ export default async function CallListPage({
           </p>
         </div>
       )}
-      {/* Demo is read-only, so the outcome buttons would only ever return a
-          403 — show the queue without them rather than a dead control. */}
-      <Dialler leads={leads} readOnly={demo || filter === "closed"} />
+      {/* The demo keeps its outcome buttons and advances the queue locally —
+          it just never writes. Only the Closed view is genuinely read-only,
+          because those calls are already finished. */}
+      <Dialler leads={leads} readOnly={filter === "closed"} demo={demo} />
     </PageShell>
   );
 }
