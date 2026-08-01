@@ -9,34 +9,96 @@ import { getSession } from "@/lib/session";
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 500;
 
-// A calling list is keyed on the phone number, so that column is the only one
-// that has to be present. "Company Phone" and "Corporate Phone" come first
-// because that is what an Apollo export labels the switchboard number.
+/**
+ * Header matching, deliberately forgiving.
+ *
+ * Every scrape names its columns differently — `phone`, `mobile_number`,
+ * `dm_phone`, `decision_maker_phone`, `generic_phone`, `best_phone` have all
+ * turned up for the same thing. Headers are normalised (case, underscores and
+ * hyphens folded to spaces) before matching, and each field keeps an ordered
+ * list of candidate columns rather than one winner.
+ */
+const normalise = (h: string) =>
+  h.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+
+// Order matters: it is the priority in which a row's columns are tried.
+// A mobile or direct line reaches a person; a main line reaches reception.
 const COLUMN_ALIASES = {
   phone: [
-    "company phone",
-    "corporate phone",
-    "phone",
-    "phone number",
-    "mobile",
+    "mobile number",
     "mobile phone",
+    "mobile",
+    "dm phone",
+    "decision maker phone",
+    "personal phone",
+    "direct phone",
     "work direct phone",
     "contact phone",
+    "phone",
+    "phone number",
+    "best phone",
     "telephone",
+    "tel",
+    "office number",
+    "office phone",
+    "company phone",
+    "corporate phone",
+    "general phone",
+    "generic phone",
+    "main line",
   ],
-  name: ["name", "first name", "contact name", "full name"],
+  name: [
+    "decision maker name",
+    "dm name",
+    "contact name",
+    "full name",
+    "name",
+    "first name",
+  ],
   lastName: ["last name"],
-  company: ["company", "company name", "organisation", "organization"],
-  title: ["title", "job title"],
-  email: ["email", "email address"],
+  company: [
+    "company name",
+    "company",
+    "business name",
+    "organisation",
+    "organization",
+    "org name",
+  ],
+  title: ["decision maker title", "dm title", "title", "job title", "role"],
+  email: [
+    "personal direct email",
+    "decision maker email",
+    "dm email",
+    "best email",
+    "email",
+    "email address",
+    "general email",
+    "generic email",
+  ],
 } as const;
 
-function findColumn(headers: string[], aliases: readonly string[]) {
-  for (const alias of aliases) {
-    const match = headers.find((h) => h.toLowerCase().trim() === alias);
-    if (match !== undefined) return match;
+/** Every header matching any alias, in alias-priority order. */
+function findColumns(headers: string[], aliases: readonly string[]) {
+  const byNormalised = new Map<string, string>();
+  for (const h of headers) {
+    const key = normalise(h);
+    if (!byNormalised.has(key)) byNormalised.set(key, h);
   }
-  return undefined;
+  const found: string[] = [];
+  for (const alias of aliases) {
+    const match = byNormalised.get(alias);
+    if (match !== undefined && !found.includes(match)) found.push(match);
+  }
+  return found;
+}
+
+/** First non-empty value across the candidate columns, for one row. */
+function pick(rec: CsvRecord, columns: string[]): string | null {
+  for (const col of columns) {
+    const v = rec[col]?.trim();
+    if (v && v.toLowerCase() !== "na" && v !== "-") return v;
+  }
+  return null;
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -92,18 +154,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "CSV has no data rows." }, { status: 400 });
   }
 
-  const phoneCol = findColumn(headers, COLUMN_ALIASES.phone);
-  if (!phoneCol) {
+  const phoneCols = findColumns(headers, COLUMN_ALIASES.phone);
+  if (phoneCols.length === 0) {
     return Response.json(
       { error: `No phone column found. Columns present: ${headers.join(", ")}` },
       { status: 400 },
     );
   }
-  const nameCol = findColumn(headers, COLUMN_ALIASES.name);
-  const lastNameCol = findColumn(headers, COLUMN_ALIASES.lastName);
-  const companyCol = findColumn(headers, COLUMN_ALIASES.company);
-  const titleCol = findColumn(headers, COLUMN_ALIASES.title);
-  const emailCol = findColumn(headers, COLUMN_ALIASES.email);
+  const nameCols = findColumns(headers, COLUMN_ALIASES.name);
+  const lastNameCols = findColumns(headers, COLUMN_ALIASES.lastName);
+  const companyCols = findColumns(headers, COLUMN_ALIASES.company);
+  const titleCols = findColumns(headers, COLUMN_ALIASES.title);
+  const emailCols = findColumns(headers, COLUMN_ALIASES.email);
 
   type ParsedRow = {
     phone: string;
@@ -121,7 +183,7 @@ export async function POST(request: Request) {
   const seenInFile = new Set<string>();
 
   for (const rec of records) {
-    const phone = (rec[phoneCol] ?? "").trim();
+    const phone = pick(rec, phoneCols) ?? "";
     const key = phoneKey(phone);
     // Fewer than 7 digits cannot be a dialable number — usually a stray
     // extension column or a placeholder like "-".
@@ -136,17 +198,17 @@ export async function POST(request: Request) {
     }
     seenInFile.add(key);
 
-    const first = (nameCol && rec[nameCol]?.trim()) || "";
-    const last = (lastNameCol && rec[lastNameCol]?.trim()) || "";
+    const first = pick(rec, nameCols) ?? "";
+    const last = pick(rec, lastNameCols) ?? "";
     const full = [first, last].filter(Boolean).join(" ");
 
     rows.push({
       phone,
       key,
       name: full || null,
-      company: (companyCol && rec[companyCol]?.trim()) || null,
-      title: (titleCol && rec[titleCol]?.trim()) || null,
-      email: (emailCol && rec[emailCol]?.trim()) || null,
+      company: pick(rec, companyCols),
+      title: pick(rec, titleCols),
+      email: pick(rec, emailCols),
       raw: rec,
     });
   }
