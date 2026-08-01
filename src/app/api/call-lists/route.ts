@@ -53,6 +53,7 @@ const COLUMN_ALIASES = {
   name: [
     "decision maker name",
     "dm name",
+    "verified contact",
     "contact name",
     "full name",
     "name",
@@ -62,6 +63,7 @@ const COLUMN_ALIASES = {
   company: [
     "company name",
     "company",
+    "firm name",
     "clinic name",
     "business name",
     "organisation",
@@ -103,6 +105,26 @@ function pick(rec: CsvRecord, columns: string[]): string | null {
     if (v && v.toLowerCase() !== "na" && v !== "-") return v;
   }
   return null;
+}
+
+/**
+ * Stand-ins a scrape writes when it found no actual person.
+ *
+ * Storing "the team" as the contact name puts it on the dialler card as if
+ * someone is called that, which is worse than showing no name at all.
+ */
+const PLACEHOLDER_NAMES = new Set([
+  "the team",
+  "team",
+  "unknown",
+  "n/a",
+  "none",
+  "-",
+]);
+
+function pickName(rec: CsvRecord, columns: string[]): string | null {
+  const v = pick(rec, columns);
+  return v && !PLACEHOLDER_NAMES.has(v.toLowerCase()) ? v : null;
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -214,8 +236,8 @@ export async function POST(request: Request) {
     }
     seenInFile.add(key);
 
-    const first = pick(rec, nameCols) ?? "";
-    const last = pick(rec, lastNameCols) ?? "";
+    const first = pickName(rec, nameCols) ?? "";
+    const last = pickName(rec, lastNameCols) ?? "";
     const full = [first, last].filter(Boolean).join(" ");
 
     rows.push({
