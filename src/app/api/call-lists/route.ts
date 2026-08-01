@@ -25,6 +25,9 @@ const normalise = (h: string) =>
 // A mobile or direct line reaches a person; a main line reaches reception.
 const COLUMN_ALIASES = {
   phone: [
+    // A number checked against the company's own published contact details
+    // beats anything the scrape guessed, so it wins outright.
+    "verified phone",
     "mobile number",
     "mobile phone",
     "mobile",
