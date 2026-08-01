@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Phone, SkipForward, Undo2 } from "lucide-react";
+import { Check, Copy, SkipForward, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import type { CallOutcome, QueueLead } from "@/lib/calls";
 import { Badge } from "@/components/ui/badge";
@@ -40,11 +40,50 @@ export function outcomeTone(outcome: CallOutcome) {
   return "secondary";
 }
 
-/** `tel:` wants digits and a leading +, nothing else. */
-function telHref(phone: string) {
-  const trimmed = phone.trim();
-  const plus = trimmed.startsWith("+") ? "+" : "";
-  return `tel:${plus}${trimmed.replace(/\D/g, "")}`;
+/**
+ * The number, as a button that copies it.
+ *
+ * Calls are placed from a separate handset or softphone, so handing the number
+ * to the clipboard beats a `tel:` link that would try to dial from whatever
+ * device the browser happens to be on.
+ *
+ * Mounted with `key={lead.id}` at the call site so "Copied" cannot linger from
+ * the previous number.
+ */
+function CopyNumber({ phone }: { phone: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(phone.trim());
+      setCopied(true);
+      // Long enough to register, short enough that the next tap reads as new.
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.error("Could not copy — select the number and copy it manually.");
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={`Copy ${phone}`}
+      className={cn(
+        "mt-4 flex h-14 w-full items-center justify-center gap-2.5 rounded-xl text-lg font-extrabold tracking-[-0.01em] transition-colors",
+        copied
+          ? "bg-success text-primary-foreground"
+          : "bg-primary text-primary-foreground hover:bg-primary/80",
+      )}
+    >
+      {copied ? (
+        <Check className="size-5" strokeWidth={2.4} />
+      ) : (
+        <Copy className="size-5" strokeWidth={2.2} />
+      )}
+      {copied ? "Copied" : phone}
+    </button>
+  );
 }
 
 function defaultCallbackAt() {
@@ -293,13 +332,7 @@ export function Dialler({
           </div>
         )}
 
-        <a
-          href={telHref(current.phone)}
-          className="mt-4 flex h-14 items-center justify-center gap-2.5 rounded-xl bg-primary text-lg font-extrabold tracking-[-0.01em] text-primary-foreground transition-colors hover:bg-primary/80"
-        >
-          <Phone className="size-5" strokeWidth={2.2} />
-          {current.phone}
-        </a>
+        <CopyNumber key={current.id} phone={current.phone} />
         {current.email && (
           <p className="mt-2 truncate text-center text-xs text-muted-foreground">
             {current.email}

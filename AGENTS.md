@@ -41,7 +41,7 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 
 - Phone is the key and email is optional here — the mirror of the email side. Dedupe is on digits only (`phoneKey`).
 - A lead's state is **derived from its most recent call**, never stored, so a mis-tapped outcome is fixed by logging again.
-- No telephony: each lead is a `tel:` link handing off to the phone, outcome logged after. Adding Twilio would be a real build, not a config change.
+- No telephony and no dialling: the number is a **copy-to-clipboard button**, the call is placed on a separate handset, the outcome logged after. `tel:` was tried and dropped — it dials from whichever device the browser is on. Adding Twilio would be a real build, not a config change.
 - Aggregates in `getCallLists` count `l.id`, not `*`: a list whose leads are all cross-list duplicates joins to nothing, and `count(*)` scores the LEFT JOIN's phantom NULL row as an uncalled lead — that read "-1 of 0 worked" before it was fixed.
 
 ## Reply alerts
