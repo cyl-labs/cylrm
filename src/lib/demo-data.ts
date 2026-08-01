@@ -415,3 +415,106 @@ export const demoAccountStats: AccountStat[] = [
   { accountId: 9004, email: "mei@cylermail.com", domain: "cylermail.com", sent: 402, bounces: 4, replies: 18 },
   { accountId: 9005, email: "dev@cylermail.com", domain: "cylermail.com", sent: 388, bounces: 12, replies: 9 },
 ];
+
+/* ---------------------------------------------------------------- *
+ * Call CRM
+ *
+ * The calling side gets its own fixtures rather than borrowing the
+ * email ones — the two systems share no tables, and a demo that
+ * blurred that would misrepresent the product. Ids stay in the 9000+
+ * range for the same reason as everything above.
+ * ---------------------------------------------------------------- */
+
+const CALL_COMPANIES = [
+  "Coolbreeze Aircon Servicing", "Rahman Aircon & Engineering", "Arctic Air Services",
+  "CoolTech Maintenance", "Island Breeze Engineering", "Chua Brothers Aircon",
+  "Frostline Cooling Systems", "Aziz Aircon Solutions", "Kohs Cooling Specialists",
+  "Breezeway Servicing", "Southpoint Aircon", "Teo Aircon Engineering",
+  "Zenith Air Conditioning", "Evergreen Climate Control", "Chia Cooling Works",
+  "Marina Cool Services", "Bedok Air Systems", "Tampines Climate Care",
+];
+
+const CALL_OUTCOMES = [
+  "no_answer", "voicemail", "gatekeeper", "callback",
+  "not_interested", "interested", "demo_booked", "bad_number",
+] as const;
+
+/** Deterministic pseudo-random so the demo looks identical on every render. */
+const spread = (i: number, n: number) => (i * 7 + 3) % n;
+
+export const demoCallLists = [
+  { id: 9501, name: "Aircon servicing SG — Aug", niche: "aircon servicing" },
+  { id: 9502, name: "Renovation contractors SG — Jul", niche: "renovation" },
+];
+
+function demoCallLeads(listId: number) {
+  const count = listId === 9501 ? 18 : 11;
+  const rows = [];
+  for (let i = 0; i < count; i++) {
+    const company = CALL_COMPANIES[(i * 3 + listId) % CALL_COMPANIES.length];
+    // Roughly a third never tried, a third mid-flow, a third closed out.
+    const phase = spread(i, 9);
+    const outcome = phase < 3 ? null : CALL_OUTCOMES[spread(i, 8)];
+    const attempts = outcome === null ? 0 : 1 + spread(i, 3);
+    rows.push({
+      id: 9600 + listId * 10 + i,
+      phone: `+65 6${String(200 + spread(i, 700)).padStart(3, "0")} ${String(1000 + spread(i * 13, 8999)).padStart(4, "0")}`,
+      name: `${FIRST[(i * 5) % FIRST.length]} ${LAST[(i * 3) % LAST.length]}`,
+      company,
+      title: TITLES[(i * 2) % TITLES.length],
+      email: null,
+      attempts,
+      lastOutcome: outcome,
+      lastCalledAt: outcome === null ? null : ago(spread(i, 6)).toISOString(),
+      callbackAt:
+        outcome === "callback" ? new Date(Date.now() - DAY / 2).toISOString() : null,
+      lastNotes:
+        outcome === "gatekeeper"
+          ? "Receptionist took a message, owner back Tuesday."
+          : outcome === "callback"
+            ? "Asked to try again after lunch."
+            : null,
+    });
+  }
+  return rows;
+}
+
+const TERMINAL_DEMO = ["not_interested", "interested", "demo_booked", "bad_number"];
+
+export function demoCallListSummaries() {
+  return demoCallLists.map((l) => {
+    const leads = demoCallLeads(l.id);
+    const by = (fn: (o: string | null) => boolean) =>
+      leads.filter((x) => fn(x.lastOutcome)).length;
+    return {
+      ...l,
+      createdAt: ago(l.id === 9501 ? 4 : 26).toISOString(),
+      total: leads.length,
+      uncalled: by((o) => o === null),
+      working: by((o) => o !== null && !TERMINAL_DEMO.includes(o)),
+      closed: by((o) => o !== null && TERMINAL_DEMO.includes(o)),
+      interested: by((o) => o === "interested"),
+      demoBooked: by((o) => o === "demo_booked"),
+      callbacksDue: by((o) => o === "callback"),
+      duplicates: 0,
+    };
+  });
+}
+
+export function demoCallListDetail(id: number) {
+  const found = demoCallListSummaries().find((l) => l.id === id);
+  return found ? { ...found, calledToday: 6 } : null;
+}
+
+export function demoCallQueue(id: number, filter: string) {
+  const leads = demoCallLeads(id);
+  const keep =
+    filter === "callbacks"
+      ? (o: string | null) => o === "callback"
+      : filter === "closed"
+        ? (o: string | null) => o !== null && TERMINAL_DEMO.includes(o)
+        : filter === "all"
+          ? () => true
+          : (o: string | null) => o === null || !TERMINAL_DEMO.includes(o);
+  return leads.filter((l) => keep(l.lastOutcome));
+}

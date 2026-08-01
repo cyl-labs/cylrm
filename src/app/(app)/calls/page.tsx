@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PhoneCall } from "lucide-react";
 import { getCallLists } from "@/lib/calls";
 import { isDemoMode } from "@/lib/demo";
+import { demoCallListSummaries } from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { CallImportDialog } from "@/components/calls/call-import-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +10,10 @@ import { Badge } from "@/components/ui/badge";
 export const dynamic = "force-dynamic";
 
 export default async function CallsPage() {
-  // The demo workspace has no calling data of its own; showing the real lists
-  // there would leak live leads into a workspace meant for screenshots.
+  // Demo Call CRM runs on its own fixtures, not the real lists — the two
+  // systems share no tables and a demo that blurred that would misrepresent it.
   const demo = await isDemoMode();
-  const lists = demo ? [] : await getCallLists();
+  const lists = demo ? demoCallListSummaries() : await getCallLists();
 
   return (
     <PageShell
@@ -26,14 +27,10 @@ export default async function CallsPage() {
               className="mx-auto size-6 text-muted-foreground"
               strokeWidth={1.6}
             />
-            <p className="mt-3 text-sm font-semibold">
-              {demo ? "Not available in the demo workspace." : "No call lists yet."}
+            <p className="mt-3 text-sm font-semibold">No call lists yet.</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Import a CSV with a phone column to start calling.
             </p>
-            {!demo && (
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                Import a CSV with a phone column to start calling.
-              </p>
-            )}
           </div>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">

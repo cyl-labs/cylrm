@@ -7,6 +7,7 @@ import {
   type CallQueueFilter,
 } from "@/lib/calls";
 import { isDemoMode } from "@/lib/demo";
+import { demoCallListDetail, demoCallQueue } from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
 import { cn } from "@/lib/utils";
@@ -38,12 +39,12 @@ export default async function CallListPage({
   const filter: CallQueueFilter = isFilter(view) ? view : "queue";
 
   const demo = await isDemoMode();
-  if (demo) notFound();
-
-  const list = await getCallList(listId);
+  const list = demo ? demoCallListDetail(listId) : await getCallList(listId);
   if (!list) notFound();
 
-  const leads = await getCallQueue(listId, filter);
+  const leads = demo
+    ? demoCallQueue(listId, filter)
+    : await getCallQueue(listId, filter);
 
   return (
     <PageShell title={list.name}>
@@ -105,7 +106,9 @@ export default async function CallListPage({
           </p>
         </div>
       )}
-      <Dialler leads={leads} readOnly={filter === "closed"} />
+      {/* Demo is read-only, so the outcome buttons would only ever return a
+          403 — show the queue without them rather than a dead control. */}
+      <Dialler leads={leads} readOnly={demo || filter === "closed"} />
     </PageShell>
   );
 }
