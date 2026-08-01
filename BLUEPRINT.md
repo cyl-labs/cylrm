@@ -4,7 +4,7 @@
 
 Internal cold outreach console for the agency. It replaces a manual n8n workflow ("steel-send") that currently handles one lead list. This is not a product to sell, it is an internal tool the team will run outreach through daily: import leads, write email sequences, let a scheduler send and follow up automatically, watch replies land on a pipeline board, and compare which sequences actually book demos.
 
-Email is the only channel in v1. The data model is deliberately channel-agnostic (a deal does not care what produced the reply), so a future channel like cold calling can slot in without restructuring the pipeline. No channel abstraction is being pre-built for that; it is a side effect of how deals and enrollments are already shaped.
+Email was the only channel in v1. Cold calling was added afterwards as a **separate system inside the same app** rather than as a second channel on the existing pipeline — see "Cold calling" below. The two share a login and nothing else.
 
 ## Target users
 
@@ -240,6 +240,21 @@ Every campaign send carries a one-click unsubscribe, appended by the scheduler r
 - Suppression is keyed by email address, not contact row, so a re-import under a new lead list cannot resurrect someone. Every non-terminal enrollment on any row sharing that address is cancelled. The operator action on the pipeline and the public link share one implementation.
 - The poller flags replies that read like removal requests (`message.unsubscribe_intent`), shown as a badge on the pipeline card and in the thread. It never acts automatically — "no need to unsubscribe me, this is interesting" contains the same words — and the match ignores quoted text so the footer cannot trigger on itself.
 
+## Cold calling
+
+Cold calling targets a different market (Singapore) from the email campaigns (US), sourced and worked separately, so it is built as its own island rather than as a second channel bolted onto enrollments and deals.
+
+**The separation is structural, not a filter.** `call_list`, `call_lead` and `call` have no foreign key into `contact`, `enrollment`, `campaign` or `deal`, and nothing joins across. A calling lead cannot appear on the Leads table, be enrolled in a campaign, or land on the email pipeline board, because there is no path for it to travel. The sidebar states the split with "Email" and "Calling" headings.
+
+The cost of this is one duplicated CSV importer. The benefit is that the two systems cannot leak into each other's numbers — the email stats are known-answer verified and stay that way.
+
+- **Phone is the key, email is optional** — the reverse of the email side, where an address is mandatory and is what dedupe runs on. Scraped calling lists frequently carry no email at all. Duplicate detection runs on digits only, so `+65 6234 5511` and `6562345511` are one number.
+- **Duplicates are held, not dropped.** A number repeated inside one file is skipped outright. A number already on a *different* call list is imported and flagged (`duplicate_of_lead_id`), which keeps the row visible but out of the queue — the thing worth preventing is ringing the same business twice from two lists.
+- **A lead's state is derived from its latest call, never stored.** There is no status column to fall out of step; correcting a mis-tapped outcome is just logging again. Outcomes split into ones that keep a lead in the queue (`no_answer`, `voicemail`, `gatekeeper`, `callback`) and ones that close it (`interested`, `demo_booked`, `not_interested`, `bad_number`).
+- **Queue order**: callbacks whose time has passed, then never-tried, then oldest attempt first — so nobody is rung twice while others sit untouched.
+- **No telephony integration.** Each lead renders a `tel:` link that hands off to the phone or Mac dialler, and the outcome is logged after. Placing calls in-app would mean a Twilio account, a purchased number, webhooks and per-minute cost, for a team that is holding the phone anyway.
+- Call outcomes deliberately **do not create deals**. A demo booked by phone is real, but putting it on the email pipeline would confound every campaign comparison on the Stats screen. If calling needs a pipeline it gets its own.
+
 ## Screens
 
 1. **Leads** — TanStack table. CSV import (Apollo columns) either creates a named lead list or appends to an existing one, so a niche scraped across several batches stays a single list and its lead-list stats stay comparable. An import can enrol its new contacts into a campaign in the same step; only the rows that import adds are enrolled, never earlier batches already in the list. Filter by lead list, company, enrolled-or-not. The header checkbox selects every row matching the current filters, not just the visible page; changing a filter clears the selection. Duplicate contacts are flagged and excluded from bulk enroll by default. Multi-select → "enroll in campaign", which runs the re-engagement guard and blocks with a confirmation step if any selected contact already has a non-terminal enrollment or any deal elsewhere.
@@ -247,6 +262,7 @@ Every campaign send carries a one-click unsubscribe, appended by the scheduler r
 3. **Accounts** — connect Gmail via app password (verified with a live IMAP login at connect time), per-account daily cap editor, sends today vs cap, bounce rate, rolled up per domain. App-level sending window (start time, end time, timezone) is configured here or in a settings panel.
 4. **Pipeline** — summary tiles (sent, replies, demos, won, over a selectable date range), kanban below. Only contacts who replied ever appear; cold leads never show up on the board. Stages: Replied, Interested, Demo booked, Won, Lost. Card shows contact, company, campaign badge, days in stage; click opens the reply thread, with an unsubscribe action and a "mark as auto-reply" action available there. Dragging a card writes a `deal_stage_change` row and doubles as reply classification.
 5. **Stats** — metrics above. Default view is campaign comparison, including demos per 100 sends and win rate alongside reply rate.
+6. **Call lists** (Calling) — cards per list with worked/never-called progress, positive outcomes, and a badge for callbacks that are due. CSV import needs only a phone column. Opening a list is the dialler: one lead at a time with a full-width `tel:` button, a notes pad, and outcome buttons grouped into "didn't connect" and "done with them"; Queue / Callbacks / Closed / All views; skip without logging leaves a lead in place for later.
 
 ## Build phases (each with its verify step)
 

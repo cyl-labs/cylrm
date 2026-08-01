@@ -50,11 +50,9 @@ export function MobileNav({
         <div className="px-3 pb-2 pr-11 pt-[18px]">
           <WorkspaceSwitcher demo={demo} />
         </div>
-        <div className="px-[18px] pb-1.5 pt-3.5">
-          <span className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground/80">
-            Workspace
-          </span>
-        </div>
+        {/* See the note in the desktop sidebar: NavLinks brings its own
+            section headings. */}
+        <div className="pt-3.5" />
         {/* Navigating is the whole point of opening this, and the drawer
             covers the page it just moved to. Closing on click beats watching
             the pathname, which needs a state-setting effect. */}

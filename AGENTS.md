@@ -33,6 +33,15 @@ Internal cold outreach console. The full product spec — schema, scheduler/poll
 - Daily caps are not a send issue (post-phase-7): a pool that is merely capped out has finished its day, so the scheduler records `no_capacity` only when no account is active and Google-connected. Reporting the cap left a red "1 problem is stopping emails" banner up overnight after a normal day, and re-upserted the row once per due enrollment per tick (2,312 occurrences off a 1,300-contact backlog). The capped state is now reported by the today card instead.
 - Sending cadence (post-phase-7): the scheduler resumes `ooo_paused` enrollments once their `next_send_at` passes (bulk update at the top of the tick, reported as `resumedFromOoo`) — previously nothing did, so they stalled forever and stayed unenrollable. Due work is ordered follow-ups first, plus any first touch overdue by more than `FIRST_TOUCH_PATIENCE_DAYS` (1): both touches share one daily cap, and a bulk enrollment stamps thousands of rows with an earlier `next_send_at` than any follow-up, which used to starve follow-ups until the backlog drained. Absolute follow-up priority had the mirror-image failure — when a day's first touches didn't divide evenly into capacity the leftovers lost to a fresh wave of follow-ups every morning, so three stragglers once added five days to a finish estimate. The estimate in `campaign-progress.ts` mirrors this ordering; if one changes the other must. `app_setting.send_weekdays_only` (default true) skips Sat/Sun judged in the sending timezone. `getCampaignProgress` counts `ooo_paused` in `remaining` (they resume, so the work is real) and converts capacity days to calendar days at 7/5 when weekends are off.
 
+## Cold calling (separate system, same app)
+
+Singapore cold-call leads live in `call_list` / `call_lead` / `call`, which have **no foreign key into `contact`, `enrollment`, `campaign` or `deal`** and nothing joins across — the split is structural, not a filter, so neither system can show up inside the other or confound its numbers. Semantics in `BLUEPRINT.md`; queries in `src/lib/calls.ts`, screens under `src/app/(app)/calls/`, importer at `/api/call-lists`, outcome logging at `/api/calls`. The sidebar is grouped "Email" / "Calling".
+
+- Phone is the key and email is optional here — the mirror of the email side. Dedupe is on digits only (`phoneKey`).
+- A lead's state is **derived from its most recent call**, never stored, so a mis-tapped outcome is fixed by logging again.
+- No telephony: each lead is a `tel:` link handing off to the phone, outcome logged after. Adding Twilio would be a real build, not a config change.
+- Aggregates in `getCallLists` count `l.id`, not `*`: a list whose leads are all cross-list duplicates joins to nothing, and `count(*)` scores the LEFT JOIN's phantom NULL row as an uncalled lead — that read "-1 of 0 worked" before it was fixed.
+
 ## Reply alerts
 
 Replies were pull-only — nothing told you one had arrived. Now:

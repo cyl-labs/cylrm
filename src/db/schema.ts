@@ -68,6 +68,34 @@ export const dealStageEnum = pgEnum("deal_stage", [
   "lost",
 ]);
 
+/**
+ * How a cold call ended.
+ *
+ * Split into "keep going" and "stop" outcomes: `no_answer`, `voicemail`,
+ * `gatekeeper` and `callback` leave the lead in the queue, everything else
+ * takes it out. The dialler derives a lead's state from its most recent call
+ * rather than storing a status, so a mistyped outcome is fixed by logging
+ * again instead of by repairing two places.
+ */
+export const callOutcomeEnum = pgEnum("call_outcome", [
+  "no_answer",
+  "voicemail",
+  "gatekeeper",
+  "callback",
+  "not_interested",
+  "interested",
+  "demo_booked",
+  "bad_number",
+]);
+
+/** Outcomes that take a lead out of the calling queue for good. */
+export const TERMINAL_CALL_OUTCOMES = [
+  "not_interested",
+  "interested",
+  "demo_booked",
+  "bad_number",
+] as const;
+
 export const domain = pgTable("domain", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -290,4 +318,68 @@ export const sendIssue = pgTable("send_issue", {
     .notNull()
     .defaultNow(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+});
+
+/* ------------------------------------------------------------------ *
+ * Cold calling
+ *
+ * Deliberately its own island: no foreign key crosses into contact,
+ * enrollment, campaign or deal. Calling leads are sourced, worked and
+ * measured separately from email, and an email address is optional here
+ * where it is the primary key of the whole email side. Keeping the two
+ * apart costs one duplicated CSV importer and buys the guarantee that
+ * neither system can ever show up inside the other.
+ * ------------------------------------------------------------------ */
+
+export const callList = pgTable("call_list", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  /** e.g. "aircon servicing SG" — the calling equivalent of lead_list.niche. */
+  niche: text("niche"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const callLead = pgTable(
+  "call_lead",
+  {
+    id: serial("id").primaryKey(),
+    callListId: integer("call_list_id")
+      .notNull()
+      .references(() => callList.id),
+    /** The only required field: a lead with no number cannot be called. */
+    phone: text("phone").notNull(),
+    /** Digits only, for duplicate detection across imports. */
+    phoneKey: text("phone_key").notNull(),
+    name: text("name"),
+    company: text("company"),
+    title: text("title"),
+    /** Optional here by design — many scraped call lists carry no email. */
+    email: text("email"),
+    /** Raw CSV columns, mirroring contact.apollo_fields. */
+    sourceFields: jsonb("source_fields").$type<Record<string, string>>(),
+    /** Set at import when this number already exists on another lead. */
+    duplicateOfLeadId: integer("duplicate_of_lead_id").references(
+      (): AnyPgColumn => callLead.id,
+    ),
+    importedAt: timestamp("imported_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("call_lead_list_phone_idx").on(t.callListId, t.phoneKey)],
+);
+
+export const call = pgTable("call", {
+  id: serial("id").primaryKey(),
+  callLeadId: integer("call_lead_id")
+    .notNull()
+    .references(() => callLead.id),
+  outcome: callOutcomeEnum("outcome").notNull(),
+  notes: text("notes"),
+  /** When they asked to be rung back. Only meaningful for `callback`. */
+  callbackAt: timestamp("callback_at", { withTimezone: true }),
+  calledAt: timestamp("called_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });

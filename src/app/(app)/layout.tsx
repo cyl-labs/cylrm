@@ -21,11 +21,9 @@ export default async function AppLayout({
         <div className="px-3 pb-2 pt-[18px]">
           <WorkspaceSwitcher demo={demo} />
         </div>
-        <div className="px-[18px] pb-1.5 pt-3.5">
-          <span className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground/80">
-            Workspace
-          </span>
-        </div>
+        {/* NavLinks carries its own "Email" / "Calling" headings, so a
+            "Workspace" label above them would be a heading over headings. */}
+        <div className="pt-3.5" />
         <NavLinks unreadReplies={unread} />
         <div className="mt-auto px-2.5 pb-3.5">
           <form method="post" action="/api/logout">
