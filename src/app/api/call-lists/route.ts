@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { callLead, callList } from "@/db/schema";
 import { csvToRecords, type CsvRecord } from "@/lib/csv";
-import { phoneKey } from "@/lib/calls";
+import { classifyPhone, phoneKey } from "@/lib/calls";
 import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
 
@@ -39,8 +39,11 @@ const COLUMN_ALIASES = {
     "best phone",
     "telephone",
     "tel",
+    "office line",
     "office number",
     "office phone",
+    "landline",
+    "nea phone",
     "company phone",
     "corporate phone",
     "general phone",
@@ -59,6 +62,7 @@ const COLUMN_ALIASES = {
   company: [
     "company name",
     "company",
+    "clinic name",
     "business name",
     "organisation",
     "organization",
@@ -180,15 +184,27 @@ export async function POST(request: Request) {
   const rows: ParsedRow[] = [];
   let skippedNoPhone = 0;
   let skippedRepeatedInFile = 0;
+  const skippedBadNumber: { company: string; phone: string }[] = [];
   const seenInFile = new Set<string>();
 
   for (const rec of records) {
     const phone = pick(rec, phoneCols) ?? "";
     const key = phoneKey(phone);
-    // Fewer than 7 digits cannot be a dialable number — usually a stray
-    // extension column or a placeholder like "-".
-    if (key.length < 7) {
+    const kind = classifyPhone(phone);
+
+    if (kind === "missing") {
       skippedNoPhone++;
+      continue;
+    }
+    // Scrapes pick up the odd overseas or malformed number — a German office
+    // line on a Singapore workshop, a 13-digit string. They are reported by
+    // name rather than silently dropped, so a real number entered wrongly can
+    // be chased rather than quietly lost.
+    if (kind !== "sg" && kind !== "sg_tollfree") {
+      skippedBadNumber.push({
+        company: pick(rec, companyCols) ?? phone,
+        phone,
+      });
       continue;
     }
     // The same number twice in one list would just be rung twice.
@@ -296,6 +312,7 @@ export async function POST(request: Request) {
       duplicates,
       alreadyInList: rows.length - inserted,
       skippedNoPhone,
+      skippedBadNumber,
       skippedRepeatedInFile,
     };
   });

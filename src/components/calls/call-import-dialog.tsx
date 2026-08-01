@@ -32,6 +32,7 @@ type ImportResult = {
   alreadyInList: number;
   skippedNoPhone: number;
   skippedRepeatedInFile: number;
+  skippedBadNumber: { company: string; phone: string }[];
 };
 
 const NEW_LIST = "__new__";
@@ -154,8 +155,26 @@ export function CallImportDialog({
                 <p className="text-muted-foreground">
                   {result.skippedNoPhone}{" "}
                   {result.skippedNoPhone === 1 ? "row had" : "rows had"} no
-                  usable phone number
+                  phone number
                 </p>
+              )}
+              {result.skippedBadNumber.length > 0 && (
+                <div className="rounded-lg bg-muted/50 px-3 py-2">
+                  <p className="font-medium">
+                    {result.skippedBadNumber.length} skipped — not a Singapore
+                    number:
+                  </p>
+                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                    {result.skippedBadNumber.slice(0, 6).map((b) => (
+                      <li key={`${b.company}-${b.phone}`} className="truncate">
+                        {b.company} — {b.phone}
+                      </li>
+                    ))}
+                    {result.skippedBadNumber.length > 6 && (
+                      <li>…and {result.skippedBadNumber.length - 6} more</li>
+                    )}
+                  </ul>
+                </div>
               )}
             </div>
             <DialogFooter>

@@ -199,7 +199,36 @@ export async function getCallList(id: number): Promise<CallListDetail | null> {
   return { ...found, calledToday: n(today?.called_today) };
 }
 
-/** Digits only, so "+65 6123 4567" and "6561234567" are one number. */
+/**
+ * Comparison form of a number: digits only, with bare Singapore numbers
+ * given their country code.
+ *
+ * Scrapes disagree about the prefix — one file writes "+65 6836 1030" and the
+ * next writes "6836 1030" for the same line. Without this the two look like
+ * different numbers and the same business gets rung from two lists. Eight
+ * digits starting 3, 6, 8 or 9 is the SG numbering plan; anything else is left
+ * exactly as found rather than guessed at.
+ */
 export function phoneKey(raw: string): string {
-  return raw.replace(/\D/g, "");
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 8 && /^[3689]/.test(digits)) return `65${digits}`;
+  return digits;
+}
+
+/**
+ * Is this a number that can actually be rung in Singapore?
+ *
+ * The local eight-digit form has to be tested *before* the "65" country code,
+ * because a local landline like 6524 3913 also begins with those two digits.
+ * Testing the prefix first brands every 65xx xxxx line malformed.
+ */
+export function classifyPhone(
+  raw: string,
+): "sg" | "sg_tollfree" | "foreign" | "malformed" | "missing" {
+  const d = raw.replace(/\D/g, "");
+  if (!d) return "missing";
+  if (d.startsWith("1800")) return "sg_tollfree";
+  if (d.length === 8 && /^[3689]/.test(d)) return "sg";
+  if (d.length === 10 && d.startsWith("65")) return "sg";
+  return d.startsWith("65") ? "malformed" : "foreign";
 }
