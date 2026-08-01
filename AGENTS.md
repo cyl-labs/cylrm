@@ -35,7 +35,9 @@ Internal cold outreach console. The full product spec — schema, scheduler/poll
 
 ## Cold calling (separate system, same app)
 
-Singapore cold-call leads live in `call_list` / `call_lead` / `call`, which have **no foreign key into `contact`, `enrollment`, `campaign` or `deal`** and nothing joins across — the split is structural, not a filter, so neither system can show up inside the other or confound its numbers. Semantics in `BLUEPRINT.md`; queries in `src/lib/calls.ts`, screens under `src/app/(app)/calls/`, importer at `/api/call-lists`, outcome logging at `/api/calls`. The sidebar is grouped "Email" / "Calling".
+Singapore cold-call leads live in `call_list` / `call_lead` / `call`, which have **no foreign key into `contact`, `enrollment`, `campaign` or `deal`** and nothing joins across — the split is structural, not a filter, so neither system can show up inside the other or confound its numbers. Semantics in `BLUEPRINT.md`; queries in `src/lib/calls.ts`, screens under `src/app/(app)/calls/`, importer at `/api/call-lists`, outcome logging at `/api/calls`.
+
+The two are picked from the workspace switcher as **Email CRM** and **Call CRM**, and each shows only its own screens (`src/lib/workspace.ts` owns both nav lists). Which one you are in is **derived from the URL**, not stored — a deep link, the back button and the sidebar therefore cannot disagree, and switching is a plain link to that workspace's home. Demo mode stays a separate cookie toggle below a separator, because it swaps the data source rather than the screens. Adding a second calling screen means adding it to `WORKSPACES` and to `CALL_PREFIXES`.
 
 - Phone is the key and email is optional here — the mirror of the email side. Dedupe is on digits only (`phoneKey`).
 - A lead's state is **derived from its most recent call**, never stored, so a mis-tapped outcome is fixed by logging again.

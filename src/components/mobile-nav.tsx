@@ -50,8 +50,7 @@ export function MobileNav({
         <div className="px-3 pb-2 pr-11 pt-[18px]">
           <WorkspaceSwitcher demo={demo} />
         </div>
-        {/* See the note in the desktop sidebar: NavLinks brings its own
-            section headings. */}
+        {/* See the note in the desktop sidebar. */}
         <div className="pt-3.5" />
         {/* Navigating is the whole point of opening this, and the drawer
             covers the page it just moved to. Closing on click beats watching

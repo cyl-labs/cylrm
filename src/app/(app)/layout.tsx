@@ -21,8 +21,8 @@ export default async function AppLayout({
         <div className="px-3 pb-2 pt-[18px]">
           <WorkspaceSwitcher demo={demo} />
         </div>
-        {/* NavLinks carries its own "Email" / "Calling" headings, so a
-            "Workspace" label above them would be a heading over headings. */}
+        {/* The switcher above already names the workspace you are in, so a
+            "Workspace" label between it and its own screens said it twice. */}
         <div className="pt-3.5" />
         <NavLinks unreadReplies={unread} />
         <div className="mt-auto px-2.5 pb-3.5">
