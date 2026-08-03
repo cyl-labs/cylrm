@@ -28,6 +28,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -156,27 +159,66 @@ function downloadCsv(rows: SheetLead[], cols: Col[], name: string) {
  * The category cell's editor.
  *
  * Rendered only for the selected cell — a menu per row would be several
- * thousand of them. Picking a category rewrites the lead's most recent call
- * rather than logging another, so fixing a mis-tap does not leave the business
- * looking like it was rung twice.
+ * thousand of them.
+ *
+ * The menu separates the two things that look alike and are not: **logging a
+ * call**, which adds an attempt, and **correcting the last one**, which does
+ * not. Ringing a "No answer" lead again and getting no answer again is a
+ * second attempt, and the sheet used to have no way to say so — picking the
+ * category it already had did nothing at all.
  */
 function CategoryMenu({
   lead,
   demo,
-  onChanged,
+  onLogged,
+  onCorrected,
 }: {
   lead: SheetLead;
   demo: boolean;
-  onChanged: (id: number, category: CallCategory) => void;
+  /** A call happened: one more attempt, rung just now. */
+  onLogged: (id: number, outcome: CallOutcome) => void;
+  /** The last call was mislabelled: same attempt, different outcome. */
+  onCorrected: (id: number, category: CallCategory) => void;
 }) {
   const [saving, setSaving] = React.useState(false);
   const category = categoryOf(lead);
+  const who = lead.company ?? lead.name ?? lead.phone;
 
-  async function set(next: CallCategory) {
+  async function log(outcome: CallOutcome) {
+    if (saving) return;
+    if (demo) {
+      toast.success(`${OUTCOME_LABELS[outcome]} — demo, not saved`);
+      onLogged(lead.id, outcome);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callLeadId: lead.id, outcome }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? `Could not log it (${res.status}).`);
+        return;
+      }
+      toast.success(
+        `${OUTCOME_LABELS[outcome]} — ${who}, attempt ${lead.attempts + 1}`,
+      );
+      onLogged(lead.id, outcome);
+    } catch {
+      toast.error("Could not log it — network error.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function correct(next: CallCategory) {
     if (saving || next === category) return;
     if (demo) {
       toast.success(`${CATEGORY_LABELS[next]} — demo, not saved`);
-      onChanged(lead.id, next);
+      onCorrected(lead.id, next);
       return;
     }
     setSaving(true);
@@ -197,8 +239,8 @@ function CategoryMenu({
         toast.error(data.error ?? `Could not change it (${res.status}).`);
         return;
       }
-      toast.success(`${lead.company ?? lead.phone} → ${CATEGORY_LABELS[next]}`);
-      onChanged(lead.id, next);
+      toast.success(`${who} → ${CATEGORY_LABELS[next]}`);
+      onCorrected(lead.id, next);
     } catch {
       toast.error("Could not change it — network error.");
     } finally {
@@ -206,32 +248,53 @@ function CategoryMenu({
     }
   }
 
+  const outcomes = Object.keys(OUTCOME_LABELS) as CallOutcome[];
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           disabled={saving}
-          aria-label="Change category"
+          aria-label="Log a call or change category"
           className="grid size-4 shrink-0 place-items-center rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
         >
           <ChevronDown className="size-3" strokeWidth={2.6} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Change category</DropdownMenuLabel>
-        {(Object.keys(OUTCOME_LABELS) as CallOutcome[]).map((o) => (
-          <DropdownMenuItem key={o} onSelect={() => set(o)}>
+        {/* Logging is the everyday action and sits at the top level;
+            correcting a mis-tap is rare and one level in. */}
+        <DropdownMenuLabel>
+          Log a call{lead.attempts > 0 && ` (attempt ${lead.attempts + 1})`}
+        </DropdownMenuLabel>
+        {outcomes.map((o) => (
+          <DropdownMenuItem key={o} onSelect={() => log(o)}>
             {OUTCOME_LABELS[o]}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          disabled={category === "uncalled"}
-          onSelect={() => set("uncalled")}
-        >
-          Back to never called
-        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger disabled={category === "uncalled"}>
+            Correct the last one
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuLabel>Not a new call</DropdownMenuLabel>
+            {outcomes.map((o) => (
+              <DropdownMenuItem
+                key={o}
+                disabled={o === category}
+                onSelect={() => correct(o)}
+              >
+                {OUTCOME_LABELS[o]}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => correct("uncalled")}>
+              Undo — back to never called
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -261,9 +324,14 @@ export function LeadsGrid({
   const [sel, setSel] = React.useState({ r: 0, c: 0 });
   const [scrollTop, setScrollTop] = React.useState(0);
   const [viewH, setViewH] = React.useState(600);
-  // Applied over the server rows so a corrected category shows at once and
-  // survives the refresh that follows it.
-  const [edits, setEdits] = React.useState<Record<number, CallCategory>>({});
+  // Applied over the server rows so a logged or corrected call shows at once
+  // and survives the refresh that follows it.
+  const [callEdits, setCallEdits] = React.useState<
+    Record<
+      number,
+      Pick<SheetLead, "lastOutcome" | "attempts" | "lastCalledAt" | "callbackAt">
+    >
+  >({});
   /** The lead whose number was just copied, so its cell can say so. */
   const [copiedId, setCopiedId] = React.useState<number | null>(null);
   /** Corrected field values, laid over the server rows the same way category
@@ -293,18 +361,11 @@ export function LeadsGrid({
     () =>
       leads.map((base) => {
         const fields = fieldEdits[base.id];
-        const l = fields ? { ...base, ...fields } : base;
-        const edited = edits[base.id];
-        if (!edited || edited === categoryOf(l)) return l;
-        return {
-          ...l,
-          lastOutcome: edited === "uncalled" ? null : edited,
-          attempts: edited === "uncalled" ? 0 : Math.max(l.attempts, 1),
-          lastCalledAt: edited === "uncalled" ? null : l.lastCalledAt,
-          callbackAt: edited === "callback" ? l.callbackAt : null,
-        };
+        const withFields = fields ? { ...base, ...fields } : base;
+        const call = callEdits[base.id];
+        return call ? { ...withFields, ...call } : withFields;
       }),
-    [leads, edits, fieldEdits],
+    [leads, callEdits, fieldEdits],
   );
 
   const inTab = React.useMemo(
@@ -534,8 +595,42 @@ export function LeadsGrid({
     e.preventDefault();
   }
 
-  function handleChanged(id: number, next: CallCategory) {
-    setEdits((prev) => ({ ...prev, [id]: next }));
+  /** A call was logged: one more attempt, and it happened just now. */
+  function handleLogged(id: number, outcome: CallOutcome) {
+    const current = rows.find((l) => l.id === id);
+    setCallEdits((prev) => ({
+      ...prev,
+      [id]: {
+        lastOutcome: outcome,
+        attempts: (current?.attempts ?? 0) + 1,
+        lastCalledAt: new Date().toISOString(),
+        // Logged from here a callback carries no time, and the API defaults it
+        // to tomorrow — mirrored so the cell does not flash the old date until
+        // the refresh lands. Pick the time on the dialler if it matters.
+        callbackAt:
+          outcome === "callback"
+            ? new Date(Date.now() + 86_400_000).toISOString()
+            : null,
+      },
+    }));
+    if (!demo) router.refresh();
+  }
+
+  /** The last call was mislabelled — same attempt, different outcome. */
+  function handleCorrected(id: number, next: CallCategory) {
+    const current = rows.find((l) => l.id === id);
+    setCallEdits((prev) => ({
+      ...prev,
+      [id]: {
+        lastOutcome: next === "uncalled" ? null : next,
+        attempts:
+          next === "uncalled"
+            ? Math.max((current?.attempts ?? 1) - 1, 0)
+            : (current?.attempts ?? 1),
+        lastCalledAt: next === "uncalled" ? null : (current?.lastCalledAt ?? null),
+        callbackAt: next === "callback" ? (current?.callbackAt ?? null) : null,
+      },
+    }));
     if (!demo) router.refresh();
   }
 
@@ -831,7 +926,8 @@ export function LeadsGrid({
                                   <CategoryMenu
                                     lead={l}
                                     demo={demo}
-                                    onChanged={handleChanged}
+                                    onLogged={handleLogged}
+                                    onCorrected={handleCorrected}
                                   />
                                 )}
                               </span>

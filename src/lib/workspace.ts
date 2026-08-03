@@ -60,11 +60,18 @@ export const WORKSPACES: Workspace[] = [
     links: [
       { href: "/calls", label: "Call lists", icon: PhoneCall },
       { href: "/call-sheet", label: "Spreadsheet", icon: Table2 },
+      { href: "/call-pipeline", label: "Pipeline", icon: Kanban },
+      { href: "/call-stats", label: "Stats", icon: BarChart3 },
     ],
   },
 ];
 
-const CALL_PREFIXES = ["/calls", "/call-sheet"];
+const CALL_PREFIXES = [
+  "/calls",
+  "/call-sheet",
+  "/call-pipeline",
+  "/call-stats",
+];
 
 export function workspaceForPath(pathname: string): Workspace {
   const call = CALL_PREFIXES.some((p) => pathname.startsWith(p));

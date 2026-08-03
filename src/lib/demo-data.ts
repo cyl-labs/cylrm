@@ -530,6 +530,94 @@ export function demoSheetLeads() {
     );
 }
 
+/** The demo board: the same rows as the sheet, staged, with the finished-with
+ *  ones counted rather than carried — exactly what `getCallBoard` returns. */
+export function demoCallBoard() {
+  const stageFor = (o: string | null) => {
+    if (o === null) return "to_call" as const;
+    if (o === "callback") return "callback" as const;
+    if (o === "interested") return "interested" as const;
+    if (o === "demo_booked") return "demo_booked" as const;
+    if (o === "not_interested" || o === "bad_number") return "closed" as const;
+    return "tried" as const;
+  };
+  const all = demoSheetLeads().map((l) => ({
+    ...l,
+    stage: stageFor(l.lastOutcome),
+  }));
+  return {
+    cards: all.filter((c) => c.stage !== "closed"),
+    closed: all.filter((c) => c.stage === "closed").length,
+  };
+}
+
+/** Demo stats, computed from the same fixtures rather than made up, so the
+ *  numbers on the screen add up to the rows behind them. */
+export function demoCallStats() {
+  const leads = demoSheetLeads();
+  const called = leads.filter((l) => l.lastOutcome !== null);
+  const PICKUP = ["gatekeeper", "callback", "not_interested", "interested", "demo_booked"];
+  const by = (o: string) => called.filter((l) => l.lastOutcome === o).length;
+  const calls = called.reduce((sum, l) => sum + l.attempts, 0);
+  const pickups = called.filter((l) => PICKUP.includes(l.lastOutcome!)).length;
+
+  const outcomes = (
+    [
+      "no_answer",
+      "voicemail",
+      "gatekeeper",
+      "callback",
+      "not_interested",
+      "interested",
+      "demo_booked",
+      "bad_number",
+    ] as const
+  )
+    .map((outcome) => ({ outcome, calls: by(outcome) }))
+    .filter((o) => o.calls > 0)
+    .sort((a, b) => b.calls - a.calls);
+
+  const lists = demoCallLists.map((list) => {
+    const mine = leads.filter((l) => l.listId === list.id);
+    const worked = mine.filter((l) => l.lastOutcome !== null);
+    return {
+      id: list.id,
+      name: list.name,
+      leads: mine.length,
+      worked: worked.length,
+      calls: worked.reduce((sum, l) => sum + l.attempts, 0),
+      pickups: worked.filter((l) => PICKUP.includes(l.lastOutcome!)).length,
+      interested: worked.filter((l) => l.lastOutcome === "interested").length,
+      demos: worked.filter((l) => l.lastOutcome === "demo_booked").length,
+    };
+  });
+
+  // Deterministic, like the rest of the demo: the same fortnight every render.
+  const byDay = Array.from({ length: 14 }, (_, i) => {
+    const d = ago(13 - i);
+    const n = spread(i, 7) * 3 + 2;
+    return {
+      day: d.toISOString().slice(0, 10),
+      calls: n,
+      pickups: Math.round(n * 0.4),
+    };
+  });
+
+  return {
+    totals: {
+      calls,
+      leadsDialled: called.length,
+      pickups,
+      interested: by("interested"),
+      demos: by("demo_booked"),
+      badNumbers: by("bad_number"),
+    },
+    outcomes,
+    lists,
+    byDay,
+  };
+}
+
 export function demoCallQueue(id: number, filter: string) {
   const leads = demoCallLeads(id);
   const keep =

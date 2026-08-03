@@ -185,6 +185,96 @@ export async function getSheetLeads(): Promise<SheetLead[]> {
 }
 
 /**
+ * Where a lead sits on the calling board.
+ *
+ * Deliberately coarser than the outcome enum: three ways of not reaching
+ * anybody are one column, because on a board they mean the same thing — try
+ * again. `closed` covers both ways of being finished with a lead and is not a
+ * column; those cards would only be in the way.
+ */
+export type CallStage =
+  | "to_call"
+  | "tried"
+  | "callback"
+  | "interested"
+  | "demo_booked"
+  | "closed";
+
+export function stageOf(outcome: CallOutcome | null): CallStage {
+  if (outcome === null) return "to_call";
+  if (outcome === "no_answer" || outcome === "voicemail") return "tried";
+  if (outcome === "gatekeeper") return "tried";
+  if (outcome === "callback") return "callback";
+  if (outcome === "interested") return "interested";
+  if (outcome === "demo_booked") return "demo_booked";
+  return "closed";
+}
+
+export type BoardCard = SheetLead & { stage: CallStage };
+
+/**
+ * Off the board, as opposed to out of the queue.
+ *
+ * Narrower than `TERMINAL` on purpose: a lead who is interested or has a demo
+ * booked is finished with as far as *dialling* goes, which is what takes them
+ * out of the queue, but they are the whole point of the pipeline and belong in
+ * its last two columns. Reusing TERMINAL here emptied both.
+ */
+const OFF_BOARD = sql`('not_interested','bad_number')`;
+
+/** Cards kept per column. A list of a thousand uncalled numbers is a queue,
+ *  not a board, and rendering it as one helps nobody — the column says how
+ *  many were left out. */
+export const BOARD_COLUMN_LIMIT = 60;
+
+/**
+ * The calling board: every live lead, most recently touched first.
+ *
+ * Leads that are finished with are counted but not carried, so the board stays
+ * the work in front of you rather than the whole history.
+ */
+export async function getCallBoard(): Promise<{
+  cards: BoardCard[];
+  closed: number;
+}> {
+  const rows = (await db.execute(sql`
+    select ${leadColumns}, cl.id as list_id, cl.name as list_name
+    from call_lead l
+    join call_list cl on cl.id = l.call_list_id
+    ${latestCall}
+    where l.duplicate_of_lead_id is null
+      and (lc.outcome is null or lc.outcome not in ${OFF_BOARD})
+    order by
+      -- Callbacks whose time has passed first, the same priority the dialler
+      -- gives them, then whatever was touched most recently.
+      (lc.outcome = 'callback' and lc.callback_at <= now()) desc,
+      lc.called_at desc nulls last,
+      l.id asc
+    limit ${CALL_SHEET_LIMIT}
+  `)) as Row[];
+
+  const [closed] = (await db.execute(sql`
+    select count(l.id) as n
+    from call_lead l
+    ${latestCall}
+    where l.duplicate_of_lead_id is null and lc.outcome in ${OFF_BOARD}
+  `)) as Row[];
+
+  return {
+    cards: rows.map((r) => {
+      const lead = toLead(r);
+      return {
+        ...lead,
+        listId: n(r.list_id),
+        listName: String(r.list_name),
+        stage: stageOf(lead.lastOutcome),
+      };
+    }),
+    closed: n(closed?.n),
+  };
+}
+
+/**
  * Leads for the dialler, in the order they should be worked.
  *
  * Callbacks that are due come first — someone asked to be rung at a time and
