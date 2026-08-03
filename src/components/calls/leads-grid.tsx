@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Copy, Download, Table2 } from "lucide-react";
+import { Check, ChevronDown, Copy, Download, Table2 } from "lucide-react";
 import { toast } from "sonner";
 import type { CallCategory, CallOutcome, SheetLead } from "@/lib/calls";
 import {
@@ -241,6 +241,8 @@ export function LeadsGrid({
   // Applied over the server rows so a corrected category shows at once and
   // survives the refresh that follows it.
   const [edits, setEdits] = React.useState<Record<number, CallCategory>>({});
+  /** The lead whose number was just copied, so its cell can say so. */
+  const [copiedId, setCopiedId] = React.useState<number | null>(null);
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const activeTabRef = React.useRef<HTMLButtonElement>(null);
 
@@ -353,14 +355,28 @@ export function LeadsGrid({
     revealRow(r);
   }
 
-  async function copySelection() {
-    if (!selected) return;
+  async function copy(text: string, leadId?: number) {
+    if (text === "") return;
     try {
-      await navigator.clipboard.writeText(cellText(selected, selCol.key));
-      toast.success("Copied");
+      await navigator.clipboard.writeText(text.trim());
+      if (leadId === undefined) toast.success("Copied");
+      else {
+        // The number cell says "Copied" in place rather than raising a toast:
+        // working a list is one copy after another, and a toast per number
+        // would spend the whole session covering the grid.
+        setCopiedId(leadId);
+        setTimeout(
+          () => setCopiedId((id) => (id === leadId ? null : id)),
+          1600,
+        );
+      }
     } catch {
-      toast.error("Could not copy.");
+      toast.error("Could not copy — select the text and copy it manually.");
     }
+  }
+
+  function copySelection() {
+    if (selected) copy(cellText(selected, selCol.key));
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -591,9 +607,18 @@ export function LeadsGrid({
                         return (
                           <td
                             key={c.key}
-                            onClick={() => setSel({ r, c: ci })}
+                            onClick={() => {
+                              setSel({ r, c: ci });
+                              // A number cell copies on the click that selects
+                              // it: the number exists to be dialled on a
+                              // handset, and that is what the dialler's big
+                              // button does too.
+                              if (c.key === "phone") copy(l.phone, l.id);
+                            }}
+                            title={c.key === "phone" ? "Click to copy" : undefined}
                             className={cn(
                               "relative cursor-cell truncate border-b border-r bg-card px-2",
+                              c.key === "phone" && "group/cell cursor-copy",
                               c.align === "center" && "text-center",
                               c.key === "attempts" && "tabular-nums",
                               (c.key === "lastCalledAt" ||
@@ -623,7 +648,24 @@ export function LeadsGrid({
                                 )}
                               </span>
                             ) : c.key === "phone" ? (
-                              <span className="tabular-nums">{l.phone}</span>
+                              <span
+                                className={cn(
+                                  "flex items-center gap-1.5 tabular-nums",
+                                  copiedId === l.id && "font-semibold text-success",
+                                )}
+                              >
+                                {copiedId === l.id ? (
+                                  <>
+                                    <Check className="size-3.5 shrink-0" strokeWidth={2.6} />
+                                    Copied
+                                  </>
+                                ) : (
+                                  <>
+                                    {l.phone}
+                                    <Copy className="size-3 shrink-0 opacity-0 transition-opacity group-hover/cell:opacity-50" />
+                                  </>
+                                )}
+                              </span>
                             ) : (
                               cellText(l, c.key)
                             )}
