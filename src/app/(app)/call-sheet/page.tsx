@@ -12,11 +12,23 @@ export const dynamic = "force-dynamic";
  * The dialler answers "who do I ring next" one number at a time; this answers
  * "what is on these lists" — every lead, its category, and a tab per list.
  */
-export default async function CallSheetPage() {
+export default async function CallSheetPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ list?: string }>;
+}) {
   const demo = await isDemoMode();
-  const [leads, lists] = demo
-    ? [demoSheetLeads(), demoCallListSummaries()]
-    : await Promise.all([getSheetLeads(), getCallLists()]);
+  const [{ list }, [leads, lists]] = await Promise.all([
+    searchParams,
+    demo
+      ? [demoSheetLeads(), demoCallListSummaries()]
+      : Promise.all([getSheetLeads(), getCallLists()]),
+  ]);
+
+  // A `?list=` naming a list that has since gone opens on everything rather
+  // than on a tab that is not there.
+  const wanted = Number(list);
+  const initialTab = lists.some((l) => l.id === wanted) ? wanted : "all";
 
   return (
     <PageShell title="Spreadsheet">
@@ -33,6 +45,7 @@ export default async function CallSheetPage() {
           // Lists with nothing in them still get a tab: an empty sheet is a
           // fact about the list, not a reason to hide it.
           lists={lists.map((l) => ({ id: l.id, name: l.name }))}
+          initialTab={initialTab}
           truncated={leads.length >= CALL_SHEET_LIMIT}
           demo={demo}
         />

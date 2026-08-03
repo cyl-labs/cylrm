@@ -217,18 +217,22 @@ function CategoryMenu({
 export function LeadsGrid({
   leads,
   lists,
+  initialTab = "all",
   truncated = false,
   demo = false,
 }: {
   leads: SheetLead[];
   lists: { id: number; name: string }[];
+  /** Which sheet tab to open on — set by `?list=` so the Spreadsheet button
+   *  on a call list lands on that list rather than on everything. */
+  initialTab?: number | "all";
   /** More leads exist than the sheet loads — said out loud rather than
    *  showing part of a list as if it were all of it. */
   truncated?: boolean;
   demo?: boolean;
 }) {
   const router = useRouter();
-  const [tab, setTab] = React.useState<number | "all">("all");
+  const [tab, setTab] = React.useState<number | "all">(initialTab);
   const [category, setCategory] = React.useState<CallCategory | "all">("all");
   const [search, setSearch] = React.useState("");
   const [sel, setSel] = React.useState({ r: 0, c: 0 });
@@ -238,6 +242,14 @@ export function LeadsGrid({
   // survives the refresh that follows it.
   const [edits, setEdits] = React.useState<Record<number, CallCategory>>({});
   const scrollerRef = React.useRef<HTMLDivElement>(null);
+  const activeTabRef = React.useRef<HTMLButtonElement>(null);
+
+  // Arriving on a list's tab from its Spreadsheet button, that tab can be far
+  // along a row of fifteen. Mount-only: later switches come from a tab the
+  // user just clicked, which is on screen by definition.
+  React.useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, []);
 
   const rows = React.useMemo(
     () =>
@@ -650,6 +662,7 @@ export function LeadsGrid({
         {tabs.map((t) => (
           <button
             key={String(t.key)}
+            ref={t.key === tab ? activeTabRef : undefined}
             type="button"
             onClick={() => {
               setTab(t.key);

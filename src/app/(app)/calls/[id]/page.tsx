@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Table2 } from "lucide-react";
 import {
   getCallList,
   getCallQueue,
@@ -78,22 +78,36 @@ export default async function CallListPage({
             ))}
           </div>
 
-          <nav className="mt-3 flex gap-1 overflow-x-auto">
-            {FILTERS.map((f) => (
-              <Link
-                key={f.key}
-                href={`/calls/${listId}?view=${f.key}`}
-                className={cn(
-                  "shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
-                  f.key === filter
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {f.label}
-              </Link>
-            ))}
-          </nav>
+          <div className="mt-3 flex items-center gap-2">
+            <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+              {FILTERS.map((f) => (
+                <Link
+                  key={f.key}
+                  href={`/calls/${listId}?view=${f.key}`}
+                  className={cn(
+                    "shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
+                    f.key === filter
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {f.label}
+                </Link>
+              ))}
+            </nav>
+            {/* Straight to this niche's tab on the Spreadsheet screen, rather
+                than to the whole workbook with the right tab to be found.
+                Label drops below `sm` so it cannot push the "All" filter off
+                the edge of a phone. */}
+            <Link
+              href={`/call-sheet?list=${listId}`}
+              aria-label="Open this list in the spreadsheet"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
+            >
+              <Table2 className="size-4" strokeWidth={1.9} />
+              <span className="hidden sm:inline">Spreadsheet</span>
+            </Link>
+          </div>
         </div>
       </div>
 
