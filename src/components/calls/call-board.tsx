@@ -99,12 +99,16 @@ export function CallBoard({
   cards,
   closed,
   columnLimit,
+  showList = true,
   demo = false,
 }: {
   cards: BoardCard[];
   /** Leads finished with, counted rather than carried. */
   closed: number;
   columnLimit: number;
+  /** False when the board is already filtered to one niche, where the badge
+   *  would repeat the same name on every card. */
+  showList?: boolean;
   demo?: boolean;
 }) {
   const router = useRouter();
@@ -238,13 +242,15 @@ export function CallBoard({
                   <CopyNumber phone={c.phone} />
 
                   <div className="mt-2 flex items-center justify-between gap-2">
-                    <Badge
-                      variant="outline"
-                      className="max-w-32 justify-start text-[11px]"
-                    >
-                      <span className="min-w-0 truncate">{c.listName}</span>
-                    </Badge>
-                    <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                    {showList && (
+                      <Badge
+                        variant="outline"
+                        className="max-w-32 justify-start text-[11px]"
+                      >
+                        <span className="min-w-0 truncate">{c.listName}</span>
+                      </Badge>
+                    )}
+                    <span className="ml-auto whitespace-nowrap text-[11px] text-muted-foreground">
                       {c.stage === "callback" && c.callbackAt
                         ? due(c.callbackAt)
                         : c.attempts > 0

@@ -48,7 +48,20 @@ const since = (days: number | null): SQL =>
     ? sql`true`
     : sql`c.called_at >= now() - ${`${days} days`}::interval`;
 
-export async function getCallTotals(days: number | null): Promise<CallTotals> {
+/** Narrow to one niche. Joining through the lead is the only route — `call`
+ *  has no list of its own, by design. */
+const inList = (listId?: number): SQL =>
+  listId
+    ? sql`and exists (
+        select 1 from call_lead l
+        where l.id = c.call_lead_id and l.call_list_id = ${listId}
+      )`
+    : sql``;
+
+export async function getCallTotals(
+  days: number | null,
+  listId?: number,
+): Promise<CallTotals> {
   const [row] = (await db.execute(sql`
     select
       count(*) as calls,
@@ -61,7 +74,7 @@ export async function getCallTotals(days: number | null): Promise<CallTotals> {
       count(distinct c.call_lead_id) filter (where c.outcome = 'demo_booked') as demos,
       count(distinct c.call_lead_id) filter (where c.outcome = 'bad_number') as bad_numbers
     from call c
-    where ${since(days)}
+    where ${since(days)} ${inList(listId)}
   `)) as Row[];
 
   return {
@@ -76,11 +89,12 @@ export async function getCallTotals(days: number | null): Promise<CallTotals> {
 
 export async function getOutcomeCounts(
   days: number | null,
+  listId?: number,
 ): Promise<OutcomeCount[]> {
   const rows = (await db.execute(sql`
     select c.outcome, count(*) as calls
     from call c
-    where ${since(days)}
+    where ${since(days)} ${inList(listId)}
     group by c.outcome
     order by count(*) desc
   `)) as Row[];
@@ -98,7 +112,10 @@ export async function getOutcomeCounts(
  * range, because "how much of this list is left" is not a question about the
  * last seven days. The column headings say so.
  */
-export async function getListStats(days: number | null): Promise<ListStat[]> {
+export async function getListStats(
+  days: number | null,
+  listId?: number,
+): Promise<ListStat[]> {
   const rows = (await db.execute(sql`
     select cl.id, cl.name,
       count(distinct l.id) as leads,
@@ -119,6 +136,7 @@ export async function getListStats(days: number | null): Promise<ListStat[]> {
       from call x where x.call_lead_id = l.id limit 1
     ) ever on true
     left join call c on c.call_lead_id = l.id
+    where ${listId ? sql`cl.id = ${listId}` : sql`true`}
     group by cl.id, cl.name
     order by cl.created_at desc, cl.id desc
   `)) as Row[];
@@ -144,7 +162,10 @@ export type DayStat = { day: string; calls: number; pickups: number };
  * dates reads as a quiet day, whereas a missing row silently closes it up and
  * makes the week look busier than it was.
  */
-export async function getCallsByDay(days: number): Promise<DayStat[]> {
+export async function getCallsByDay(
+  days: number,
+  listId?: number,
+): Promise<DayStat[]> {
   const rows = (await db.execute(sql`
     select d::date as day,
       count(c.id) as calls,
@@ -154,7 +175,14 @@ export async function getCallsByDay(days: number): Promise<DayStat[]> {
       date_trunc('day', now()),
       '1 day'
     ) d
-    left join call c on date_trunc('day', c.called_at) = d
+    -- The niche clause belongs in the join, not a WHERE: filtering after the
+    -- LEFT JOIN would drop the empty days this series exists to keep.
+    left join call c
+      on date_trunc('day', c.called_at) = d
+      and (${listId ?? null}::int is null or exists (
+        select 1 from call_lead l
+        where l.id = c.call_lead_id and l.call_list_id = ${listId ?? null}
+      ))
     group by d
     order by d asc
   `)) as Row[];

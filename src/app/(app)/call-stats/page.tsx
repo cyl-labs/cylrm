@@ -1,3 +1,4 @@
+import { getCallLists } from "@/lib/calls";
 import {
   getCallTotals,
   getCallsByDay,
@@ -5,10 +6,10 @@ import {
   getOutcomeCounts,
 } from "@/lib/call-stats";
 import { isDemoMode } from "@/lib/demo";
-import { demoCallStats } from "@/lib/demo-data";
+import { demoCallListSummaries, demoCallStats } from "@/lib/demo-data";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { PageShell } from "@/components/page-shell";
-import { RangeSelect } from "@/components/pipeline/range-select";
+import { CallFilters } from "@/components/calls/call-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -29,21 +30,27 @@ const CARD = "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05
 export default async function CallStatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; list?: string }>;
 }) {
-  const { range: raw } = await searchParams;
+  const { range: raw, list } = await searchParams;
   const range = raw && raw in RANGES ? raw : "30";
   const days = RANGES[range];
 
   const demo = await isDemoMode();
+  const allLists = demo ? demoCallListSummaries() : await getCallLists();
+  // A `?list=` naming a niche that has gone falls back to all of them rather
+  // than reporting zeroes as if the calling had stopped.
+  const wanted = Number(list);
+  const listId = allLists.some((l) => l.id === wanted) ? wanted : undefined;
+
   const { totals, outcomes, lists, byDay } = demo
-    ? demoCallStats()
+    ? demoCallStats(listId)
     : await (async () => {
         const [totals, outcomes, lists, byDay] = await Promise.all([
-          getCallTotals(days),
-          getOutcomeCounts(days),
-          getListStats(days),
-          getCallsByDay(14),
+          getCallTotals(days, listId),
+          getOutcomeCounts(days, listId),
+          getListStats(days, listId),
+          getCallsByDay(14, listId),
         ]);
         return { totals, outcomes, lists, byDay };
       })();
@@ -76,7 +83,16 @@ export default async function CallStatsPage({
   const outcomeTotal = outcomes.reduce((sum, o) => sum + o.calls, 0);
 
   return (
-    <PageShell title="Call stats" actions={<RangeSelect value={range} />}>
+    <PageShell
+      title="Call stats"
+      actions={
+        <CallFilters
+          lists={allLists.map((l) => ({ id: l.id, name: l.name }))}
+          listId={listId ?? "all"}
+          range={range}
+        />
+      }
+    >
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {tiles.map((t) => (

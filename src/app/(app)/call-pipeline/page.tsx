@@ -1,8 +1,9 @@
-import { BOARD_COLUMN_LIMIT, getCallBoard } from "@/lib/calls";
+import { BOARD_COLUMN_LIMIT, getCallBoard, getCallLists } from "@/lib/calls";
 import { isDemoMode } from "@/lib/demo";
-import { demoCallBoard } from "@/lib/demo-data";
+import { demoCallBoard, demoCallListSummaries } from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { CallBoard } from "@/components/calls/call-board";
+import { CallFilters } from "@/components/calls/call-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -13,19 +14,44 @@ export const dynamic = "force-dynamic";
  * no tables with campaigns, and putting a phone demo on the email pipeline
  * would confound every campaign comparison on the Stats screen.
  */
-export default async function CallPipelinePage() {
+export default async function CallPipelinePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ list?: string }>;
+}) {
   const demo = await isDemoMode();
-  const { cards, closed } = demo ? demoCallBoard() : await getCallBoard();
+  const { list } = await searchParams;
+  const lists = demo ? demoCallListSummaries() : await getCallLists();
+
+  // A `?list=` naming a niche that has gone shows everything rather than an
+  // empty board with no way to tell why.
+  const wanted = Number(list);
+  const listId = lists.some((l) => l.id === wanted) ? wanted : undefined;
+
+  const { cards, closed } = demo
+    ? demoCallBoard(listId)
+    : await getCallBoard(listId);
+  const niche = lists.find((l) => l.id === listId);
 
   return (
-    <PageShell title="Pipeline">
+    <PageShell
+      title="Pipeline"
+      actions={
+        <CallFilters
+          lists={lists.map((l) => ({ id: l.id, name: l.name }))}
+          listId={listId ?? "all"}
+        />
+      }
+    >
       <div className="flex h-full flex-col gap-3 px-4 py-4 sm:px-6">
         {cards.length === 0 ? (
           <div className="rounded-xl border border-dashed py-16 text-center">
-            <p className="text-sm font-semibold">Nothing live to work.</p>
+            <p className="text-sm font-semibold">
+              {niche ? `Nothing live in ${niche.name}.` : "Nothing live to work."}
+            </p>
             <p className="mt-1 text-[13px] text-muted-foreground">
               {closed > 0
-                ? `Every lead has been closed out (${closed.toLocaleString()} of them). Import a list to keep going.`
+                ? `Every lead here has been closed out (${closed.toLocaleString()} of them).`
                 : "Import a CSV with a phone column on the Call lists screen."}
             </p>
           </div>
@@ -43,6 +69,7 @@ export default async function CallPipelinePage() {
               cards={cards}
               closed={closed}
               columnLimit={BOARD_COLUMN_LIMIT}
+              showList={listId === undefined}
               demo={demo}
             />
           </>

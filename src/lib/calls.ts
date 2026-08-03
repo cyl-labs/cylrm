@@ -233,16 +233,21 @@ export const BOARD_COLUMN_LIMIT = 60;
  * Leads that are finished with are counted but not carried, so the board stays
  * the work in front of you rather than the whole history.
  */
-export async function getCallBoard(): Promise<{
+export async function getCallBoard(listId?: number): Promise<{
   cards: BoardCard[];
   closed: number;
 }> {
+  // One niche or all of them. The closed count below uses the same clause, so
+  // the "not shown" figure always belongs to the board you are looking at.
+  const inList = listId ? sql`and l.call_list_id = ${listId}` : sql``;
+
   const rows = (await db.execute(sql`
     select ${leadColumns}, cl.id as list_id, cl.name as list_name
     from call_lead l
     join call_list cl on cl.id = l.call_list_id
     ${latestCall}
     where l.duplicate_of_lead_id is null
+      ${inList}
       and (lc.outcome is null or lc.outcome not in ${OFF_BOARD})
     order by
       -- Callbacks whose time has passed first, the same priority the dialler
@@ -257,7 +262,8 @@ export async function getCallBoard(): Promise<{
     select count(l.id) as n
     from call_lead l
     ${latestCall}
-    where l.duplicate_of_lead_id is null and lc.outcome in ${OFF_BOARD}
+    where l.duplicate_of_lead_id is null ${inList}
+      and lc.outcome in ${OFF_BOARD}
   `)) as Row[];
 
   return {

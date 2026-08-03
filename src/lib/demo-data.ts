@@ -532,7 +532,7 @@ export function demoSheetLeads() {
 
 /** The demo board: the same rows as the sheet, staged, with the finished-with
  *  ones counted rather than carried — exactly what `getCallBoard` returns. */
-export function demoCallBoard() {
+export function demoCallBoard(listId?: number) {
   const stageFor = (o: string | null) => {
     if (o === null) return "to_call" as const;
     if (o === "callback") return "callback" as const;
@@ -541,10 +541,9 @@ export function demoCallBoard() {
     if (o === "not_interested" || o === "bad_number") return "closed" as const;
     return "tried" as const;
   };
-  const all = demoSheetLeads().map((l) => ({
-    ...l,
-    stage: stageFor(l.lastOutcome),
-  }));
+  const all = demoSheetLeads()
+    .filter((l) => listId === undefined || l.listId === listId)
+    .map((l) => ({ ...l, stage: stageFor(l.lastOutcome) }));
   return {
     cards: all.filter((c) => c.stage !== "closed"),
     closed: all.filter((c) => c.stage === "closed").length,
@@ -553,8 +552,10 @@ export function demoCallBoard() {
 
 /** Demo stats, computed from the same fixtures rather than made up, so the
  *  numbers on the screen add up to the rows behind them. */
-export function demoCallStats() {
-  const leads = demoSheetLeads();
+export function demoCallStats(listId?: number) {
+  const leads = demoSheetLeads().filter(
+    (l) => listId === undefined || l.listId === listId,
+  );
   const called = leads.filter((l) => l.lastOutcome !== null);
   const PICKUP = ["gatekeeper", "callback", "not_interested", "interested", "demo_booked"];
   const by = (o: string) => called.filter((l) => l.lastOutcome === o).length;
@@ -577,7 +578,10 @@ export function demoCallStats() {
     .filter((o) => o.calls > 0)
     .sort((a, b) => b.calls - a.calls);
 
-  const lists = demoCallLists.map((list) => {
+  const shownLists = demoCallLists.filter(
+    (list) => listId === undefined || list.id === listId,
+  );
+  const lists = shownLists.map((list) => {
     const mine = leads.filter((l) => l.listId === list.id);
     const worked = mine.filter((l) => l.lastOutcome !== null);
     return {
