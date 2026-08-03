@@ -460,7 +460,11 @@ function demoCallLeads(listId: number) {
     const outcome = phase < 3 ? null : CALL_OUTCOMES[spread(i, 8)];
     const attempts = outcome === null ? 0 : 1 + spread(i, 3);
     rows.push({
-      id: 9600 + listId * 10 + i,
+      // Ids have to be unique across lists, not just within one: the
+      // spreadsheet puts every list in a single grid, and the old
+      // `9600 + listId * 10 + i` gave the eleventh lead of one list the same
+      // id as the first lead of the next.
+      id: listId * 1000 + i,
       phone: `+65 6${String(200 + spread(i, 700)).padStart(3, "0")} ${String(1000 + spread(i * 13, 8999)).padStart(4, "0")}`,
       name: `${FIRST[(i * 5) % FIRST.length]} ${LAST[(i * 3) % LAST.length]}`,
       company,
@@ -509,11 +513,21 @@ export function demoCallListDetail(id: number) {
   return found ? { ...found, calledToday: 6 } : null;
 }
 
-/** The sheet reads alphabetically by company, the same as the real one. */
-export function demoCallSheet(id: number) {
-  const key = (l: ReturnType<typeof demoCallLeads>[number]) =>
-    l.company || l.name || l.phone;
-  return [...demoCallLeads(id)].sort((a, b) => key(a).localeCompare(key(b)));
+/** Every demo lead as spreadsheet rows: by list, then company, the same order
+ *  the real sheet uses. */
+export function demoSheetLeads() {
+  return demoCallLists
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((list) =>
+      demoCallLeads(list.id)
+        .map((l) => ({ ...l, listId: list.id, listName: list.name }))
+        .sort((a, b) =>
+          (a.company || a.name || a.phone).localeCompare(
+            b.company || b.name || b.phone,
+          ),
+        ),
+    );
 }
 
 export function demoCallQueue(id: number, filter: string) {

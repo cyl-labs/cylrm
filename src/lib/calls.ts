@@ -144,31 +144,44 @@ function toLead(r: Row): QueueLead {
   };
 }
 
-/** Ceiling on the spreadsheet view. Filtering and paging happen in the browser
- *  so a category can be picked without a round trip; this keeps the payload
- *  bounded if a list ever gets very large. The UI says when it bites. */
-export const CALL_SHEET_LIMIT = 2000;
+/** A row in the spreadsheet, which spans every list at once and so has to say
+ *  which one each lead came from. */
+export type SheetLead = QueueLead & { listId: number; listName: string };
+
+/** Ceiling on the spreadsheet. Every tab, filter and search runs in the
+ *  browser off one payload, so this is what bounds it; the grid says when it
+ *  bites rather than quietly showing part of a list. */
+export const CALL_SHEET_LIMIT = 5000;
 
 /**
- * Every lead on a list, in spreadsheet order.
+ * Every lead in the Call CRM, in spreadsheet order.
  *
  * Deliberately not the queue's order: the queue answers "who do I ring next",
- * the sheet answers "what is on this list", so it reads alphabetically by
- * company the way the imported CSV would.
+ * the sheet answers "what is on these lists", so it reads by list and then
+ * alphabetically by company, the way the imported CSV would.
+ *
+ * Duplicates stay out for the same reason they stay out of the queue — the
+ * row is a second copy of a number already on another list, and showing it
+ * would double-count the business.
  */
-export async function getCallLeads(callListId: number): Promise<QueueLead[]> {
+export async function getSheetLeads(): Promise<SheetLead[]> {
   const rows = (await db.execute(sql`
-    select ${leadColumns}
+    select ${leadColumns}, cl.id as list_id, cl.name as list_name
     from call_lead l
+    join call_list cl on cl.id = l.call_list_id
     ${latestCall}
-    where l.call_list_id = ${callListId}
-      and l.duplicate_of_lead_id is null
-    order by coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) asc,
+    where l.duplicate_of_lead_id is null
+    order by cl.name asc,
+      coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) asc,
       l.id asc
     limit ${CALL_SHEET_LIMIT}
   `)) as Row[];
 
-  return rows.map(toLead);
+  return rows.map((r) => ({
+    ...toLead(r),
+    listId: n(r.list_id),
+    listName: String(r.list_name),
+  }));
 }
 
 /**

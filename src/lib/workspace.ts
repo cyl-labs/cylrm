@@ -5,6 +5,7 @@ import {
   MailOpen,
   PhoneCall,
   Send,
+  Table2,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -56,11 +57,14 @@ export const WORKSPACES: Workspace[] = [
     name: "Call CRM",
     initial: "C",
     home: "/calls",
-    links: [{ href: "/calls", label: "Call lists", icon: PhoneCall }],
+    links: [
+      { href: "/calls", label: "Call lists", icon: PhoneCall },
+      { href: "/call-sheet", label: "Spreadsheet", icon: Table2 },
+    ],
   },
 ];
 
-const CALL_PREFIXES = ["/calls"];
+const CALL_PREFIXES = ["/calls", "/call-sheet"];
 
 export function workspaceForPath(pathname: string): Workspace {
   const call = CALL_PREFIXES.some((p) => pathname.startsWith(p));
