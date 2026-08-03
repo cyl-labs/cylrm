@@ -134,4 +134,21 @@
   html {
     @apply font-sans;
   }
+
+  /* Scrollbars are hidden everywhere, on purpose.
+   *
+   * The app is full of nested scrollers — seven board columns, the
+   * spreadsheet grid, tab strips, filter rows — and on Windows and Linux each
+   * one draws a permanent grey gutter that eats real estate and makes the
+   * screens look busier than they are. Scrolling itself is untouched: wheel,
+   * trackpad, touch, keyboard, drag and scrollIntoView all behave as before.
+   *
+   * Delete this block to bring them back; nothing else depends on it. */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* old Edge */
+  }
+  *::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }
 }
