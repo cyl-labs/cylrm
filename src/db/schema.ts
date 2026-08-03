@@ -77,22 +77,38 @@ export const dealStageEnum = pgEnum("deal_stage", [
  * rather than storing a status, so a mistyped outcome is fixed by logging
  * again instead of by repairing two places.
  */
+/**
+ * In call order: the ways a dial ends, then what becomes of the business
+ * afterwards.
+ *
+ * There is no `interested`. It sat next to `demo_booked` meaning something
+ * vaguer than it and nobody could say what — a cold call that goes well ends
+ * with a demo in the diary, so that is the outcome worth recording. What
+ * follows a demo is a `trial`, and what follows a trial is `won` (contract
+ * signed) or `lost`.
+ */
 export const callOutcomeEnum = pgEnum("call_outcome", [
   "no_answer",
   "voicemail",
   "gatekeeper",
   "callback",
   "not_interested",
-  "interested",
   "demo_booked",
+  "trial",
+  "won",
+  "lost",
   "bad_number",
 ]);
 
-/** Outcomes that take a lead out of the calling queue for good. */
+/** Outcomes that take a lead out of the calling queue for good — everything
+ *  past the demo included, since you stop cold-calling a business the moment
+ *  it has one booked. */
 export const TERMINAL_CALL_OUTCOMES = [
   "not_interested",
-  "interested",
   "demo_booked",
+  "trial",
+  "won",
+  "lost",
   "bad_number",
 ] as const;
 

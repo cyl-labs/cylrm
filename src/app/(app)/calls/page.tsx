@@ -74,8 +74,11 @@ export default async function CallsPage() {
                     </p>
 
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {l.interested > 0 && (
-                        <Badge variant="default">{l.interested} interested</Badge>
+                      {l.won > 0 && (
+                        <Badge variant="default">{l.won} won</Badge>
+                      )}
+                      {l.trials > 0 && (
+                        <Badge variant="default">{l.trials} in trial</Badge>
                       )}
                       {l.demoBooked > 0 && (
                         <Badge variant="default">

@@ -13,7 +13,7 @@ const n = (v: unknown) => Number(v ?? 0);
  * where the data is worst. Voicemail and no answer are not pickups either;
  * gatekeeper is — a receptionist is a person, and getting past one is the job.
  */
-const PICKUP = sql`('gatekeeper','callback','not_interested','interested','demo_booked')`;
+const PICKUP = sql`('gatekeeper','callback','not_interested','demo_booked','trial','won','lost')`;
 
 export type CallTotals = {
   /** Calls logged in the range — attempts, not leads. */
@@ -21,8 +21,10 @@ export type CallTotals = {
   /** Distinct leads those calls were to. */
   leadsDialled: number;
   pickups: number;
-  interested: number;
   demos: number;
+  trials: number;
+  won: number;
+  lost: number;
   /** Leads whose number turned out to be wrong. */
   badNumbers: number;
 };
@@ -39,8 +41,9 @@ export type ListStat = {
   /** Calls in the range. */
   calls: number;
   pickups: number;
-  interested: number;
   demos: number;
+  trials: number;
+  won: number;
 };
 
 const since = (days: number | null): SQL =>
@@ -68,10 +71,12 @@ export async function getCallTotals(
       count(distinct c.call_lead_id) as leads_dialled,
       count(*) filter (where c.outcome in ${PICKUP}) as pickups,
       -- Distinct leads for the outcomes that are a result rather than an
-      -- event: logging "interested" twice for one business is one interested
-      -- business, and counting the calls would say two.
-      count(distinct c.call_lead_id) filter (where c.outcome = 'interested') as interested,
+      -- event: logging "demo booked" twice for one business is one demo, and
+      -- counting the calls would say two.
       count(distinct c.call_lead_id) filter (where c.outcome = 'demo_booked') as demos,
+      count(distinct c.call_lead_id) filter (where c.outcome = 'trial') as trials,
+      count(distinct c.call_lead_id) filter (where c.outcome = 'won') as won,
+      count(distinct c.call_lead_id) filter (where c.outcome = 'lost') as lost,
       count(distinct c.call_lead_id) filter (where c.outcome = 'bad_number') as bad_numbers
     from call c
     where ${since(days)} ${inList(listId)}
@@ -81,8 +86,10 @@ export async function getCallTotals(
     calls: n(row?.calls),
     leadsDialled: n(row?.leads_dialled),
     pickups: n(row?.pickups),
-    interested: n(row?.interested),
     demos: n(row?.demos),
+    trials: n(row?.trials),
+    won: n(row?.won),
+    lost: n(row?.lost),
     badNumbers: n(row?.bad_numbers),
   };
 }
@@ -123,11 +130,14 @@ export async function getListStats(
       count(c.id) filter (where ${since(days)}) as calls,
       count(c.id) filter (where ${since(days)} and c.outcome in ${PICKUP}) as pickups,
       count(distinct c.call_lead_id) filter (
-        where ${since(days)} and c.outcome = 'interested'
-      ) as interested,
-      count(distinct c.call_lead_id) filter (
         where ${since(days)} and c.outcome = 'demo_booked'
-      ) as demos
+      ) as demos,
+      count(distinct c.call_lead_id) filter (
+        where ${since(days)} and c.outcome = 'trial'
+      ) as trials,
+      count(distinct c.call_lead_id) filter (
+        where ${since(days)} and c.outcome = 'won'
+      ) as won
     from call_list cl
     left join call_lead l
       on l.call_list_id = cl.id and l.duplicate_of_lead_id is null
@@ -148,8 +158,9 @@ export async function getListStats(
     worked: n(r.worked),
     calls: n(r.calls),
     pickups: n(r.pickups),
-    interested: n(r.interested),
     demos: n(r.demos),
+    trials: n(r.trials),
+    won: n(r.won),
   }));
 }
 

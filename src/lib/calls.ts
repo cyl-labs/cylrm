@@ -10,13 +10,15 @@ export type CallOutcome =
   | "gatekeeper"
   | "callback"
   | "not_interested"
-  | "interested"
   | "demo_booked"
+  | "trial"
+  | "won"
+  | "lost"
   | "bad_number";
 
 /** Outcomes that take a lead out of the queue. Mirrors TERMINAL_CALL_OUTCOMES
  *  in the schema; kept as SQL here so the queue filter is one expression. */
-const TERMINAL = sql`('not_interested','interested','demo_booked','bad_number')`;
+const TERMINAL = sql`('not_interested','demo_booked','trial','won','lost','bad_number')`;
 
 /**
  * The most recent call per lead.
@@ -45,10 +47,12 @@ export type CallListSummary = {
   uncalled: number;
   /** Dialled, still in the queue (no answer, voicemail, gatekeeper, callback). */
   working: number;
-  /** Finished with, either way. */
+  /** Finished with — everything from a booked demo onwards, plus the noes. */
   closed: number;
-  interested: number;
   demoBooked: number;
+  /** In a trial, or signed. What the calling is actually for. */
+  trials: number;
+  won: number;
   callbacksDue: number;
   /** Numbers already on another list. Held out of the queue, not deleted. */
   duplicates: number;
@@ -65,8 +69,9 @@ export async function getCallLists(): Promise<CallListSummary[]> {
       count(l.id) filter (where lc.outcome is null) as uncalled,
       count(l.id) filter (where lc.outcome is not null and lc.outcome not in ${TERMINAL}) as working,
       count(l.id) filter (where lc.outcome in ${TERMINAL}) as closed,
-      count(l.id) filter (where lc.outcome = 'interested') as interested,
       count(l.id) filter (where lc.outcome = 'demo_booked') as demo_booked,
+      count(l.id) filter (where lc.outcome = 'trial') as trials,
+      count(l.id) filter (where lc.outcome = 'won') as won,
       count(l.id) filter (where lc.outcome = 'callback' and lc.callback_at <= now()) as callbacks_due,
       (select count(*) from call_lead d
         where d.call_list_id = cl.id and d.duplicate_of_lead_id is not null) as duplicates
@@ -87,8 +92,9 @@ export async function getCallLists(): Promise<CallListSummary[]> {
     uncalled: n(r.uncalled),
     working: n(r.working),
     closed: n(r.closed),
-    interested: n(r.interested),
     demoBooked: n(r.demo_booked),
+    trials: n(r.trials),
+    won: n(r.won),
     callbacksDue: n(r.callbacks_due),
     duplicates: n(r.duplicates),
   }));
@@ -187,40 +193,36 @@ export async function getSheetLeads(): Promise<SheetLead[]> {
 /**
  * Where a lead sits on the calling board.
  *
- * Deliberately coarser than the outcome enum: three ways of not reaching
+ * Deliberately coarser than the outcome enum: the three ways of not reaching
  * anybody are one column, because on a board they mean the same thing — try
- * again. `closed` covers both ways of being finished with a lead and is not a
- * column; those cards would only be in the way.
+ * again — and the three ways of ending with no sale are one Lost column for
+ * the same reason.
  */
 export type CallStage =
   | "to_call"
   | "tried"
   | "callback"
-  | "interested"
   | "demo_booked"
-  | "closed";
+  | "trial"
+  | "won"
+  | "lost";
 
 export function stageOf(outcome: CallOutcome | null): CallStage {
   if (outcome === null) return "to_call";
-  if (outcome === "no_answer" || outcome === "voicemail") return "tried";
-  if (outcome === "gatekeeper") return "tried";
   if (outcome === "callback") return "callback";
-  if (outcome === "interested") return "interested";
   if (outcome === "demo_booked") return "demo_booked";
-  return "closed";
+  if (outcome === "trial") return "trial";
+  if (outcome === "won") return "won";
+  // Three ways of ending with no sale — refused on the phone, a number that
+  // was never theirs, or a trial that did not convert — and on a board they
+  // all mean the same thing.
+  if (outcome === "lost" || outcome === "not_interested" || outcome === "bad_number") {
+    return "lost";
+  }
+  return "tried";
 }
 
 export type BoardCard = SheetLead & { stage: CallStage };
-
-/**
- * Off the board, as opposed to out of the queue.
- *
- * Narrower than `TERMINAL` on purpose: a lead who is interested or has a demo
- * booked is finished with as far as *dialling* goes, which is what takes them
- * out of the queue, but they are the whole point of the pipeline and belong in
- * its last two columns. Reusing TERMINAL here emptied both.
- */
-const OFF_BOARD = sql`('not_interested','bad_number')`;
 
 /** Cards kept per column. A list of a thousand uncalled numbers is a queue,
  *  not a board, and rendering it as one helps nobody — the column says how
@@ -228,17 +230,13 @@ const OFF_BOARD = sql`('not_interested','bad_number')`;
 export const BOARD_COLUMN_LIMIT = 60;
 
 /**
- * The calling board: every live lead, most recently touched first.
+ * The calling board: every lead, most recently touched first.
  *
- * Leads that are finished with are counted but not carried, so the board stays
- * the work in front of you rather than the whole history.
+ * Nothing is held back now that Lost is a column of its own — a board with a
+ * Won column and no Lost one only shows the half of the answer you wanted to
+ * hear. The per-column cap is what keeps it readable.
  */
-export async function getCallBoard(listId?: number): Promise<{
-  cards: BoardCard[];
-  closed: number;
-}> {
-  // One niche or all of them. The closed count below uses the same clause, so
-  // the "not shown" figure always belongs to the board you are looking at.
+export async function getCallBoard(listId?: number): Promise<BoardCard[]> {
   const inList = listId ? sql`and l.call_list_id = ${listId}` : sql``;
 
   const rows = (await db.execute(sql`
@@ -248,7 +246,6 @@ export async function getCallBoard(listId?: number): Promise<{
     ${latestCall}
     where l.duplicate_of_lead_id is null
       ${inList}
-      and (lc.outcome is null or lc.outcome not in ${OFF_BOARD})
     order by
       -- Callbacks whose time has passed first, the same priority the dialler
       -- gives them, then whatever was touched most recently.
@@ -258,26 +255,15 @@ export async function getCallBoard(listId?: number): Promise<{
     limit ${CALL_SHEET_LIMIT}
   `)) as Row[];
 
-  const [closed] = (await db.execute(sql`
-    select count(l.id) as n
-    from call_lead l
-    ${latestCall}
-    where l.duplicate_of_lead_id is null ${inList}
-      and lc.outcome in ${OFF_BOARD}
-  `)) as Row[];
-
-  return {
-    cards: rows.map((r) => {
-      const lead = toLead(r);
-      return {
-        ...lead,
-        listId: n(r.list_id),
-        listName: String(r.list_name),
-        stage: stageOf(lead.lastOutcome),
-      };
-    }),
-    closed: n(closed?.n),
-  };
+  return rows.map((r) => {
+    const lead = toLead(r);
+    return {
+      ...lead,
+      listId: n(r.list_id),
+      listName: String(r.list_name),
+      stage: stageOf(lead.lastOutcome),
+    };
+  });
 }
 
 /**
@@ -329,8 +315,9 @@ export type CallListDetail = {
   | "uncalled"
   | "working"
   | "closed"
-  | "interested"
   | "demoBooked"
+  | "trials"
+  | "won"
   | "callbacksDue"
   | "duplicates"
 >;

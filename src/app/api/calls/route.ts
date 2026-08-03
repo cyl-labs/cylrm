@@ -10,8 +10,10 @@ const OUTCOMES = [
   "gatekeeper",
   "callback",
   "not_interested",
-  "interested",
   "demo_booked",
+  "trial",
+  "won",
+  "lost",
   "bad_number",
 ] as const;
 type Outcome = (typeof OUTCOMES)[number];

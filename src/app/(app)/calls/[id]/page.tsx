@@ -62,9 +62,12 @@ export default async function CallListPage({
             {[
               { label: "Today", value: list.calledToday },
               { label: "Never called", value: list.uncalled },
-              // Both outcomes are a lead worth keeping, and a tile reading
-              // "Interested: 0" the moment you book a demo would be wrong.
-              { label: "Positive", value: list.interested + list.demoBooked },
+              // Everything past the demo, counted together: a tile reading
+              // "Demos: 0" the moment one turns into a trial would be wrong.
+              {
+                label: "Positive",
+                value: list.demoBooked + list.trials + list.won,
+              },
               { label: "Callbacks due", value: list.callbacksDue },
             ].map((tile) => (
               <div key={tile.label} className="rounded-lg bg-muted/50 px-2 py-2">

@@ -13,10 +13,25 @@ export const OUTCOME_LABELS: Record<CallOutcome, string> = {
   gatekeeper: "Gatekeeper",
   callback: "Call back",
   not_interested: "Not interested",
-  interested: "Interested",
   demo_booked: "Demo booked",
+  trial: "Trial",
+  won: "Won",
+  lost: "Lost",
   bad_number: "Bad number",
 };
+
+/** The ones that happen on the phone. Trial, won and lost land days or weeks
+ *  after the call, so the dialler does not offer them — they are set from the
+ *  board or the spreadsheet. */
+export const CALL_TIME_OUTCOMES: CallOutcome[] = [
+  "no_answer",
+  "voicemail",
+  "gatekeeper",
+  "callback",
+  "demo_booked",
+  "not_interested",
+  "bad_number",
+];
 
 /** "Never called" is a category but not an outcome — nothing was logged. */
 export const CATEGORY_LABELS: Record<CallCategory, string> = {
@@ -25,8 +40,14 @@ export const CATEGORY_LABELS: Record<CallCategory, string> = {
 };
 
 export function outcomeTone(outcome: CallOutcome) {
-  if (outcome === "interested" || outcome === "demo_booked") return "default";
-  if (outcome === "not_interested" || outcome === "bad_number") {
+  if (outcome === "demo_booked" || outcome === "trial" || outcome === "won") {
+    return "default";
+  }
+  if (
+    outcome === "not_interested" ||
+    outcome === "bad_number" ||
+    outcome === "lost"
+  ) {
     return "destructive";
   }
   return "secondary";
@@ -35,16 +56,18 @@ export function outcomeTone(outcome: CallOutcome) {
 export const categoryTone = (category: CallCategory) =>
   category === "uncalled" ? "outline" : outcomeTone(category);
 
-/** Chip order on the sheet: untouched first, then the ones still in play,
- *  then the ones that are finished with. */
+/** Chip order on the sheet: untouched, then still being chased, then down the
+ *  pipeline, then the two ways of being finished with. */
 export const CALL_CATEGORIES: CallCategory[] = [
   "uncalled",
   "no_answer",
   "voicemail",
   "gatekeeper",
   "callback",
-  "interested",
   "demo_booked",
+  "trial",
+  "won",
+  "lost",
   "not_interested",
   "bad_number",
 ];

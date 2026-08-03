@@ -17,7 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * The five columns, and the outcome a card dropped on one records.
+ * The seven columns, and the outcome a card dropped on one records.
  *
  * Every move on this board is a call that happened — there is no stored status
  * to set, so the only honest way to move a card is to log the call that moved
@@ -32,10 +32,32 @@ const COLUMNS: {
   hint: string;
 }[] = [
   { key: "to_call", label: "To call", logs: null, hint: "Never rung" },
-  { key: "tried", label: "Tried", logs: "no_answer", hint: "No answer, voicemail, gatekeeper" },
-  { key: "callback", label: "Call back", logs: "callback", hint: "Asked to be rung later" },
-  { key: "interested", label: "Interested", logs: "interested", hint: "Wants to hear more" },
-  { key: "demo_booked", label: "Demo booked", logs: "demo_booked", hint: "In the diary" },
+  {
+    key: "tried",
+    label: "Tried",
+    logs: "no_answer",
+    hint: "No answer, voicemail, gatekeeper",
+  },
+  {
+    key: "callback",
+    label: "Call back",
+    logs: "callback",
+    hint: "Asked to be rung later",
+  },
+  {
+    key: "demo_booked",
+    label: "Demo booked",
+    logs: "demo_booked",
+    hint: "In the diary",
+  },
+  { key: "trial", label: "Trial", logs: "trial", hint: "Trying the product" },
+  { key: "won", label: "Won", logs: "won", hint: "Contract signed" },
+  {
+    key: "lost",
+    label: "Lost",
+    logs: "lost",
+    hint: "No sale — refused, wrong number, or a trial that did not convert",
+  },
 ];
 
 /** Outcomes offered on a card's menu — the touch and keyboard route, and the
@@ -97,14 +119,11 @@ function CopyNumber({ phone }: { phone: string }) {
 
 export function CallBoard({
   cards,
-  closed,
   columnLimit,
   showList = true,
   demo = false,
 }: {
   cards: BoardCard[];
-  /** Leads finished with, counted rather than carried. */
-  closed: number;
   columnLimit: number;
   /** False when the board is already filtered to one niche, where the badge
    *  would repeat the same name on every card. */
@@ -173,10 +192,10 @@ export function CallBoard({
   }
 
   return (
-    // Five columns only fit a wide screen; narrower than `lg` this is a
-    // snapping horizontal scroller, one column at a time — the same shape the
-    // email board takes.
-    <div className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-x-visible lg:px-0">
+    // Seven columns need a wide screen; below `xl` this is a snapping
+    // horizontal scroller, one column at a time — the same shape the email
+    // board takes, just with more to scroll through.
+    <div className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 xl:mx-0 xl:grid xl:grid-cols-7 xl:overflow-x-visible xl:px-0">
       {COLUMNS.map((col) => {
         const all = rows.filter((c) => c.stage === col.key);
         const shown = all.slice(0, columnLimit);
@@ -185,7 +204,7 @@ export function CallBoard({
             key={col.key}
             data-column={col.key}
             className={cn(
-              "flex min-h-0 w-[78vw] max-w-[320px] shrink-0 snap-start flex-col rounded-lg border bg-muted/30 lg:w-auto lg:max-w-none lg:shrink",
+              "flex min-h-0 w-[78vw] max-w-[320px] shrink-0 snap-start flex-col rounded-lg border bg-muted/30 xl:w-auto xl:max-w-none xl:shrink",
               dragOver === col.key && "border-primary/50 bg-primary/5",
             )}
             onDragOver={(e) => {
@@ -241,7 +260,10 @@ export function CallBoard({
 
                   <CopyNumber phone={c.phone} />
 
-                  <div className="mt-2 flex items-center justify-between gap-2">
+                  {/* Wraps rather than truncates: with seven columns sharing
+                      the width there is not always room for the list badge
+                      and "2 tries · 4h ago" on one line. */}
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                     {showList && (
                       <Badge
                         variant="outline"
@@ -263,7 +285,7 @@ export function CallBoard({
                       fire on touch — so every outcome is also reachable from
                       a menu, which is the only route on a phone. */}
                   <DropdownMenu>
-                    <DropdownMenuTrigger className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed py-1 text-[11px] text-muted-foreground transition-[color,opacity] hover:border-solid hover:text-foreground lg:opacity-0 lg:group-focus-within:opacity-100 lg:group-hover:opacity-100 lg:data-[state=open]:opacity-100">
+                    <DropdownMenuTrigger className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed py-1 text-[11px] text-muted-foreground transition-[color,opacity] hover:border-solid hover:text-foreground xl:opacity-0 xl:group-focus-within:opacity-100 xl:group-hover:opacity-100 xl:data-[state=open]:opacity-100">
                       <PhoneOutgoing className="size-3" />
                       Log a call
                     </DropdownMenuTrigger>
@@ -300,11 +322,6 @@ export function CallBoard({
         );
       })}
 
-      {closed > 0 && (
-        <p className="sr-only">
-          {closed} leads are finished with and not shown on the board.
-        </p>
-      )}
     </div>
   );
 }
@@ -313,8 +330,11 @@ export function CallBoard({
  *  still the one that decides, on the next refresh. */
 function stageFor(outcome: CallOutcome): CallStage {
   if (outcome === "callback") return "callback";
-  if (outcome === "interested") return "interested";
   if (outcome === "demo_booked") return "demo_booked";
-  if (outcome === "not_interested" || outcome === "bad_number") return "closed";
+  if (outcome === "trial") return "trial";
+  if (outcome === "won") return "won";
+  if (outcome === "lost" || outcome === "not_interested" || outcome === "bad_number") {
+    return "lost";
+  }
   return "tried";
 }

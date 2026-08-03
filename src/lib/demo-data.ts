@@ -436,7 +436,7 @@ const CALL_COMPANIES = [
 
 const CALL_OUTCOMES = [
   "no_answer", "voicemail", "gatekeeper", "callback",
-  "not_interested", "interested", "demo_booked", "bad_number",
+  "not_interested", "demo_booked", "trial", "won", "lost", "bad_number",
 ] as const;
 
 /** Deterministic pseudo-random so the demo looks identical on every render. */
@@ -457,7 +457,7 @@ function demoCallLeads(listId: number) {
     const company = CALL_COMPANIES[(i * 5 + listId) % CALL_COMPANIES.length];
     // Roughly a third never tried, a third mid-flow, a third closed out.
     const phase = spread(i, 9);
-    const outcome = phase < 3 ? null : CALL_OUTCOMES[spread(i, 8)];
+    const outcome = phase < 3 ? null : CALL_OUTCOMES[spread(i, CALL_OUTCOMES.length)];
     const attempts = outcome === null ? 0 : 1 + spread(i, 3);
     rows.push({
       // Ids have to be unique across lists, not just within one: the
@@ -486,7 +486,14 @@ function demoCallLeads(listId: number) {
   return rows;
 }
 
-const TERMINAL_DEMO = ["not_interested", "interested", "demo_booked", "bad_number"];
+const TERMINAL_DEMO = [
+  "not_interested",
+  "demo_booked",
+  "trial",
+  "won",
+  "lost",
+  "bad_number",
+];
 
 export function demoCallListSummaries() {
   return demoCallLists.map((l) => {
@@ -500,8 +507,9 @@ export function demoCallListSummaries() {
       uncalled: by((o) => o === null),
       working: by((o) => o !== null && !TERMINAL_DEMO.includes(o)),
       closed: by((o) => o !== null && TERMINAL_DEMO.includes(o)),
-      interested: by((o) => o === "interested"),
       demoBooked: by((o) => o === "demo_booked"),
+      trials: by((o) => o === "trial"),
+      won: by((o) => o === "won"),
       callbacksDue: by((o) => o === "callback"),
       duplicates: 0,
     };
@@ -530,24 +538,24 @@ export function demoSheetLeads() {
     );
 }
 
-/** The demo board: the same rows as the sheet, staged, with the finished-with
- *  ones counted rather than carried — exactly what `getCallBoard` returns. */
+/** The demo board: the same rows as the sheet, staged — exactly what
+ *  `getCallBoard` returns. */
 export function demoCallBoard(listId?: number) {
   const stageFor = (o: string | null) => {
     if (o === null) return "to_call" as const;
     if (o === "callback") return "callback" as const;
-    if (o === "interested") return "interested" as const;
     if (o === "demo_booked") return "demo_booked" as const;
-    if (o === "not_interested" || o === "bad_number") return "closed" as const;
+    if (o === "trial") return "trial" as const;
+    if (o === "won") return "won" as const;
+    if (o === "lost" || o === "not_interested" || o === "bad_number") {
+      return "lost" as const;
+    }
     return "tried" as const;
   };
   const all = demoSheetLeads()
     .filter((l) => listId === undefined || l.listId === listId)
     .map((l) => ({ ...l, stage: stageFor(l.lastOutcome) }));
-  return {
-    cards: all.filter((c) => c.stage !== "closed"),
-    closed: all.filter((c) => c.stage === "closed").length,
-  };
+  return all;
 }
 
 /** Demo stats, computed from the same fixtures rather than made up, so the
@@ -557,7 +565,15 @@ export function demoCallStats(listId?: number) {
     (l) => listId === undefined || l.listId === listId,
   );
   const called = leads.filter((l) => l.lastOutcome !== null);
-  const PICKUP = ["gatekeeper", "callback", "not_interested", "interested", "demo_booked"];
+  const PICKUP = [
+    "gatekeeper",
+    "callback",
+    "not_interested",
+    "demo_booked",
+    "trial",
+    "won",
+    "lost",
+  ];
   const by = (o: string) => called.filter((l) => l.lastOutcome === o).length;
   const calls = called.reduce((sum, l) => sum + l.attempts, 0);
   const pickups = called.filter((l) => PICKUP.includes(l.lastOutcome!)).length;
@@ -569,8 +585,10 @@ export function demoCallStats(listId?: number) {
       "gatekeeper",
       "callback",
       "not_interested",
-      "interested",
       "demo_booked",
+      "trial",
+      "won",
+      "lost",
       "bad_number",
     ] as const
   )
@@ -591,8 +609,9 @@ export function demoCallStats(listId?: number) {
       worked: worked.length,
       calls: worked.reduce((sum, l) => sum + l.attempts, 0),
       pickups: worked.filter((l) => PICKUP.includes(l.lastOutcome!)).length,
-      interested: worked.filter((l) => l.lastOutcome === "interested").length,
       demos: worked.filter((l) => l.lastOutcome === "demo_booked").length,
+      trials: worked.filter((l) => l.lastOutcome === "trial").length,
+      won: worked.filter((l) => l.lastOutcome === "won").length,
     };
   });
 
@@ -612,8 +631,10 @@ export function demoCallStats(listId?: number) {
       calls,
       leadsDialled: called.length,
       pickups,
-      interested: by("interested"),
       demos: by("demo_booked"),
+      trials: by("trial"),
+      won: by("won"),
+      lost: by("lost"),
       badNumbers: by("bad_number"),
     },
     outcomes,

@@ -68,14 +68,18 @@ export default async function CallStatsPage({
       sub: `${pct(totals.pickups, totals.calls)} of calls`,
     },
     {
-      label: "Interested",
-      value: totals.interested,
-      sub: `${per100(totals.interested, totals.calls)} per 100 calls`,
-    },
-    {
       label: "Demos booked",
       value: totals.demos,
       sub: `${per100(totals.demos, totals.calls)} per 100 calls`,
+    },
+    { label: "In trial", value: totals.trials, sub: "trying the product" },
+    {
+      label: "Won",
+      value: totals.won,
+      sub:
+        totals.won + totals.lost === 0
+          ? "contracts signed"
+          : `${pct(totals.won, totals.won + totals.lost)} of decided`,
     },
   ];
 
@@ -94,7 +98,7 @@ export default async function CallStatsPage({
       }
     >
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {tiles.map((t) => (
             <div key={t.label} className={`${CARD} px-4 py-3`}>
               <p className="text-xs font-semibold text-muted-foreground">
@@ -223,8 +227,9 @@ export default async function CallStatsPage({
                     "Worked",
                     "Calls",
                     "Pickups",
-                    "Interested",
                     "Demos",
+                    "Trials",
+                    "Won",
                   ].map((h, i) => (
                     <th
                       key={h}
@@ -256,10 +261,13 @@ export default async function CallStatsPage({
                       {l.pickups.toLocaleString()} ({pct(l.pickups, l.calls)})
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">
-                      {l.interested.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums font-bold">
                       {l.demos.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {l.trials.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-right font-bold tabular-nums">
+                      {l.won.toLocaleString()}
                     </td>
                   </tr>
                 ))}

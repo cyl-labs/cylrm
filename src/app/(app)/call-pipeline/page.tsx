@@ -28,9 +28,7 @@ export default async function CallPipelinePage({
   const wanted = Number(list);
   const listId = lists.some((l) => l.id === wanted) ? wanted : undefined;
 
-  const { cards, closed } = demo
-    ? demoCallBoard(listId)
-    : await getCallBoard(listId);
+  const cards = demo ? demoCallBoard(listId) : await getCallBoard(listId);
   const niche = lists.find((l) => l.id === listId);
 
   return (
@@ -50,9 +48,7 @@ export default async function CallPipelinePage({
               {niche ? `Nothing live in ${niche.name}.` : "Nothing live to work."}
             </p>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              {closed > 0
-                ? `Every lead here has been closed out (${closed.toLocaleString()} of them).`
-                : "Import a CSV with a phone column on the Call lists screen."}
+              Import a CSV with a phone column on the Call lists screen.
             </p>
           </div>
         ) : (
@@ -62,12 +58,9 @@ export default async function CallPipelinePage({
               <em> is </em>
               logging the call — there is no status here that a phone call did
               not put there.
-              {closed > 0 &&
-                ` ${closed.toLocaleString()} finished-with leads are not shown.`}
             </p>
             <CallBoard
               cards={cards}
-              closed={closed}
               columnLimit={BOARD_COLUMN_LIMIT}
               showList={listId === undefined}
               demo={demo}

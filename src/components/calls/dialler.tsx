@@ -13,14 +13,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
 import { cn } from "@/lib/utils";
 
-/** Left column keeps the lead in the queue, right column closes it out. */
+/**
+ * Left column keeps the lead in the queue, right column closes it out.
+ *
+ * Only the outcomes a cold call can actually end in. Trial, won and lost come
+ * days or weeks later and are set from the board or the spreadsheet — putting
+ * them here would mean six buttons on a phone for things that never happen
+ * while the phone is at your ear.
+ */
 const KEEP: CallOutcome[] = ["no_answer", "voicemail", "gatekeeper", "callback"];
-const CLOSE: CallOutcome[] = [
-  "interested",
-  "demo_booked",
-  "not_interested",
-  "bad_number",
-];
+const CLOSE: CallOutcome[] = ["demo_booked", "not_interested", "bad_number"];
 
 /**
  * The number, as a button that copies it.
@@ -203,11 +205,7 @@ function CallForm({
           {CLOSE.map((o) => (
             <Button
               key={o}
-              variant={
-                o === "interested" || o === "demo_booked"
-                  ? "default"
-                  : "destructive"
-              }
+              variant={o === "demo_booked" ? "default" : "destructive"}
               className="w-full justify-start"
               disabled={saving}
               onClick={() => log(o)}
