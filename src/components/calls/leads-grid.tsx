@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Copy, Download, Table2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  Download,
+  Pencil,
+  Table2,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { CallCategory, CallOutcome, SheetLead } from "@/lib/calls";
 import {
@@ -68,6 +75,22 @@ const COLS: { key: ColKey; label: string; w: number; align?: "center" }[] = [
   { key: "callbackAt", label: "Callback", w: 130 },
   { key: "lastNotes", label: "Notes", w: 320 },
 ];
+
+type EditableKey = "company" | "phone" | "name" | "title" | "email";
+
+/** Columns that are the lead's own record and can be corrected here — a
+ *  scraped number is wrong often enough to be worth fixing in place. The rest
+ *  are derived: Category has its own dropdown, Tries / Last call / Callback /
+ *  Notes come from the calls themselves, and List is which sheet you are on. */
+const EDITABLE = new Set<ColKey>([
+  "company",
+  "phone",
+  "name",
+  "title",
+  "email",
+] satisfies EditableKey[]);
+
+const isEditable = (key: ColKey): key is EditableKey => EDITABLE.has(key);
 
 /** A, B, C … — the column names a spreadsheet user reads off the top. */
 const colLetter = (i: number) => String.fromCharCode(65 + i);
@@ -243,7 +266,20 @@ export function LeadsGrid({
   const [edits, setEdits] = React.useState<Record<number, CallCategory>>({});
   /** The lead whose number was just copied, so its cell can say so. */
   const [copiedId, setCopiedId] = React.useState<number | null>(null);
+  /** Corrected field values, laid over the server rows the same way category
+   *  edits are, so a fix is on screen before the refresh comes back. */
+  const [fieldEdits, setFieldEdits] = React.useState<
+    Record<number, Partial<Pick<SheetLead, EditableKey>>>
+  >({});
+  /** The cell being edited and its draft text; null when nothing is. */
+  const [editing, setEditing] = React.useState<{
+    leadId: number;
+    key: EditableKey;
+  } | null>(null);
+  const [draft, setDraft] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
   const scrollerRef = React.useRef<HTMLDivElement>(null);
+  const editInputRef = React.useRef<HTMLInputElement>(null);
   const activeTabRef = React.useRef<HTMLButtonElement>(null);
 
   // Arriving on a list's tab from its Spreadsheet button, that tab can be far
@@ -255,8 +291,10 @@ export function LeadsGrid({
 
   const rows = React.useMemo(
     () =>
-      leads.map((l) => {
-        const edited = edits[l.id];
+      leads.map((base) => {
+        const fields = fieldEdits[base.id];
+        const l = fields ? { ...base, ...fields } : base;
+        const edited = edits[base.id];
         if (!edited || edited === categoryOf(l)) return l;
         return {
           ...l,
@@ -266,7 +304,7 @@ export function LeadsGrid({
           callbackAt: edited === "callback" ? l.callbackAt : null,
         };
       }),
-    [leads, edits],
+    [leads, edits, fieldEdits],
   );
 
   const inTab = React.useMemo(
@@ -379,6 +417,78 @@ export function LeadsGrid({
     if (selected) copy(cellText(selected, selCol.key));
   }
 
+  const canEdit = selected !== undefined && isEditable(selCol.key);
+
+  function startEditing() {
+    if (!selected || !isEditable(selCol.key)) return;
+    setEditing({ leadId: selected.id, key: selCol.key });
+    setDraft(cellText(selected, selCol.key));
+    // The input mounts this tick; focusing after paint puts the caret in it
+    // without the grid stealing it back.
+    requestAnimationFrame(() => editInputRef.current?.select());
+  }
+
+  function cancelEditing() {
+    setEditing(null);
+    setDraft("");
+    scrollerRef.current?.focus();
+  }
+
+  /**
+   * Write the edited cell back to the lead.
+   *
+   * The server is the judge of whether the value is allowed — a number that
+   * cannot be rung in Singapore, or one already on this list, comes back as an
+   * error and the draft stays open so it can be fixed rather than lost.
+   */
+  async function saveEdit() {
+    if (!editing || saving) return;
+    const target = rows.find((l) => l.id === editing.leadId);
+    const next = draft.trim();
+    if (!target || next === cellText(target, editing.key)) {
+      cancelEditing();
+      return;
+    }
+    if (demo) {
+      toast.success("Demo — not saved");
+      setFieldEdits((prev) => ({
+        ...prev,
+        [editing.leadId]: { ...prev[editing.leadId], [editing.key]: next || null },
+      }));
+      cancelEditing();
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/call-leads/${editing.leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [editing.key]: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? `Could not save (${res.status}).`);
+        return;
+      }
+      setFieldEdits((prev) => ({
+        ...prev,
+        [editing.leadId]: {
+          ...prev[editing.leadId],
+          // What the server stored, not what was typed — it trims, and a
+          // cleared cell comes back as null.
+          [editing.key]: data[editing.key] ?? null,
+        },
+      }));
+      toast.success("Saved");
+      cancelEditing();
+      router.refresh();
+    } catch {
+      toast.error("Could not save — network error.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function onKeyDown(e: React.KeyboardEvent) {
     const rowsPerPage = Math.max(Math.floor(viewH / ROW_H) - 1, 1);
     switch (e.key) {
@@ -411,6 +521,12 @@ export function LeadsGrid({
       case "c":
         if (e.metaKey || e.ctrlKey) copySelection();
         else return;
+        break;
+      // Enter and F2 open the editor, as they do in a spreadsheet.
+      case "Enter":
+      case "F2":
+        if (!canEdit) return;
+        startEditing();
         break;
       default:
         return;
@@ -493,19 +609,79 @@ export function LeadsGrid({
         <span className="text-[13px] font-semibold text-muted-foreground">
           fx
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13px]">
-          {selected ? cellText(selected, selCol.key) : ""}
-        </span>
-        {selected && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 shrink-0"
-            onClick={copySelection}
+        {editing ? (
+          <input
+            ref={editInputRef}
+            value={draft}
+            disabled={saving}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveEdit();
+              else if (e.key === "Escape") cancelEditing();
+              else return;
+              e.preventDefault();
+            }}
+            className="min-w-0 flex-1 rounded border border-primary bg-background px-2 py-0.5 text-[13px] outline-none disabled:opacity-60"
+          />
+        ) : (
+          <span
+            className="min-w-0 flex-1 truncate text-[13px]"
+            onDoubleClick={startEditing}
           >
-            <Copy data-icon="inline-start" />
-            Copy
-          </Button>
+            {selected ? cellText(selected, selCol.key) : ""}
+          </span>
+        )}
+        {editing ? (
+          <>
+            <Button
+              size="sm"
+              className="h-7 shrink-0"
+              disabled={saving}
+              onClick={saveEdit}
+            >
+              {saving ? "Saving…" : "Save"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0"
+              disabled={saving}
+              onClick={cancelEditing}
+            >
+              Cancel
+            </Button>
+          </>
+        ) : (
+          selected && (
+            <>
+              {/* Only the lead's own fields; the derived columns say why they
+                  cannot be typed over rather than failing silently. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0"
+                disabled={!canEdit}
+                title={
+                  canEdit
+                    ? "Edit this cell (Enter)"
+                    : "This column comes from the calls themselves"
+                }
+                onClick={startEditing}
+              >
+                <Pencil data-icon="inline-start" />
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0"
+                onClick={copySelection}
+              >
+                <Copy data-icon="inline-start" />
+                Copy
+              </Button>
+            </>
+          )
         )}
       </div>
 
@@ -614,6 +790,18 @@ export function LeadsGrid({
                               // handset, and that is what the dialler's big
                               // button does too.
                               if (c.key === "phone") copy(l.phone, l.id);
+                            }}
+                            onDoubleClick={() => {
+                              // Double-click opens the editor, as in a
+                              // spreadsheet. The single click that precedes it
+                              // has already selected this cell.
+                              if (isEditable(c.key)) {
+                                setEditing({ leadId: l.id, key: c.key });
+                                setDraft(cellText(l, c.key));
+                                requestAnimationFrame(() =>
+                                  editInputRef.current?.select(),
+                                );
+                              }
                             }}
                             title={c.key === "phone" ? "Click to copy" : undefined}
                             className={cn(
