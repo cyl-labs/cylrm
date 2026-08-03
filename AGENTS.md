@@ -42,6 +42,8 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 - Phone is the key and email is optional here — the mirror of the email side. Dedupe is on digits only (`phoneKey`).
 - A lead's state is **derived from its most recent call**, never stored, so a mis-tapped outcome is fixed by logging again.
 - No telephony and no dialling: the number is a **copy-to-clipboard button**, the call is placed on a separate handset, the outcome logged after. `tel:` was tried and dropped — it dials from whichever device the browser is on. Adding Twilio would be a real build, not a config change.
+- A call list opens in one of two modes, `?mode=sheet` or the dialler (default). The sheet (`src/components/calls/call-sheet.tsx`) is the whole list as a spreadsheet, filterable by **category** — the outcome enum plus "never called". Categories are also editable there: `PATCH /api/calls` overwrites the latest call's outcome instead of inserting another, so fixing a mis-tap does not read as a second dial, and `DELETE /api/calls?callLeadId=` drops that call to return a lead to never-called.
+- `@/lib/calls` imports the Postgres client, so a **client** component must only take types from it. Labels, the category list and `categoryOf` live in `src/components/calls/outcome.ts` for that reason — importing a value from `@/lib/calls` into the sheet pulled the driver into the browser bundle and broke the build.
 - Aggregates in `getCallLists` count `l.id`, not `*`: a list whose leads are all cross-list duplicates joins to nothing, and `count(*)` scores the LEFT JOIN's phantom NULL row as an uncalled lead — that read "-1 of 0 worked" before it was fixed.
 
 ## Reply alerts

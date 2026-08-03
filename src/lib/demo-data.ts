@@ -509,6 +509,13 @@ export function demoCallListDetail(id: number) {
   return found ? { ...found, calledToday: 6 } : null;
 }
 
+/** The sheet reads alphabetically by company, the same as the real one. */
+export function demoCallSheet(id: number) {
+  const key = (l: ReturnType<typeof demoCallLeads>[number]) =>
+    l.company || l.name || l.phone;
+  return [...demoCallLeads(id)].sort((a, b) => key(a).localeCompare(key(b)));
+}
+
 export function demoCallQueue(id: number, filter: string) {
   const leads = demoCallLeads(id);
   const keep =

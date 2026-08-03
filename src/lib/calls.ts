@@ -110,6 +110,67 @@ export type QueueLead = {
 
 export type CallQueueFilter = "queue" | "callbacks" | "closed" | "all";
 
+/** What the sheet groups by: every outcome, plus "never called".
+ *  The list of them and the label map live in `components/calls/outcome.ts`,
+ *  which the browser can import — this module reaches for the database. */
+export type CallCategory = CallOutcome | "uncalled";
+
+/** Columns every lead view needs. Kept in one place so the queue and the
+ *  sheet cannot drift into showing different fields for the same lead. */
+const leadColumns = sql`
+  l.id, l.phone, l.name, l.company, l.title, l.email,
+  lc.outcome as last_outcome, lc.called_at as last_called_at,
+  lc.callback_at, lc.notes as last_notes,
+  (select count(*) from call c where c.call_lead_id = l.id) as attempts
+`;
+
+function toLead(r: Row): QueueLead {
+  return {
+    id: n(r.id),
+    phone: String(r.phone),
+    name: (r.name as string | null) ?? null,
+    company: (r.company as string | null) ?? null,
+    title: (r.title as string | null) ?? null,
+    email: (r.email as string | null) ?? null,
+    attempts: n(r.attempts),
+    lastOutcome: (r.last_outcome as CallOutcome | null) ?? null,
+    lastCalledAt: r.last_called_at
+      ? new Date(r.last_called_at as string).toISOString()
+      : null,
+    callbackAt: r.callback_at
+      ? new Date(r.callback_at as string).toISOString()
+      : null,
+    lastNotes: (r.last_notes as string | null) ?? null,
+  };
+}
+
+/** Ceiling on the spreadsheet view. Filtering and paging happen in the browser
+ *  so a category can be picked without a round trip; this keeps the payload
+ *  bounded if a list ever gets very large. The UI says when it bites. */
+export const CALL_SHEET_LIMIT = 2000;
+
+/**
+ * Every lead on a list, in spreadsheet order.
+ *
+ * Deliberately not the queue's order: the queue answers "who do I ring next",
+ * the sheet answers "what is on this list", so it reads alphabetically by
+ * company the way the imported CSV would.
+ */
+export async function getCallLeads(callListId: number): Promise<QueueLead[]> {
+  const rows = (await db.execute(sql`
+    select ${leadColumns}
+    from call_lead l
+    ${latestCall}
+    where l.call_list_id = ${callListId}
+      and l.duplicate_of_lead_id is null
+    order by coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) asc,
+      l.id asc
+    limit ${CALL_SHEET_LIMIT}
+  `)) as Row[];
+
+  return rows.map(toLead);
+}
+
 /**
  * Leads for the dialler, in the order they should be worked.
  *
@@ -131,10 +192,7 @@ export async function getCallQueue(
           : sql``;
 
   const rows = (await db.execute(sql`
-    select l.id, l.phone, l.name, l.company, l.title, l.email,
-      lc.outcome as last_outcome, lc.called_at as last_called_at,
-      lc.callback_at, lc.notes as last_notes,
-      (select count(*) from call c where c.call_lead_id = l.id) as attempts
+    select ${leadColumns}
     from call_lead l
     ${latestCall}
     where l.call_list_id = ${callListId}
@@ -148,23 +206,7 @@ export async function getCallQueue(
     limit 500
   `)) as Row[];
 
-  return rows.map((r) => ({
-    id: n(r.id),
-    phone: String(r.phone),
-    name: (r.name as string | null) ?? null,
-    company: (r.company as string | null) ?? null,
-    title: (r.title as string | null) ?? null,
-    email: (r.email as string | null) ?? null,
-    attempts: n(r.attempts),
-    lastOutcome: (r.last_outcome as CallOutcome | null) ?? null,
-    lastCalledAt: r.last_called_at
-      ? new Date(r.last_called_at as string).toISOString()
-      : null,
-    callbackAt: r.callback_at
-      ? new Date(r.callback_at as string).toISOString()
-      : null,
-    lastNotes: (r.last_notes as string | null) ?? null,
-  }));
+  return rows.map(toLead);
 }
 
 export type CallListDetail = {

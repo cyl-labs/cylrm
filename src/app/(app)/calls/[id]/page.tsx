@@ -2,13 +2,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import {
+  CALL_SHEET_LIMIT,
+  getCallLeads,
   getCallList,
   getCallQueue,
   type CallQueueFilter,
 } from "@/lib/calls";
 import { isDemoMode } from "@/lib/demo";
-import { demoCallListDetail, demoCallQueue } from "@/lib/demo-data";
+import {
+  demoCallListDetail,
+  demoCallQueue,
+  demoCallSheet,
+} from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
+import { CallSheet } from "@/components/calls/call-sheet";
 import { Dialler } from "@/components/calls/dialler";
 import { cn } from "@/lib/utils";
 
@@ -29,27 +36,39 @@ export default async function CallListPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; mode?: string }>;
 }) {
   const { id } = await params;
   const listId = Number(id);
   if (!Number.isInteger(listId)) notFound();
 
-  const { view } = await searchParams;
+  const { view, mode } = await searchParams;
   const filter: CallQueueFilter = isFilter(view) ? view : "queue";
+  // Dial is the default: this screen exists to make calls, and the sheet is
+  // for looking the list over.
+  const sheet = mode === "sheet";
 
   const demo = await isDemoMode();
   const list = demo ? demoCallListDetail(listId) : await getCallList(listId);
   if (!list) notFound();
 
-  const leads = demo
-    ? demoCallQueue(listId, filter)
-    : await getCallQueue(listId, filter);
+  const leads = sheet
+    ? demo
+      ? demoCallSheet(listId)
+      : await getCallLeads(listId)
+    : demo
+      ? demoCallQueue(listId, filter)
+      : await getCallQueue(listId, filter);
 
   return (
     <PageShell title={list.name}>
       <div className="border-b bg-card">
-        <div className="mx-auto w-full max-w-2xl px-4 pb-3 pt-3 sm:px-6">
+        <div
+          className={cn(
+            "w-full px-4 pb-3 pt-3 sm:px-6",
+            !sheet && "mx-auto max-w-2xl",
+          )}
+        >
           <Link
             href="/calls"
             className="inline-flex items-center gap-1 text-[13px] font-semibold text-muted-foreground hover:text-foreground"
@@ -78,22 +97,49 @@ export default async function CallListPage({
             ))}
           </div>
 
-          <nav className="mt-3 flex gap-1 overflow-x-auto">
-            {FILTERS.map((f) => (
-              <Link
-                key={f.key}
-                href={`/calls/${listId}?view=${f.key}`}
-                className={cn(
-                  "shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
-                  f.key === filter
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {f.label}
-              </Link>
-            ))}
-          </nav>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            {/* Dial works one number at a time; Sheet is the whole list at
+                once. The queue filters only mean anything in Dial, so they
+                disappear in Sheet, which has its own category chips. */}
+            <div className="flex shrink-0 gap-0.5 rounded-lg bg-muted p-0.5">
+              {[
+                { key: "dial", label: "Dial", href: `/calls/${listId}?view=${filter}` },
+                { key: "sheet", label: "Sheet", href: `/calls/${listId}?mode=sheet` },
+              ].map((m) => (
+                <Link
+                  key={m.key}
+                  href={m.href}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-[13px] font-semibold transition-colors",
+                    (m.key === "sheet") === sheet
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {m.label}
+                </Link>
+              ))}
+            </div>
+
+            {!sheet && (
+              <nav className="flex gap-1 overflow-x-auto">
+                {FILTERS.map((f) => (
+                  <Link
+                    key={f.key}
+                    href={`/calls/${listId}?view=${f.key}`}
+                    className={cn(
+                      "shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
+                      f.key === filter
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {f.label}
+                  </Link>
+                ))}
+              </nav>
+            )}
+          </div>
         </div>
       </div>
 
@@ -106,10 +152,20 @@ export default async function CallListPage({
           </p>
         </div>
       )}
-      {/* The demo keeps its outcome buttons and advances the queue locally —
-          it just never writes. Only the Closed view is genuinely read-only,
-          because those calls are already finished. */}
-      <Dialler leads={leads} readOnly={filter === "closed"} demo={demo} />
+
+      {sheet ? (
+        <CallSheet
+          leads={leads}
+          listName={list.name}
+          truncated={leads.length >= CALL_SHEET_LIMIT}
+          demo={demo}
+        />
+      ) : (
+        /* The demo keeps its outcome buttons and advances the queue locally —
+           it just never writes. Only the Closed view is genuinely read-only,
+           because those calls are already finished. */
+        <Dialler leads={leads} readOnly={filter === "closed"} demo={demo} />
+      )}
     </PageShell>
   );
 }

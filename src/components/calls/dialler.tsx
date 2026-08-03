@@ -10,18 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
 import { cn } from "@/lib/utils";
-
-export const OUTCOME_LABELS: Record<CallOutcome, string> = {
-  no_answer: "No answer",
-  voicemail: "Voicemail",
-  gatekeeper: "Gatekeeper",
-  callback: "Call back",
-  not_interested: "Not interested",
-  interested: "Interested",
-  demo_booked: "Demo booked",
-  bad_number: "Bad number",
-};
 
 /** Left column keeps the lead in the queue, right column closes it out. */
 const KEEP: CallOutcome[] = ["no_answer", "voicemail", "gatekeeper", "callback"];
@@ -31,14 +21,6 @@ const CLOSE: CallOutcome[] = [
   "not_interested",
   "bad_number",
 ];
-
-export function outcomeTone(outcome: CallOutcome) {
-  if (outcome === "interested" || outcome === "demo_booked") return "default";
-  if (outcome === "not_interested" || outcome === "bad_number") {
-    return "destructive";
-  }
-  return "secondary";
-}
 
 /**
  * The number, as a button that copies it.
