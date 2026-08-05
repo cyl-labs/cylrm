@@ -10,10 +10,10 @@ const n = (v: unknown) => Number(v ?? 0);
  *
  * `bad_number` is deliberately not one of them: the line was wrong, nobody was
  * spoken to, and counting it as a pickup would flatter the pickup rate exactly
- * where the data is worst. Voicemail and no answer are not pickups either;
- * gatekeeper is — a receptionist is a person, and getting past one is the job.
+ * where the data is worst. Voicemail and no answer are not pickups either —
+ * nobody was reached.
  */
-const PICKUP = sql`('gatekeeper','callback','not_interested','demo_booked','trial','won','lost')`;
+const PICKUP = sql`('callback','not_interested','demo_booked','trial','won','lost')`;
 
 export type CallTotals = {
   /** Calls logged in the range — attempts, not leads. */

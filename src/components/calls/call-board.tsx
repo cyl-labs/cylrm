@@ -38,7 +38,7 @@ const COLUMNS: {
     key: "tried",
     label: "Tried",
     logs: "no_answer",
-    hint: "No answer, voicemail, gatekeeper",
+    hint: "No answer or voicemail",
   },
   {
     key: "callback",

@@ -10,7 +10,6 @@ import type { CallCategory, CallOutcome, QueueLead } from "@/lib/calls";
 export const OUTCOME_LABELS: Record<CallOutcome, string> = {
   no_answer: "No answer",
   voicemail: "Voicemail",
-  gatekeeper: "Gatekeeper",
   callback: "Call back",
   not_interested: "Not interested",
   demo_booked: "Demo booked",
@@ -26,7 +25,6 @@ export const OUTCOME_LABELS: Record<CallOutcome, string> = {
 export const CALL_TIME_OUTCOMES: CallOutcome[] = [
   "no_answer",
   "voicemail",
-  "gatekeeper",
   "callback",
   "demo_booked",
   "not_interested",
@@ -62,7 +60,6 @@ export const CALL_CATEGORIES: CallCategory[] = [
   "uncalled",
   "no_answer",
   "voicemail",
-  "gatekeeper",
   "callback",
   "demo_booked",
   "trial",

@@ -69,28 +69,25 @@ export const dealStageEnum = pgEnum("deal_stage", [
 ]);
 
 /**
- * How a cold call ended.
+ * How a cold call ended, in call order: the ways a dial ends, then what
+ * becomes of the business afterwards.
  *
- * Split into "keep going" and "stop" outcomes: `no_answer`, `voicemail`,
- * `gatekeeper` and `callback` leave the lead in the queue, everything else
- * takes it out. The dialler derives a lead's state from its most recent call
- * rather than storing a status, so a mistyped outcome is fixed by logging
- * again instead of by repairing two places.
- */
-/**
- * In call order: the ways a dial ends, then what becomes of the business
- * afterwards.
+ * Split into "keep going" and "stop": `no_answer`, `voicemail` and `callback`
+ * leave the lead in the queue, everything else takes it out. A lead's state is
+ * derived from its most recent call rather than stored, so a mistyped outcome
+ * is fixed by logging again instead of by repairing two places.
  *
  * There is no `interested`. It sat next to `demo_booked` meaning something
  * vaguer than it and nobody could say what — a cold call that goes well ends
  * with a demo in the diary, so that is the outcome worth recording. What
  * follows a demo is a `trial`, and what follows a trial is `won` (contract
- * signed) or `lost`.
+ * signed) or `lost`. There is no `gatekeeper` either — reaching a receptionist
+ * and not the owner is the same fact as not reaching anyone, which `no_answer`
+ * already says.
  */
 export const callOutcomeEnum = pgEnum("call_outcome", [
   "no_answer",
   "voicemail",
-  "gatekeeper",
   "callback",
   "not_interested",
   "demo_booked",

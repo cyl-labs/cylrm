@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
  * them here would mean six buttons on a phone for things that never happen
  * while the phone is at your ear.
  */
-const KEEP: CallOutcome[] = ["no_answer", "voicemail", "gatekeeper", "callback"];
+const KEEP: CallOutcome[] = ["no_answer", "voicemail", "callback"];
 const CLOSE: CallOutcome[] = ["demo_booked", "not_interested", "bad_number"];
 
 /**
