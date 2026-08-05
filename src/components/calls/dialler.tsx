@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
+import { dialableNumber } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,7 +40,8 @@ function CopyNumber({ phone }: { phone: string }) {
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(phone.trim());
+      // The country code is stripped: this is pasted into a Singapore keypad.
+      await navigator.clipboard.writeText(dialableNumber(phone));
       setCopied(true);
       // Long enough to register, short enough that the next tap reads as new.
       setTimeout(() => setCopied(false), 1600);
@@ -110,17 +112,16 @@ function CallForm({
 }) {
   const [notes, setNotes] = React.useState("");
   const [callbackAt, setCallbackAt] = React.useState(defaultCallbackAt);
-  const [showCallback, setShowCallback] = React.useState(false);
+  // Picked but not yet saved. Nothing is written until the confirm button is
+  // pressed: one tap next to another used to be the whole gesture, and a
+  // mis-tap became a call in the record that had to be found and corrected
+  // later.
+  const [picked, setPicked] = React.useState<CallOutcome | null>(null);
   const [saving, setSaving] = React.useState(false);
 
-  async function log(outcome: CallOutcome) {
-    if (saving) return;
-    // First tap on "Call back" opens the picker, second one saves — the time
-    // is the whole point of that outcome, so it should not default silently.
-    if (outcome === "callback" && !showCallback) {
-      setShowCallback(true);
-      return;
-    }
+  async function save() {
+    const outcome = picked;
+    if (!outcome || saving) return;
     // The demo advances the queue locally rather than hiding these buttons:
     // a dialler whose outcome buttons are missing does not demonstrate a
     // dialler. Nothing is written, and the toast says so.
@@ -166,7 +167,7 @@ function CallForm({
         className="mt-4 min-h-[64px]"
       />
 
-      {showCallback && (
+      {picked === "callback" && (
         <div className="mt-3 space-y-1.5">
           <Label htmlFor="callback-at">Call back at</Label>
           <Input
@@ -175,9 +176,6 @@ function CallForm({
             value={callbackAt}
             onChange={(e) => setCallbackAt(e.target.value)}
           />
-          <p className="text-xs text-muted-foreground">
-            Tap “Call back” again to save.
-          </p>
         </div>
       )}
 
@@ -189,10 +187,10 @@ function CallForm({
           {KEEP.map((o) => (
             <Button
               key={o}
-              variant={o === "callback" && showCallback ? "default" : "outline"}
+              variant={picked === o ? "default" : "outline"}
               className="w-full justify-start"
               disabled={saving}
-              onClick={() => log(o)}
+              onClick={() => setPicked(picked === o ? null : o)}
             >
               {OUTCOME_LABELS[o]}
             </Button>
@@ -205,16 +203,45 @@ function CallForm({
           {CLOSE.map((o) => (
             <Button
               key={o}
-              variant={o === "demo_booked" ? "default" : "destructive"}
-              className="w-full justify-start"
+              // Picked reads as filled, unpicked as the outline of what it
+              // would become, so the two columns still read differently.
+              variant={
+                picked === o
+                  ? o === "demo_booked"
+                    ? "default"
+                    : "destructive"
+                  : "outline"
+              }
+              className={cn(
+                "w-full justify-start",
+                picked !== o &&
+                  o !== "demo_booked" &&
+                  "border-destructive/40 text-destructive hover:text-destructive",
+              )}
               disabled={saving}
-              onClick={() => log(o)}
+              onClick={() => setPicked(picked === o ? null : o)}
             >
               {OUTCOME_LABELS[o]}
             </Button>
           ))}
         </div>
       </div>
+
+      {/* Nothing is written until this is pressed. Tapping an outcome only
+          selects it, so a mis-tap is undone by tapping another — or the same
+          one again — rather than by correcting a logged call afterwards. */}
+      <Button
+        className="mt-4 h-12 w-full text-[15px]"
+        disabled={!picked || saving}
+        onClick={save}
+      >
+        <Check data-icon="inline-start" />
+        {saving
+          ? "Saving…"
+          : picked
+            ? `Log ${OUTCOME_LABELS[picked].toLowerCase()}`
+            : "Pick an outcome to log"}
+      </Button>
 
       <Button
         variant="ghost"

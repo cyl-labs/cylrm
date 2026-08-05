@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { dialableNumber } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 /** Every row is the same height, which is what lets the grid render only the
@@ -454,10 +455,14 @@ export function LeadsGrid({
     revealRow(r);
   }
 
-  async function copy(text: string, leadId?: number) {
+  async function copy(text: string, leadId?: number, phone = false) {
     if (text === "") return;
     try {
-      await navigator.clipboard.writeText(text.trim());
+      // A number goes to the clipboard without its country code, ready for a
+      // Singapore keypad; every other cell copies exactly what it shows.
+      await navigator.clipboard.writeText(
+        phone ? dialableNumber(text) : text.trim(),
+      );
       if (leadId === undefined) toast.success("Copied");
       else {
         // The number cell says "Copied" in place rather than raising a toast:
@@ -475,7 +480,9 @@ export function LeadsGrid({
   }
 
   function copySelection() {
-    if (selected) copy(cellText(selected, selCol.key));
+    if (selected) {
+      copy(cellText(selected, selCol.key), undefined, selCol.key === "phone");
+    }
   }
 
   const canEdit = selected !== undefined && isEditable(selCol.key);
@@ -884,7 +891,7 @@ export function LeadsGrid({
                               // it: the number exists to be dialled on a
                               // handset, and that is what the dialler's big
                               // button does too.
-                              if (c.key === "phone") copy(l.phone, l.id);
+                              if (c.key === "phone") copy(l.phone, l.id, true);
                             }}
                             onDoubleClick={() => {
                               // Double-click opens the editor, as in a

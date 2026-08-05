@@ -6,6 +6,8 @@ import { Check, Copy, PhoneOutgoing } from "lucide-react";
 import { toast } from "sonner";
 import type { BoardCard, CallOutcome, CallStage } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
+import { useTouchDrag } from "@/components/kanban/use-touch-drag";
+import { dialableNumber } from "@/lib/phone";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -93,7 +95,7 @@ function CopyNumber({ phone }: { phone: string }) {
       onClick={async (e) => {
         e.stopPropagation();
         try {
-          await navigator.clipboard.writeText(phone.trim());
+          await navigator.clipboard.writeText(dialableNumber(phone));
           setCopied(true);
           setTimeout(() => setCopied(false), 1600);
         } catch {
@@ -137,6 +139,8 @@ export function CallBoard({
   const [logged, setLogged] = React.useState<
     Record<number, { outcome: CallOutcome; attempts: number }>
   >({});
+
+  const scrollerRef = React.useRef<HTMLDivElement>(null);
 
   const rows = React.useMemo(
     () =>
@@ -191,11 +195,28 @@ export function CallBoard({
     }
   }
 
+  // Touch has no HTML5 drag events, so the same gesture is rebuilt on pointer
+  // events: hold a card, drag it, drop it on a column.
+  const touch = useTouchDrag({
+    scrollerRef,
+    canDrop: (column) =>
+      COLUMNS.some((c) => c.key === column && c.logs !== null),
+    onDrop: (id, column) => {
+      const card = rows.find((c) => c.id === id);
+      const col = COLUMNS.find((c) => c.key === column);
+      if (card && col?.logs && card.stage !== col.key) logCall(card, col.logs);
+    },
+  });
+  const draggingCard = rows.find((c) => c.id === touch.dragId) ?? null;
+
   return (
     // Seven columns need a wide screen; below `xl` this is a snapping
     // horizontal scroller, one column at a time — the same shape the email
     // board takes, just with more to scroll through.
-    <div className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 xl:mx-0 xl:grid xl:grid-cols-7 xl:overflow-x-visible xl:px-0">
+    <div
+      ref={scrollerRef}
+      className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 xl:mx-0 xl:grid xl:grid-cols-7 xl:overflow-x-visible xl:px-0"
+    >
       {COLUMNS.map((col) => {
         const all = rows.filter((c) => c.stage === col.key);
         const shown = all.slice(0, columnLimit);
@@ -205,7 +226,9 @@ export function CallBoard({
             data-column={col.key}
             className={cn(
               "flex min-h-0 w-[78vw] max-w-[320px] shrink-0 snap-start flex-col rounded-lg border bg-muted/30 xl:w-auto xl:max-w-none xl:shrink",
-              dragOver === col.key && "border-primary/50 bg-primary/5",
+              (dragOver === col.key || touch.over === col.key) &&
+                col.logs !== null &&
+                "border-primary/50 bg-primary/5",
             )}
             onDragOver={(e) => {
               if (!col.logs) return;
@@ -236,7 +259,10 @@ export function CallBoard({
                 </span>
               )}
             </div>
-            <div className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto p-2">
+            <div
+              data-column-scroll
+              className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto p-2"
+            >
               {shown.map((c) => (
                 <div
                   key={c.id}
@@ -246,7 +272,13 @@ export function CallBoard({
                     e.dataTransfer.effectAllowed = "move";
                   }}
                   onDragEnd={() => setDragId(null)}
-                  className="group cursor-grab rounded-md border bg-card p-3 shadow-xs transition-colors hover:border-ring/60 active:cursor-grabbing"
+                  {...touch.cardProps(c.id)}
+                  className={cn(
+                    "group cursor-grab rounded-md border bg-card p-3 shadow-xs transition-colors hover:border-ring/60 active:cursor-grabbing",
+                    // The held card stays in place, faded, so the column does
+                    // not reflow under the finger mid-drag.
+                    touch.dragId === c.id && "opacity-40",
+                  )}
                   data-lead-id={c.id}
                 >
                   <p className="text-[13px] font-bold leading-tight">
@@ -322,6 +354,21 @@ export function CallBoard({
         );
       })}
 
+      {/* The card under the finger. Fixed to the viewport and pointer-events
+          none so `elementFromPoint` sees the column, not the ghost. */}
+      {draggingCard && touch.pointer && (
+        <div
+          className="pointer-events-none fixed z-50 w-[70vw] max-w-[280px] -translate-x-1/2 -translate-y-1/2 rotate-2 rounded-md border border-primary bg-card p-3 shadow-lg"
+          style={{ left: touch.pointer.x, top: touch.pointer.y }}
+        >
+          <p className="truncate text-[13px] font-bold leading-tight">
+            {draggingCard.company ?? draggingCard.name ?? draggingCard.phone}
+          </p>
+          <p className="mt-1 text-[13px] font-bold tabular-nums text-primary">
+            {draggingCard.phone}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { ThreadSheet } from "@/components/pipeline/thread-sheet";
+import { useTouchDrag } from "@/components/kanban/use-touch-drag";
 
 export type DealCard = {
   id: number;
@@ -77,11 +78,23 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
 
   const stageOf = (d: DealCard) => overrides[d.id] ?? d.stage;
 
+  // Touch has no HTML5 drag events; this rebuilds the gesture on pointer ones.
+  const scrollerRef = React.useRef<HTMLDivElement>(null);
+  const touch = useTouchDrag({
+    scrollerRef,
+    canDrop: (column) => STAGES.some((s) => s.key === column),
+    onDrop: (id, column) => moveDeal(id, column as DealCard["stage"]),
+  });
+  const draggingDeal = deals.find((d) => d.id === touch.dragId) ?? null;
+
   return (
     // Five columns only fit a wide screen. Narrower than `lg` the board
     // becomes a snapping horizontal scroller — one column at a time, which is
     // how a phone reads a kanban anyway.
-    <div className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-x-visible lg:px-0">
+    <div
+      ref={scrollerRef}
+      className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-x-visible lg:px-0"
+    >
       {STAGES.map((stage) => {
         const cards = deals.filter((d) => stageOf(d) === stage.key);
         return (
@@ -89,7 +102,8 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
             key={stage.key}
             className={cn(
               "flex min-h-0 w-[78vw] max-w-[320px] shrink-0 snap-start flex-col rounded-lg border bg-muted/30 lg:w-auto lg:max-w-none lg:shrink",
-              dragOver === stage.key && "border-primary/50 bg-primary/5",
+              (dragOver === stage.key || touch.over === stage.key) &&
+                "border-primary/50 bg-primary/5",
             )}
             onDragOver={(e) => {
               e.preventDefault();
@@ -112,7 +126,10 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
                 {cards.length}
               </span>
             </div>
-            <div className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto p-2">
+            <div
+              data-column-scroll
+              className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto p-2"
+            >
               {cards.map((d) => (
                 <div
                   key={d.id}
@@ -122,8 +139,16 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
                     e.dataTransfer.effectAllowed = "move";
                   }}
                   onDragEnd={() => setDragId(null)}
-                  onClick={() => setOpenDealId(d.id)}
-                  className="group cursor-grab rounded-md border bg-card p-3 shadow-xs transition-colors hover:border-ring/60 active:cursor-grabbing"
+                  onClick={() => {
+                    // A drag that ends on the card it started from must not
+                    // also count as a tap opening the thread.
+                    if (touch.dragId === null) setOpenDealId(d.id);
+                  }}
+                  {...touch.cardProps(d.id)}
+                  className={cn(
+                    "group cursor-grab rounded-md border bg-card p-3 shadow-xs transition-colors hover:border-ring/60 active:cursor-grabbing",
+                    touch.dragId === d.id && "opacity-40",
+                  )}
                   data-deal-id={d.id}
                 >
                   <p className="text-[13px] font-medium leading-tight">
@@ -183,6 +208,21 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
           </div>
         );
       })}
+      {draggingDeal && touch.pointer && (
+        <div
+          className="pointer-events-none fixed z-50 w-[70vw] max-w-[280px] -translate-x-1/2 -translate-y-1/2 rotate-2 rounded-md border border-primary bg-card p-3 shadow-lg"
+          style={{ left: touch.pointer.x, top: touch.pointer.y }}
+        >
+          <p className="truncate text-[13px] font-medium leading-tight">
+            {draggingDeal.contactName ?? draggingDeal.contactEmail}
+          </p>
+          {draggingDeal.company && (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {draggingDeal.company}
+            </p>
+          )}
+        </div>
+      )}
       <ThreadSheet
         dealId={openDealId}
         onOpenChange={(open) => {
