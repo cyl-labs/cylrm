@@ -99,13 +99,25 @@ const isEditable = (key: ColKey): key is EditableKey => EDITABLE.has(key);
 /** A, B, C … — the column names a spreadsheet user reads off the top. */
 const colLetter = (i: number) => String.fromCharCode(65 + i);
 
+/**
+ * Call times are shown as Singapore times, and the locale is pinned.
+ *
+ * Not a preference: the calling is done in Singapore, and leaving either to
+ * the viewer made every dated cell a hydration mismatch. The server renders
+ * this HTML on a droplet running UTC and the browser hydrates it in SGT, so
+ * the two disagreed on every row and React threw the tree away and rebuilt
+ * it. Fixing the zone makes both sides produce the same string.
+ */
+const CALL_TZ = "Asia/Singapore";
+
 function fmt(iso: string | null) {
   if (!iso) return "";
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString("en-US", {
     day: "numeric",
     month: "short",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: CALL_TZ,
   });
 }
 

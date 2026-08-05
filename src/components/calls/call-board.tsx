@@ -304,7 +304,14 @@ export function CallBoard({
                         <span className="min-w-0 truncate">{c.listName}</span>
                       </Badge>
                     )}
-                    <span className="ml-auto whitespace-nowrap text-[11px] text-muted-foreground">
+                    {/* Relative to now, so the server's answer and the
+                        browser's can straddle a rounding boundary and differ
+                        by a minute. That is a hydration mismatch React logs
+                        as an error; the value is the same fact either way. */}
+                    <span
+                      suppressHydrationWarning
+                      className="ml-auto whitespace-nowrap text-[11px] text-muted-foreground"
+                    >
                       {c.stage === "callback" && c.callbackAt
                         ? due(c.callbackAt)
                         : c.attempts > 0

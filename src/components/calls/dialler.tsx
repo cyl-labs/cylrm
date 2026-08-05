@@ -356,7 +356,9 @@ export function Dialler({
               Last: {OUTCOME_LABELS[current.lastOutcome]}
             </span>
             {current.lastCalledAt && (
-              <span className="text-muted-foreground">
+              // Clock-derived, so server and client can disagree by a minute
+              // across a rounding boundary — see the board for the same note.
+              <span suppressHydrationWarning className="text-muted-foreground">
                 {" "}
                 · {relative(current.lastCalledAt)}
               </span>
