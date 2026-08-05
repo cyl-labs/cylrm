@@ -57,7 +57,7 @@ export default async function CallListPage({
     { label: "never called", value: list.uncalled },
     { label: "to try again", value: list.toRetry },
     { label: "callback due", value: list.callbacksDue },
-    { label: "booked for later", value: list.callbacksLater },
+    { label: "call later", value: list.callbacksLater },
     { label: "got a demo", value: list.demoBooked + list.trials + list.won },
     { label: "ruled out", value: list.ruledOut },
   ].filter((part) => part.value > 0);
