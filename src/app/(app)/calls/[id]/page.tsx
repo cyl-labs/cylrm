@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Table2 } from "lucide-react";
 import {
+  CALL_QUEUE_LIMIT,
   getCallList,
   getCallQueue,
   type CallQueueFilter,
@@ -126,7 +127,12 @@ export default async function CallListPage({
       {/* The demo keeps its outcome buttons and advances the queue locally —
           it just never writes. Only the Closed view is genuinely read-only,
           because those calls are already finished. */}
-      <Dialler leads={leads} readOnly={filter === "closed"} demo={demo} />
+      <Dialler
+        leads={leads}
+        truncated={leads.length >= CALL_QUEUE_LIMIT}
+        readOnly={filter === "closed"}
+        demo={demo}
+      />
     </PageShell>
   );
 }

@@ -232,10 +232,14 @@ function CallForm({
 
 export function Dialler({
   leads,
+  truncated = false,
   readOnly = false,
   demo = false,
 }: {
   leads: QueueLead[];
+  /** More leads match this view than were loaded — said out loud, because a
+   *  tab labelled "All" showing part of a list is a lie. */
+  truncated?: boolean;
   /** Closed view: these calls are finished, there is nothing to log. */
   readOnly?: boolean;
   /** Demo workspace: the flow works, nothing is written. */
@@ -247,15 +251,24 @@ export function Dialler({
   const [done, setDone] = React.useState<Set<number>>(new Set());
   const [skipped, setSkipped] = React.useState<number[]>([]);
 
+  // A lead picked out of the list below jumps the queue. Cleared as soon as it
+  // is worked, so the order resumes where it was.
+  const [pickedId, setPickedId] = React.useState<number | null>(null);
+
   const remaining = React.useMemo(
     () => leads.filter((l) => !done.has(l.id) && !skipped.includes(l.id)),
     [leads, done, skipped],
   );
-  const current = remaining[0] ?? null;
-  const upNext = remaining.slice(1, 6);
+  const current =
+    remaining.find((l) => l.id === pickedId) ?? remaining[0] ?? null;
+  // Every lead still to work, not the first handful: "All" that showed six of
+  // forty was the complaint, and a queue you cannot see the end of is worse
+  // than a long list.
+  const upNext = remaining.filter((l) => l.id !== current?.id);
 
   function handleLogged(leadId: number) {
     setDone((prev) => new Set(prev).add(leadId));
+    setPickedId(null);
     // Nothing was written in the demo, so refetching would only put the lead
     // straight back and make the queue look stuck.
     if (!demo) router.refresh();
@@ -348,7 +361,10 @@ export function Dialler({
             lead={current}
             demo={demo}
             onLogged={() => handleLogged(current.id)}
-            onSkip={() => setSkipped((prev) => [...prev, current.id])}
+            onSkip={() => {
+              setSkipped((prev) => [...prev, current.id]);
+              setPickedId(null);
+            }}
           />
         )}
       </div>
@@ -357,30 +373,47 @@ export function Dialler({
         <div className="mt-5">
           <p className="px-1 pb-1.5 text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
             Up next
+            <span className="ml-1.5 tabular-nums opacity-70">
+              {upNext.length}
+            </span>
           </p>
           <ul className="divide-y rounded-xl border bg-card">
             {upNext.map((l) => (
-              <li
-                key={l.id}
-                className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
-              >
-                <span className="min-w-0 flex-1 truncate font-semibold">
-                  {l.company ?? l.name ?? l.phone}
-                </span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {l.phone}
-                </span>
-                {l.lastOutcome && (
-                  <Badge
-                    variant={outcomeTone(l.lastOutcome)}
-                    className={cn("shrink-0")}
-                  >
-                    {OUTCOME_LABELS[l.lastOutcome]}
-                  </Badge>
-                )}
+              <li key={l.id}>
+                {/* Tapping a row dials that one next. Without it the only way
+                    to reach the fortieth lead was to skip thirty-nine. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPickedId(l.id);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-[13px] transition-colors hover:bg-muted/50"
+                >
+                  <span className="min-w-0 flex-1 truncate font-semibold">
+                    {l.company ?? l.name ?? l.phone}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {l.phone}
+                  </span>
+                  {l.lastOutcome && (
+                    <Badge
+                      variant={outcomeTone(l.lastOutcome)}
+                      className={cn("shrink-0")}
+                    >
+                      {OUTCOME_LABELS[l.lastOutcome]}
+                    </Badge>
+                  )}
+                </button>
               </li>
             ))}
           </ul>
+          {truncated && (
+            <p className="px-1 pt-2 text-[12px] text-muted-foreground">
+              Showing the first {leads.length.toLocaleString()} of this view.
+              The spreadsheet holds the rest.
+            </p>
+          )}
         </div>
       )}
     </div>

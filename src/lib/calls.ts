@@ -273,6 +273,11 @@ export async function getCallBoard(listId?: number): Promise<BoardCard[]> {
  * that time has passed. Then leads never tried, then everything else oldest
  * attempt first, so nobody gets rung twice while others sit untouched.
  */
+/** Ceiling on one dialling view. Every lead below the current card is listed,
+ *  so this bounds the page as well as the query; the screen says when it
+ *  bites rather than calling a partial list "All". */
+export const CALL_QUEUE_LIMIT = 500;
+
 export async function getCallQueue(
   callListId: number,
   filter: CallQueueFilter = "queue",
@@ -298,7 +303,7 @@ export async function getCallQueue(
       (lc.outcome is null) desc,
       lc.called_at asc nulls first,
       l.id asc
-    limit 500
+    limit ${CALL_QUEUE_LIMIT}
   `)) as Row[];
 
   return rows.map(toLead);
