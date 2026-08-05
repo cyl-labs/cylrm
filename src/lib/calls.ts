@@ -59,6 +59,10 @@ export type CallListSummary = {
   /** In a trial, or signed. What the calling is actually for. */
   trials: number;
   won: number;
+  /** Waiting on a callback, whenever it is. `callbacksDue` is the subset whose
+   *  time has passed — both are needed, because the queue holds all of them
+   *  and only the due ones are work right now. */
+  callbacks: number;
   callbacksDue: number;
   /** Numbers already on another list. Held out of the queue, not deleted. */
   duplicates: number;
@@ -86,6 +90,7 @@ export async function getCallLists(): Promise<CallListSummary[]> {
       count(l.id) filter (where lc.outcome = 'demo_booked') as demo_booked,
       count(l.id) filter (where lc.outcome = 'trial') as trials,
       count(l.id) filter (where lc.outcome = 'won') as won,
+      count(l.id) filter (where lc.outcome = 'callback') as callbacks,
       count(l.id) filter (where lc.outcome = 'callback' and lc.callback_at <= now()) as callbacks_due,
       (select count(*) from call_lead d
         where d.call_list_id = cl.id and d.duplicate_of_lead_id is not null) as duplicates
@@ -110,6 +115,7 @@ export async function getCallLists(): Promise<CallListSummary[]> {
     demoBooked: n(r.demo_booked),
     trials: n(r.trials),
     won: n(r.won),
+    callbacks: n(r.callbacks),
     callbacksDue: n(r.callbacks_due),
     duplicates: n(r.duplicates),
   }));
@@ -397,6 +403,7 @@ export type CallListDetail = {
   | "demoBooked"
   | "trials"
   | "won"
+  | "callbacks"
   | "callbacksDue"
   | "duplicates"
 >;

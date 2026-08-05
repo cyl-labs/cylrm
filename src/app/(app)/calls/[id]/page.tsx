@@ -47,6 +47,19 @@ export default async function CallListPage({
     ? demoCallQueue(listId, filter)
     : await getCallQueue(listId, filter);
 
+  // What the Queue tab holds: never rung, rung and not reached, and everyone
+  // owed a callback whenever it falls. The badge on the dial card counts the
+  // same leads, so the two cannot disagree.
+  const inQueue = list.uncalled + list.toRetry + list.callbacks;
+  // Every lead is in exactly one of these, so they sum to the total.
+  const breakdown = [
+    { label: "never called", value: list.uncalled },
+    { label: "to try again", value: list.toRetry },
+    { label: "waiting on a callback", value: list.callbacks },
+    { label: "got a demo", value: list.demoBooked + list.trials + list.won },
+    { label: "ruled out", value: list.ruledOut },
+  ].filter((part) => part.value > 0);
+
   return (
     <PageShell title={list.name}>
       <div className="border-b bg-card">
@@ -59,14 +72,15 @@ export default async function CallListPage({
             All call lists
           </Link>
 
+          {/* Two different questions, kept apart. The tiles are what is left
+              and what came of it; the line under them partitions the list so
+              the numbers can be checked against each other. They used to sit
+              side by side with no relationship — "10 called today" next to
+              "16 never called" over a queue of 27 looked like broken sums. */}
           <div className="mt-3 grid grid-cols-4 gap-2 text-center">
             {[
+              { label: "Left to call", value: inQueue },
               { label: "Called today", value: list.calledToday },
-              { label: "Never called", value: list.uncalled },
-              // Everything from the demo onwards, counted together and named
-              // for what it counts. "Positive" said nothing, and a tile
-              // reading "Demos: 0" the moment one became a trial would be
-              // worse than saying nothing.
               {
                 label: "Got a demo",
                 value: list.demoBooked + list.trials + list.won,
@@ -83,6 +97,17 @@ export default async function CallListPage({
               </div>
             ))}
           </div>
+
+          <p className="mt-2 text-[12px] text-muted-foreground">
+            {list.total} leads ={" "}
+            {breakdown.map((part, i) => (
+              <span key={part.label}>
+                {i > 0 && " + "}
+                <span className="font-semibold tabular-nums">{part.value}</span>{" "}
+                {part.label}
+              </span>
+            ))}
+          </p>
 
           <div className="mt-3 flex items-center gap-2">
             <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">

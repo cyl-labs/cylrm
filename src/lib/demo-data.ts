@@ -511,6 +511,7 @@ export function demoCallListSummaries() {
       demoBooked: by((o) => o === "demo_booked"),
       trials: by((o) => o === "trial"),
       won: by((o) => o === "won"),
+      callbacks: by((o) => o === "callback"),
       callbacksDue: by((o) => o === "callback"),
       duplicates: 0,
     };
