@@ -22,6 +22,16 @@ export type CallOutcome =
 const TERMINAL = sql`('not_interested','demo_booked','trial','won','lost','bad_number')`;
 
 /**
+ * A callback you can act on now: the time has passed, or none was set.
+ *
+ * One expression because four places ask the question — the queue, the badge
+ * on each list, the sidebar count and the callbacks screen — and they have to
+ * agree. A callback with no time cannot be waited for, so it counts as
+ * actionable rather than disappearing until someone sets one.
+ */
+const CALLBACK_DUE = sql`(lc.callback_at is null or lc.callback_at <= now())`;
+
+/**
  * The most recent call per lead.
  *
  * A lead's state is derived from its latest call rather than stored on the
@@ -59,11 +69,12 @@ export type CallListSummary = {
   /** In a trial, or signed. What the calling is actually for. */
   trials: number;
   won: number;
-  /** Waiting on a callback, whenever it is. `callbacksDue` is the subset whose
-   *  time has passed — both are needed, because the queue holds all of them
-   *  and only the due ones are work right now. */
-  callbacks: number;
+  /** Owed a call back now — the time has passed, or none was set. In the
+   *  queue. */
   callbacksDue: number;
+  /** Owed a call back at a time still ahead. Deliberately out of the queue
+   *  until then. */
+  callbacksLater: number;
   /** Numbers already on another list. Held out of the queue, not deleted. */
   duplicates: number;
 };
@@ -90,8 +101,10 @@ export async function getCallLists(): Promise<CallListSummary[]> {
       count(l.id) filter (where lc.outcome = 'demo_booked') as demo_booked,
       count(l.id) filter (where lc.outcome = 'trial') as trials,
       count(l.id) filter (where lc.outcome = 'won') as won,
-      count(l.id) filter (where lc.outcome = 'callback') as callbacks,
-      count(l.id) filter (where lc.outcome = 'callback' and lc.callback_at <= now()) as callbacks_due,
+      count(l.id) filter (where lc.outcome = 'callback' and ${CALLBACK_DUE}) as callbacks_due,
+      count(l.id) filter (
+        where lc.outcome = 'callback' and lc.callback_at > now()
+      ) as callbacks_later,
       (select count(*) from call_lead d
         where d.call_list_id = cl.id and d.duplicate_of_lead_id is not null) as duplicates
     from call_list cl
@@ -115,8 +128,8 @@ export async function getCallLists(): Promise<CallListSummary[]> {
     demoBooked: n(r.demo_booked),
     trials: n(r.trials),
     won: n(r.won),
-    callbacks: n(r.callbacks),
     callbacksDue: n(r.callbacks_due),
+    callbacksLater: n(r.callbacks_later),
     duplicates: n(r.duplicates),
   }));
 }
@@ -267,7 +280,7 @@ export async function getCallbacks(listId?: number): Promise<CallbackLead[]> {
 
   const rows = (await db.execute(sql`
     select ${leadColumns}, cl.id as list_id, cl.name as list_name,
-      coalesce(lc.callback_at <= now(), false) as due
+      ${CALLBACK_DUE} as due
     from call_lead l
     join call_list cl on cl.id = l.call_list_id
     ${latestCall}
@@ -296,7 +309,7 @@ export const countCallbacksDue = cache(async (): Promise<number> => {
     ${latestCall}
     where l.duplicate_of_lead_id is null
       and lc.outcome = 'callback'
-      and lc.callback_at <= now()
+      and ${CALLBACK_DUE}
   `)) as Row[];
   return n(row?.n);
 });
@@ -326,7 +339,7 @@ export async function getCallBoard(listId?: number): Promise<BoardCard[]> {
     order by
       -- Callbacks whose time has passed first, the same priority the dialler
       -- gives them, then whatever was touched most recently.
-      (lc.outcome = 'callback' and lc.callback_at <= now()) desc,
+      (lc.outcome = 'callback' and (lc.callback_at is null or lc.callback_at <= now())) desc,
       lc.called_at desc nulls last,
       l.id asc
     limit ${CALL_SHEET_LIMIT}
@@ -361,7 +374,14 @@ export async function getCallQueue(
 ): Promise<QueueLead[]> {
   const where =
     filter === "queue"
-      ? sql`and (lc.outcome is null or lc.outcome not in ${TERMINAL})`
+      ? // A callback booked for Tuesday is not Monday's work. It leaves the
+        // queue when it is logged and comes back when its time passes, which
+        // is the whole point of asking for a time.
+        sql`and (
+          lc.outcome is null
+          or (lc.outcome not in ${TERMINAL} and lc.outcome <> 'callback')
+          or (lc.outcome = 'callback' and ${CALLBACK_DUE})
+        )`
       : filter === "callbacks"
         ? sql`and lc.outcome = 'callback'`
         : filter === "closed"
@@ -376,7 +396,7 @@ export async function getCallQueue(
       and l.duplicate_of_lead_id is null
       ${where}
     order by
-      (lc.outcome = 'callback' and lc.callback_at <= now()) desc,
+      (lc.outcome = 'callback' and (lc.callback_at is null or lc.callback_at <= now())) desc,
       (lc.outcome is null) desc,
       lc.called_at asc nulls first,
       l.id asc
@@ -403,8 +423,8 @@ export type CallListDetail = {
   | "demoBooked"
   | "trials"
   | "won"
-  | "callbacks"
   | "callbacksDue"
+  | "callbacksLater"
   | "duplicates"
 >;
 

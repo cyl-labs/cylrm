@@ -47,15 +47,17 @@ export default async function CallListPage({
     ? demoCallQueue(listId, filter)
     : await getCallQueue(listId, filter);
 
-  // What the Queue tab holds: never rung, rung and not reached, and everyone
-  // owed a callback whenever it falls. The badge on the dial card counts the
-  // same leads, so the two cannot disagree.
-  const inQueue = list.uncalled + list.toRetry + list.callbacks;
+  // What the Queue tab holds: never rung, rung and not reached, and callbacks
+  // whose time has come. One booked for Tuesday is not in it until Tuesday.
+  // The badge on the dial card counts the same leads, so the two cannot
+  // disagree.
+  const inQueue = list.uncalled + list.toRetry + list.callbacksDue;
   // Every lead is in exactly one of these, so they sum to the total.
   const breakdown = [
     { label: "never called", value: list.uncalled },
     { label: "to try again", value: list.toRetry },
-    { label: "waiting on a callback", value: list.callbacks },
+    { label: "callback due", value: list.callbacksDue },
+    { label: "booked for later", value: list.callbacksLater },
     { label: "got a demo", value: list.demoBooked + list.trials + list.won },
     { label: "ruled out", value: list.ruledOut },
   ].filter((part) => part.value > 0);

@@ -163,7 +163,7 @@ export function CallbacksList({
               "rounded-xl border bg-card p-3.5 sm:p-4",
               // The server's answer, so the border cannot differ between the
               // HTML and the hydration.
-              l.due && "border-destructive/40",
+              l.due && l.callbackAt && "border-destructive/40",
             )}
           >
             <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
@@ -183,7 +183,10 @@ export function CallbacksList({
                     between render and hydration — same note as the board. */}
                 <Badge
                   suppressHydrationWarning
-                  variant={l.due ? "destructive" : "secondary"}
+                  // Red means late. One with no time is actionable — it is in
+                  // the queue and counted as due — but it is not late, since
+                  // no time was ever promised.
+                  variant={l.due && l.callbackAt ? "destructive" : "secondary"}
                 >
                   {due.label}
                 </Badge>

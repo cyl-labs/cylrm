@@ -511,8 +511,9 @@ export function demoCallListSummaries() {
       demoBooked: by((o) => o === "demo_booked"),
       trials: by((o) => o === "trial"),
       won: by((o) => o === "won"),
-      callbacks: by((o) => o === "callback"),
+      // The demo's callbacks are all in the past, so all of them are due.
       callbacksDue: by((o) => o === "callback"),
+      callbacksLater: 0,
       duplicates: 0,
     };
   });
@@ -666,13 +667,22 @@ export function demoCallbacks(listId?: number) {
 
 export function demoCallQueue(id: number, filter: string) {
   const leads = demoCallLeads(id);
-  const keep =
-    filter === "callbacks"
-      ? (o: string | null) => o === "callback"
-      : filter === "closed"
-        ? (o: string | null) => o !== null && TERMINAL_DEMO.includes(o)
-        : filter === "all"
-          ? () => true
-          : (o: string | null) => o === null || !TERMINAL_DEMO.includes(o);
-  return leads.filter((l) => keep(l.lastOutcome));
+  if (filter === "callbacks") {
+    return leads.filter((l) => l.lastOutcome === "callback");
+  }
+  if (filter === "closed") {
+    return leads.filter(
+      (l) => l.lastOutcome !== null && TERMINAL_DEMO.includes(l.lastOutcome),
+    );
+  }
+  if (filter === "all") return leads;
+  // Mirrors the real queue: a callback is only in it once its time has come.
+  return leads.filter(
+    (l) =>
+      l.lastOutcome === null ||
+      (!TERMINAL_DEMO.includes(l.lastOutcome) &&
+        (l.lastOutcome !== "callback" ||
+          l.callbackAt === null ||
+          new Date(l.callbackAt) <= new Date())),
+  );
 }
