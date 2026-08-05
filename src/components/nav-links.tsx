@@ -10,7 +10,14 @@ import { workspaceForPath } from "@/lib/workspace";
  * comes from the URL. Switching between Email CRM and Call CRM is the
  * switcher's job, above.
  */
-export function NavLinks({ unreadReplies = 0 }: { unreadReplies?: number }) {
+export function NavLinks({
+  unreadReplies = 0,
+  callbacksDue = 0,
+}: {
+  unreadReplies?: number;
+  /** Callbacks whose time has passed — the calling side's version of unread. */
+  callbacksDue?: number;
+}) {
   const pathname = usePathname();
   const workspace = workspaceForPath(pathname);
 
@@ -33,6 +40,11 @@ export function NavLinks({ unreadReplies = 0 }: { unreadReplies?: number }) {
             {href === "/replies" && unreadReplies > 0 && (
               <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-primary-foreground">
                 {unreadReplies > 99 ? "99+" : unreadReplies}
+              </span>
+            )}
+            {href === "/callbacks" && callbacksDue > 0 && (
+              <span className="ml-auto min-w-5 rounded-full bg-destructive px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-white">
+                {callbacksDue > 99 ? "99+" : callbacksDue}
               </span>
             )}
           </Link>

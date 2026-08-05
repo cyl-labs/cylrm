@@ -4,6 +4,7 @@ import * as React from "react";
 import { LogOut, Menu } from "lucide-react";
 import { NavLinks } from "@/components/nav-links";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
@@ -21,9 +22,11 @@ import {
 export function MobileNav({
   demo,
   unreadReplies = 0,
+  callbacksDue = 0,
 }: {
   demo: boolean;
   unreadReplies?: number;
+  callbacksDue?: number;
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -36,8 +39,13 @@ export function MobileNav({
         <Menu className="size-5" strokeWidth={1.8} />
         {/* With the nav closed the badge inside it is invisible, so the
             trigger carries the fact that something is waiting. */}
-        {unreadReplies > 0 && (
-          <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" />
+        {(unreadReplies > 0 || callbacksDue > 0) && (
+          <span
+            className={cn(
+              "absolute right-1.5 top-1.5 size-2 rounded-full",
+              callbacksDue > 0 ? "bg-destructive" : "bg-primary",
+            )}
+          />
         )}
       </SheetTrigger>
       <SheetContent
@@ -56,7 +64,10 @@ export function MobileNav({
             covers the page it just moved to. Closing on click beats watching
             the pathname, which needs a state-setting effect. */}
         <div onClick={() => setOpen(false)}>
-          <NavLinks unreadReplies={unreadReplies} />
+          <NavLinks
+            unreadReplies={unreadReplies}
+            callbacksDue={callbacksDue}
+          />
         </div>
         <div className="mt-auto px-2.5 pb-3.5">
           <form method="post" action="/api/logout">

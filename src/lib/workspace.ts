@@ -4,6 +4,7 @@ import {
   Kanban,
   MailOpen,
   PhoneCall,
+  PhoneForwarded,
   Send,
   Table2,
   Users,
@@ -59,6 +60,7 @@ export const WORKSPACES: Workspace[] = [
     home: "/calls",
     links: [
       { href: "/calls", label: "Call lists", icon: PhoneCall },
+      { href: "/callbacks", label: "Callbacks", icon: PhoneForwarded },
       { href: "/call-sheet", label: "Spreadsheet", icon: Table2 },
       { href: "/call-pipeline", label: "Pipeline", icon: Kanban },
       { href: "/call-stats", label: "Stats", icon: BarChart3 },
@@ -68,6 +70,7 @@ export const WORKSPACES: Workspace[] = [
 
 const CALL_PREFIXES = [
   "/calls",
+  "/callbacks",
   "/call-sheet",
   "/call-pipeline",
   "/call-stats",

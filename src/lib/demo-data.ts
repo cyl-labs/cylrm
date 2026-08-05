@@ -643,6 +643,26 @@ export function demoCallStats(listId?: number) {
   };
 }
 
+/** The demo diary: the sheet's callbacks, soonest first — what `getCallbacks`
+ *  returns. */
+export function demoCallbacks(listId?: number) {
+  return demoSheetLeads()
+    .filter(
+      (l) =>
+        l.lastOutcome === "callback" &&
+        (listId === undefined || l.listId === listId),
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.callbackAt ?? 0).getTime() -
+        new Date(b.callbackAt ?? 0).getTime(),
+    )
+    .map((l) => ({
+      ...l,
+      due: l.callbackAt !== null && new Date(l.callbackAt) <= new Date(),
+    }));
+}
+
 export function demoCallQueue(id: number, filter: string) {
   const leads = demoCallLeads(id);
   const keep =

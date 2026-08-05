@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 
@@ -223,6 +224,62 @@ export function stageOf(outcome: CallOutcome | null): CallStage {
 }
 
 export type BoardCard = SheetLead & { stage: CallStage };
+
+/**
+ * Every lead waiting to be rung back, soonest first.
+ *
+ * Across all the lists, because a callback is a promise made at a time, not a
+ * property of the niche it came from: at 3pm you want everyone owed a call by
+ * 3pm, whichever list they are on. Overdue ones sort to the top for the same
+ * reason. A callback with no time set — the API defaults one, but a corrected
+ * outcome can leave it null — sorts last rather than being dropped.
+ */
+export type CallbackLead = SheetLead & {
+  /** Whether the time has passed, decided by the database's clock. Read off a
+   *  row rather than recomputed while rendering: `Date.now()` during render is
+   *  impure, and the server and the browser would answer differently for a
+   *  callback due within a minute of the page loading. */
+  due: boolean;
+};
+
+export async function getCallbacks(listId?: number): Promise<CallbackLead[]> {
+  const inList = listId ? sql`and l.call_list_id = ${listId}` : sql``;
+
+  const rows = (await db.execute(sql`
+    select ${leadColumns}, cl.id as list_id, cl.name as list_name,
+      coalesce(lc.callback_at <= now(), false) as due
+    from call_lead l
+    join call_list cl on cl.id = l.call_list_id
+    ${latestCall}
+    where l.duplicate_of_lead_id is null
+      ${inList}
+      and lc.outcome = 'callback'
+    order by lc.callback_at asc nulls last, l.id asc
+    limit ${CALL_SHEET_LIMIT}
+  `)) as Row[];
+
+  return rows.map((r) => ({
+    ...toLead(r),
+    listId: n(r.list_id),
+    listName: String(r.list_name),
+    due: r.due === true,
+  }));
+}
+
+/** How many callbacks are owed right now — the sidebar badge. Cached because
+ *  the sidebar and `PageShell` both ask while rendering one page, the same
+ *  reason `countUnreadReplies` is. */
+export const countCallbacksDue = cache(async (): Promise<number> => {
+  const [row] = (await db.execute(sql`
+    select count(l.id) as n
+    from call_lead l
+    ${latestCall}
+    where l.duplicate_of_lead_id is null
+      and lc.outcome = 'callback'
+      and lc.callback_at <= now()
+  `)) as Row[];
+  return n(row?.n);
+});
 
 /** Cards kept per column. A list of a thousand uncalled numbers is a queue,
  *  not a board, and rendering it as one helps nobody — the column says how
