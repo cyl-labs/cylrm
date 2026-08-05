@@ -505,8 +505,9 @@ export function demoCallListSummaries() {
       createdAt: ago(l.id === 9501 ? 4 : 26).toISOString(),
       total: leads.length,
       uncalled: by((o) => o === null),
-      working: by((o) => o !== null && !TERMINAL_DEMO.includes(o)),
-      closed: by((o) => o !== null && TERMINAL_DEMO.includes(o)),
+      calledToday: leads.filter((x) => x.lastOutcome !== null).length,
+      toRetry: by((o) => o !== null && ["no_answer", "voicemail", "gatekeeper"].includes(o)),
+      ruledOut: by((o) => o !== null && ["not_interested", "bad_number", "lost"].includes(o)),
       demoBooked: by((o) => o === "demo_booked"),
       trials: by((o) => o === "trial"),
       won: by((o) => o === "won"),
@@ -517,8 +518,7 @@ export function demoCallListSummaries() {
 }
 
 export function demoCallListDetail(id: number) {
-  const found = demoCallListSummaries().find((l) => l.id === id);
-  return found ? { ...found, calledToday: 6 } : null;
+  return demoCallListSummaries().find((l) => l.id === id) ?? null;
 }
 
 /** Every demo lead as spreadsheet rows: by list, then company, the same order

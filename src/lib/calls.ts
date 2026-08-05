@@ -46,10 +46,15 @@ export type CallListSummary = {
   total: number;
   /** Never dialled. */
   uncalled: number;
-  /** Dialled, still in the queue (no answer, voicemail, gatekeeper, callback). */
-  working: number;
-  /** Finished with — everything from a booked demo onwards, plus the noes. */
-  closed: number;
+  /** Calls logged today — is anyone actually working this list. */
+  calledToday: number;
+  /** Rung, nobody reached, still worth ringing: no answer, voicemail,
+   *  gatekeeper. Callbacks are counted separately — they have a time. */
+  toRetry: number;
+  /** Said no, or the line was wrong, or a trial that did not convert. Named
+   *  for what happened rather than "closed", which counted a booked demo as
+   *  finished business alongside a wrong number. */
+  ruledOut: number;
   demoBooked: number;
   /** In a trial, or signed. What the calling is actually for. */
   trials: number;
@@ -68,8 +73,16 @@ export async function getCallLists(): Promise<CallListSummary[]> {
     select cl.id, cl.name, cl.niche, cl.created_at,
       count(l.id) as total,
       count(l.id) filter (where lc.outcome is null) as uncalled,
-      count(l.id) filter (where lc.outcome is not null and lc.outcome not in ${TERMINAL}) as working,
-      count(l.id) filter (where lc.outcome in ${TERMINAL}) as closed,
+      count(l.id) filter (
+        where lc.outcome in ('no_answer','voicemail','gatekeeper')
+      ) as to_retry,
+      count(l.id) filter (
+        where lc.outcome in ('not_interested','bad_number','lost')
+      ) as ruled_out,
+      (select count(*) from call c
+        join call_lead cll on cll.id = c.call_lead_id
+        where cll.call_list_id = cl.id
+          and c.called_at >= date_trunc('day', now())) as called_today,
       count(l.id) filter (where lc.outcome = 'demo_booked') as demo_booked,
       count(l.id) filter (where lc.outcome = 'trial') as trials,
       count(l.id) filter (where lc.outcome = 'won') as won,
@@ -91,8 +104,9 @@ export async function getCallLists(): Promise<CallListSummary[]> {
     createdAt: new Date(r.created_at as string).toISOString(),
     total: n(r.total),
     uncalled: n(r.uncalled),
-    working: n(r.working),
-    closed: n(r.closed),
+    calledToday: n(r.called_today),
+    toRetry: n(r.to_retry),
+    ruledOut: n(r.ruled_out),
     demoBooked: n(r.demo_booked),
     trials: n(r.trials),
     won: n(r.won),
@@ -366,17 +380,20 @@ export async function getCallQueue(
   return rows.map(toLead);
 }
 
+/** The summary is already everything the detail screen shows; it stays a
+ *  named type because the dialler reads a handful of fields and the list of
+ *  them is worth stating. */
 export type CallListDetail = {
   id: number;
   name: string;
   niche: string | null;
-  calledToday: number;
 } & Pick<
   CallListSummary,
   | "total"
   | "uncalled"
-  | "working"
-  | "closed"
+  | "calledToday"
+  | "toRetry"
+  | "ruledOut"
   | "demoBooked"
   | "trials"
   | "won"
@@ -385,19 +402,12 @@ export type CallListDetail = {
 >;
 
 export async function getCallList(id: number): Promise<CallListDetail | null> {
+  // `called_today` comes back with the summary now, so there is no second
+  // query and no chance of the card and the detail screen disagreeing.
   const lists = await getCallLists();
-  const found = lists.find((l) => l.id === id);
-  if (!found) return null;
-
-  const [today] = (await db.execute(sql`
-    select count(*) as called_today
-    from call c
-    join call_lead l on l.id = c.call_lead_id
-    where l.call_list_id = ${id} and c.called_at >= date_trunc('day', now())
-  `)) as Row[];
-
-  return { ...found, calledToday: n(today?.called_today) };
+  return lists.find((l) => l.id === id) ?? null;
 }
+
 
 /**
  * Comparison form of a number: digits only, with bare Singapore numbers

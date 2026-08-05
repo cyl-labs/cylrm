@@ -61,12 +61,14 @@ export default async function CallListPage({
 
           <div className="mt-3 grid grid-cols-4 gap-2 text-center">
             {[
-              { label: "Today", value: list.calledToday },
+              { label: "Called today", value: list.calledToday },
               { label: "Never called", value: list.uncalled },
-              // Everything past the demo, counted together: a tile reading
-              // "Demos: 0" the moment one turns into a trial would be wrong.
+              // Everything from the demo onwards, counted together and named
+              // for what it counts. "Positive" said nothing, and a tile
+              // reading "Demos: 0" the moment one became a trial would be
+              // worse than saying nothing.
               {
-                label: "Positive",
+                label: "Got a demo",
                 value: list.demoBooked + list.trials + list.won,
               },
               { label: "Callbacks due", value: list.callbacksDue },

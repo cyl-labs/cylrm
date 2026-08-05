@@ -56,7 +56,8 @@ export default async function CallsPage() {
                       </div>
                       {l.callbacksDue > 0 && (
                         <Badge className="ml-auto shrink-0">
-                          {l.callbacksDue} due
+                          {l.callbacksDue} callback
+                          {l.callbacksDue === 1 ? "" : "s"} due
                         </Badge>
                       )}
                     </div>
@@ -73,10 +74,19 @@ export default async function CallsPage() {
                         ` · ${l.duplicates} already on another list`}
                     </p>
 
+                    {/* Each tag says what happened to a lead, not what stage
+                        a piece of jargon puts it in. "In progress" and
+                        "closed" said neither: closed counted a booked demo
+                        and a wrong number as the same thing. Tags with a zero
+                        are left off — a card should carry facts, not a grid
+                        of noughts. */}
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {l.won > 0 && (
-                        <Badge variant="default">{l.won} won</Badge>
+                      {l.calledToday > 0 && (
+                        <Badge variant="secondary">
+                          {l.calledToday} called today
+                        </Badge>
                       )}
+                      {l.won > 0 && <Badge variant="default">{l.won} won</Badge>}
                       {l.trials > 0 && (
                         <Badge variant="default">{l.trials} in trial</Badge>
                       )}
@@ -85,11 +95,11 @@ export default async function CallsPage() {
                           {l.demoBooked} {l.demoBooked === 1 ? "demo" : "demos"}
                         </Badge>
                       )}
-                      {l.working > 0 && (
-                        <Badge variant="secondary">{l.working} in progress</Badge>
+                      {l.toRetry > 0 && (
+                        <Badge variant="outline">{l.toRetry} to try again</Badge>
                       )}
-                      {l.closed > 0 && (
-                        <Badge variant="outline">{l.closed} closed</Badge>
+                      {l.ruledOut > 0 && (
+                        <Badge variant="outline">{l.ruledOut} ruled out</Badge>
                       )}
                     </div>
                   </Link>
