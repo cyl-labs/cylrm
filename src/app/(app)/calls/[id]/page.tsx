@@ -62,6 +62,14 @@ export default async function CallListPage({
     { label: "ruled out", value: list.ruledOut },
   ].filter((part) => part.value > 0);
 
+  // Today's calls, partitioned the same way the leads are. Every call today is
+  // exactly one of these.
+  const today = [
+    { label: "spoke to someone", value: list.conversationsToday },
+    { label: "no answer", value: list.noAnswerToday },
+    { label: "bad number", value: list.badNumbersToday },
+  ].filter((part) => part.value > 0);
+
   return (
     <PageShell title={list.name}>
       <div className="border-b bg-card">
@@ -110,6 +118,20 @@ export default async function CallListPage({
               </span>
             ))}
           </p>
+          {list.calledToday > 0 && (
+            <p className="mt-0.5 text-[12px] text-muted-foreground">
+              {list.calledToday} today ={" "}
+              {today.map((part, i) => (
+                <span key={part.label}>
+                  {i > 0 && " + "}
+                  <span className="font-semibold tabular-nums">
+                    {part.value}
+                  </span>{" "}
+                  {part.label}
+                </span>
+              ))}
+            </p>
+          )}
 
           <div className="mt-3 flex items-center gap-2">
             <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">

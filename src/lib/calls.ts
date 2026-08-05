@@ -31,6 +31,14 @@ const TERMINAL = sql`('not_interested','demo_booked','trial','won','lost','bad_n
  */
 const CALLBACK_DUE = sql`(lc.callback_at is null or lc.callback_at <= now())`;
 
+/** Calls are made in Singapore, so "today" is a Singapore day — a 7am call
+ *  would otherwise count against yesterday, the droplet being on UTC. */
+const CALL_TZ = "Asia/Singapore";
+
+/** Somebody answered. Gatekeeper counts: a receptionist is a person, and
+ *  getting past one is the job. Mirrors PICKUP in call-stats. */
+const SPOKE_TO = sql`('gatekeeper','callback','not_interested','demo_booked','trial','won','lost')`;
+
 /**
  * The most recent call per lead.
  *
@@ -56,8 +64,15 @@ export type CallListSummary = {
   total: number;
   /** Never dialled. */
   uncalled: number;
-  /** Calls logged today — is anyone actually working this list. */
+  /** Calls logged today — is anyone actually working this list. The three
+   *  below partition it: every call today is exactly one of them. */
   calledToday: number;
+  /** Somebody answered. */
+  conversationsToday: number;
+  /** Rang out or went to voicemail. */
+  noAnswerToday: number;
+  /** The number was wrong. */
+  badNumbersToday: number;
   /** Rung, nobody reached, still worth ringing: no answer, voicemail,
    *  gatekeeper. Callbacks are counted separately — they have a time. */
   toRetry: number;
@@ -97,7 +112,26 @@ export async function getCallLists(): Promise<CallListSummary[]> {
       (select count(*) from call c
         join call_lead cll on cll.id = c.call_lead_id
         where cll.call_list_id = cl.id
-          and c.called_at >= date_trunc('day', now())) as called_today,
+          and (c.called_at at time zone ${CALL_TZ})::date
+              = (now() at time zone ${CALL_TZ})::date) as called_today,
+      (select count(*) from call c
+        join call_lead cll on cll.id = c.call_lead_id
+        where cll.call_list_id = cl.id
+          and (c.called_at at time zone ${CALL_TZ})::date
+              = (now() at time zone ${CALL_TZ})::date
+          and c.outcome in ${SPOKE_TO}) as conversations_today,
+      (select count(*) from call c
+        join call_lead cll on cll.id = c.call_lead_id
+        where cll.call_list_id = cl.id
+          and (c.called_at at time zone ${CALL_TZ})::date
+              = (now() at time zone ${CALL_TZ})::date
+          and c.outcome in ('no_answer','voicemail')) as no_answer_today,
+      (select count(*) from call c
+        join call_lead cll on cll.id = c.call_lead_id
+        where cll.call_list_id = cl.id
+          and (c.called_at at time zone ${CALL_TZ})::date
+              = (now() at time zone ${CALL_TZ})::date
+          and c.outcome = 'bad_number') as bad_numbers_today,
       count(l.id) filter (where lc.outcome = 'demo_booked') as demo_booked,
       count(l.id) filter (where lc.outcome = 'trial') as trials,
       count(l.id) filter (where lc.outcome = 'won') as won,
@@ -123,6 +157,9 @@ export async function getCallLists(): Promise<CallListSummary[]> {
     total: n(r.total),
     uncalled: n(r.uncalled),
     calledToday: n(r.called_today),
+    conversationsToday: n(r.conversations_today),
+    noAnswerToday: n(r.no_answer_today),
+    badNumbersToday: n(r.bad_numbers_today),
     toRetry: n(r.to_retry),
     ruledOut: n(r.ruled_out),
     demoBooked: n(r.demo_booked),
@@ -418,6 +455,9 @@ export type CallListDetail = {
   | "total"
   | "uncalled"
   | "calledToday"
+  | "conversationsToday"
+  | "noAnswerToday"
+  | "badNumbersToday"
   | "toRetry"
   | "ruledOut"
   | "demoBooked"

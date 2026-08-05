@@ -46,10 +46,33 @@ export type ListStat = {
   won: number;
 };
 
-const since = (days: number | null): SQL =>
-  days === null
-    ? sql`true`
-    : sql`c.called_at >= now() - ${`${days} days`}::interval`;
+/** Calls are made in Singapore, so a "day" is a Singapore day. Bucketing by
+ *  UTC put a 7am call on the previous day's bar. */
+const CALL_TZ = "Asia/Singapore";
+
+/**
+ * What slice of time the numbers cover.
+ *
+ * `rolling` is the last N days up to this moment; `day` is one calendar day in
+ * Singapore, which is what "how did we do today" means and what a rolling
+ * 24-hour window does not.
+ */
+export type StatsWindow =
+  | { kind: "all" }
+  | { kind: "rolling"; days: number }
+  | { kind: "day"; date: string };
+
+/** Today in Singapore, as YYYY-MM-DD — the default for a day picker's max. */
+export const todayInCallTz = () =>
+  new Date().toLocaleDateString("en-CA", { timeZone: CALL_TZ });
+
+const since = (w: StatsWindow): SQL => {
+  if (w.kind === "all") return sql`true`;
+  if (w.kind === "day") {
+    return sql`(c.called_at at time zone ${CALL_TZ})::date = ${w.date}::date`;
+  }
+  return sql`c.called_at >= now() - ${`${w.days} days`}::interval`;
+};
 
 /** Narrow to one niche. Joining through the lead is the only route — `call`
  *  has no list of its own, by design. */
@@ -62,7 +85,7 @@ const inList = (listId?: number): SQL =>
     : sql``;
 
 export async function getCallTotals(
-  days: number | null,
+  w: StatsWindow,
   listId?: number,
 ): Promise<CallTotals> {
   const [row] = (await db.execute(sql`
@@ -79,7 +102,7 @@ export async function getCallTotals(
       count(distinct c.call_lead_id) filter (where c.outcome = 'lost') as lost,
       count(distinct c.call_lead_id) filter (where c.outcome = 'bad_number') as bad_numbers
     from call c
-    where ${since(days)} ${inList(listId)}
+    where ${since(w)} ${inList(listId)}
   `)) as Row[];
 
   return {
@@ -95,13 +118,13 @@ export async function getCallTotals(
 }
 
 export async function getOutcomeCounts(
-  days: number | null,
+  w: StatsWindow,
   listId?: number,
 ): Promise<OutcomeCount[]> {
   const rows = (await db.execute(sql`
     select c.outcome, count(*) as calls
     from call c
-    where ${since(days)} ${inList(listId)}
+    where ${since(w)} ${inList(listId)}
     group by c.outcome
     order by count(*) desc
   `)) as Row[];
@@ -120,23 +143,23 @@ export async function getOutcomeCounts(
  * last seven days. The column headings say so.
  */
 export async function getListStats(
-  days: number | null,
+  w: StatsWindow,
   listId?: number,
 ): Promise<ListStat[]> {
   const rows = (await db.execute(sql`
     select cl.id, cl.name,
       count(distinct l.id) as leads,
       count(distinct l.id) filter (where ever.called) as worked,
-      count(c.id) filter (where ${since(days)}) as calls,
-      count(c.id) filter (where ${since(days)} and c.outcome in ${PICKUP}) as pickups,
+      count(c.id) filter (where ${since(w)}) as calls,
+      count(c.id) filter (where ${since(w)} and c.outcome in ${PICKUP}) as pickups,
       count(distinct c.call_lead_id) filter (
-        where ${since(days)} and c.outcome = 'demo_booked'
+        where ${since(w)} and c.outcome = 'demo_booked'
       ) as demos,
       count(distinct c.call_lead_id) filter (
-        where ${since(days)} and c.outcome = 'trial'
+        where ${since(w)} and c.outcome = 'trial'
       ) as trials,
       count(distinct c.call_lead_id) filter (
-        where ${since(days)} and c.outcome = 'won'
+        where ${since(w)} and c.outcome = 'won'
       ) as won
     from call_list cl
     left join call_lead l
@@ -182,14 +205,17 @@ export async function getCallsByDay(
       count(c.id) as calls,
       count(c.id) filter (where c.outcome in ${PICKUP}) as pickups
     from generate_series(
-      date_trunc('day', now()) - ${`${days - 1} days`}::interval,
-      date_trunc('day', now()),
+      -- The cast is load-bearing: an untyped parameter here resolves as a
+      -- date, and date minus date is an integer, so generate_series was
+      -- handed an int where it wanted a date.
+      (now() at time zone ${CALL_TZ})::date - ${days - 1}::int,
+      (now() at time zone ${CALL_TZ})::date,
       '1 day'
     ) d
     -- The niche clause belongs in the join, not a WHERE: filtering after the
     -- LEFT JOIN would drop the empty days this series exists to keep.
     left join call c
-      on date_trunc('day', c.called_at) = d
+      on (c.called_at at time zone ${CALL_TZ})::date = d::date
       and (${listId ?? null}::int is null or exists (
         select 1 from call_lead l
         where l.id = c.call_lead_id and l.call_list_id = ${listId ?? null}
@@ -199,7 +225,9 @@ export async function getCallsByDay(
   `)) as Row[];
 
   return rows.map((r) => ({
-    day: new Date(r.day as string).toISOString().slice(0, 10),
+    // Already a Singapore calendar date; formatting it through a Date would
+    // shift it back into UTC and undo the point of the query.
+    day: String(r.day).slice(0, 10),
     calls: n(r.calls),
     pickups: n(r.pickups),
   }));

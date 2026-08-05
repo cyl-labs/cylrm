@@ -73,6 +73,24 @@ export default async function CallsPage() {
                       {l.duplicates > 0 &&
                         ` · ${l.duplicates} already on another list`}
                     </p>
+                    {/* "24 called today" said nothing about whether anyone was
+                        spoken to. The three parts sum to the total, so the
+                        day reads as what it was. */}
+                    {l.calledToday > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Today: {l.calledToday}{" "}
+                        {l.calledToday === 1 ? "call" : "calls"} ·{" "}
+                        <span className="font-semibold text-foreground">
+                          {l.conversationsToday} spoke to someone
+                        </span>
+                        {l.noAnswerToday > 0 &&
+                          ` · ${l.noAnswerToday} no answer`}
+                        {l.badNumbersToday > 0 &&
+                          ` · ${l.badNumbersToday} bad ${
+                            l.badNumbersToday === 1 ? "number" : "numbers"
+                          }`}
+                      </p>
+                    )}
 
                     {/* Each tag says what happened to a lead, not what stage
                         a piece of jargon puts it in. "In progress" and
@@ -81,11 +99,6 @@ export default async function CallsPage() {
                         are left off — a card should carry facts, not a grid
                         of noughts. */}
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {l.calledToday > 0 && (
-                        <Badge variant="secondary">
-                          {l.calledToday} called today
-                        </Badge>
-                      )}
                       {l.won > 0 && <Badge variant="default">{l.won} won</Badge>}
                       {l.trials > 0 && (
                         <Badge variant="default">{l.trials} in trial</Badge>

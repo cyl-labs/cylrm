@@ -1,24 +1,52 @@
 import { getCallLists } from "@/lib/calls";
+import Link from "next/link";
 import {
   getCallTotals,
   getCallsByDay,
   getListStats,
   getOutcomeCounts,
+  todayInCallTz,
+  type StatsWindow,
 } from "@/lib/call-stats";
 import { isDemoMode } from "@/lib/demo";
 import { demoCallListSummaries, demoCallStats } from "@/lib/demo-data";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { PageShell } from "@/components/page-shell";
+import { cn } from "@/lib/utils";
 import { CallFilters } from "@/components/calls/call-filters";
 
 export const dynamic = "force-dynamic";
 
-const RANGES: Record<string, number | null> = {
-  "7": 7,
-  "30": 30,
-  "90": 90,
-  all: null,
-};
+/** A Singapore date, N days back from today there. */
+function dayBack(n: number) {
+  const today = todayInCallTz();
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** `?range=` for a rolling window or a named day, `?day=` for any other. Only
+ *  one is ever in force. */
+function windowFor(range: string, day: string | undefined): StatsWindow {
+  if (day) return { kind: "day", date: day };
+  if (range === "today") return { kind: "day", date: todayInCallTz() };
+  if (range === "yesterday") return { kind: "day", date: dayBack(1) };
+  if (range === "all") return { kind: "all" };
+  return { kind: "rolling", days: Number(range) };
+}
+
+const RANGE_KEYS = new Set(["today", "yesterday", "7", "30", "90", "all"]);
+const isDay = (v: string | undefined): v is string =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+const dayLabel = (date: string) =>
+  new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
 const pct = (num: number, den: number) =>
   den === 0 ? "—" : `${((num / den) * 100).toFixed(1)}%`;
@@ -30,11 +58,12 @@ const CARD = "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05
 export default async function CallStatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; list?: string }>;
+  searchParams: Promise<{ range?: string; list?: string; day?: string }>;
 }) {
-  const { range: raw, list } = await searchParams;
-  const range = raw && raw in RANGES ? raw : "30";
-  const days = RANGES[range];
+  const { range: raw, list, day: rawDay } = await searchParams;
+  const day = isDay(rawDay) ? rawDay : undefined;
+  const range = raw && RANGE_KEYS.has(raw) ? raw : "30";
+  const w = windowFor(range, day);
 
   const demo = await isDemoMode();
   const allLists = demo ? demoCallListSummaries() : await getCallLists();
@@ -47,9 +76,9 @@ export default async function CallStatsPage({
     ? demoCallStats(listId)
     : await (async () => {
         const [totals, outcomes, lists, byDay] = await Promise.all([
-          getCallTotals(days, listId),
-          getOutcomeCounts(days, listId),
-          getListStats(days, listId),
+          getCallTotals(w, listId),
+          getOutcomeCounts(w, listId),
+          getListStats(w, listId),
           getCallsByDay(14, listId),
         ]);
         return { totals, outcomes, lists, byDay };
@@ -94,10 +123,27 @@ export default async function CallStatsPage({
           lists={allLists.map((l) => ({ id: l.id, name: l.name }))}
           listId={listId ?? "all"}
           range={range}
+          day={w.kind === "day" ? w.date : undefined}
+          maxDay={todayInCallTz()}
         />
       }
     >
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
+        {w.kind === "day" && (
+          <p className="text-[13px] text-muted-foreground">
+            Showing <span className="font-bold">{dayLabel(w.date)}</span> only,
+            Singapore time.{" "}
+            <Link
+              href={`/call-stats?${new URLSearchParams({
+                ...(listId ? { list: String(listId) } : {}),
+                range: "30",
+              })}`}
+              className="font-semibold text-primary hover:underline"
+            >
+              Back to the last 30 days
+            </Link>
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {tiles.map((t) => (
             <div key={t.label} className={`${CARD} px-4 py-3`}>
@@ -167,39 +213,63 @@ export default async function CallStatsPage({
                 Last 14 days
               </p>
               <p className="mt-0.5 text-[11px] text-muted-foreground/75">
-                Always the last fortnight, whatever the range above says.
+                Always the last fortnight, whatever the range above says. Tap a
+                day to see just that day.
               </p>
             </div>
             <div className="flex items-end gap-1 px-5 py-4">
-              {byDay.map((d) => (
-                <div key={d.day} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                  <span className="text-[10px] tabular-nums text-muted-foreground">
-                    {d.calls || ""}
-                  </span>
-                  {/* No track behind the bar: a full-height grey box on a day
-                      with no calls reads as a day with some. */}
-                  <div
-                    className="flex w-full flex-col justify-end border-b"
-                    style={{ height: 64 }}
+              {byDay.map((d) => {
+                const picked = w.kind === "day" && w.date === d.day;
+                return (
+                  // A link, not a button: the chart is rendered on the server
+                  // and picking a day is just another URL.
+                  <Link
+                    key={d.day}
+                    href={`/call-stats?${new URLSearchParams({
+                      ...(listId ? { list: String(listId) } : {}),
+                      // Clicking the day already showing clears back to the
+                      // fortnight, so the chart is its own way out.
+                      ...(picked ? { range: "30" } : { day: d.day }),
+                    })}`}
+                    scroll={false}
                     title={`${d.day}: ${d.calls} calls, ${d.pickups} pickups`}
+                    className={cn(
+                      "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-md py-1 transition-colors hover:bg-muted",
+                      picked && "bg-primary/10 hover:bg-primary/10",
+                    )}
                   >
+                    <span className="text-[10px] tabular-nums text-muted-foreground">
+                      {d.calls || ""}
+                    </span>
+                    {/* No track behind the bar: a full-height grey box on a
+                        day with no calls reads as a day with some. */}
                     <div
-                      className="flex w-full flex-col justify-end rounded-sm bg-primary/25"
-                      style={{ height: `${(d.calls / busiest) * 100}%` }}
+                      className="flex w-full flex-col justify-end border-b"
+                      style={{ height: 64 }}
                     >
                       <div
-                        className="w-full rounded-sm bg-primary"
-                        style={{
-                          height: `${d.calls === 0 ? 0 : (d.pickups / d.calls) * 100}%`,
-                        }}
-                      />
+                        className="flex w-full flex-col justify-end rounded-sm bg-primary/25"
+                        style={{ height: `${(d.calls / busiest) * 100}%` }}
+                      >
+                        <div
+                          className="w-full rounded-sm bg-primary"
+                          style={{
+                            height: `${d.calls === 0 ? 0 : (d.pickups / d.calls) * 100}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-[10px] tabular-nums text-muted-foreground/70">
-                    {d.day.slice(8)}
-                  </span>
-                </div>
-              ))}
+                    <span
+                      className={cn(
+                        "text-[10px] tabular-nums text-muted-foreground/70",
+                        picked && "font-bold text-primary",
+                      )}
+                    >
+                      {d.day.slice(8)}
+                    </span>
+                  </Link>
+                );
+              })}
             </div>
             <p className="px-5 pb-4 text-[11px] text-muted-foreground/75">
               Solid is pickups, pale is the rest of the calls.
