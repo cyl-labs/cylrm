@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 const OUTCOMES = [
   "no_answer",
   "voicemail",
+  "gatekeeper",
   "callback",
   "not_interested",
   "demo_booked",

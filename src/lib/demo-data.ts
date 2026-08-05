@@ -435,7 +435,7 @@ const CALL_COMPANIES = [
 ];
 
 const CALL_OUTCOMES = [
-  "no_answer", "voicemail", "callback",
+  "no_answer", "voicemail", "gatekeeper", "callback",
   "not_interested", "demo_booked", "trial", "won", "lost", "bad_number",
 ] as const;
 
@@ -476,7 +476,9 @@ function demoCallLeads(listId: number) {
       callbackAt:
         outcome === "callback" ? new Date(Date.now() - DAY / 2).toISOString() : null,
       lastNotes:
-        outcome === "callback"
+        outcome === "gatekeeper"
+          ? "Receptionist took a message, owner back Tuesday."
+          : outcome === "callback"
             ? "Asked to try again after lunch."
             : null,
     });
@@ -564,6 +566,7 @@ export function demoCallStats(listId?: number) {
   );
   const called = leads.filter((l) => l.lastOutcome !== null);
   const PICKUP = [
+    "gatekeeper",
     "callback",
     "not_interested",
     "demo_booked",
@@ -579,6 +582,7 @@ export function demoCallStats(listId?: number) {
     [
       "no_answer",
       "voicemail",
+      "gatekeeper",
       "callback",
       "not_interested",
       "demo_booked",

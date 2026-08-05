@@ -7,6 +7,7 @@ const n = (v: unknown) => Number(v ?? 0);
 export type CallOutcome =
   | "no_answer"
   | "voicemail"
+  | "gatekeeper"
   | "callback"
   | "not_interested"
   | "demo_booked"
@@ -44,7 +45,7 @@ export type CallListSummary = {
   total: number;
   /** Never dialled. */
   uncalled: number;
-  /** Dialled, still in the queue (no answer, voicemail, callback). */
+  /** Dialled, still in the queue (no answer, voicemail, gatekeeper, callback). */
   working: number;
   /** Finished with — everything from a booked demo onwards, plus the noes. */
   closed: number;
