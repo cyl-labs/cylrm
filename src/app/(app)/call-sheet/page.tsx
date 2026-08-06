@@ -42,9 +42,15 @@ export default async function CallSheetPage({
       ) : (
         <LeadsGrid
           leads={leads}
-          // Lists with nothing in them still get a tab: an empty sheet is a
-          // fact about the list, not a reason to hide it.
-          lists={lists.map((l) => ({ id: l.id, name: l.name }))}
+          // Only niches somebody has called get a tab. Fifteen of them, most
+          // never rung, made the strip something to scroll past rather than
+          // read. The one arrived at from a list's own Spreadsheet button
+          // keeps its tab either way, so that link never lands on a tab that
+          // is not there — and every lead is still on "All leads" and still
+          // findable by search.
+          lists={lists
+            .filter((l) => l.total - l.uncalled > 0 || l.id === initialTab)
+            .map((l) => ({ id: l.id, name: l.name }))}
           initialTab={initialTab}
           truncated={leads.length >= CALL_SHEET_LIMIT}
           demo={demo}
