@@ -231,11 +231,12 @@ export type SheetLead = QueueLead & { listId: number; listName: string };
 export const CALL_SHEET_LIMIT = 5000;
 
 /**
- * Every lead in the Call CRM, in spreadsheet order.
+ * Every lead in the Call CRM, most recently called first.
  *
- * Deliberately not the queue's order: the queue answers "who do I ring next",
- * the sheet answers "what is on these lists", so it reads by list and then
- * alphabetically by company, the way the imported CSV would.
+ * The sheet is opened after a session as often as before one — "what did I
+ * just do", "what did that number come to" — and an alphabetical wall of
+ * companies answered neither. Leads never rung sort last, in list and company
+ * order, because that is browsing rather than reviewing.
  *
  * Duplicates stay out for the same reason they stay out of the queue — the
  * row is a second copy of a number already on another list, and showing it
@@ -248,7 +249,8 @@ export async function getSheetLeads(): Promise<SheetLead[]> {
     join call_list cl on cl.id = l.call_list_id
     ${latestCall}
     where l.duplicate_of_lead_id is null
-    order by cl.name asc,
+    order by lc.called_at desc nulls last,
+      cl.name asc,
       coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) asc,
       l.id asc
     limit ${CALL_SHEET_LIMIT}

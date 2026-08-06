@@ -9,12 +9,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+/** Four, not six. Yesterday and any other recent day are one tap on the
+ *  fortnight chart, which is a better day picker than a list of days. */
 const RANGES = [
   { value: "today", label: "Today" },
-  { value: "yesterday", label: "Yesterday" },
   { value: "7", label: "Last 7 days" },
   { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
   { value: "all", label: "All time" },
 ];
 
@@ -30,17 +30,14 @@ export function CallFilters({
   listId,
   range,
   day,
-  maxDay,
 }: {
   lists: { id: number; name: string }[];
   listId: number | "all";
   /** Omitted on screens with no date range, like the board. */
   range?: string;
-  /** A single Singapore day, YYYY-MM-DD, when one is picked. It replaces the
-   *  range rather than narrowing it, so only one of the two is ever set. */
+  /** A single Singapore day, YYYY-MM-DD, when one is picked off the chart. It
+   *  replaces the range rather than narrowing it, so only one is ever set. */
   day?: string;
-  /** Today in Singapore — no point offering tomorrow. */
-  maxDay?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -100,18 +97,6 @@ export function CallFilters({
               )}
             </SelectContent>
           </Select>
-          {/* Any single day, for the ones the shortcuts and the chart do not
-              cover. Native, so a phone gets its own date wheel. */}
-          <input
-            type="date"
-            aria-label="A specific day"
-            value={day ?? ""}
-            max={maxDay}
-            onChange={(e) =>
-              go({ day: e.target.value || null, range: e.target.value ? undefined : "7" })
-            }
-            className="h-8 rounded-md border bg-transparent px-2 text-[13px] shadow-xs"
-          />
         </>
       )}
     </>

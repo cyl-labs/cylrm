@@ -35,6 +35,8 @@ function windowFor(range: string, day: string | undefined): StatsWindow {
   return { kind: "rolling", days: Number(range) };
 }
 
+// "yesterday" and "90" are gone from the picker but still honoured: a
+// bookmarked URL should not silently become something else.
 const RANGE_KEYS = new Set(["today", "yesterday", "7", "30", "90", "all"]);
 const isDay = (v: string | undefined): v is string =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -71,6 +73,13 @@ export default async function CallStatsPage({
   // than reporting zeroes as if the calling had stopped.
   const wanted = Number(list);
   const listId = allLists.some((l) => l.id === wanted) ? wanted : undefined;
+
+  // A niche nobody has rung has nothing to report, and fourteen of them made
+  // the picker a wall. The one in force stays listed even if it is empty, so
+  // the control never shows a blank.
+  const nicheOptions = allLists.filter(
+    (l) => l.total - l.uncalled > 0 || l.id === listId,
+  );
 
   const { totals, outcomes, lists, byDay } = demo
     ? demoCallStats(listId)
@@ -120,11 +129,10 @@ export default async function CallStatsPage({
       title="Call stats"
       actions={
         <CallFilters
-          lists={allLists.map((l) => ({ id: l.id, name: l.name }))}
+          lists={nicheOptions.map((l) => ({ id: l.id, name: l.name }))}
           listId={listId ?? "all"}
           range={range}
           day={w.kind === "day" ? w.date : undefined}
-          maxDay={todayInCallTz()}
         />
       }
     >

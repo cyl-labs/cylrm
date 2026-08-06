@@ -536,10 +536,10 @@ export function demoCallListDetail(id: number) {
   return demoCallListSummaries().find((l) => l.id === id) ?? null;
 }
 
-/** Every demo lead as spreadsheet rows: by list, then company, the same order
- *  the real sheet uses. */
+/** Every demo lead as spreadsheet rows: most recently called first, then the
+ *  never-called by list and company — the order the real sheet uses. */
 export function demoSheetLeads() {
-  return demoCallLists
+  const rows = demoCallLists
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name))
     .flatMap((list) =>
@@ -551,6 +551,12 @@ export function demoSheetLeads() {
           ),
         ),
     );
+  return rows.sort((a, b) => {
+    if (a.lastCalledAt === b.lastCalledAt) return 0;
+    if (a.lastCalledAt === null) return 1;
+    if (b.lastCalledAt === null) return -1;
+    return b.lastCalledAt.localeCompare(a.lastCalledAt);
+  });
 }
 
 /** The demo board: the same rows as the sheet, staged — exactly what
