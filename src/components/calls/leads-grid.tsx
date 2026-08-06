@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import {
   Check,
   ChevronDown,
+  ChevronRight,
   Copy,
   Download,
+  Folder,
+  FolderOpen,
   Pencil,
   Table2,
 } from "lucide-react";
@@ -321,7 +324,9 @@ export function LeadsGrid({
   demo = false,
 }: {
   leads: SheetLead[];
-  lists: { id: number; name: string }[];
+  /** Every niche. `called` decides whether its tab is out on the strip or
+   *  folded away under "Not called yet". */
+  lists: { id: number; name: string; called: boolean }[];
   /** Which sheet tab to open on — set by `?list=` so the Spreadsheet button
    *  on a call list lands on that list rather than on everything. */
   initialTab?: number | "all";
@@ -332,6 +337,11 @@ export function LeadsGrid({
 }) {
   const router = useRouter();
   const [tab, setTab] = React.useState<number | "all">(initialTab);
+  // The folder starts open when the sheet was opened on a niche inside it —
+  // arriving at a tab hidden in a closed folder looks like the tab has gone.
+  const [showUntouched, setShowUntouched] = React.useState(
+    initialTab !== "all" && lists.some((l) => l.id === initialTab && !l.called),
+  );
   const [category, setCategory] = React.useState<CallCategory | "all">("all");
   const [search, setSearch] = React.useState("");
   const [sel, setSel] = React.useState({ r: 0, c: 0 });
@@ -653,14 +663,16 @@ export function LeadsGrid({
     if (!demo) router.refresh();
   }
 
-  const tabs: { key: number | "all"; label: string; count: number }[] = [
-    { key: "all", label: "All leads", count: rows.length },
-    ...lists.map((l) => ({
-      key: l.id as number | "all",
-      label: l.name,
-      count: rows.filter((r) => r.listId === l.id).length,
-    })),
+  const asTab = (l: { id: number; name: string }) => ({
+    key: l.id as number | "all",
+    label: l.name,
+    count: rows.filter((r) => r.listId === l.id).length,
+  });
+  const tabs = [
+    { key: "all" as number | "all", label: "All leads", count: rows.length },
+    ...lists.filter((l) => l.called).map(asTab),
   ];
+  const untouched = lists.filter((l) => !l.called).map(asTab);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -1026,6 +1038,56 @@ export function LeadsGrid({
             <span className="tabular-nums opacity-60">{t.count}</span>
           </button>
         ))}
+
+        {/* The niches nobody has rung, folded rather than dropped: they are
+            how a new one gets started, but sixteen tabs made the strip
+            something to scroll past instead of read. */}
+        {untouched.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowUntouched((open) => !open)}
+            aria-expanded={showUntouched}
+            className="flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 border-transparent px-2.5 py-1 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted"
+          >
+            {showUntouched ? (
+              <FolderOpen className="size-3.5" strokeWidth={1.9} />
+            ) : (
+              <Folder className="size-3.5" strokeWidth={1.9} />
+            )}
+            Not called yet
+            <span className="tabular-nums opacity-60">{untouched.length}</span>
+            <ChevronRight
+              className={cn(
+                "size-3 transition-transform",
+                showUntouched && "rotate-90",
+              )}
+            />
+          </button>
+        )}
+
+        {showUntouched &&
+          untouched.map((t) => (
+            <button
+              key={String(t.key)}
+              ref={t.key === tab ? activeTabRef : undefined}
+              type="button"
+              onClick={() => {
+                setTab(t.key);
+                setSel({ r: 0, c: 0 });
+                if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+              }}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-2.5 py-1 text-[13px] transition-colors",
+                t.key === tab
+                  ? "border-primary bg-primary/10 font-bold text-primary"
+                  : "border-transparent font-medium text-muted-foreground/80 hover:bg-muted",
+              )}
+            >
+              <Table2 className="size-3.5" strokeWidth={1.9} />
+              {t.label}
+              <span className="tabular-nums opacity-60">{t.count}</span>
+            </button>
+          ))}
       </div>
     </div>
   );
