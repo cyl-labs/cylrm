@@ -54,33 +54,35 @@ type ColKey =
   | "listName"
   | "company"
   | "category"
+  | "lastNotes"
   | "phone"
-  | "name"
-  | "title"
   | "email"
   | "attempts"
   | "lastCalledAt"
-  | "callbackAt"
-  | "lastNotes";
+  | "callbackAt";
 
 /* Company then Category first, and both narrow enough that a 390px phone
    shows them without scrolling — seeing what each lead is classified as is
-   the whole point of this screen. */
+   the whole point of this screen. Notes sits with them, because what was said
+   is the other half of what the outcome means.
+
+   No Contact or Title: the scrapes fill them for about one lead in ten, so on
+   screen they were two columns of white space between the number and the
+   notes. Where they do exist they are still on the dial card, under the
+   company name, which is where they are read. */
 const COLS: { key: ColKey; label: string; w: number; align?: "center" }[] = [
   { key: "company", label: "Company", w: 200 },
   { key: "category", label: "Category", w: 140 },
+  { key: "lastNotes", label: "Notes", w: 300 },
   { key: "phone", label: "Phone", w: 140 },
   { key: "listName", label: "List", w: 160 },
-  { key: "name", label: "Contact", w: 150 },
-  { key: "title", label: "Title", w: 160 },
   { key: "email", label: "Email", w: 220 },
   { key: "attempts", label: "Tries", w: 64, align: "center" },
   { key: "lastCalledAt", label: "Last call", w: 130 },
   { key: "callbackAt", label: "Callback", w: 130 },
-  { key: "lastNotes", label: "Notes", w: 320 },
 ];
 
-type EditableKey = "company" | "phone" | "name" | "title" | "email";
+type EditableKey = "company" | "phone" | "email";
 
 /** Columns that are the lead's own record and can be corrected here — a
  *  scraped number is wrong often enough to be worth fixing in place. The rest
@@ -89,8 +91,6 @@ type EditableKey = "company" | "phone" | "name" | "title" | "email";
 const EDITABLE = new Set<ColKey>([
   "company",
   "phone",
-  "name",
-  "title",
   "email",
 ] satisfies EditableKey[]);
 
@@ -1077,7 +1077,7 @@ export function LeadsGrid({
                               c.key === "attempts" && "tabular-nums",
                               (c.key === "lastCalledAt" ||
                                 c.key === "callbackAt" ||
-                                c.key === "title" ||
+                                c.key === "lastNotes" ||
                                 c.key === "email") &&
                                 "text-muted-foreground",
                               isSel &&
