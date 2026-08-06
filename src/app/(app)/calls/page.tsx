@@ -35,8 +35,13 @@ export default async function CallsPage() {
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {lists.map((l) => {
-              const worked = l.total - l.uncalled;
-              const pct = l.total === 0 ? 0 : Math.round((worked / l.total) * 100);
+              // The bar tracks the queue emptying, not leads touched once.
+              // "35 of 40 worked" over a screen that then asked for 21 more
+              // calls was two different questions wearing the same sentence:
+              // a lead rung and not reached is still work.
+              const leftToCall = l.uncalled + l.toRetry + l.callbacksDue;
+              const done = l.total - leftToCall;
+              const pct = l.total === 0 ? 0 : Math.round((done / l.total) * 100);
               return (
                 <li key={l.id}>
                   <Link
@@ -69,7 +74,10 @@ export default async function CallsPage() {
                       />
                     </div>
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      {worked} of {l.total} worked · {l.uncalled} never called
+                      <span className="font-semibold text-foreground">
+                        {done} of {l.total} done
+                      </span>{" "}
+                      · {leftToCall} left to call · {l.uncalled} new touches
                       {l.duplicates > 0 &&
                         ` · ${l.duplicates} already on another list`}
                     </p>

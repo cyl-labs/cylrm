@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { call, callLead } from "@/db/schema";
 import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
+import { parseCallbackAt } from "@/lib/call-time";
 
 const OUTCOMES = [
   "no_answer",
@@ -59,14 +60,11 @@ export async function POST(request: Request) {
   // caller is mid-flow and should not be stopped by a form error.
   let callbackAt: Date | null = null;
   if (body.outcome === "callback") {
-    const parsed =
-      typeof body.callbackAt === "string" && body.callbackAt !== ""
-        ? new Date(body.callbackAt)
-        : null;
+    // The typed time is Singapore time; see parseCallbackAt for why saying so
+    // matters. No time at all defaults to tomorrow.
     callbackAt =
-      parsed && !Number.isNaN(parsed.getTime())
-        ? parsed
-        : new Date(Date.now() + 24 * 60 * 60 * 1000);
+      parseCallbackAt(body.callbackAt) ??
+      new Date(Date.now() + 24 * 60 * 60 * 1000);
   }
 
   const notes =
@@ -142,16 +140,12 @@ export async function PATCH(request: Request) {
 
   let callbackAt: Date | null = null;
   if (body.outcome === "callback") {
-    const parsed =
-      typeof body.callbackAt === "string" && body.callbackAt !== ""
-        ? new Date(body.callbackAt)
-        : null;
     callbackAt =
-      parsed && !Number.isNaN(parsed.getTime())
-        ? parsed
-        : // Keep the time they already asked for if there was one; a correction
-          // to some other field should not move an agreed callback.
-          (existing?.callbackAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000));
+      parseCallbackAt(body.callbackAt) ??
+      // Keep the time they already asked for if there was one; a correction
+      // to some other field should not move an agreed callback.
+      existing?.callbackAt ??
+      new Date(Date.now() + 24 * 60 * 60 * 1000);
   }
 
   if (!existing) {

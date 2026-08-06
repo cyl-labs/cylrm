@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
 import { dialableNumber } from "@/lib/phone";
+import { callTzDate } from "@/lib/call-time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -72,13 +73,17 @@ function CopyNumber({ phone }: { phone: string }) {
   );
 }
 
+/**
+ * Tomorrow at 10am Singapore time.
+ *
+ * Built from the Singapore date rather than the browser's, because the server
+ * reads whatever this field holds as Singapore time — the two have to mean the
+ * same thing, or the default alone would shift the appointment.
+ */
 function defaultCallbackAt() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(10, 0, 0, 0);
-  // datetime-local wants local time with no zone suffix.
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const sgToday = new Date(`${callTzDate()}T00:00:00Z`);
+  sgToday.setUTCDate(sgToday.getUTCDate() + 1);
+  return `${sgToday.toISOString().slice(0, 10)}T10:00`;
 }
 
 function relative(iso: string | null) {
@@ -169,7 +174,7 @@ function CallForm({
 
       {picked === "callback" && (
         <div className="mt-3 space-y-1.5">
-          <Label htmlFor="callback-at">Call back at</Label>
+          <Label htmlFor="callback-at">Call back at (Singapore time)</Label>
           <Input
             id="callback-at"
             type="datetime-local"
