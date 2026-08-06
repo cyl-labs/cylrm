@@ -3,9 +3,13 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Check,
   ChevronDown,
   ChevronRight,
+  Filter,
   Copy,
   Download,
   Folder,
@@ -36,13 +40,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { dialableNumber } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
@@ -316,6 +313,56 @@ function CategoryMenu({
   );
 }
 
+/**
+ * A column header whose values are a fixed set: it filters rather than sorts.
+ *
+ * The count beside each option is what picking it would show, so a zero says
+ * "nothing here" before the click rather than after it.
+ */
+function HeaderMenu({
+  label,
+  value,
+  active,
+  options,
+  onPick,
+}: {
+  label: string;
+  /** The chosen option, shown in place of the column name while filtered. */
+  value: string | null;
+  active: boolean;
+  options: { key: string; label: string; count: number }[];
+  onPick: (key: string) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        title={`Filter by ${label.toLowerCase()}`}
+        className={cn(
+          "flex h-full w-full items-center gap-1 px-2 text-left hover:bg-muted/60",
+          active && "text-primary",
+        )}
+      >
+        <span className="min-w-0 truncate">{value ?? label}</span>
+        {active ? (
+          <Filter className="size-3 shrink-0 fill-current" />
+        ) : (
+          <ChevronDown className="size-3 shrink-0 opacity-40" />
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
+        {options.map((o) => (
+          <DropdownMenuItem key={o.key} onSelect={() => onPick(o.key)}>
+            {o.label}
+            <span className="ml-auto pl-4 tabular-nums opacity-60">
+              {o.count}
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function LeadsGrid({
   leads,
   lists,
@@ -344,6 +391,10 @@ export function LeadsGrid({
   );
   const [category, setCategory] = React.useState<CallCategory | "all">("all");
   const [search, setSearch] = React.useState("");
+  const [sort, setSort] = React.useState<{
+    key: ColKey;
+    dir: "asc" | "desc";
+  } | null>(null);
   const [sel, setSel] = React.useState({ r: 0, c: 0 });
   const [scrollTop, setScrollTop] = React.useState(0);
   const [viewH, setViewH] = React.useState(600);
@@ -403,7 +454,7 @@ export function LeadsGrid({
     [tab],
   );
 
-  const filtered = React.useMemo(() => {
+  const matching = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     return inTab.filter((l) => {
       if (category !== "all" && categoryOf(l) !== category) return false;
@@ -411,6 +462,37 @@ export function LeadsGrid({
       return cols.some((c) => cellText(l, c.key).toLowerCase().includes(q));
     });
   }, [inTab, cols, category, search]);
+
+  /**
+   * Column sort, or null for the order the server sent — most recently called
+   * first, which is a better default than anything alphabetical and is worth
+   * being able to get back to. Clicking a header cycles asc, desc, off.
+   */
+  const filtered = React.useMemo(() => {
+    if (!sort) return matching;
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const value = (l: SheetLead) => {
+      // A never-called lead shows a blank Tries cell, so it sorts with the
+      // other blanks — last, whichever way the column points — rather than
+      // ahead of every "1" because zero is smaller.
+      if (sort.key === "attempts") return l.attempts || null;
+      if (sort.key === "lastCalledAt" || sort.key === "callbackAt") {
+        const iso = l[sort.key];
+        return iso ? new Date(iso).getTime() : null;
+      }
+      return cellText(l, sort.key).toLowerCase() || null;
+    };
+    return [...matching].sort((a, b) => {
+      const x = value(a);
+      const y = value(b);
+      // Empty cells sort last whichever way the column is pointing: a blank
+      // is not "earliest" or "smallest", it is nothing to compare.
+      if (x === null || x === "") return y === null || y === "" ? 0 : 1;
+      if (y === null || y === "") return -1;
+      if (typeof x === "number" && typeof y === "number") return (x - y) * dir;
+      return String(x).localeCompare(String(y)) * dir;
+    });
+  }, [matching, sort]);
 
   /** Counts for the category picker, over the current tab only — the number
    *  beside a category should match what picking it shows. */
@@ -678,25 +760,6 @@ export function LeadsGrid({
     <div className="flex h-full min-h-0 flex-col">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
-        <Select
-          value={category}
-          onValueChange={(v) => {
-            setCategory(v as CallCategory | "all");
-            setSel({ r: 0, c: sel.c });
-          }}
-        >
-          <SelectTrigger size="sm" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {CALL_CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>
-                {CATEGORY_LABELS[c]} ({counts.get(c) ?? 0})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <Input
           value={search}
           onChange={(e) => {
@@ -722,6 +785,9 @@ export function LeadsGrid({
         </Button>
         <span className="ml-auto text-[13px] tabular-nums text-muted-foreground">
           {filtered.length.toLocaleString()} rows
+          {/* The category filter lives on its column header now, which is out
+              of the way — so the count says when one is on. */}
+          {category !== "all" && ` · ${CATEGORY_LABELS[category]}`}
           {truncated && " (first 5,000)"}
         </span>
       </div>
@@ -852,7 +918,7 @@ export function LeadsGrid({
                 </th>
               ))}
             </tr>
-            <tr>
+            <tr className="group/head">
               <th
                 scope="col"
                 className="sticky left-0 top-6 z-30 border-b border-r bg-muted text-center text-[11px] font-semibold text-muted-foreground"
@@ -864,10 +930,84 @@ export function LeadsGrid({
                 <th
                   key={c.key}
                   scope="col"
-                  className="sticky top-6 z-20 truncate border-b border-r bg-card px-2 text-left font-bold"
+                  className="sticky top-6 z-20 border-b border-r bg-card p-0 text-left font-bold"
                   style={{ height: ROW_H }}
                 >
-                  {c.label}
+                  {/* A column whose values are a fixed set filters; anything
+                      else sorts. Both live on the header itself, which is
+                      where a spreadsheet user reaches for them. */}
+                  {c.key === "category" ? (
+                    <HeaderMenu
+                      label="Category"
+                      active={category !== "all"}
+                      value={
+                        category === "all" ? null : CATEGORY_LABELS[category]
+                      }
+                      options={[
+                        { key: "all", label: "All categories", count: inTab.length },
+                        ...CALL_CATEGORIES.map((k) => ({
+                          key: k,
+                          label: CATEGORY_LABELS[k],
+                          count: counts.get(k) ?? 0,
+                        })),
+                      ]}
+                      onPick={(k) => {
+                        setCategory(k as CallCategory | "all");
+                        setSel({ r: 0, c: sel.c });
+                      }}
+                    />
+                  ) : c.key === "listName" ? (
+                    <HeaderMenu
+                      label="List"
+                      active={tab !== "all"}
+                      value={lists.find((l) => l.id === tab)?.name ?? null}
+                      options={[
+                        { key: "all", label: "All leads", count: rows.length },
+                        ...lists.map((l) => ({
+                          key: String(l.id),
+                          label: l.name,
+                          count: rows.filter((r) => r.listId === l.id).length,
+                        })),
+                      ]}
+                      onPick={(k) => {
+                        const next = k === "all" ? "all" : Number(k);
+                        setTab(next);
+                        // If it lives in the folded set, open the folder too:
+                        // a tab strip with nothing highlighted looks broken.
+                        if (lists.some((l) => l.id === next && !l.called)) {
+                          setShowUntouched(true);
+                        }
+                        setSel({ r: 0, c: 0 });
+                        if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+                      }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSort((s) =>
+                          s?.key !== c.key
+                            ? { key: c.key, dir: "asc" }
+                            : s.dir === "asc"
+                              ? { key: c.key, dir: "desc" }
+                              : null,
+                        )
+                      }
+                      title={`Sort by ${c.label}`}
+                      className="flex h-full w-full items-center gap-1 px-2 text-left hover:bg-muted/60"
+                    >
+                      <span className="min-w-0 truncate">{c.label}</span>
+                      {sort?.key === c.key ? (
+                        sort.dir === "asc" ? (
+                          <ArrowUp className="size-3 shrink-0 text-primary" />
+                        ) : (
+                          <ArrowDown className="size-3 shrink-0 text-primary" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="size-3 shrink-0 opacity-0 transition-opacity group-hover/head:opacity-40" />
+                      )}
+                    </button>
+                  )}
                 </th>
               ))}
             </tr>
