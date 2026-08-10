@@ -110,7 +110,7 @@ export default async function CallStatsPage({
       value: totals.demos,
       sub: `${per100(totals.demos, totals.calls)} per 100 calls`,
     },
-    { label: "In trial", value: totals.trials, sub: "trying the product" },
+    { label: "Trials started", value: totals.trials, sub: "reached a trial" },
     {
       label: "Won",
       value: totals.won,
@@ -167,6 +167,16 @@ export default async function CallStatsPage({
             </div>
           ))}
         </div>
+
+        {/* These three are milestones reached, not places leads are sitting.
+            Without saying so the tiles look like they disagree with the
+            spreadsheet, whose categories come from each lead's latest call. */}
+        <p className="text-[13px] text-muted-foreground">
+          Demos, trials and won count every lead that reached that stage in the
+          range, even if it has since moved on. The spreadsheet shows where a
+          lead sits <span className="font-semibold">now</span>, so filtering it
+          by category can give a smaller number.
+        </p>
 
         {totals.badNumbers > 0 && (
           <p className="text-[13px] text-muted-foreground">
