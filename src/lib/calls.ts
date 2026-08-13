@@ -95,6 +95,10 @@ export type CallListSummary = {
   callbacksLater: number;
   /** Numbers already on another list. Held out of the queue, not deleted. */
   duplicates: number;
+  /** Who this niche belongs to. Null means nobody's in particular — a label,
+   *  not a lock; anyone can still work any list. */
+  assignedUserId: number | null;
+  assignedName: string | null;
 };
 
 export async function getCallLists(): Promise<CallListSummary[]> {
@@ -104,6 +108,8 @@ export async function getCallLists(): Promise<CallListSummary[]> {
   // empty list read "-1 of 0 worked".
   const rows = (await db.execute(sql`
     select cl.id, cl.name, cl.niche, cl.created_at,
+      cl.assigned_user_id,
+      (select u.name from app_user u where u.id = cl.assigned_user_id) as assigned_name,
       count(l.id) as total,
       count(l.id) filter (where lc.outcome is null) as uncalled,
       count(l.id) filter (
@@ -148,7 +154,7 @@ export async function getCallLists(): Promise<CallListSummary[]> {
     left join call_lead l
       on l.call_list_id = cl.id and l.duplicate_of_lead_id is null
     ${latestCall}
-    group by cl.id, cl.name, cl.niche, cl.created_at
+    group by cl.id, cl.name, cl.niche, cl.created_at, cl.assigned_user_id
     order by cl.created_at desc, cl.id desc
   `)) as Row[];
 
@@ -171,6 +177,8 @@ export async function getCallLists(): Promise<CallListSummary[]> {
     callbacksDue: n(r.callbacks_due),
     callbacksLater: n(r.callbacks_later),
     duplicates: n(r.duplicates),
+    assignedUserId: r.assigned_user_id === null ? null : n(r.assigned_user_id),
+    assignedName: (r.assigned_name as string | null) ?? null,
   }));
 }
 

@@ -548,6 +548,10 @@ export function demoCallListSummaries() {
       callbacksDue: by((o) => o === "callback"),
       callbacksLater: 0,
       duplicates: 0,
+      // One niche each for the two active demo callers, so the Mine/Everyone
+      // toggle has something to do.
+      assignedUserId: l.id === 9501 ? DEMO_PEOPLE[0].id : DEMO_PEOPLE[1].id,
+      assignedName: l.id === 9501 ? DEMO_PEOPLE[0].name : DEMO_PEOPLE[1].name,
     };
   });
 }

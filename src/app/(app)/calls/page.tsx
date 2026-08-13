@@ -2,23 +2,73 @@ import Link from "next/link";
 import { PhoneCall } from "lucide-react";
 import { getCallLists } from "@/lib/calls";
 import { isDemoMode } from "@/lib/demo";
-import { demoCallListSummaries } from "@/lib/demo-data";
+import { demoCallListSummaries, demoTeam } from "@/lib/demo-data";
+import { getCurrentUser } from "@/lib/session";
+import { listTeam } from "@/lib/users";
 import { PageShell } from "@/components/page-shell";
 import { CallImportDialog } from "@/components/calls/call-import-dialog";
+import { ListAssignment } from "@/components/calls/list-assignment";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function CallsPage() {
+export default async function CallsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mine?: string }>;
+}) {
   // Demo Call CRM runs on its own fixtures, not the real lists — the two
   // systems share no tables and a demo that blurred that would misrepresent it.
   const demo = await isDemoMode();
-  const lists = demo ? demoCallListSummaries() : await getCallLists();
+  const [{ mine: mineParam }, all, me, team] = await Promise.all([
+    searchParams,
+    demo ? demoCallListSummaries() : getCallLists(),
+    getCurrentUser(),
+    demo ? demoTeam() : listTeam(),
+  ]);
+
+  const myLists = all.filter((l) => l.assignedUserId === me?.id);
+  // Default to your own niches only when you have some — a new caller with
+  // nothing assigned would otherwise land on an empty screen and conclude
+  // there is no work.
+  const mine = mineParam === undefined ? myLists.length > 0 : mineParam === "1";
+  const lists = mine && myLists.length > 0 ? myLists : all;
+  const people = team.map((t) => ({ id: t.id, name: t.name, active: t.active }));
 
   return (
     <PageShell
       title="Call lists"
-      actions={<CallImportDialog callLists={lists.map((l) => ({ id: l.id, name: l.name }))} />}
+      actions={
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          {myLists.length > 0 && (
+            // Two links rather than a control: the filter is in the URL, so
+            // it survives a refresh and can be bookmarked.
+            <div className="flex shrink-0 rounded-lg border p-0.5">
+              {[
+                { key: "1", label: "Mine", on: mine },
+                { key: "0", label: "Everyone", on: !mine },
+              ].map((t) => (
+                <Link
+                  key={t.key}
+                  href={`/calls?mine=${t.key}`}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-[13px] font-semibold transition-colors",
+                    t.on
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {t.label}
+                </Link>
+              ))}
+            </div>
+          )}
+          <CallImportDialog
+            callLists={all.map((l) => ({ id: l.id, name: l.name }))}
+          />
+        </div>
+      }
     >
       <div className="px-4 py-5 sm:px-6">
         {lists.length === 0 ? (
@@ -43,12 +93,26 @@ export default async function CallsPage() {
               const done = l.total - leftToCall;
               const pct = l.total === 0 ? 0 : Math.round((done / l.total) * 100);
               return (
-                <li key={l.id}>
+                <li key={l.id} className="relative">
+                  {/* Over the card, not inside it — the card is one big link
+                      and a menu nested in an anchor navigates as it opens. */}
+                  <div className="absolute right-3 top-3 z-10">
+                    <ListAssignment
+                      listId={l.id}
+                      assignedName={l.assignedName}
+                      assignedUserId={l.assignedUserId}
+                      people={people}
+                      canManage={me?.role === "admin"}
+                      demo={demo}
+                    />
+                  </div>
                   <Link
                     href={`/calls/${l.id}`}
                     className="block rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40"
                   >
-                    <div className="flex items-start gap-2">
+                    {/* Room for the owner control pinned to this corner —
+                        without it a long niche name runs underneath it. */}
+                    <div className="flex items-start gap-2 pr-24">
                       <div className="min-w-0">
                         <p className="truncate font-bold tracking-[-0.01em]">
                           {l.name}
@@ -59,13 +123,17 @@ export default async function CallsPage() {
                           </p>
                         )}
                       </div>
-                      {l.callbacksDue > 0 && (
-                        <Badge className="ml-auto shrink-0">
+                    </div>
+                    {/* Moved out of the header row: the owner control now sits
+                        in that corner, and the two overlapped on a phone. */}
+                    {l.callbacksDue > 0 && (
+                      <div className="mt-2">
+                        <Badge>
                           {l.callbacksDue} callback
                           {l.callbacksDue === 1 ? "" : "s"} due
                         </Badge>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
                       <div

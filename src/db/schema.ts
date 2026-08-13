@@ -352,6 +352,16 @@ export const callList = pgTable("call_list", {
   name: text("name").notNull(),
   /** e.g. "aircon servicing SG" — the calling equivalent of lead_list.niche. */
   niche: text("niche"),
+  /**
+   * Whose niche this is. Null means nobody's in particular.
+   *
+   * A label, not a lock: the dialler still lets anyone work any list, because
+   * someone off sick should not take their niche out of the day with them.
+   * `appUser` is declared further down, hence the lazy reference.
+   */
+  assignedUserId: integer("assigned_user_id").references(
+    (): AnyPgColumn => appUser.id,
+  ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
