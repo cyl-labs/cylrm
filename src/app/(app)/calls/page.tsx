@@ -102,7 +102,15 @@ export default async function CallsPage({
                   </div>
                   <Link
                     href={`/calls/${l.id}`}
-                    className="block rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40"
+                    // `h-full` is what keeps the row's bottom edges level. The
+                    // grid stretches the <li> to the tallest card in the row,
+                    // but the card is this <a>, which without it keeps its own
+                    // height and leaves the shorter one floating in dead
+                    // space. Cards differ in height honestly — a list with
+                    // calls against it carries tags and a callbacks badge that
+                    // an untouched one has nothing to put in — so they are
+                    // levelled rather than made identical.
+                    className="flex h-full flex-col rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40"
                   >
                     {/* Room for the owner control pinned to this corner —
                         without it a long niche name runs underneath it. */}
