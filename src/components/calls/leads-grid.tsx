@@ -198,12 +198,10 @@ function downloadCsv(rows: SheetLead[], cols: Col[], name: string) {
  */
 function CategoryMenu({
   lead,
-  demo,
   onLogged,
   onCorrected,
 }: {
   lead: SheetLead;
-  demo: boolean;
   /** A call happened: one more attempt, rung just now. */
   onLogged: (id: number, outcome: CallOutcome) => void;
   /** The last call was mislabelled: same attempt, different outcome. */
@@ -215,11 +213,6 @@ function CategoryMenu({
 
   async function log(outcome: CallOutcome) {
     if (saving) return;
-    if (demo) {
-      toast.success(`${OUTCOME_LABELS[outcome]} — demo, not saved`);
-      onLogged(lead.id, outcome);
-      return;
-    }
     setSaving(true);
     try {
       const res = await fetch("/api/calls", {
@@ -245,11 +238,6 @@ function CategoryMenu({
 
   async function correct(next: CallCategory) {
     if (saving || next === category) return;
-    if (demo) {
-      toast.success(`${CATEGORY_LABELS[next]} — demo, not saved`);
-      onCorrected(lead.id, next);
-      return;
-    }
     setSaving(true);
     try {
       const res =
@@ -385,7 +373,6 @@ export function LeadsGrid({
   initialTab = "all",
   truncated = false,
   meName = null,
-  demo = false,
 }: {
   leads: SheetLead[];
   /** Every niche. `called` decides whether its tab is out on the strip or
@@ -400,7 +387,6 @@ export function LeadsGrid({
   /** The signed-in person's name, for the Called by cell of a call logged
    *  from here — the row should say who did it before the refresh lands. */
   meName?: string | null;
-  demo?: boolean;
 }) {
   const router = useRouter();
   const [tab, setTab] = React.useState<number | "all">(initialTab);
@@ -648,15 +634,6 @@ export function LeadsGrid({
       cancelEditing();
       return;
     }
-    if (demo) {
-      toast.success("Demo — not saved");
-      setFieldEdits((prev) => ({
-        ...prev,
-        [editing.leadId]: { ...prev[editing.leadId], [editing.key]: next || null },
-      }));
-      cancelEditing();
-      return;
-    }
     setSaving(true);
     try {
       const res = await fetch(`/api/call-leads/${editing.leadId}`, {
@@ -752,7 +729,7 @@ export function LeadsGrid({
         lastCalledBy: meName ?? null,
       },
     }));
-    if (!demo) router.refresh();
+    router.refresh();
   }
 
   /** The last call was mislabelled — same attempt, different outcome. */
@@ -773,7 +750,7 @@ export function LeadsGrid({
         lastCalledBy: next === "uncalled" ? null : (current?.lastCalledBy ?? null),
       },
     }));
-    if (!demo) router.refresh();
+    router.refresh();
   }
 
   const asTab = (l: { id: number; name: string }) => ({
@@ -1129,7 +1106,6 @@ export function LeadsGrid({
                                 {isSel && (
                                   <CategoryMenu
                                     lead={l}
-                                    demo={demo}
                                     onLogged={handleLogged}
                                     onCorrected={handleCorrected}
                                   />

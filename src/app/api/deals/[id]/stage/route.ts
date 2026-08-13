@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { deal, dealStageChange } from "@/db/schema";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 const STAGES = ["replied", "interested", "demo_booked", "won", "lost"] as const;
 type Stage = (typeof STAGES)[number];
@@ -14,6 +14,8 @@ export async function PATCH(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const dealId = Number(id);

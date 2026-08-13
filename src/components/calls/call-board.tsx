@@ -123,14 +123,12 @@ export function CallBoard({
   cards,
   columnLimit,
   showList = true,
-  demo = false,
 }: {
   cards: BoardCard[];
   columnLimit: number;
   /** False when the board is already filtered to one niche, where the badge
    *  would repeat the same name on every card. */
   showList?: boolean;
-  demo?: boolean;
 }) {
   const router = useRouter();
   const [dragId, setDragId] = React.useState<number | null>(null);
@@ -161,11 +159,6 @@ export function CallBoard({
   async function logCall(card: BoardCard, outcome: CallOutcome) {
     const attempts = (logged[card.id]?.attempts ?? card.attempts) + 1;
     const who = card.company ?? card.name ?? card.phone;
-    if (demo) {
-      setLogged((p) => ({ ...p, [card.id]: { outcome, attempts } }));
-      toast.success(`${OUTCOME_LABELS[outcome]} — demo, not saved`);
-      return;
-    }
     setLogged((p) => ({ ...p, [card.id]: { outcome, attempts } }));
     try {
       const res = await fetch("/api/calls", {

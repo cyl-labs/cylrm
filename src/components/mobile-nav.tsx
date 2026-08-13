@@ -20,11 +20,12 @@ import {
  * phone still gets one header, not two.
  */
 export function MobileNav({
-  demo,
+  role,
   unreadReplies = 0,
   callbacksDue = 0,
 }: {
-  demo: boolean;
+  /** Decides whether the drawer offers the Email CRM at all. */
+  role: "admin" | "caller" | undefined;
   unreadReplies?: number;
   callbacksDue?: number;
 }) {
@@ -56,7 +57,7 @@ export function MobileNav({
         {/* Right padding keeps the workspace switcher's chevron clear of the
             sheet's own close button. */}
         <div className="px-3 pb-2 pr-11 pt-[18px]">
-          <WorkspaceSwitcher demo={demo} />
+          <WorkspaceSwitcher role={role} />
         </div>
         {/* See the note in the desktop sidebar. */}
         <div className="pt-3.5" />

@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser } from "@/db/schema";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getCurrentUser, getSession } from "@/lib/session";
 import { MIN_PASSWORD_LENGTH, hashPassword } from "@/lib/password";
 import { countActiveAdmins } from "@/lib/users";
@@ -30,7 +29,6 @@ export async function PATCH(
       { status: 403 },
     );
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const { id } = await params;
   const userId = Number(id);

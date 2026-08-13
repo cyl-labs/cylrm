@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { buildAuthUrl } from "@/lib/google";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
@@ -10,6 +10,8 @@ export async function GET(request: NextRequest) {
     // origin behind Caddy (see AGENTS.md).
     return new Response(null, { status: 303, headers: { Location: "/login" } });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const loginHint = request.nextUrl.searchParams.get("email") ?? undefined;
   const state = randomBytes(16).toString("hex");

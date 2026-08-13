@@ -3,8 +3,7 @@ import { db } from "@/db";
 import { domain, enrollment, message, sendingAccount } from "@/db/schema";
 import { encryptSecret } from "@/lib/crypto";
 import { normalizeAppPassword, verifyGmailAppPassword } from "@/lib/gmail";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 export async function PATCH(
   request: Request,
@@ -14,7 +13,8 @@ export async function PATCH(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const accountId = Number(id);
@@ -135,7 +135,8 @@ export async function DELETE(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const accountId = Number(id);

@@ -3,13 +3,15 @@ import { db } from "@/db";
 import { contact, message, sendingAccount } from "@/db/schema";
 import { decryptSecret } from "@/lib/crypto";
 import { NeedsReconnectError, sendViaGmailApi } from "@/lib/google";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   let body: {
     contactId?: unknown;

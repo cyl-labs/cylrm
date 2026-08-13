@@ -86,10 +86,8 @@ function CopyNumber({ phone }: { phone: string }) {
 
 export function CallbacksList({
   leads,
-  demo = false,
 }: {
   leads: CallbackLead[];
-  demo?: boolean;
 }) {
   const router = useRouter();
   // Rung and logged: dropped from the list at once, because the whole point of
@@ -100,11 +98,6 @@ export function CallbacksList({
 
   async function log(lead: CallbackLead, outcome: CallOutcome) {
     const who = lead.company ?? lead.name ?? lead.phone;
-    if (demo) {
-      toast.success(`${OUTCOME_LABELS[outcome]} — demo, not saved`);
-      setLogged((p) => new Set(p).add(lead.id));
-      return;
-    }
     setLogged((p) => new Set(p).add(lead.id));
     try {
       const res = await fetch("/api/calls", {

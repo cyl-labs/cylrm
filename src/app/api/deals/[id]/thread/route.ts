@@ -9,9 +9,7 @@ import {
   sendingAccount,
   unsubscribe,
 } from "@/db/schema";
-import { isDemoMode } from "@/lib/demo";
-import { demoThread } from "@/lib/demo-data";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 export async function GET(
   _request: Request,
@@ -21,19 +19,13 @@ export async function GET(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const dealId = Number(id);
   if (!Number.isInteger(dealId)) {
     return Response.json({ error: "Invalid deal id." }, { status: 400 });
-  }
-
-  if (await isDemoMode()) {
-    const thread = demoThread(dealId);
-    if (!thread) {
-      return Response.json({ error: "Deal not found." }, { status: 404 });
-    }
-    return Response.json(thread);
   }
 
   const [row] = await db

@@ -7,8 +7,6 @@ import {
   getCallQueue,
   type CallQueueFilter,
 } from "@/lib/calls";
-import { isDemoMode } from "@/lib/demo";
-import { demoCallListDetail, demoCallQueue } from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
 import { cn } from "@/lib/utils";
@@ -39,13 +37,10 @@ export default async function CallListPage({
   const { view } = await searchParams;
   const filter: CallQueueFilter = isFilter(view) ? view : "queue";
 
-  const demo = await isDemoMode();
-  const list = demo ? demoCallListDetail(listId) : await getCallList(listId);
+  const list = await getCallList(listId);
   if (!list) notFound();
 
-  const leads = demo
-    ? demoCallQueue(listId, filter)
-    : await getCallQueue(listId, filter);
+  const leads = await getCallQueue(listId, filter);
 
   // What the Queue tab holds: never rung, rung and not reached, and callbacks
   // whose time has come. One booked for Tuesday is not in it until Tuesday.
@@ -175,14 +170,11 @@ export default async function CallListPage({
           </p>
         </div>
       )}
-      {/* The demo keeps its outcome buttons and advances the queue locally —
-          it just never writes. Only the Closed view is genuinely read-only,
-          because those calls are already finished. */}
+      {/* The Closed view is read-only: those calls are already finished. */}
       <Dialler
         leads={leads}
         truncated={leads.length >= CALL_QUEUE_LIMIT}
         readOnly={filter === "closed"}
-        demo={demo}
       />
     </PageShell>
   );

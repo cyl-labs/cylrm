@@ -3,9 +3,7 @@ import { AlertTriangle } from "lucide-react";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign } from "@/db/schema";
-import { isDemoMode } from "@/lib/demo";
 import { countSendIssues } from "@/lib/send-issues";
-import { demoCampaigns } from "@/lib/demo-data";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -29,11 +27,8 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export default async function CampaignsPage() {
-  const demo = await isDemoMode();
-  const issueCount = demo ? 0 : await countSendIssues();
-  const rows = demo
-    ? demoCampaigns()
-    : await db
+  const issueCount = await countSendIssues();
+  const rows = await db
     .select({
       id: campaign.id,
       name: campaign.name,

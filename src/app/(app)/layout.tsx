@@ -1,5 +1,4 @@
 import { LogOut } from "lucide-react";
-import { isDemoMode } from "@/lib/demo";
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
 import { getCurrentUser } from "@/lib/session";
@@ -12,18 +11,18 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const demo = await isDemoMode();
-  // The demo workspace has no inbox of its own.
-  const unread = demo ? 0 : await countUnreadReplies();
-  const callbacks = demo ? 0 : await countCallbacksDue();
   const me = await getCurrentUser();
+  // Callers cannot open Replies, so an unread count would light a badge on
+  // the drawer that leads nowhere they are allowed to go.
+  const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
+  const callbacks = await countCallbacksDue();
   return (
     <div className="flex min-h-svh">
       {/* Below `lg` this is a drawer instead — see `MobileNav`, whose trigger
           sits in the page header. */}
       <aside className="sticky top-0 hidden h-svh w-[232px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
         <div className="px-3 pb-2 pt-[18px]">
-          <WorkspaceSwitcher demo={demo} />
+          <WorkspaceSwitcher role={me?.role} />
         </div>
         {/* The switcher above already names the workspace you are in, so a
             "Workspace" label between it and its own screens said it twice. */}

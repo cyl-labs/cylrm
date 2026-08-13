@@ -1,8 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { appSetting } from "@/db/schema";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -20,7 +19,8 @@ export async function PUT(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   let body: {
     sendingWindowStart?: unknown;

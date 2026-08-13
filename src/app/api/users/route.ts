@@ -1,4 +1,3 @@
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getCurrentUser } from "@/lib/session";
 import {
   MIN_PASSWORD_LENGTH,
@@ -24,7 +23,6 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const body = (await request.json().catch(() => null)) as {
     username?: unknown;

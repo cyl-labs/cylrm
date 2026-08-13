@@ -1,6 +1,4 @@
 import { getCallbacks, getCallLists } from "@/lib/calls";
-import { isDemoMode } from "@/lib/demo";
-import { demoCallbacks, demoCallListSummaries } from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { CallbacksList } from "@/components/calls/callbacks-list";
 import { CallFilters } from "@/components/calls/call-filters";
@@ -20,14 +18,13 @@ export default async function CallbacksPage({
 }: {
   searchParams: Promise<{ list?: string }>;
 }) {
-  const demo = await isDemoMode();
   const { list } = await searchParams;
-  const lists = demo ? demoCallListSummaries() : await getCallLists();
+  const lists = await getCallLists();
 
   const wanted = Number(list);
   const listId = lists.some((l) => l.id === wanted) ? wanted : undefined;
 
-  const leads = demo ? demoCallbacks(listId) : await getCallbacks(listId);
+  const leads = await getCallbacks(listId);
   // `due` is decided by the database's clock, not this render's.
   const due = leads.filter((l) => l.due).length;
 
@@ -57,7 +54,7 @@ export default async function CallbacksPage({
             . Times are Singapore time.
           </p>
         )}
-        <CallbacksList leads={leads} demo={demo} />
+        <CallbacksList leads={leads} />
       </div>
     </PageShell>
   );

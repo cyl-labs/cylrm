@@ -1,7 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { call, callLead } from "@/db/schema";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getCurrentUser, getSession } from "@/lib/session";
 import { parseCallbackAt } from "@/lib/call-time";
 
@@ -27,7 +26,6 @@ export async function POST(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const body = (await request.json().catch(() => null)) as {
     callLeadId?: unknown;
@@ -119,7 +117,6 @@ export async function PATCH(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const body = (await request.json().catch(() => null)) as {
     callLeadId?: unknown;
@@ -193,7 +190,6 @@ export async function DELETE(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const { searchParams } = new URL(request.url);
   const leadId = Number(searchParams.get("callLeadId"));

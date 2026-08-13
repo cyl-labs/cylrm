@@ -2,7 +2,6 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { callLead } from "@/db/schema";
 import { classifyPhone, phoneKey } from "@/lib/calls";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
 import { websiteHref } from "@/lib/website";
 
@@ -35,7 +34,6 @@ export async function PATCH(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const { id } = await params;
   const leadId = Number(id);

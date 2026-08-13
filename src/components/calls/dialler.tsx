@@ -113,13 +113,10 @@ function relative(iso: string | null) {
  */
 function CallForm({
   lead,
-  demo = false,
   onLogged,
   onSkip,
 }: {
   lead: QueueLead;
-  /** Demo workspace: run the flow, save nothing. */
-  demo?: boolean;
   onLogged: () => void;
   onSkip: () => void;
 }) {
@@ -135,14 +132,6 @@ function CallForm({
   async function save() {
     const outcome = picked;
     if (!outcome || saving) return;
-    // The demo advances the queue locally rather than hiding these buttons:
-    // a dialler whose outcome buttons are missing does not demonstrate a
-    // dialler. Nothing is written, and the toast says so.
-    if (demo) {
-      toast.success(`${OUTCOME_LABELS[outcome]} — demo, not saved`);
-      onLogged();
-      return;
-    }
     setSaving(true);
     try {
       const res = await fetch("/api/calls", {
@@ -274,7 +263,6 @@ export function Dialler({
   leads,
   truncated = false,
   readOnly = false,
-  demo = false,
 }: {
   leads: QueueLead[];
   /** More leads match this view than were loaded — said out loud, because a
@@ -283,7 +271,6 @@ export function Dialler({
   /** Closed view: these calls are finished, there is nothing to log. */
   readOnly?: boolean;
   /** Demo workspace: the flow works, nothing is written. */
-  demo?: boolean;
 }) {
   const router = useRouter();
   // Worked leads drop out of the local queue immediately so the next number is
@@ -309,9 +296,9 @@ export function Dialler({
   function handleLogged(leadId: number) {
     setDone((prev) => new Set(prev).add(leadId));
     setPickedId(null);
-    // Nothing was written in the demo, so refetching would only put the lead
-    // straight back and make the queue look stuck.
-    if (!demo) router.refresh();
+    // `done` keeps the lead out of the queue locally; the refresh then makes
+    // the server agree, so it cannot reappear on the next navigation.
+    router.refresh();
   }
 
   if (!current) {
@@ -419,7 +406,6 @@ export function Dialler({
           <CallForm
             key={`form-${current.id}`}
             lead={current}
-            demo={demo}
             onLogged={() => handleLogged(current.id)}
             onSkip={() => {
               setSkipped((prev) => [...prev, current.id]);

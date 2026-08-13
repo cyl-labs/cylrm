@@ -246,7 +246,7 @@ Cold calling targets a different market (Singapore) from the email campaigns (US
 
 **The separation is structural, not a filter.** `call_list`, `call_lead` and `call` have no foreign key into `contact`, `enrollment`, `campaign` or `deal`, and nothing joins across. A calling lead cannot appear on the Leads table, be enrolled in a campaign, or land on the email pipeline board, because there is no path for it to travel.
 
-The two are separate **workspaces** — Email CRM and Call CRM — chosen from the switcher above the sidebar, each showing only its own screens. Which one you are in is read off the URL rather than stored, so a deep link, the back button and the sidebar cannot disagree. Demo CRM sits below a separator as a third entry, because it swaps the data source rather than the screens.
+The two are separate **workspaces** — Email CRM and Call CRM — chosen from the switcher above the sidebar, each showing only its own screens. Which one you are in is read off the URL rather than stored, so a deep link, the back button and the sidebar cannot disagree.
 
 The cost of this is one duplicated CSV importer. The benefit is that the two systems cannot leak into each other's numbers — the email stats are known-answer verified and stay that way.
 

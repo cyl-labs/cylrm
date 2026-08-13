@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { PhoneCall } from "lucide-react";
 import { getCallLists } from "@/lib/calls";
-import { isDemoMode } from "@/lib/demo";
-import { demoCallListSummaries, demoTeam } from "@/lib/demo-data";
 import { getCurrentUser } from "@/lib/session";
 import { listTeam } from "@/lib/users";
 import { PageShell } from "@/components/page-shell";
@@ -18,14 +16,11 @@ export default async function CallsPage({
 }: {
   searchParams: Promise<{ mine?: string }>;
 }) {
-  // Demo Call CRM runs on its own fixtures, not the real lists — the two
-  // systems share no tables and a demo that blurred that would misrepresent it.
-  const demo = await isDemoMode();
   const [{ mine: mineParam }, all, me, team] = await Promise.all([
     searchParams,
-    demo ? demoCallListSummaries() : getCallLists(),
+    getCallLists(),
     getCurrentUser(),
-    demo ? demoTeam() : listTeam(),
+    listTeam(),
   ]);
 
   const myLists = all.filter((l) => l.assignedUserId === me?.id);
@@ -103,7 +98,6 @@ export default async function CallsPage({
                       assignedUserId={l.assignedUserId}
                       people={people}
                       canManage={me?.role === "admin"}
-                      demo={demo}
                     />
                   </div>
                   <Link

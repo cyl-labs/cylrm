@@ -54,3 +54,22 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     role: session.role ?? "caller",
   };
 }
+
+/**
+ * Guard for every Email CRM endpoint.
+ *
+ * Callers are kept off the email side entirely, and hiding the nav is not
+ * enough — a bookmarked URL or a hand-rolled fetch would sail straight
+ * through. Returns a ready Response to bail out with, or null to carry on.
+ */
+export async function denyIfNotEmailUser(): Promise<Response | null> {
+  const me = await getCurrentUser();
+  if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.role !== "admin") {
+    return Response.json(
+      { error: "The email side is admin-only." },
+      { status: 403 },
+    );
+  }
+  return null;
+}

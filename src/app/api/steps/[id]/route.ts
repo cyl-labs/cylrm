@@ -1,7 +1,7 @@
 import { and, eq, gt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sequenceStep } from "@/db/schema";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 export async function PATCH(
   request: Request,
@@ -11,6 +11,8 @@ export async function PATCH(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const stepId = Number(id);
@@ -91,6 +93,8 @@ export async function DELETE(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const stepId = Number(id);

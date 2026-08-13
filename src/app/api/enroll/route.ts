@@ -2,8 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, contact, deal, enrollment, unsubscribe } from "@/db/schema";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 /**
  * Bulk enroll contacts into a campaign.
@@ -45,7 +44,8 @@ export async function POST(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   let body: {
     campaignId?: unknown;

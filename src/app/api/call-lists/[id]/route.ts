@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser, callList } from "@/db/schema";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getCurrentUser } from "@/lib/session";
 
 /**
@@ -26,7 +25,6 @@ export async function PATCH(
       { status: 403 },
     );
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const { id } = await params;
   const listId = Number(id);

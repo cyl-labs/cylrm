@@ -44,12 +44,10 @@ export function TeamManager({
   team,
   meId,
   canManage,
-  demo,
 }: {
   team: TeamMember[];
   meId: number | null;
   canManage: boolean;
-  demo: boolean;
 }) {
   const router = useRouter();
   const [adding, setAdding] = React.useState(false);
@@ -92,7 +90,6 @@ export function TeamManager({
           <Button
             className="w-full shrink-0 sm:w-auto"
             onClick={() => setAdding(true)}
-            disabled={demo}
           >
             <Plus data-icon="inline-start" />
             Add person
@@ -179,7 +176,7 @@ export function TeamManager({
                             variant="ghost"
                             size="sm"
                             className="h-7"
-                            disabled={demo || busyId === m.id}
+                            disabled={busyId === m.id}
                             onClick={() => setRenaming(m)}
                           >
                             <Pencil data-icon="inline-start" />
@@ -189,7 +186,7 @@ export function TeamManager({
                             variant="ghost"
                             size="sm"
                             className="h-7"
-                            disabled={demo || busyId === m.id}
+                            disabled={busyId === m.id}
                             onClick={() => setResetting(m)}
                           >
                             <KeyRound data-icon="inline-start" />
@@ -199,7 +196,7 @@ export function TeamManager({
                             variant="ghost"
                             size="sm"
                             className="h-7"
-                            disabled={demo || busyId === m.id}
+                            disabled={busyId === m.id}
                             onClick={() =>
                               patch(m, {
                                 role: m.role === "admin" ? "caller" : "admin",
@@ -212,7 +209,7 @@ export function TeamManager({
                             variant="ghost"
                             size="sm"
                             className={cn("h-7", m.active && "text-destructive")}
-                            disabled={demo || busyId === m.id}
+                            disabled={busyId === m.id}
                             onClick={() => patch(m, { active: !m.active })}
                           >
                             {m.active ? "Switch off" : "Switch on"}

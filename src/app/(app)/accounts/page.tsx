@@ -2,8 +2,6 @@ import { asc, eq, sql } from "drizzle-orm";
 import { Plug } from "lucide-react";
 import { db } from "@/db";
 import { appSetting, domain, message, sendingAccount } from "@/db/schema";
-import { isDemoMode } from "@/lib/demo";
-import { demoAccounts, demoDomains, demoSetting } from "@/lib/demo-data";
 import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/page-shell";
 import { AccountsView } from "@/components/accounts/accounts-view";
@@ -27,29 +25,6 @@ export default async function AccountsPage({
   const { google_connected: googleConnected, google_error: googleError } =
     await searchParams;
 
-  if (await isDemoMode()) {
-    return (
-      <PageShell
-        title="Accounts"
-        actions={
-          <>
-            <Button asChild size="sm" variant="outline">
-              <a href="/api/google/connect">
-                <Plug data-icon="inline-start" />
-                Connect via Google
-              </a>
-            </Button>
-            <ConnectAccountDialog domains={demoDomains} />
-          </>
-        }
-      >
-        <div className="grid grid-cols-1 items-start gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <AccountsView accounts={demoAccounts()} />
-          <SendingWindowCard initial={demoSetting} />
-        </div>
-      </PageShell>
-    );
-  }
   const setting = await getOrCreateSetting();
   const tz = setting.sendingTimezone;
 

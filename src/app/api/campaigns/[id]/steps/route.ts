@@ -1,7 +1,7 @@
 import { eq, max } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, sequenceStep } from "@/db/schema";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 export async function POST(
   _request: Request,
@@ -11,6 +11,8 @@ export async function POST(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const campaignId = Number(id);

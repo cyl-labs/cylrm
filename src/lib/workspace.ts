@@ -73,6 +73,35 @@ export const WORKSPACES: Workspace[] = [
   },
 ];
 
+/**
+ * Every path the Email CRM owns.
+ *
+ * Callers have no business on the email side — they were hired to dial, and
+ * the sending accounts, campaign copy and reply inbox are not theirs to touch.
+ * The middleware turns them away using this list and the switcher hides the
+ * workspace, but the list is the single source for both so the two cannot
+ * drift into a hidden-but-reachable screen.
+ */
+export const EMAIL_PREFIXES = [
+  "/leads",
+  "/campaigns",
+  "/accounts",
+  "/replies",
+  "/pipeline",
+  "/stats",
+];
+
+/** `/stats` must not swallow `/call-stats`, hence startsWith on a path that
+ *  begins with a slash rather than a bare contains. */
+export const isEmailPath = (pathname: string) =>
+  EMAIL_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+/** The workspaces this person may switch to. A caller only has the one, and
+ *  the switcher renders it as a plain label rather than a menu of one. */
+export function workspacesFor(role: "admin" | "caller" | undefined) {
+  return role === "admin" ? WORKSPACES : WORKSPACES.filter((w) => w.id === "call");
+}
+
 const CALL_PREFIXES = [
   "/calls",
   "/callbacks",

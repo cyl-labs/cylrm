@@ -3,12 +3,6 @@ import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { campaign, contact, enrollment, sendingAccount, sequenceStep } from "@/db/schema";
 import { getCampaignProgress } from "@/lib/campaign-progress";
-import { isDemoMode } from "@/lib/demo";
-import {
-  demoCampaignDetail,
-  demoCampaignEnrollments,
-  demoCampaignProgress,
-} from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { CampaignProgressCard } from "@/components/campaigns/campaign-progress-card";
 import { CampaignStatusControl } from "@/components/campaigns/campaign-status-control";
@@ -133,26 +127,6 @@ export default async function CampaignDetailPage({
   const campaignId = Number(id);
   if (!Number.isInteger(campaignId)) notFound();
 
-  if (await isDemoMode()) {
-    const demo = demoCampaignDetail(campaignId);
-    const progress = demoCampaignProgress(campaignId);
-    if (!demo || !progress) notFound();
-    return (
-      <CampaignDetail
-        campaignId={demo.campaign.id}
-        name={demo.campaign.name}
-        status={demo.campaign.status}
-        progress={progress}
-        countByStatus={demo.countByStatus}
-        steps={demo.steps}
-        enrollments={demoCampaignEnrollments(campaignId)}
-        // No demo campaign runs an A/B test — fabricated arm totals would not
-        // reconcile with the sent counts the other demo screens report.
-        variantStats={null}
-        issues={[]}
-      />
-    );
-  }
 
   const [camp] = await db
     .select()

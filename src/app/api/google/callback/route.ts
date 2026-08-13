@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { domain, sendingAccount } from "@/db/schema";
 import { encryptSecret } from "@/lib/crypto";
 import { exchangeCode, GMAIL_SEND_SCOPE } from "@/lib/google";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 // Relative redirects only — absolute URLs built from request.url would leak
 // the internal localhost origin behind Caddy (see AGENTS.md).
@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
   if (!session.loggedIn) {
     return new Response(null, { status: 303, headers: { Location: "/login" } });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const search = request.nextUrl.searchParams;
   const oauthError = search.get("error");

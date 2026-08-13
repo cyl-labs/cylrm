@@ -28,14 +28,12 @@ export function ListAssignment({
   assignedUserId,
   people,
   canManage,
-  demo,
 }: {
   listId: number;
   assignedName: string | null;
   assignedUserId: number | null;
   people: { id: number; name: string; active: boolean }[];
   canManage: boolean;
-  demo: boolean;
 }) {
   const router = useRouter();
   const [saving, setSaving] = React.useState(false);
@@ -78,7 +76,7 @@ export function ListAssignment({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          disabled={saving || demo}
+          disabled={saving}
           // The card underneath is a link; without this the click reaches it.
           onClick={(e) => {
             e.preventDefault();
@@ -89,7 +87,7 @@ export function ListAssignment({
             assignedName
               ? "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/70"
               : "text-muted-foreground hover:bg-muted",
-            (saving || demo) && "opacity-60",
+            saving && "opacity-60",
           )}
         >
           <UserPlus className="size-3" strokeWidth={2.2} />

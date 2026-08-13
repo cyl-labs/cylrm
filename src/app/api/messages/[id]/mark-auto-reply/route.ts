@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { deal, dealStageChange, enrollment, message } from "@/db/schema";
 import { OOO_PAUSE_DAYS } from "@/lib/poller";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 /**
  * Manual reclassification (blueprint): a message the poller filed as a
@@ -18,6 +18,8 @@ export async function POST(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const messageId = Number(id);

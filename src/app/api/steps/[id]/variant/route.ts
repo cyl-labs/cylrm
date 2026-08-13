@@ -1,8 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { sequenceStep } from "@/db/schema";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 /**
  * Add a B version to a step, for an A/B copy test inside one campaign.
@@ -21,7 +20,8 @@ export async function POST(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const stepId = Number(id);

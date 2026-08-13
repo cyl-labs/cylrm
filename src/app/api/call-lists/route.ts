@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { callLead, callList } from "@/db/schema";
 import { csvToRecords, type CsvRecord } from "@/lib/csv";
 import { classifyPhone, phoneKey } from "@/lib/calls";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
 import { websiteHref } from "@/lib/website";
 
@@ -167,7 +166,6 @@ export async function POST(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
 
   const form = await request.formData();
   const file = form.get("file");

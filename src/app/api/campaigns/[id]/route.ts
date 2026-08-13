@@ -8,8 +8,7 @@ import {
   sendIssue,
   sequenceStep,
 } from "@/db/schema";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 const STATUSES = ["draft", "active", "paused"] as const;
 type Status = (typeof STATUSES)[number];
@@ -22,6 +21,8 @@ export async function PATCH(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const campaignId = Number(id);
@@ -86,7 +87,8 @@ export async function DELETE(
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const { id } = await params;
   const campaignId = Number(id);

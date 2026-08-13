@@ -9,8 +9,6 @@ import {
   todayInCallTz,
   type StatsWindow,
 } from "@/lib/call-stats";
-import { isDemoMode } from "@/lib/demo";
-import { demoCallListSummaries, demoCallStats } from "@/lib/demo-data";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { PageShell } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
@@ -68,8 +66,7 @@ export default async function CallStatsPage({
   const range = raw && RANGE_KEYS.has(raw) ? raw : "30";
   const w = windowFor(range, day);
 
-  const demo = await isDemoMode();
-  const allLists = demo ? demoCallListSummaries() : await getCallLists();
+  const allLists = await getCallLists();
   // A `?list=` naming a niche that has gone falls back to all of them rather
   // than reporting zeroes as if the calling had stopped.
   const wanted = Number(list);
@@ -82,18 +79,13 @@ export default async function CallStatsPage({
     (l) => l.total - l.uncalled > 0 || l.id === listId,
   );
 
-  const { totals, outcomes, lists, byDay, people } = demo
-    ? demoCallStats(listId)
-    : await (async () => {
-        const [totals, outcomes, lists, byDay, people] = await Promise.all([
-          getCallTotals(w, listId),
-          getOutcomeCounts(w, listId),
-          getListStats(w, listId),
-          getCallsByDay(14, listId),
-          getPersonStats(w, listId),
-        ]);
-        return { totals, outcomes, lists, byDay, people };
-      })();
+  const [totals, outcomes, lists, byDay, people] = await Promise.all([
+    getCallTotals(w, listId),
+    getOutcomeCounts(w, listId),
+    getListStats(w, listId),
+    getCallsByDay(14, listId),
+    getPersonStats(w, listId),
+  ]);
 
   const tiles = [
     { label: "Calls logged", value: totals.calls, sub: "attempts, not leads" },

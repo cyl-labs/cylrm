@@ -1,8 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { message } from "@/db/schema";
-import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
-import { getSession } from "@/lib/session";
+import { denyIfNotEmailUser, getSession } from "@/lib/session";
 
 const CLEARABLE = ["auto_reply", "bounce"] as const;
 type Clearable = (typeof CLEARABLE)[number];
@@ -19,7 +18,8 @@ export async function POST(request: Request) {
   if (!session.loggedIn) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (await isDemoMode()) return demoReadOnlyResponse();
+  const denied = await denyIfNotEmailUser();
+  if (denied) return denied;
 
   const body = (await request.json().catch(() => ({}))) as { kinds?: unknown };
   const requested = Array.isArray(body.kinds) ? body.kinds : CLEARABLE;

@@ -1,7 +1,5 @@
 import { PageShell } from "@/components/page-shell";
 import { getCurrentUser } from "@/lib/session";
-import { isDemoMode } from "@/lib/demo";
-import { demoTeam } from "@/lib/demo-data";
 import { listTeam } from "@/lib/users";
 import { TeamManager } from "@/components/team/team-manager";
 
@@ -15,9 +13,8 @@ export const dynamic = "force-dynamic";
  * enforces that rather than trusting the screen to hide the buttons.
  */
 export default async function TeamPage() {
-  const demo = await isDemoMode();
   const me = await getCurrentUser();
-  const team = demo ? demoTeam() : await listTeam();
+  const team = await listTeam();
 
   return (
     <PageShell title="Team">
@@ -26,7 +23,6 @@ export default async function TeamPage() {
           team={team}
           meId={me?.id ?? null}
           canManage={me?.role === "admin"}
-          demo={demo}
         />
       </div>
     </PageShell>

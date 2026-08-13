@@ -1,6 +1,4 @@
 import { BOARD_COLUMN_LIMIT, getCallBoard, getCallLists } from "@/lib/calls";
-import { isDemoMode } from "@/lib/demo";
-import { demoCallBoard, demoCallListSummaries } from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { CallBoard } from "@/components/calls/call-board";
 import { CallFilters } from "@/components/calls/call-filters";
@@ -11,7 +9,7 @@ export const dynamic = "force-dynamic";
  * The calling pipeline.
  *
  * Its own board, not the email one: calling leads have no deal rows and share
- * no tables with campaigns, and putting a phone demo on the email pipeline
+ * no tables with campaigns, and putting a phone lead on the email pipeline
  * would confound every campaign comparison on the Stats screen.
  */
 export default async function CallPipelinePage({
@@ -19,16 +17,15 @@ export default async function CallPipelinePage({
 }: {
   searchParams: Promise<{ list?: string }>;
 }) {
-  const demo = await isDemoMode();
   const { list } = await searchParams;
-  const lists = demo ? demoCallListSummaries() : await getCallLists();
+  const lists = await getCallLists();
 
   // A `?list=` naming a niche that has gone shows everything rather than an
   // empty board with no way to tell why.
   const wanted = Number(list);
   const listId = lists.some((l) => l.id === wanted) ? wanted : undefined;
 
-  const cards = demo ? demoCallBoard(listId) : await getCallBoard(listId);
+  const cards = await getCallBoard(listId);
   const niche = lists.find((l) => l.id === listId);
 
   return (
@@ -63,7 +60,6 @@ export default async function CallPipelinePage({
               cards={cards}
               columnLimit={BOARD_COLUMN_LIMIT}
               showList={listId === undefined}
-              demo={demo}
             />
           </>
         )}
