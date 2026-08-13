@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Plus, ShieldCheck, UserRound } from "lucide-react";
+import { KeyRound, Pencil, Plus, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import type { TeamMember } from "@/lib/users";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,9 @@ export function TeamManager({
   const [adding, setAdding] = React.useState(false);
   /** The person whose password is being reset, if any. */
   const [resetting, setResetting] = React.useState<TeamMember | null>(null);
+  /** The person being renamed. Separate from the reset dialog because the two
+   *  are different risks — one is a typo fix, the other locks somebody out. */
+  const [renaming, setRenaming] = React.useState<TeamMember | null>(null);
   const [busyId, setBusyId] = React.useState<number | null>(null);
 
   async function patch(member: TeamMember, body: Record<string, unknown>) {
@@ -177,6 +180,16 @@ export function TeamManager({
                             size="sm"
                             className="h-7"
                             disabled={demo || busyId === m.id}
+                            onClick={() => setRenaming(m)}
+                          >
+                            <Pencil data-icon="inline-start" />
+                            Rename
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7"
+                            disabled={demo || busyId === m.id}
                             onClick={() => setResetting(m)}
                           >
                             <KeyRound data-icon="inline-start" />
@@ -221,6 +234,19 @@ export function TeamManager({
         onAdded={() => {
           setAdding(false);
           router.refresh();
+        }}
+      />
+
+      <RenameDialog
+        member={renaming}
+        onOpenChange={(open) => !open && setRenaming(null)}
+        onSaved={async (name) => {
+          const member = renaming;
+          if (!member) return;
+          if (await patch(member, { name })) {
+            setRenaming(null);
+            toast.success(`Now shown as ${name}.`);
+          }
         }}
       />
 
@@ -381,6 +407,62 @@ function AddPersonDialog({
             disabled={saving || !name.trim() || !username || password.length < 8}
           >
             {saving ? "Adding…" : "Add person"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Change the name the stats show.
+ *
+ * The username is deliberately not editable: it is what somebody types every
+ * morning and what the calls were logged under in the logs, and renaming it
+ * would silently break a saved password manager entry for no gain. A wrong
+ * username is fixed by making a new account.
+ */
+function RenameDialog({
+  member,
+  onOpenChange,
+  onSaved,
+}: {
+  member: TeamMember | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (name: string) => void;
+}) {
+  const [name, setName] = React.useState("");
+
+  React.useEffect(() => {
+    if (member) setName(member.name);
+  }, [member]);
+
+  return (
+    <Dialog open={member !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Rename {member?.name}</DialogTitle>
+          <DialogDescription>
+            What the stats and the spreadsheet's Called by column show. They
+            still sign in as{" "}
+            <span className="font-semibold">{member?.username}</span>.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-1.5">
+          <Label htmlFor="rename-name">Name</Label>
+          <Input
+            id="rename-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => onSaved(name.trim())} disabled={!name.trim()}>
+            Save
           </Button>
         </DialogFooter>
       </DialogContent>
