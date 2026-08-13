@@ -187,6 +187,57 @@ export async function getListStats(
   }));
 }
 
+export type PersonStat = {
+  /** Null for the calls made before staff logins existed. */
+  id: number | null;
+  name: string;
+  calls: number;
+  pickups: number;
+  demos: number;
+  trials: number;
+  won: number;
+};
+
+/**
+ * Who did what, in the range.
+ *
+ * A LEFT JOIN rather than an inner one, and grouped on the id so the
+ * pre-accounts calls come back as a single "Not attributed" row instead of
+ * disappearing — 136 calls quietly missing from a per-person breakdown that
+ * still totalled correctly elsewhere would read as a bug in the stats.
+ *
+ * Demos, trials and won count distinct leads for the same reason the tiles
+ * do: logging "demo booked" twice for one business is one demo.
+ */
+export async function getPersonStats(
+  w: StatsWindow,
+  listId?: number,
+): Promise<PersonStat[]> {
+  const rows = (await db.execute(sql`
+    select u.id, u.name,
+      count(*) as calls,
+      count(*) filter (where c.outcome in ${PICKUP}) as pickups,
+      count(distinct c.call_lead_id) filter (where c.outcome = 'demo_booked') as demos,
+      count(distinct c.call_lead_id) filter (where c.outcome = 'trial') as trials,
+      count(distinct c.call_lead_id) filter (where c.outcome = 'won') as won
+    from call c
+    left join app_user u on u.id = c.user_id
+    where ${since(w)} ${inList(listId)}
+    group by u.id, u.name
+    order by count(*) desc, u.name asc
+  `)) as Row[];
+
+  return rows.map((r) => ({
+    id: r.id === null ? null : n(r.id),
+    name: (r.name as string | null) ?? "Not attributed",
+    calls: n(r.calls),
+    pickups: n(r.pickups),
+    demos: n(r.demos),
+    trials: n(r.trials),
+    won: n(r.won),
+  }));
+}
+
 export type DayStat = { day: string; calls: number; pickups: number };
 
 /**

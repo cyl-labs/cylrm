@@ -2,6 +2,7 @@ import { LogOut } from "lucide-react";
 import { isDemoMode } from "@/lib/demo";
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
+import { getCurrentUser } from "@/lib/session";
 import { NavLinks } from "@/components/nav-links";
 import { Toaster } from "@/components/ui/sonner";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -15,6 +16,7 @@ export default async function AppLayout({
   // The demo workspace has no inbox of its own.
   const unread = demo ? 0 : await countUnreadReplies();
   const callbacks = demo ? 0 : await countCallbacksDue();
+  const me = await getCurrentUser();
   return (
     <div className="flex min-h-svh">
       {/* Below `lg` this is a drawer instead — see `MobileNav`, whose trigger
@@ -28,6 +30,14 @@ export default async function AppLayout({
         <div className="pt-3.5" />
         <NavLinks unreadReplies={unread} callbacksDue={callbacks} />
         <div className="mt-auto px-2.5 pb-3.5">
+          {/* Who you are, above the way out. The floor shares machines, and
+              logging a morning of calls under a colleague's name is only
+              noticed once the stats are wrong. */}
+          {me && (
+            <p className="truncate px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-sidebar-foreground/55">
+              {me.name}
+            </p>
+          )}
           <form method="post" action="/api/logout">
             <button
               type="submit"

@@ -48,7 +48,10 @@ const SPOKE_TO = sql`('gatekeeper','callback','not_interested','demo_booked','tr
  */
 const latestCall = sql`
   left join lateral (
-    select c.outcome, c.called_at, c.callback_at, c.notes
+    select c.outcome, c.called_at, c.callback_at, c.notes,
+      -- Who made it. Joined here rather than on the outer query so it stays
+      -- the *latest* call's caller, not every caller this lead has had.
+      (select u.name from app_user u where u.id = c.user_id) as by_name
     from call c
     where c.call_lead_id = l.id
     order by c.called_at desc, c.id desc
@@ -184,6 +187,9 @@ export type QueueLead = {
   lastCalledAt: string | null;
   callbackAt: string | null;
   lastNotes: string | null;
+  /** Who logged the most recent call. Null for the calls made before staff
+   *  logins existed, and for a lead nobody has rung. */
+  lastCalledBy: string | null;
 };
 
 export type CallQueueFilter = "queue" | "callbacks" | "closed" | "all";
@@ -198,7 +204,7 @@ export type CallCategory = CallOutcome | "uncalled";
 const leadColumns = sql`
   l.id, l.phone, l.name, l.company, l.title, l.email, l.website,
   lc.outcome as last_outcome, lc.called_at as last_called_at,
-  lc.callback_at, lc.notes as last_notes,
+  lc.callback_at, lc.notes as last_notes, lc.by_name as last_called_by,
   (select count(*) from call c where c.call_lead_id = l.id) as attempts
 `;
 
@@ -220,6 +226,7 @@ function toLead(r: Row): QueueLead {
       ? new Date(r.callback_at as string).toISOString()
       : null,
     lastNotes: (r.last_notes as string | null) ?? null,
+    lastCalledBy: (r.last_called_by as string | null) ?? null,
   };
 }
 

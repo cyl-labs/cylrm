@@ -6,6 +6,7 @@ import {
   PhoneCall,
   PhoneForwarded,
   Send,
+  ShieldCheck,
   Table2,
   Users,
   type LucideIcon,
@@ -64,6 +65,10 @@ export const WORKSPACES: Workspace[] = [
       { href: "/call-sheet", label: "Spreadsheet", icon: Table2 },
       { href: "/call-pipeline", label: "Pipeline", icon: Kanban },
       { href: "/call-stats", label: "Stats", icon: BarChart3 },
+      // Deliberately not "Accounts": that is the Gmail sending accounts on
+      // the email side, and two screens with one name is how the wrong one
+      // gets opened.
+      { href: "/team", label: "Team", icon: ShieldCheck },
     ],
   },
 ];
@@ -74,6 +79,7 @@ const CALL_PREFIXES = [
   "/call-sheet",
   "/call-pipeline",
   "/call-stats",
+  "/team",
 ];
 
 export function workspaceForPath(pathname: string): Workspace {

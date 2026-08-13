@@ -11,11 +11,16 @@ export async function middleware(request: NextRequest) {
   );
 
   const isLoginPage = request.nextUrl.pathname === "/login";
+  // `userId` is required, not just `loggedIn`: a cookie issued before staff
+  // logins existed passes the old test but says nothing about who is holding
+  // it, and every call it logged would be unattributed. Those sessions sign
+  // in again once.
+  const signedIn = Boolean(session.loggedIn && session.userId);
 
-  if (!session.loggedIn && !isLoginPage) {
+  if (!signedIn && !isLoginPage) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (session.loggedIn && isLoginPage) {
+  if (signedIn && isLoginPage) {
     return NextResponse.redirect(new URL("/", request.url));
   }
   return response;

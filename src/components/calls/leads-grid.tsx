@@ -60,6 +60,7 @@ type ColKey =
   | "phone"
   | "email"
   | "website"
+  | "lastCalledBy"
   | "attempts"
   | "lastCalledAt"
   | "callbackAt";
@@ -81,6 +82,7 @@ const COLS: { key: ColKey; label: string; w: number; align?: "center" }[] = [
   { key: "listName", label: "List", w: 160 },
   { key: "email", label: "Email", w: 220 },
   { key: "website", label: "Website", w: 200 },
+  { key: "lastCalledBy", label: "Called by", w: 130 },
   { key: "attempts", label: "Tries", w: 64, align: "center" },
   { key: "lastCalledAt", label: "Last call", w: 130 },
   { key: "callbackAt", label: "Callback", w: 130 },
@@ -145,6 +147,10 @@ function cellText(lead: SheetLead, key: ColKey): string {
     // back in round-trips: the endpoint normalises it to the same URL.
     case "website":
       return websiteLabel(lead.website);
+    case "lastCalledBy":
+      // Blank rather than "Not attributed": a column of that on every row
+      // rung before logins existed would drown the names that are there.
+      return lead.lastCalledBy ?? "";
     case "listName":
       return lead.listName;
     default:
@@ -378,6 +384,7 @@ export function LeadsGrid({
   lists,
   initialTab = "all",
   truncated = false,
+  meName = null,
   demo = false,
 }: {
   leads: SheetLead[];
@@ -390,6 +397,9 @@ export function LeadsGrid({
   /** More leads exist than the sheet loads — said out loud rather than
    *  showing part of a list as if it were all of it. */
   truncated?: boolean;
+  /** The signed-in person's name, for the Called by cell of a call logged
+   *  from here — the row should say who did it before the refresh lands. */
+  meName?: string | null;
   demo?: boolean;
 }) {
   const router = useRouter();
@@ -413,7 +423,14 @@ export function LeadsGrid({
   const [callEdits, setCallEdits] = React.useState<
     Record<
       number,
-      Pick<SheetLead, "lastOutcome" | "attempts" | "lastCalledAt" | "callbackAt">
+      Pick<
+        SheetLead,
+        | "lastOutcome"
+        | "attempts"
+        | "lastCalledAt"
+        | "callbackAt"
+        | "lastCalledBy"
+      >
     >
   >({});
   /** The lead whose number was just copied, so its cell can say so. */
@@ -732,6 +749,7 @@ export function LeadsGrid({
           outcome === "callback"
             ? new Date(Date.now() + 86_400_000).toISOString()
             : null,
+        lastCalledBy: meName ?? null,
       },
     }));
     if (!demo) router.refresh();
@@ -750,6 +768,9 @@ export function LeadsGrid({
             : (current?.attempts ?? 1),
         lastCalledAt: next === "uncalled" ? null : (current?.lastCalledAt ?? null),
         callbackAt: next === "callback" ? (current?.callbackAt ?? null) : null,
+        // A correction does not make the call yours, so the name stays put —
+        // the API leaves `user_id` alone for the same reason.
+        lastCalledBy: next === "uncalled" ? null : (current?.lastCalledBy ?? null),
       },
     }));
     if (!demo) router.refresh();
@@ -1089,7 +1110,8 @@ export function LeadsGrid({
                                 c.key === "callbackAt" ||
                                 c.key === "lastNotes" ||
                                 c.key === "email" ||
-                                c.key === "website") &&
+                                c.key === "website" ||
+                                c.key === "lastCalledBy") &&
                                 "text-muted-foreground",
                               isSel &&
                                 "outline outline-2 -outline-offset-2 outline-primary",

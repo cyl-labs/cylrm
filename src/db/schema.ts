@@ -390,11 +390,41 @@ export const callLead = pgTable(
   (t) => [uniqueIndex("call_lead_list_phone_idx").on(t.callListId, t.phoneKey)],
 );
 
+/**
+ * A person who logs in — one row per employee.
+ *
+ * Deliberately not called "account": that word is already taken by the Gmail
+ * sending accounts on the email side, and two things called Accounts in one
+ * app is how the wrong one gets deleted.
+ */
+export const appUser = pgTable("app_user", {
+  id: serial("id").primaryKey(),
+  /** Lowercase, unique. What they type to sign in. */
+  username: text("username").notNull().unique(),
+  /** What the stats screen calls them. */
+  name: text("name").notNull(),
+  /** scrypt, salted, parameters embedded — see lib/password.ts. */
+  passwordHash: text("password_hash").notNull(),
+  /** `admin` can manage the team; `caller` can do everything else. */
+  role: text("role").notNull().default("caller").$type<"admin" | "caller">(),
+  /** Deactivated rather than deleted: their calls are still theirs, and the
+   *  numbers would move if the rows went. Blocks signing in, nothing else. */
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+});
+
 export const call = pgTable("call", {
   id: serial("id").primaryKey(),
   callLeadId: integer("call_lead_id")
     .notNull()
     .references(() => callLead.id),
+  /** Who logged it. Nullable because the calls made before logins existed
+   *  have no one to attribute them to, and guessing would be worse than the
+   *  screens saying "unattributed". */
+  userId: integer("user_id").references(() => appUser.id),
   outcome: callOutcomeEnum("outcome").notNull(),
   notes: text("notes"),
   /** When they asked to be rung back. Only meaningful for `callback`. */

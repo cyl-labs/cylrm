@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { call, callLead } from "@/db/schema";
 import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
-import { getSession } from "@/lib/session";
+import { getCurrentUser, getSession } from "@/lib/session";
 import { parseCallbackAt } from "@/lib/call-time";
 
 const OUTCOMES = [
@@ -72,9 +72,19 @@ export async function POST(request: Request) {
       ? body.notes.trim().slice(0, 5000)
       : null;
 
+  // Who dialled. The session is the only source for this — a client-supplied
+  // user id would let anyone log calls against a colleague's name.
+  const user = await getCurrentUser();
+
   const [row] = await db
     .insert(call)
-    .values({ callLeadId: leadId, outcome: body.outcome, notes, callbackAt })
+    .values({
+      callLeadId: leadId,
+      userId: user?.id ?? null,
+      outcome: body.outcome,
+      notes,
+      callbackAt,
+    })
     .returning({ id: call.id, calledAt: call.calledAt });
 
   return Response.json({
@@ -151,11 +161,18 @@ export async function PATCH(request: Request) {
   if (!existing) {
     const [row] = await db
       .insert(call)
-      .values({ callLeadId: leadId, outcome: body.outcome, callbackAt })
+      .values({
+        callLeadId: leadId,
+        userId: (await getCurrentUser())?.id ?? null,
+        outcome: body.outcome,
+        callbackAt,
+      })
       .returning({ id: call.id });
     return Response.json({ id: row.id, outcome: body.outcome, created: true });
   }
 
+  // `user_id` is deliberately left alone: correcting a mis-tapped outcome
+  // does not make the call yours. The dial was theirs and stays theirs.
   await db
     .update(call)
     .set({ outcome: body.outcome, callbackAt })

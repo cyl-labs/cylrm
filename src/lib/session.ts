@@ -2,7 +2,18 @@ import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 
 export interface SessionData {
+  /**
+   * Kept alongside `userId` rather than replaced by it: every route in the
+   * app tests it, and a session cookie issued before staff logins existed
+   * still has it set. `userId` is what says *who*, so anything that writes a
+   * call requires that instead — see `requireUser`.
+   */
   loggedIn?: boolean;
+  userId?: number;
+  /** Denormalised so the sidebar and the call routes do not query for a name
+   *  on every request. Refreshed at login; a rename shows up next sign-in. */
+  userName?: string;
+  role?: "admin" | "caller";
 }
 
 export const sessionOptions: SessionOptions = {
@@ -19,4 +30,27 @@ export const sessionOptions: SessionOptions = {
 export async function getSession() {
   const cookieStore = await cookies();
   return getIronSession<SessionData>(cookieStore, sessionOptions);
+}
+
+export type CurrentUser = {
+  id: number;
+  name: string;
+  role: "admin" | "caller";
+};
+
+/**
+ * The signed-in employee, or null.
+ *
+ * Null for a session predating staff logins, which is why the middleware
+ * sends those back to /login: an unattributed call is worse than one more
+ * sign-in, since the whole point of the feature is knowing whose it was.
+ */
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const session = await getSession();
+  if (!session.loggedIn || !session.userId) return null;
+  return {
+    id: session.userId,
+    name: session.userName ?? "Unknown",
+    role: session.role ?? "caller",
+  };
 }

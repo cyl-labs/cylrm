@@ -5,6 +5,7 @@ import {
   getCallsByDay,
   getListStats,
   getOutcomeCounts,
+  getPersonStats,
   todayInCallTz,
   type StatsWindow,
 } from "@/lib/call-stats";
@@ -81,16 +82,17 @@ export default async function CallStatsPage({
     (l) => l.total - l.uncalled > 0 || l.id === listId,
   );
 
-  const { totals, outcomes, lists, byDay } = demo
+  const { totals, outcomes, lists, byDay, people } = demo
     ? demoCallStats(listId)
     : await (async () => {
-        const [totals, outcomes, lists, byDay] = await Promise.all([
+        const [totals, outcomes, lists, byDay, people] = await Promise.all([
           getCallTotals(w, listId),
           getOutcomeCounts(w, listId),
           getListStats(w, listId),
           getCallsByDay(14, listId),
+          getPersonStats(w, listId),
         ]);
-        return { totals, outcomes, lists, byDay };
+        return { totals, outcomes, lists, byDay, people };
       })();
 
   const tiles = [
@@ -294,6 +296,78 @@ export default async function CallStatsPage({
             </p>
           </div>
         </div>
+
+        {/* By person. Hidden when there is only the one unattributed row —
+            before anyone has signed in and called, a table of one line
+            labelled "Not attributed" is noise. */}
+        {(people.length > 1 || people.some((p) => p.id !== null)) && (
+          <div className={CARD}>
+            <div className="border-b border-border/60 px-5 py-3.5">
+              <p className="text-sm font-extrabold tracking-[-0.01em]">
+                By person
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground/75">
+                Who logged the call, in the selected range.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-b border-border/60 text-left">
+                    {["Person", "Calls", "Pickups", "Demos", "Trials", "Won"].map(
+                      (h, i) => (
+                        <th
+                          key={h}
+                          className={cn(
+                            "whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground",
+                            i > 0 && "text-right",
+                          )}
+                        >
+                          {h}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {people.map((p) => (
+                    <tr
+                      key={p.id ?? "unattributed"}
+                      className="border-b border-border/60 last:border-0"
+                    >
+                      <td
+                        className={cn(
+                          "max-w-[16rem] truncate px-4 py-2 font-semibold",
+                          // The pre-accounts calls are real but nobody's, and
+                          // styling them like a colleague invites the question
+                          // of who "Not attributed" is.
+                          p.id === null && "font-medium text-muted-foreground",
+                        )}
+                      >
+                        {p.name}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {p.calls.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
+                        {p.pickups.toLocaleString()} ({pct(p.pickups, p.calls)})
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {p.demos.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {p.trials.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right font-bold tabular-nums">
+                        {p.won.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         <div className={CARD}>
           <div className="border-b border-border/60 px-5 py-3.5">

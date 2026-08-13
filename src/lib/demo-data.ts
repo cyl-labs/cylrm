@@ -442,6 +442,23 @@ const CALL_OUTCOMES = [
 /** Deterministic pseudo-random so the demo looks identical on every render. */
 const spread = (i: number, n: number) => (i * 7 + 3) % n;
 
+/** The demo team. Three people so the per-person table has something to
+ *  compare, and one switched off so that state is visible too. */
+const DEMO_PEOPLE = [
+  { id: 9701, name: "Wei Ling", username: "weiling", role: "admin" as const, active: true },
+  { id: 9702, name: "Marcus Tan", username: "marcus", role: "caller" as const, active: true },
+  { id: 9703, name: "Priya Nair", username: "priya", role: "caller" as const, active: false },
+];
+
+export function demoTeam() {
+  return DEMO_PEOPLE.map((p, i) => ({
+    ...p,
+    createdAt: ago(40 - i * 10).toISOString(),
+    lastSeenAt: p.active ? ago(i).toISOString() : null,
+    calls: [128, 96, 41][i],
+  }));
+}
+
 export const demoCallLists = [
   { id: 9501, name: "Aircon servicing SG — Aug", niche: "aircon servicing" },
   { id: 9502, name: "Renovation contractors SG — Jul", niche: "renovation" },
@@ -476,6 +493,8 @@ function demoCallLeads(listId: number) {
       lastCalledAt: outcome === null ? null : ago(spread(i, 6)).toISOString(),
       callbackAt:
         outcome === "callback" ? new Date(Date.now() - DAY / 2).toISOString() : null,
+      lastCalledBy:
+        outcome === null ? null : DEMO_PEOPLE[spread(i, 2)].name,
       lastNotes:
         outcome === "gatekeeper"
           ? "Receptionist took a message, owner back Tuesday."
@@ -648,6 +667,19 @@ export function demoCallStats(listId?: number) {
     };
   });
 
+  const people = DEMO_PEOPLE.filter((p) => p.active).map((person) => {
+    const theirs = called.filter((l) => l.lastCalledBy === person.name);
+    return {
+      id: person.id,
+      name: person.name,
+      calls: theirs.reduce((sum, l) => sum + l.attempts, 0),
+      pickups: theirs.filter((l) => PICKUP.includes(l.lastOutcome!)).length,
+      demos: theirs.filter((l) => l.lastOutcome === "demo_booked").length,
+      trials: theirs.filter((l) => l.lastOutcome === "trial").length,
+      won: theirs.filter((l) => l.lastOutcome === "won").length,
+    };
+  });
+
   return {
     totals: {
       calls,
@@ -662,6 +694,7 @@ export function demoCallStats(listId?: number) {
     outcomes,
     lists,
     byDay,
+    people,
   };
 }
 

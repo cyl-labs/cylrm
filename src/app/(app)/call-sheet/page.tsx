@@ -1,5 +1,6 @@
 import { CALL_SHEET_LIMIT, getCallLists, getSheetLeads } from "@/lib/calls";
 import { isDemoMode } from "@/lib/demo";
+import { getCurrentUser } from "@/lib/session";
 import { demoCallListSummaries, demoSheetLeads } from "@/lib/demo-data";
 import { PageShell } from "@/components/page-shell";
 import { LeadsGrid } from "@/components/calls/leads-grid";
@@ -18,6 +19,7 @@ export default async function CallSheetPage({
   searchParams: Promise<{ list?: string }>;
 }) {
   const demo = await isDemoMode();
+  const me = await getCurrentUser();
   const [{ list }, [leads, lists]] = await Promise.all([
     searchParams,
     demo
@@ -52,6 +54,7 @@ export default async function CallSheetPage({
           }))}
           initialTab={initialTab}
           truncated={leads.length >= CALL_SHEET_LIMIT}
+          meName={me?.name ?? null}
           demo={demo}
         />
       )}

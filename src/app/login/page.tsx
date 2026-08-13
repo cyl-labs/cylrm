@@ -20,22 +20,41 @@ export default async function LoginPage({
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Outreach CRM</CardTitle>
-          <CardDescription>Enter the team password to sign in.</CardDescription>
+          <CardDescription>Sign in with your own account.</CardDescription>
         </CardHeader>
         <CardContent>
           <form method="post" action="/api/login" className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                name="username"
+                // A phone keyboard capitalises and autocorrects the first
+                // word of a text field, which turns "wei" into "Wei" and
+                // then into a failed login every morning.
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
+                autoFocus
+                required
+              />
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 name="password"
                 type="password"
-                autoFocus
+                autoComplete="current-password"
                 required
               />
             </div>
+            {/* One message for both cases on purpose — see the login route. */}
             {error && (
-              <p className="text-sm text-destructive">Wrong password.</p>
+              <p className="text-sm text-destructive">
+                Wrong username or password.
+              </p>
             )}
             <Button type="submit">Sign in</Button>
           </form>
