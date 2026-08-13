@@ -1,7 +1,7 @@
 import { getIronSession } from "iron-session";
 import { NextResponse, type NextRequest } from "next/server";
 import { sessionOptions, type SessionData } from "@/lib/session";
-import { isEmailPath } from "@/lib/workspace";
+import { isAdminOnlyPath } from "@/lib/workspace";
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
@@ -26,12 +26,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Callers get the Call CRM and nothing else. The switcher hides the email
-  // workspace from them, but a bookmark or a typed URL would walk straight
-  // past that — this is the part that actually stops it. The matching API
-  // routes guard themselves with `denyIfNotEmailUser`, since `/api` is
-  // excluded from this matcher.
-  if (signedIn && session.role !== "admin" && isEmailPath(pathname)) {
+  // Callers get their own corner of the Call CRM and nothing else: no email
+  // side, and no Stats, which is the floor's performance including everyone
+  // else's numbers. The switcher and nav hide both, but a bookmark or a typed
+  // URL would walk straight past that — this is the part that stops it. The
+  // matching API routes guard themselves with `denyIfNotEmailUser`, since
+  // `/api` is excluded from this matcher.
+  if (signedIn && session.role !== "admin" && isAdminOnlyPath(pathname)) {
     return NextResponse.redirect(new URL("/calls", request.url));
   }
 

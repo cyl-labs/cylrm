@@ -10,6 +10,7 @@ import {
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
 import { cn } from "@/lib/utils";
+import { callScope, getCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,8 @@ export default async function CallListPage({
   const { view } = await searchParams;
   const filter: CallQueueFilter = isFilter(view) ? view : "queue";
 
-  const list = await getCallList(listId);
+  const me = await getCurrentUser();
+  const list = await getCallList(listId, callScope(me));
   if (!list) notFound();
 
   const leads = await getCallQueue(listId, filter);

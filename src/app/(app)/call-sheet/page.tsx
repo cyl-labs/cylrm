@@ -1,5 +1,5 @@
 import { CALL_SHEET_LIMIT, getCallLists, getSheetLeads } from "@/lib/calls";
-import { getCurrentUser } from "@/lib/session";
+import { callScope, getCurrentUser } from "@/lib/session";
 import { PageShell } from "@/components/page-shell";
 import { LeadsGrid } from "@/components/calls/leads-grid";
 
@@ -19,7 +19,7 @@ export default async function CallSheetPage({
   const me = await getCurrentUser();
   const [{ list }, [leads, lists]] = await Promise.all([
     searchParams,
-    Promise.all([getSheetLeads(), getCallLists()]),
+    Promise.all([getSheetLeads(callScope(me)), getCallLists(callScope(me))]),
   ]);
 
   // A `?list=` naming a list that has since gone opens on everything rather

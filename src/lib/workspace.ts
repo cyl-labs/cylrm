@@ -91,10 +91,34 @@ export const EMAIL_PREFIXES = [
   "/stats",
 ];
 
+/**
+ * Call CRM screens a caller may not open either.
+ *
+ * Stats is the floor's performance, including everyone else's numbers, and
+ * that is the admins' business. Kept separate from EMAIL_PREFIXES so the two
+ * reasons stay legible: one is a different product, this is a permission.
+ */
+export const ADMIN_ONLY_CALL_PREFIXES = ["/call-stats"];
+
 /** `/stats` must not swallow `/call-stats`, hence startsWith on a path that
  *  begins with a slash rather than a bare contains. */
-export const isEmailPath = (pathname: string) =>
-  EMAIL_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+const matches = (pathname: string, prefixes: string[]) =>
+  prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+export const isEmailPath = (pathname: string) => matches(pathname, EMAIL_PREFIXES);
+
+/** Everything a caller is turned away from, in one test. */
+export const isAdminOnlyPath = (pathname: string) =>
+  matches(pathname, [...EMAIL_PREFIXES, ...ADMIN_ONLY_CALL_PREFIXES]);
+
+/** The nav for this person: a caller's Call CRM has no Stats in it. */
+export function linksFor(
+  workspace: Workspace,
+  role: "admin" | "caller" | undefined,
+) {
+  if (role === "admin") return workspace.links;
+  return workspace.links.filter((l) => !ADMIN_ONLY_CALL_PREFIXES.includes(l.href));
+}
 
 /** The workspaces this person may switch to. A caller only has the one, and
  *  the switcher renders it as a plain label rather than a menu of one. */

@@ -101,7 +101,22 @@ export type CallListSummary = {
   assignedName: string | null;
 };
 
-export async function getCallLists(): Promise<CallListSummary[]> {
+/**
+ * Narrow a query to the niches one person owns.
+ *
+ * Callers see only what has been assigned to them. The earlier "a label, not
+ * a lock" rule is reversed: an employee has no business in a niche that is
+ * not theirs, and fourteen of other people's made the screen a wall. Admins
+ * pass `undefined` and see everything.
+ *
+ * Expects the query to have `call_list` aliased as `cl`.
+ */
+const ownedBy = (ownerId?: number) =>
+  ownerId === undefined ? sql`` : sql`and cl.assigned_user_id = ${ownerId}`;
+
+export async function getCallLists(
+  ownerId?: number,
+): Promise<CallListSummary[]> {
   // Every aggregate counts l.id rather than *, because a list whose leads are
   // all duplicates joins to no rows and a LEFT JOIN then hands back one row of
   // NULLs. count(*) scores that phantom as an uncalled lead, which made an
@@ -154,6 +169,7 @@ export async function getCallLists(): Promise<CallListSummary[]> {
     left join call_lead l
       on l.call_list_id = cl.id and l.duplicate_of_lead_id is null
     ${latestCall}
+    where true ${ownedBy(ownerId)}
     group by cl.id, cl.name, cl.niche, cl.created_at, cl.assigned_user_id
     order by cl.created_at desc, cl.id desc
   `)) as Row[];
@@ -259,13 +275,14 @@ export const CALL_SHEET_LIMIT = 5000;
  * row is a second copy of a number already on another list, and showing it
  * would double-count the business.
  */
-export async function getSheetLeads(): Promise<SheetLead[]> {
+export async function getSheetLeads(ownerId?: number): Promise<SheetLead[]> {
   const rows = (await db.execute(sql`
     select ${leadColumns}, cl.id as list_id, cl.name as list_name
     from call_lead l
     join call_list cl on cl.id = l.call_list_id
     ${latestCall}
     where l.duplicate_of_lead_id is null
+      ${ownedBy(ownerId)}
     order by lc.called_at desc nulls last,
       cl.name asc,
       coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) asc,
@@ -331,7 +348,10 @@ export type CallbackLead = SheetLead & {
   due: boolean;
 };
 
-export async function getCallbacks(listId?: number): Promise<CallbackLead[]> {
+export async function getCallbacks(
+  listId?: number,
+  ownerId?: number,
+): Promise<CallbackLead[]> {
   const inList = listId ? sql`and l.call_list_id = ${listId}` : sql``;
 
   const rows = (await db.execute(sql`
@@ -342,6 +362,7 @@ export async function getCallbacks(listId?: number): Promise<CallbackLead[]> {
     ${latestCall}
     where l.duplicate_of_lead_id is null
       ${inList}
+      ${ownedBy(ownerId)}
       and lc.outcome = 'callback'
     order by lc.callback_at asc nulls last, l.id asc
     limit ${CALL_SHEET_LIMIT}
@@ -358,17 +379,23 @@ export async function getCallbacks(listId?: number): Promise<CallbackLead[]> {
 /** How many callbacks are owed right now — the sidebar badge. Cached because
  *  the sidebar and `PageShell` both ask while rendering one page, the same
  *  reason `countUnreadReplies` is. */
-export const countCallbacksDue = cache(async (): Promise<number> => {
-  const [row] = (await db.execute(sql`
-    select count(l.id) as n
-    from call_lead l
-    ${latestCall}
-    where l.duplicate_of_lead_id is null
-      and lc.outcome = 'callback'
-      and ${CALLBACK_DUE}
-  `)) as Row[];
-  return n(row?.n);
-});
+export const countCallbacksDue = cache(
+  async (ownerId?: number): Promise<number> => {
+    const [row] = (await db.execute(sql`
+      select count(l.id) as n
+      from call_lead l
+      -- Joined only so \`ownedBy\` has its \`cl\` to filter on; every lead has
+      -- exactly one list, so the join cannot change the count.
+      join call_list cl on cl.id = l.call_list_id
+      ${latestCall}
+      where l.duplicate_of_lead_id is null
+        ${ownedBy(ownerId)}
+        and lc.outcome = 'callback'
+        and ${CALLBACK_DUE}
+    `)) as Row[];
+    return n(row?.n);
+  },
+);
 
 /** Cards kept per column. A list of a thousand uncalled numbers is a queue,
  *  not a board, and rendering it as one helps nobody — the column says how
@@ -382,7 +409,10 @@ export const BOARD_COLUMN_LIMIT = 60;
  * Won column and no Lost one only shows the half of the answer you wanted to
  * hear. The per-column cap is what keeps it readable.
  */
-export async function getCallBoard(listId?: number): Promise<BoardCard[]> {
+export async function getCallBoard(
+  listId?: number,
+  ownerId?: number,
+): Promise<BoardCard[]> {
   const inList = listId ? sql`and l.call_list_id = ${listId}` : sql``;
 
   const rows = (await db.execute(sql`
@@ -392,6 +422,7 @@ export async function getCallBoard(listId?: number): Promise<BoardCard[]> {
     ${latestCall}
     where l.duplicate_of_lead_id is null
       ${inList}
+      ${ownedBy(ownerId)}
     order by
       -- Callbacks whose time has passed first, the same priority the dialler
       -- gives them, then whatever was touched most recently.
@@ -487,10 +518,17 @@ export type CallListDetail = {
   | "duplicates"
 >;
 
-export async function getCallList(id: number): Promise<CallListDetail | null> {
+export async function getCallList(
+  id: number,
+  ownerId?: number,
+): Promise<CallListDetail | null> {
   // `called_today` comes back with the summary now, so there is no second
   // query and no chance of the card and the detail screen disagreeing.
-  const lists = await getCallLists();
+  //
+  // Scoped, so a caller who types another team's list id into the URL gets the
+  // same not-found as a list that never existed — the dialler reads its queue
+  // only after this returns.
+  const lists = await getCallLists(ownerId);
   return lists.find((l) => l.id === id) ?? null;
 }
 

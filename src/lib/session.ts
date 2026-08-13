@@ -73,3 +73,16 @@ export async function denyIfNotEmailUser(): Promise<Response | null> {
   }
   return null;
 }
+
+/**
+ * The owner id to scope calling queries by, or undefined for "everything".
+ *
+ * Admins run the floor and see every niche; a caller sees only what has been
+ * assigned to them. A session with no user resolves to -1 rather than
+ * undefined, so a bug upstream fails closed to an empty screen instead of
+ * open to the whole database.
+ */
+export function callScope(me: CurrentUser | null): number | undefined {
+  if (me?.role === "admin") return undefined;
+  return me?.id ?? -1;
+}

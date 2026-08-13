@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { workspaceForPath } from "@/lib/workspace";
+import { linksFor, workspaceForPath } from "@/lib/workspace";
 
 /**
  * The current workspace's screens, and only those — which workspace that is
@@ -11,19 +11,24 @@ import { workspaceForPath } from "@/lib/workspace";
  * switcher's job, above.
  */
 export function NavLinks({
+  role,
   unreadReplies = 0,
   callbacksDue = 0,
 }: {
+  /** Decides which of this workspace's screens are on offer — a caller's has
+   *  no Stats. Hiding it is the courtesy; the middleware is the control. */
+  role: "admin" | "caller" | undefined;
   unreadReplies?: number;
   /** Callbacks whose time has passed — the calling side's version of unread. */
   callbacksDue?: number;
 }) {
   const pathname = usePathname();
   const workspace = workspaceForPath(pathname);
+  const links = linksFor(workspace, role);
 
   return (
     <nav className="flex flex-col gap-0.5 px-2.5">
-      {workspace.links.map(({ href, label, icon: Icon }) => {
+      {links.map(({ href, label, icon: Icon }) => {
         const active = pathname.startsWith(href);
         return (
           <Link

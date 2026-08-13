@@ -66,6 +66,7 @@ export function MobileNav({
             the pathname, which needs a state-setting effect. */}
         <div onClick={() => setOpen(false)}>
           <NavLinks
+            role={role}
             unreadReplies={unreadReplies}
             callbacksDue={callbacksDue}
           />

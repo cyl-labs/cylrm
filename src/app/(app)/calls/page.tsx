@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PhoneCall } from "lucide-react";
 import { getCallLists } from "@/lib/calls";
-import { getCurrentUser } from "@/lib/session";
+import { callScope, getCurrentUser } from "@/lib/session";
 import { listTeam } from "@/lib/users";
 import { PageShell } from "@/components/page-shell";
 import { CallImportDialog } from "@/components/calls/call-import-dialog";
@@ -16,19 +16,21 @@ export default async function CallsPage({
 }: {
   searchParams: Promise<{ mine?: string }>;
 }) {
-  const [{ mine: mineParam }, all, me, team] = await Promise.all([
+  const me = await getCurrentUser();
+  const isAdmin = me?.role === "admin";
+  const [{ mine: mineParam }, all, team] = await Promise.all([
     searchParams,
-    getCallLists(),
-    getCurrentUser(),
+    // A caller is only ever handed their own niches; the filter below is an
+    // admin convenience on top of the full set.
+    getCallLists(callScope(me)),
     listTeam(),
   ]);
 
   const myLists = all.filter((l) => l.assignedUserId === me?.id);
-  // Default to your own niches only when you have some — a new caller with
-  // nothing assigned would otherwise land on an empty screen and conclude
-  // there is no work.
-  const mine = mineParam === undefined ? myLists.length > 0 : mineParam === "1";
-  const lists = mine && myLists.length > 0 ? myLists : all;
+  // Admins default to the whole floor — that is the job — and can narrow to
+  // their own. Callers have nothing to narrow: `all` is already only theirs.
+  const mine = isAdmin && mineParam === "1";
+  const lists = mine ? myLists : all;
   const people = team.map((t) => ({ id: t.id, name: t.name, active: t.active }));
 
   return (
@@ -36,7 +38,7 @@ export default async function CallsPage({
       title="Call lists"
       actions={
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          {myLists.length > 0 && (
+          {isAdmin && myLists.length > 0 && (
             // Two links rather than a control: the filter is in the URL, so
             // it survives a refresh and can be bookmarked.
             <div className="flex shrink-0 rounded-lg border p-0.5">

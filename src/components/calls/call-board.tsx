@@ -274,7 +274,13 @@ export function CallBoard({
                   )}
                   data-lead-id={c.id}
                 >
-                  <p className="text-[13px] font-bold leading-tight">
+                  {/* `break-words` because a scrape sometimes lands a URL in
+                      the company field — "https://www.zealous.com.sg/" is one
+                      unbreakable word wanting 167px in a 111px card, so
+                      without it the name simply runs off the edge and is cut
+                      mid-character. Wrapping, rather than truncating: on a
+                      board the company name is how you recognise the card. */}
+                  <p className="text-[13px] font-bold leading-tight break-words">
                     {c.company ?? c.name ?? c.phone}
                   </p>
                   {c.name && c.company && (

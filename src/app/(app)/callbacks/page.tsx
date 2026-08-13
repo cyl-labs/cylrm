@@ -2,6 +2,7 @@ import { getCallbacks, getCallLists } from "@/lib/calls";
 import { PageShell } from "@/components/page-shell";
 import { CallbacksList } from "@/components/calls/callbacks-list";
 import { CallFilters } from "@/components/calls/call-filters";
+import { callScope, getCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,13 @@ export default async function CallbacksPage({
   searchParams: Promise<{ list?: string }>;
 }) {
   const { list } = await searchParams;
-  const lists = await getCallLists();
+  const me = await getCurrentUser();
+  const lists = await getCallLists(callScope(me));
 
   const wanted = Number(list);
   const listId = lists.some((l) => l.id === wanted) ? wanted : undefined;
 
-  const leads = await getCallbacks(listId);
+  const leads = await getCallbacks(listId, callScope(me));
   // `due` is decided by the database's clock, not this render's.
   const due = leads.filter((l) => l.due).length;
 
