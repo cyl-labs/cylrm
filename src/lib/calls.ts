@@ -178,6 +178,7 @@ export type QueueLead = {
   company: string | null;
   title: string | null;
   email: string | null;
+  website: string | null;
   attempts: number;
   lastOutcome: CallOutcome | null;
   lastCalledAt: string | null;
@@ -195,7 +196,7 @@ export type CallCategory = CallOutcome | "uncalled";
 /** Columns every lead view needs. Kept in one place so the queue and the
  *  sheet cannot drift into showing different fields for the same lead. */
 const leadColumns = sql`
-  l.id, l.phone, l.name, l.company, l.title, l.email,
+  l.id, l.phone, l.name, l.company, l.title, l.email, l.website,
   lc.outcome as last_outcome, lc.called_at as last_called_at,
   lc.callback_at, lc.notes as last_notes,
   (select count(*) from call c where c.call_lead_id = l.id) as attempts
@@ -209,6 +210,7 @@ function toLead(r: Row): QueueLead {
     company: (r.company as string | null) ?? null,
     title: (r.title as string | null) ?? null,
     email: (r.email as string | null) ?? null,
+    website: (r.website as string | null) ?? null,
     attempts: n(r.attempts),
     lastOutcome: (r.last_outcome as CallOutcome | null) ?? null,
     lastCalledAt: r.last_called_at

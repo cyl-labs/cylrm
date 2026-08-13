@@ -4,6 +4,7 @@ import { callLead } from "@/db/schema";
 import { classifyPhone, phoneKey } from "@/lib/calls";
 import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
+import { websiteHref } from "@/lib/website";
 
 /** The lead's own fields — the ones a scrape can get wrong. Everything else on
  *  the spreadsheet is derived from calls and is corrected by fixing the call. */
@@ -73,6 +74,26 @@ export async function PATCH(
     }
   }
 
+  // Not one of TEXT_FIELDS: a website is stored normalised, so the cell and
+  // the button can never disagree about where a click goes. Refusing what
+  // cannot be parsed is the point — stored as typed, it would render a cell
+  // with no button and no explanation.
+  if ("website" in body) {
+    const raw = typeof body.website === "string" ? body.website.trim() : "";
+    if (raw === "") {
+      values.website = null;
+    } else {
+      const href = websiteHref(raw);
+      if (!href) {
+        return Response.json(
+          { error: "That does not look like a website address." },
+          { status: 400 },
+        );
+      }
+      values.website = href;
+    }
+  }
+
   if ("phone" in body) {
     const phone = typeof body.phone === "string" ? body.phone.trim() : "";
     const kind = classifyPhone(phone);
@@ -138,6 +159,7 @@ export async function PATCH(
       name: callLead.name,
       title: callLead.title,
       email: callLead.email,
+      website: callLead.website,
     });
 
   return Response.json(row);

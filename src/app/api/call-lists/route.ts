@@ -5,6 +5,7 @@ import { csvToRecords, type CsvRecord } from "@/lib/csv";
 import { classifyPhone, phoneKey } from "@/lib/calls";
 import { demoReadOnlyResponse, isDemoMode } from "@/lib/demo";
 import { getSession } from "@/lib/session";
+import { websiteHref } from "@/lib/website";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 500;
@@ -93,6 +94,21 @@ const COLUMN_ALIASES = {
     "email address",
     "general email",
     "generic email",
+  ],
+  // The company's own site. `source url` and `provenance url` are deliberately
+  // absent: they say where the scraper found the lead, which is usually a
+  // directory listing, and opening one tells a caller nothing about the
+  // business they are about to ring.
+  website: [
+    "website",
+    "website url",
+    "company website",
+    "web site",
+    "homepage",
+    "url",
+    "site",
+    "domain",
+    "company domain",
   ],
 } as const;
 
@@ -205,6 +221,7 @@ export async function POST(request: Request) {
   const companyCols = findColumns(headers, COLUMN_ALIASES.company);
   const titleCols = findColumns(headers, COLUMN_ALIASES.title);
   const emailCols = findColumns(headers, COLUMN_ALIASES.email);
+  const websiteCols = findColumns(headers, COLUMN_ALIASES.website);
 
   type ParsedRow = {
     phone: string;
@@ -213,6 +230,7 @@ export async function POST(request: Request) {
     company: string | null;
     title: string | null;
     email: string | null;
+    website: string | null;
     raw: CsvRecord;
   };
 
@@ -260,6 +278,10 @@ export async function POST(request: Request) {
       company: pick(rec, companyCols),
       title: pick(rec, titleCols),
       email: pick(rec, emailCols),
+      // Normalised on the way in so the column holds openable URLs rather
+      // than a mix of bare domains and junk. A value that will not parse is
+      // dropped, not stored — source_fields still has the original.
+      website: websiteHref(pick(rec, websiteCols)),
       raw: rec,
     });
   }
@@ -324,6 +346,7 @@ export async function POST(request: Request) {
           company: r.company,
           title: r.title,
           email: r.email,
+          website: r.website,
           sourceFields: r.raw,
           duplicateOfLeadId: dup,
         };

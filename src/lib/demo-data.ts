@@ -470,6 +470,7 @@ function demoCallLeads(listId: number) {
       company,
       title: TITLES[(i * 2) % TITLES.length],
       email: null,
+      website: `https://${company.toLowerCase().replace(/[^a-z0-9]+/g, "")}.com.sg`,
       attempts,
       lastOutcome: outcome,
       lastCalledAt: outcome === null ? null : ago(spread(i, 6)).toISOString(),

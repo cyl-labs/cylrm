@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, SkipForward, Undo2 } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  Globe,
+  SkipForward,
+  Undo2,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { CallOutcome, QueueLead } from "@/lib/calls";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
 import { dialableNumber } from "@/lib/phone";
+import { websiteHref, websiteLabel } from "@/lib/website";
 import { callTzDate } from "@/lib/call-time";
 import { cn } from "@/lib/utils";
 
@@ -380,6 +388,24 @@ export function Dialler({
             keying both on the bare lead id gave one parent two children with
             the same key, which React is entitled to conflate. */}
         <CopyNumber key={`number-${current.id}`} phone={current.phone} />
+        {/* Sizing a business up before dialling — is this one van or forty —
+            is the question the number cannot answer. A new tab rather than
+            the same one: leaving this page loses the queue's position. */}
+        {websiteHref(current.website) && (
+          <a
+            href={websiteHref(current.website)!}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl border bg-background text-sm font-bold text-foreground transition-colors hover:bg-muted"
+          >
+            <Globe className="size-4 shrink-0" strokeWidth={2.2} />
+            <span className="truncate">{websiteLabel(current.website)}</span>
+            <ExternalLink
+              className="size-3.5 shrink-0 text-muted-foreground"
+              strokeWidth={2.2}
+            />
+          </a>
+        )}
         {current.email && (
           <p className="mt-2 truncate text-center text-xs text-muted-foreground">
             {current.email}

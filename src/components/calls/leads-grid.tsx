@@ -12,6 +12,7 @@ import {
   Filter,
   Copy,
   Download,
+  ExternalLink,
   Folder,
   FolderOpen,
   Pencil,
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { dialableNumber } from "@/lib/phone";
 import { cn } from "@/lib/utils";
+import { websiteHref, websiteLabel } from "@/lib/website";
 
 /** Every row is the same height, which is what lets the grid render only the
  *  slice on screen — see the windowing in `LeadsGrid`. */
@@ -57,6 +59,7 @@ type ColKey =
   | "lastNotes"
   | "phone"
   | "email"
+  | "website"
   | "attempts"
   | "lastCalledAt"
   | "callbackAt";
@@ -77,12 +80,13 @@ const COLS: { key: ColKey; label: string; w: number; align?: "center" }[] = [
   { key: "phone", label: "Phone", w: 140 },
   { key: "listName", label: "List", w: 160 },
   { key: "email", label: "Email", w: 220 },
+  { key: "website", label: "Website", w: 200 },
   { key: "attempts", label: "Tries", w: 64, align: "center" },
   { key: "lastCalledAt", label: "Last call", w: 130 },
   { key: "callbackAt", label: "Callback", w: 130 },
 ];
 
-type EditableKey = "company" | "phone" | "email";
+type EditableKey = "company" | "phone" | "email" | "website";
 
 /** Columns that are the lead's own record and can be corrected here — a
  *  scraped number is wrong often enough to be worth fixing in place. The rest
@@ -92,6 +96,7 @@ const EDITABLE = new Set<ColKey>([
   "company",
   "phone",
   "email",
+  "website",
 ] satisfies EditableKey[]);
 
 const isEditable = (key: ColKey): key is EditableKey => EDITABLE.has(key);
@@ -135,6 +140,11 @@ function cellText(lead: SheetLead, key: ColKey): string {
       return fmt(lead.callbackAt);
     case "phone":
       return lead.phone;
+    // The tidied form, not the stored one, so the cell, the formula bar, a
+    // copy and the CSV all say the same thing — and so typing the tidy form
+    // back in round-trips: the endpoint normalises it to the same URL.
+    case "website":
+      return websiteLabel(lead.website);
     case "listName":
       return lead.listName;
     default:
@@ -1078,7 +1088,8 @@ export function LeadsGrid({
                               (c.key === "lastCalledAt" ||
                                 c.key === "callbackAt" ||
                                 c.key === "lastNotes" ||
-                                c.key === "email") &&
+                                c.key === "email" ||
+                                c.key === "website") &&
                                 "text-muted-foreground",
                               isSel &&
                                 "outline outline-2 -outline-offset-2 outline-primary",
@@ -1119,6 +1130,32 @@ export function LeadsGrid({
                                     {l.phone}
                                     <Copy className="size-3 shrink-0 opacity-0 transition-opacity group-hover/cell:opacity-50" />
                                   </>
+                                )}
+                              </span>
+                            ) : c.key === "website" ? (
+                              <span className="flex items-center gap-1.5">
+                                <span className="min-w-0 truncate">
+                                  {websiteLabel(l.website)}
+                                </span>
+                                {websiteHref(l.website) && (
+                                  <a
+                                    href={websiteHref(l.website)!}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    // The click must not reach the cell: the
+                                    // td selects on click, and a selection
+                                    // moving as the tab opens reads as the
+                                    // sheet losing your place.
+                                    onClick={(e) => e.stopPropagation()}
+                                    title={`Open ${websiteHref(l.website)}`}
+                                    aria-label={`Open the website for ${l.company ?? l.phone}`}
+                                    className="ml-auto shrink-0 rounded p-0.5 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-primary"
+                                  >
+                                    <ExternalLink
+                                      className="size-3.5"
+                                      strokeWidth={2.2}
+                                    />
+                                  </a>
                                 )}
                               </span>
                             ) : (

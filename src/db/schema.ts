@@ -373,6 +373,10 @@ export const callLead = pgTable(
     title: text("title"),
     /** Optional here by design — many scraped call lists carry no email. */
     email: text("email"),
+    /** The company's own site, for sizing a business up before dialling.
+     *  Stored as the scrape wrote it; `websiteHref` decides whether it can
+     *  be opened, so a junk value costs a missing button and nothing more. */
+    website: text("website"),
     /** Raw CSV columns, mirroring contact.apollo_fields. */
     sourceFields: jsonb("source_fields").$type<Record<string, string>>(),
     /** Set at import when this number already exists on another lead. */
