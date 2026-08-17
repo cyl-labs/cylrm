@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  CalendarPlus,
   MessageSquareWarning,
   ScrollText,
   ShieldAlert,
@@ -197,12 +198,18 @@ function CallForm({
   lead,
   onLogged,
   onSkip,
+  calBookingUrl,
 }: {
   lead: QueueLead;
   onLogged: () => void;
   onSkip: () => void;
+  calBookingUrl?: string;
 }) {
   const [notes, setNotes] = React.useState("");
+  // Seeded from the lead so a number that already has them is one glance, not
+  // one retype. What the prospect says on the call wins over the scrape.
+  const [email, setEmail] = React.useState(lead.email ?? "");
+  const [contact, setContact] = React.useState(lead.name ?? "");
   const [callbackAt, setCallbackAt] = React.useState(defaultCallbackAt);
   // Picked but not yet saved. Nothing is written until the confirm button is
   // pressed: one tap next to another used to be the whole gesture, and a
@@ -224,6 +231,8 @@ function CallForm({
           outcome,
           notes,
           callbackAt: outcome === "callback" ? callbackAt : undefined,
+          contactEmail: outcome === "demo_booked" ? email : undefined,
+          contactName: outcome === "demo_booked" ? contact : undefined,
         }),
       });
       const data = await res.json();
@@ -250,6 +259,62 @@ function CallForm({
         placeholder="Notes from the call…"
         className="mt-4 min-h-[64px]"
       />
+
+      {picked === "demo_booked" && (
+        <div className="mt-3 space-y-2.5 rounded-lg border bg-muted/30 p-3.5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+            Booking the demo
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="demo-email">Their email</Label>
+            <Input
+              id="demo-email"
+              type="email"
+              inputMode="email"
+              autoComplete="off"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@company.com"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="demo-contact">Who you spoke to</Label>
+            <Input
+              id="demo-contact"
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+              placeholder="Name"
+            />
+          </div>
+          {calBookingUrl && (
+            // A new tab, never a navigation: leaving this page unmounts the
+            // dialler, which loses the queue's position now and would drop a
+            // live call once dialling moves into the browser. Cal.com's own
+            // booking flow is what sends the invite and the reminders and
+            // writes the event to the calendar, so the caller finishes there.
+            <a
+              href={`${calBookingUrl}?${new URLSearchParams({
+                ...(contact.trim() ? { name: contact.trim() } : {}),
+                ...(email.trim() ? { email: email.trim() } : {}),
+                notes: `${lead.company ?? lead.phone} (${lead.phone})`,
+              }).toString()}`}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border bg-background text-sm font-bold transition-colors hover:bg-muted"
+            >
+              <CalendarPlus className="size-4 shrink-0" strokeWidth={2.2} />
+              Book it on Cal.com
+              <ExternalLink
+                className="size-3.5 shrink-0 text-muted-foreground"
+                strokeWidth={2.2}
+              />
+            </a>
+          )}
+          <p className="text-[12px] text-muted-foreground">
+            Book the slot you agreed, then come back and log the call.
+          </p>
+        </div>
+      )}
 
       {picked === "callback" && (
         <div className="mt-3 space-y-1.5">
@@ -345,6 +410,7 @@ export function Dialler({
   leads,
   script,
   objections,
+  calBookingUrl,
   truncated = false,
   readOnly = false,
 }: {
@@ -354,6 +420,10 @@ export function Dialler({
    *  switches while a call is in progress. */
   script?: SopSection[];
   objections?: SopSection[];
+  /** Where a demo gets booked. Read from the environment on the server, so
+   *  changing it is a variable rather than a deploy, and unset simply means no
+   *  button. */
+  calBookingUrl?: string;
   /** More leads match this view than were loaded — said out loud, because a
    *  tab labelled "All" showing part of a list is a lie. */
   truncated?: boolean;
@@ -576,6 +646,7 @@ export function Dialler({
             key={`form-${current.id}`}
             lead={current}
             onLogged={() => handleLogged(current.id)}
+            calBookingUrl={calBookingUrl}
             onSkip={() => {
               setSkipped((prev) => [...prev, current.id]);
               setPickedId(null);

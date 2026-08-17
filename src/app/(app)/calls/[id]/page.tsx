@@ -181,6 +181,7 @@ export default async function CallListPage({
       )}
       {/* The Closed view is read-only: those calls are already finished. */}
       <Dialler
+            calBookingUrl={process.env.CAL_BOOKING_URL}
             script={sop.script}
             objections={sop.objections}
         leads={leads}

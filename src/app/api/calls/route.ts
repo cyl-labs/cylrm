@@ -32,6 +32,8 @@ export async function POST(request: Request) {
     outcome?: unknown;
     notes?: unknown;
     callbackAt?: unknown;
+    contactEmail?: unknown;
+    contactName?: unknown;
   } | null;
 
   if (!body) {
@@ -69,6 +71,22 @@ export async function POST(request: Request) {
     typeof body.notes === "string" && body.notes.trim() !== ""
       ? body.notes.trim().slice(0, 5000)
       : null;
+
+  // Details taken while booking a demo are written back to the lead, not just
+  // into the notes: the email is what the Cal.com invite and every reminder
+  // go to, and a booking without one is the failure the procedure warns about.
+  // Only ever fills a blank or corrects it; a caller typing what the prospect
+  // actually gave is better data than whatever the scrape held.
+  const patch: { email?: string; name?: string } = {};
+  if (typeof body.contactEmail === "string" && body.contactEmail.trim()) {
+    patch.email = body.contactEmail.trim().slice(0, 500);
+  }
+  if (typeof body.contactName === "string" && body.contactName.trim()) {
+    patch.name = body.contactName.trim().slice(0, 500);
+  }
+  if (Object.keys(patch).length > 0) {
+    await db.update(callLead).set(patch).where(eq(callLead.id, leadId));
+  }
 
   // Who dialled. The session is the only source for this — a client-supplied
   // user id would let anyone log calls against a colleague's name.
