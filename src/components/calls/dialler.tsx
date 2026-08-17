@@ -8,7 +8,11 @@ import {
   ExternalLink,
   Globe,
   CalendarPlus,
+  Mic,
+  MicOff,
   MessageSquareWarning,
+  PhoneCall,
+  PhoneOff,
   ScrollText,
   ShieldAlert,
   SkipForward,
@@ -18,6 +22,10 @@ import { toast } from "sonner";
 import type { CallOutcome, QueueLead } from "@/lib/calls";
 import type { SopSection } from "@/lib/sop";
 import { ObjectionDrawer } from "@/components/sop/objection-drawer";
+import {
+  useTelnyxCall,
+  type TelnyxLine,
+} from "@/components/calls/use-telnyx-call";
 import { ScriptPanel } from "@/components/sop/script-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +47,8 @@ import { cn } from "@/lib/utils";
  * them here would mean six buttons on a phone for things that never happen
  * while the phone is at your ear.
  */
+const REMOTE_AUDIO_ID = "cylrm-remote-audio";
+
 const KEEP: CallOutcome[] = ["no_answer", "voicemail", "gatekeeper", "callback"];
 const CLOSE: CallOutcome[] = ["demo_booked", "not_interested", "bad_number"];
 
@@ -113,6 +123,83 @@ function CopyNumber({
       )}
       {copied ? "Copied" : phone}
     </button>
+  );
+}
+
+/**
+ * Place the call from the browser.
+ *
+ * Sits above the copy button rather than replacing it: two callers still dial
+ * from their own handsets, and a lead with no caller ID for its country has to
+ * stay workable that way.
+ */
+function DialControls({
+  lead,
+  line,
+}: {
+  lead: QueueLead;
+  line: TelnyxLine;
+}) {
+  const busy = line.state !== "idle";
+  const blocked =
+    lead.dncBlock ??
+    (!lead.dialTo
+      ? "This number cannot be dialled from here"
+      : !lead.dialFrom
+        ? `No caller ID for ${lead.phone.startsWith("+44") ? "UK" : lead.phone.startsWith("+1") ? "US" : "these"} numbers yet`
+        : null);
+
+  if (line.problem || (!line.ready && !busy)) return null;
+  if (blocked) {
+    return (
+      <p className="mt-2 text-center text-[12px] text-muted-foreground">
+        {blocked}. Dial it on your handset.
+      </p>
+    );
+  }
+
+  const mmss = `${Math.floor(line.seconds / 60)}:${String(line.seconds % 60).padStart(2, "0")}`;
+
+  if (!busy) {
+    return (
+      <Button
+        className="mt-2 h-12 w-full text-[15px]"
+        onClick={() => line.dial(lead.dialTo!, lead.dialFrom!)}
+      >
+        <PhoneCall data-icon="inline-start" />
+        Call
+      </Button>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <span className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border bg-muted/40 text-sm font-bold">
+        {line.state === "active" ? (
+          <span className="tabular-nums">{mmss}</span>
+        ) : (
+          <span className="text-muted-foreground">
+            {line.state === "ringing" ? "Ringing…" : "Connecting…"}
+          </span>
+        )}
+      </span>
+      <Button
+        variant="outline"
+        className="h-12 w-12 p-0"
+        aria-label={line.muted ? "Unmute" : "Mute"}
+        onClick={line.toggleMute}
+      >
+        {line.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+      </Button>
+      <Button
+        variant="destructive"
+        className="h-12 w-12 p-0"
+        aria-label="Hang up"
+        onClick={line.hangup}
+      >
+        <PhoneOff className="size-4" />
+      </Button>
+    </div>
   );
 }
 
@@ -206,11 +293,13 @@ function CallForm({
   onLogged,
   onSkip,
   calBookingUrl,
+  line,
 }: {
   lead: QueueLead;
   onLogged: () => void;
   onSkip: () => void;
   calBookingUrl?: string;
+  line: TelnyxLine;
 }) {
   const [notes, setNotes] = React.useState("");
   // Seeded from the lead so a number that already has them is one glance, not
@@ -240,6 +329,10 @@ function CallForm({
           callbackAt: outcome === "callback" ? callbackAt : undefined,
           contactEmail: outcome === "demo_booked" ? email : undefined,
           contactName: outcome === "demo_booked" ? contact : undefined,
+          // Present only when the call was placed from here. The session id is
+          // what the recording joins on; the duration is this browser's timer.
+          telnyxSessionId: line.sessionId ?? undefined,
+          durationSeconds: line.seconds || undefined,
         }),
       });
       const data = await res.json();
@@ -452,6 +545,9 @@ export function Dialler({
   // of lead — and, once dialling is in the browser, an active call.
   const [objectionsOpen, setObjectionsOpen] = React.useState(false);
   const [scriptOpen, setScriptOpen] = React.useState(false);
+  // One line for the whole session, held here so changing lead or refreshing
+  // after an outcome cannot drop a call in progress.
+  const line = useTelnyxCall(REMOTE_AUDIO_ID);
 
   const remaining = React.useMemo(
     () => leads.filter((l) => !done.has(l.id) && !skipped.includes(l.id)),
@@ -465,6 +561,7 @@ export function Dialler({
   const upNext = remaining.filter((l) => l.id !== current?.id);
 
   function handleLogged(leadId: number) {
+    line.reset();
     setDone((prev) => new Set(prev).add(leadId));
     setPickedId(null);
     // `done` keeps the lead out of the queue locally; the refresh then makes
@@ -587,6 +684,7 @@ export function Dialler({
         {/* Keys are prefixed because this and CallForm below are siblings:
             keying both on the bare lead id gave one parent two children with
             the same key, which React is entitled to conflate. */}
+        <DialControls lead={current} line={line} />
         <CopyNumber
           key={`number-${current.id}`}
           phone={current.phone}
@@ -654,6 +752,7 @@ export function Dialler({
             lead={current}
             onLogged={() => handleLogged(current.id)}
             calBookingUrl={calBookingUrl}
+            line={line}
             onSkip={() => {
               setSkipped((prev) => [...prev, current.id]);
               setPickedId(null);
@@ -721,6 +820,9 @@ export function Dialler({
         onOpenChange={setObjectionsOpen}
         sections={sections}
       />
+      {/* The far end's audio has to land somewhere. One element for the whole
+          dialler, never inside the lead card, which remounts per number. */}
+      <audio id={REMOTE_AUDIO_ID} autoPlay />
       <ScriptDrawer
         open={scriptOpen}
         onOpenChange={setScriptOpen}

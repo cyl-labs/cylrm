@@ -1,0 +1,201 @@
+import { createPublicKey, verify as verifySignature } from "node:crypto";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { appUser } from "@/db/schema";
+
+/**
+ * Telnyx, server side only.
+ *
+ * The one module that reads `TELNYX_API_KEY`. The browser never sees it: it
+ * gets a short-lived JWT minted here, which is the whole reason on-demand
+ * credentials exist.
+ *
+ * Shaped after `lib/google.ts` — a lazy throwing config accessor so a missing
+ * variable fails one request rather than the process boot, a token cache
+ * refreshed early, and a typed error the routes can branch on.
+ */
+
+export class TelnyxNotConfiguredError extends Error {
+  constructor() {
+    super(
+      "Calling is not configured: TELNYX_API_KEY and TELNYX_CONNECTION_ID must be set.",
+    );
+    this.name = "TelnyxNotConfiguredError";
+  }
+}
+
+function config() {
+  const apiKey = process.env.TELNYX_API_KEY;
+  const connectionId = process.env.TELNYX_CONNECTION_ID;
+  if (!apiKey || !connectionId) throw new TelnyxNotConfiguredError();
+  return { apiKey, connectionId };
+}
+
+const API = "https://api.telnyx.com/v2";
+const TIMEOUT_MS = 15_000;
+
+async function telnyx(path: string, init: RequestInit = {}) {
+  const { apiKey } = config();
+  const res = await fetch(`${API}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      ...init.headers,
+    },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    throw new Error(
+      `Telnyx ${init.method ?? "GET"} ${path} failed (${res.status}): ${JSON.stringify(
+        body,
+      ).slice(0, 300)}`,
+    );
+  }
+  return body;
+}
+
+/**
+ * A browser token for this caller.
+ *
+ * Cached in memory, but expiring at `min(12h, credentialExpiresAt)`. The JWT
+ * dies with its parent credential, so a flat cache would keep handing out a
+ * token minted late in that credential's life which expires an hour later, and
+ * the dial button would stop mid-shift with nothing to point at.
+ *
+ * The credential id lives on `app_user`, not in this map. Telnyx does not
+ * enforce unique credential names, so forgetting it across a deploy mints
+ * another one every time with no handle left to delete the old.
+ */
+const tokenCache = new Map<number, { token: string; expiresAt: number }>();
+
+const CACHE_CAP_MS = 12 * 60 * 60 * 1000;
+const CREDENTIAL_LIFE_MS = 24 * 60 * 60 * 1000;
+/** Telnyx documents a short delay before a fresh credential authenticates. */
+const PROPAGATION_MS = 5_000;
+
+export async function mintCallToken(userId: number): Promise<string> {
+  config();
+
+  const cached = tokenCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return cached.token;
+
+  const [user] = await db
+    .select({
+      id: appUser.id,
+      username: appUser.username,
+      credentialId: appUser.telnyxCredentialId,
+      expiresAt: appUser.telnyxCredentialExpiresAt,
+    })
+    .from(appUser)
+    .where(eq(appUser.id, userId));
+  if (!user) throw new Error("No such user.");
+
+  // Reuse while there is comfortable life left; a credential about to expire
+  // would mint a token that dies with it.
+  const remaining = user.expiresAt
+    ? user.expiresAt.getTime() - Date.now()
+    : 0;
+  let credentialId = user.credentialId;
+  let credentialExpiresAt = user.expiresAt?.getTime() ?? 0;
+  let minted = false;
+
+  if (!credentialId || remaining < 2 * 60 * 60 * 1000) {
+    if (credentialId) {
+      // Best effort: an orphan costs nothing but tidiness, and failing to
+      // delete the old one must not stop the caller getting a new token.
+      await telnyx(`/telephony_credentials/${credentialId}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
+    const expiresAt = new Date(Date.now() + CREDENTIAL_LIFE_MS);
+    const created = (await telnyx("/telephony_credentials", {
+      method: "POST",
+      body: JSON.stringify({
+        connection_id: config().connectionId,
+        name: `cylrm:${user.username}`,
+        expires_at: expiresAt.toISOString(),
+      }),
+    })) as { data: { id: string } };
+    credentialId = created.data.id;
+    credentialExpiresAt = expiresAt.getTime();
+    minted = true;
+
+    await db
+      .update(appUser)
+      .set({
+        telnyxCredentialId: credentialId,
+        telnyxCredentialExpiresAt: expiresAt,
+      })
+      .where(eq(appUser.id, userId));
+  }
+
+  const res = await fetch(`${API}/telephony_credentials/${credentialId}/token`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${config().apiKey}` },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`Telnyx token mint failed (${res.status}).`);
+  const token = (await res.text()).trim();
+
+  // Only after a fresh credential. A token from one that already existed is
+  // usable at once, and the dialler asks for this on mount, where five seconds
+  // is a caller reading the first card rather than a caller waiting.
+  if (minted) await new Promise((r) => setTimeout(r, PROPAGATION_MS));
+
+  tokenCache.set(userId, {
+    token,
+    expiresAt: Math.min(Date.now() + CACHE_CAP_MS, credentialExpiresAt),
+  });
+  return token;
+}
+
+/**
+ * Is a webhook really from Telnyx?
+ *
+ * Ed25519 over `${timestamp}|${rawBody}`, against the account public key. The
+ * raw body matters: parsing and re-serialising changes bytes and the signature
+ * stops matching.
+ *
+ * Deliberately no timestamp-age check. Telnyx retries carry the *original*
+ * timestamp, and their retry schedule is not published, so a short tolerance
+ * would reject the retry after any transient failure and lose that recording
+ * for good. Replay is handled by the unique `recording_id` instead: a repeated
+ * valid payload upserts the same row and changes nothing.
+ */
+export function verifyTelnyxSignature(
+  rawBody: string,
+  signature: string | null,
+  timestamp: string | null,
+): boolean {
+  const publicKey = process.env.TELNYX_PUBLIC_KEY;
+  if (!publicKey || !signature || !timestamp) return false;
+  try {
+    // Telnyx publishes a raw 32-byte key; node wants DER SPKI, which for
+    // Ed25519 is that fixed prefix followed by the key.
+    const der = Buffer.concat([
+      Buffer.from("302a300506032b6570032100", "hex"),
+      Buffer.from(publicKey, "base64"),
+    ]);
+    return verifySignature(
+      null,
+      Buffer.from(`${timestamp}|${rawBody}`),
+      createPublicKey({ key: der, format: "der", type: "spki" }),
+      Buffer.from(signature, "base64"),
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** A fresh download URL for a recording. The ones in the webhook are presigned
+ *  and expire in ten minutes, so they are never stored. */
+export async function recordingDownloadUrl(
+  recordingId: string,
+): Promise<string | null> {
+  const body = (await telnyx(`/recordings/${recordingId}`)) as {
+    data?: { download_urls?: { mp3?: string; wav?: string } };
+  };
+  return body.data?.download_urls?.mp3 ?? body.data?.download_urls?.wav ?? null;
+}

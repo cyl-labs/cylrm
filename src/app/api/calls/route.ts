@@ -34,6 +34,8 @@ export async function POST(request: Request) {
     callbackAt?: unknown;
     contactEmail?: unknown;
     contactName?: unknown;
+    telnyxSessionId?: unknown;
+    durationSeconds?: unknown;
   } | null;
 
   if (!body) {
@@ -97,6 +99,19 @@ export async function POST(request: Request) {
     .values({
       callLeadId: leadId,
       userId: user?.id ?? null,
+      // Written only by the browser dialler. Null on every handset call,
+      // which is all of them until a DID exists. The session id is what
+      // `call_recording` joins on; the duration is the browser's timer, and
+      // is present even on a no-answer, which has no recording at all.
+      telnyxSessionId:
+        typeof body.telnyxSessionId === "string" && body.telnyxSessionId
+          ? body.telnyxSessionId.slice(0, 200)
+          : null,
+      durationSeconds:
+        typeof body.durationSeconds === "number" &&
+        Number.isFinite(body.durationSeconds)
+          ? Math.max(0, Math.round(body.durationSeconds))
+          : null,
       outcome: body.outcome,
       notes,
       callbackAt,
