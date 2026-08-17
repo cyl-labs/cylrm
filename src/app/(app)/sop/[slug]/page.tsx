@@ -52,30 +52,44 @@ export default async function SopDocumentPage({
             // Sticky rather than fixed so it scrolls with the page on a phone
             // and parks itself on a desktop, and hidden below lg because a
             // narrow screen has no room to spare beside the words.
-            <nav className="hidden shrink-0 lg:block lg:w-56">
+            <nav className="hidden shrink-0 lg:block lg:w-64">
               <div className="sticky top-4">
                 <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                   On this page
                 </p>
-                <ul className="mt-2 flex flex-col gap-1.5 border-l">
-                  {doc.sections.map((s, i) => (
-                    <li key={s.title}>
-                      <a
-                        href={`#${anchor(s.title, i)}`}
-                        className={cn(
-                          "-ml-px block border-l-2 border-transparent pl-3 text-[13px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
-                          s.branch && "pl-6 text-[12px] opacity-75",
+                {/* Chapters, not a flat list. The category is the thing you
+                    are looking for first — "they are brushing me off" — and
+                    the individual line second, so the group carries the
+                    weight and the entries hang under it. */}
+                <ul className="mt-3 flex flex-col">
+                  {doc.sections.map((s, i) => {
+                    const newGroup =
+                      s.category && s.category !== doc.sections[i - 1]?.category;
+                    return (
+                      <li key={s.title}>
+                        {newGroup && (
+                          <p className="mb-1.5 mt-4 rounded-md bg-primary/10 px-2 py-1 text-[13px] font-extrabold tracking-[-0.01em] text-primary first:mt-0">
+                            {s.category}
+                          </p>
                         )}
-                      >
-                        {s.branch && (
-                          <span aria-hidden className="mr-1">
-                            ↳
-                          </span>
-                        )}
-                        {s.title}
-                      </a>
-                    </li>
-                  ))}
+                        <a
+                          href={`#${anchor(s.title, i)}`}
+                          className={cn(
+                            "-ml-px block border-l-2 border-transparent py-0.5 pl-3 text-[13px] leading-snug text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
+                            s.category && "ml-2",
+                            s.branch && "pl-6 text-[12px] opacity-75",
+                          )}
+                        >
+                          {s.branch && (
+                            <span aria-hidden className="mr-1">
+                              ↳
+                            </span>
+                          )}
+                          {s.title}
+                        </a>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </nav>
@@ -122,7 +136,7 @@ export default async function SopDocumentPage({
                     )}
                   >
                     {newGroup && (
-                      <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.07em] text-primary">
+                      <p className="mb-5 text-lg font-extrabold tracking-[-0.02em] text-primary">
                         {s.category}
                       </p>
                     )}
