@@ -42,6 +42,7 @@ export async function PATCH(
     role?: unknown;
     active?: unknown;
     callRegion?: unknown;
+    telnyxDid?: unknown;
   } | null;
   if (!body) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
@@ -77,6 +78,39 @@ export async function PATCH(
       );
     }
     values.callRegion = region as "sg" | "us" | "gb" | null;
+  }
+
+  // The number they ring from. Checked against their market, because a US
+  // number calling Singapore leads is worse than sharing a Singapore one.
+  if ("telnyxDid" in body) {
+    const did =
+      typeof body.telnyxDid === "string" ? body.telnyxDid.trim() : "";
+    if (did === "") {
+      values.telnyxDid = null;
+    } else if (!/^\+[1-9]\d{6,15}$/.test(did)) {
+      return Response.json(
+        { error: "A number has to be in E.164, like +6531258472." },
+        { status: 400 },
+      );
+    } else {
+      const region = ("callRegion" in body ? body.callRegion : target.callRegion) as
+        | "sg"
+        | "us"
+        | "gb"
+        | null;
+      const prefix = { sg: "+65", us: "+1", gb: "+44" }[region ?? "sg"];
+      if (region && !did.startsWith(prefix)) {
+        return Response.json(
+          {
+            error: `That is not a ${
+              { sg: "Singapore", us: "US", gb: "UK" }[region]
+            } number. Their market decides which numbers they can ring from.`,
+          },
+          { status: 400 },
+        );
+      }
+      values.telnyxDid = did;
+    }
   }
 
   if ("password" in body) {

@@ -446,6 +446,11 @@ export const appUser = pgTable("app_user", {
    *  its own market but reads the US documents. Null means show every region,
    *  which is what an admin reviewing all of them wants. */
   callRegion: text("call_region").$type<"sg" | "us" | "gb">(),
+  /** The number this caller rings from. Null falls back to their market's
+   *  number in `call_did`, so a new hire dials on day one. Per person rather
+   *  than per market so a callback reaches whoever spoke to them, and so one
+   *  number being flagged as spam does not take the whole market down. */
+  telnyxDid: text("telnyx_did"),
   /** Their Telnyx telephony credential, reused across restarts. Held here
    *  rather than in process memory because Telnyx does not enforce unique
    *  credential names — forgetting the id on a deploy mints another one and

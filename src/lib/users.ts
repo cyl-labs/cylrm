@@ -16,6 +16,8 @@ export type TeamMember = {
   /** Which market they work, and so which script they see. Null shows every
    *  region — see the Team screen. */
   callRegion: CallRegion | null;
+  /** The number they ring from. Null falls back to their market's. */
+  telnyxDid: string | null;
   /** Lifetime, across every list — what the Team screen shows next to a name
    *  so a dormant account is obvious without opening Stats. */
   calls: number;
@@ -39,6 +41,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       createdAt: appUser.createdAt,
       lastSeenAt: appUser.lastSeenAt,
       callRegion: appUser.callRegion,
+      telnyxDid: appUser.telnyxDid,
       // A join rather than a correlated subquery, because the subquery this
       // replaces was silently wrong. Drizzle renders an interpolated column
       // unqualified inside `.select()`, so `${appUser.id}` came out as a bare

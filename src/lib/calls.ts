@@ -2,6 +2,7 @@ import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { dncBlockReason } from "@/lib/dnc";
+import { getCurrentUser } from "@/lib/session";
 
 type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
@@ -705,6 +706,19 @@ export const getDids = cache(async (): Promise<DidMap> => {
     if (env?.trim()) out[c] = env.trim();
   }
   for (const r of rows) if (r.phone_number?.trim()) out[r.region] = r.phone_number.trim();
+
+  // A caller's own number wins, but only for the market they work: a US
+  // number ringing Singapore leads is worse than a shared Singapore one.
+  // Everyone else, and anyone without a number, keeps the market default.
+  const me = await getCurrentUser();
+  if (me) {
+    const [row] = (await db.execute(sql`
+      select call_region, telnyx_did from app_user where id = ${me.id}
+    `)) as { call_region: DialCountry | null; telnyx_did: string | null }[];
+    if (row?.call_region && row.telnyx_did?.trim()) {
+      out[row.call_region] = row.telnyx_did.trim();
+    }
+  }
   return out;
 });
 

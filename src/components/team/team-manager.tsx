@@ -40,6 +40,12 @@ const fmt = (iso: string | null) =>
       })
     : null;
 
+const NO_DID = "__market__";
+
+/** Only that person's market. A US number ringing Singapore leads is worse
+ *  than sharing a Singapore one, and the API refuses it anyway. */
+const PREFIX: Record<string, string> = { sg: "+65", us: "+1", gb: "+44" };
+
 export function TeamManager({
   team,
   meId,
@@ -50,6 +56,15 @@ export function TeamManager({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const [numbers, setNumbers] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    fetch("/api/call-dids")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setNumbers(d.numbers.map((n: { phoneNumber: string }) => n.phoneNumber)))
+      .catch(() => {});
+  }, []);
+  const numbersFor = (region: string | null) =>
+    region ? numbers.filter((n) => n.startsWith(PREFIX[region] ?? "+")) : [];
   const [adding, setAdding] = React.useState(false);
   /** The person whose password is being reset, if any. */
   const [resetting, setResetting] = React.useState<TeamMember | null>(null);
@@ -102,13 +117,13 @@ export function TeamManager({
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b text-left">
-                {["Name", "Username", "Role", "Market", "Calls", "Last seen", ""].map(
+                {["Name", "Username", "Role", "Market", "Rings from", "Calls", "Last seen", ""].map(
                   (h, i) => (
                     <th
                       key={h || "actions"}
                       className={cn(
                         "whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground",
-                        i === 4 && "text-right",
+                        i === 5 && "text-right",
                       )}
                     >
                       {h}
@@ -121,7 +136,7 @@ export function TeamManager({
               {team.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-10 text-center text-muted-foreground"
                   >
                     Nobody yet.
@@ -196,6 +211,44 @@ export function TeamManager({
                         </span>
                       )}
                     </td>
+                    <td className="whitespace-nowrap px-4 py-2.5">
+                      {canManage ? (
+                        <Select
+                          value={m.telnyxDid ?? NO_DID}
+                          disabled={busyId === m.id}
+                          onValueChange={(v) =>
+                            patch(m, { telnyxDid: v === NO_DID ? "" : v })
+                          }
+                        >
+                          <SelectTrigger size="sm" className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {/* Falling back is the sane default, not an
+                                error: a new hire dials on day one on the
+                                market's number. */}
+                            <SelectItem value={NO_DID}>
+                              Market default
+                            </SelectItem>
+                            {m.telnyxDid &&
+                              !numbersFor(m.callRegion).includes(m.telnyxDid) && (
+                                <SelectItem value={m.telnyxDid}>
+                                  {m.telnyxDid}
+                                </SelectItem>
+                              )}
+                            {numbersFor(m.callRegion).map((n) => (
+                              <SelectItem key={n} value={n}>
+                                {n}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {m.telnyxDid ?? "Market default"}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-right tabular-nums">
                       {m.calls.toLocaleString()}
                     </td>
@@ -230,11 +283,23 @@ export function TeamManager({
                             size="sm"
                             className="h-7"
                             disabled={busyId === m.id}
-                            onClick={() =>
-                              patch(m, {
-                                role: m.role === "admin" ? "caller" : "admin",
-                              })
-                            }
+                            onClick={() => {
+                              const toAdmin = m.role !== "admin";
+                              // Both directions are quietly large: promoting
+                              // hands over every account including yours, and
+                              // demoting takes away screens someone may be
+                              // halfway through using.
+                              if (
+                                !window.confirm(
+                                  toAdmin
+                                    ? `Make ${m.name} an admin?\n\nThey will be able to see Stats and Team, and change anyone's account, including yours.`
+                                    : `Make ${m.name} a caller?\n\nThey lose Stats and Team. Their calls, niches and numbers stay.`,
+                                )
+                              ) {
+                                return;
+                              }
+                              patch(m, { role: toAdmin ? "admin" : "caller" });
+                            }}
                           >
                             {m.role === "admin" ? "Make caller" : "Make admin"}
                           </Button>
@@ -243,7 +308,17 @@ export function TeamManager({
                             size="sm"
                             className={cn("h-7", m.active && "text-destructive")}
                             disabled={busyId === m.id}
-                            onClick={() => patch(m, { active: !m.active })}
+                            onClick={() => {
+                              if (
+                                m.active &&
+                                !window.confirm(
+                                  `Switch off ${m.name}?\n\nThey are signed out and cannot log back in. Their calls, niches and numbers all stay, and switching them on again restores everything.`,
+                                )
+                              ) {
+                                return;
+                              }
+                              patch(m, { active: !m.active });
+                            }}
                           >
                             {m.active ? "Switch off" : "Switch on"}
                           </Button>
