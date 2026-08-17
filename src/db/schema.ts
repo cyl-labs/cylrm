@@ -509,6 +509,22 @@ export const call = pgTable(
 );
 
 /**
+ * Which Telnyx numbers may be used for cold calling.
+ *
+ * Only the ones taken out of the pool get a row: absent means available, so a
+ * number bought tomorrow works without anyone remembering to add it. Numbers
+ * answering for a client's voice agent belong out of the pool, because a
+ * prospect ringing one back reaches that client rather than a caller.
+ */
+export const callNumber = pgTable("call_number", {
+  phoneNumber: text("phone_number").primaryKey(),
+  available: boolean("available").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
  * Caller ID per market, managed from the Team screen.
  *
  * Was an environment variable, which made changing a phone number an SSH

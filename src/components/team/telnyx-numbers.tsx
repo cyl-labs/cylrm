@@ -3,6 +3,9 @@
 import * as React from "react";
 import { PhoneOutgoing } from "lucide-react";
 import type { TeamMember } from "@/lib/users";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,24 +23,48 @@ import { cn } from "@/lib/utils";
 const COUNTRY = { SG: "Singapore", US: "US", GB: "UK" } as const;
 
 export function TelnyxNumbers({
+  numbers: initial,
   team,
   className,
 }: {
+  numbers: {
+    phoneNumber: string;
+    country: string | null;
+    inbound: string | null;
+    available: boolean;
+  }[];
   team: TeamMember[];
   className?: string;
 }) {
-  const [numbers, setNumbers] = React.useState<
-    { phoneNumber: string; country: string | null; inbound: string | null }[] | null
-  >(null);
-
-  React.useEffect(() => {
-    fetch("/api/call-dids")
-      .then((r) => (r.ok ? r.json() : { numbers: [] }))
-      .then((d) => setNumbers(d.numbers ?? []))
-      .catch(() => setNumbers([]));
-  }, []);
+  const router = useRouter();
+  const [numbers, setNumbers] = React.useState(initial);
+  // Server data wins whenever the page refreshes.
+  React.useEffect(() => setNumbers(initial), [initial]);
 
   const holder = (n: string) => team.find((t) => t.telnyxDid === n) ?? null;
+
+  async function toggle(phoneNumber: string, available: boolean) {
+    setNumbers((p) =>
+      p.map((n) => (n.phoneNumber === phoneNumber ? { ...n, available } : n)),
+    );
+    const res = await fetch("/api/call-dids", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phoneNumber, available }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      toast.error("Could not save.");
+      setNumbers((p) =>
+        p.map((n) =>
+          n.phoneNumber === phoneNumber ? { ...n, available: !available } : n,
+        ),
+      );
+      return;
+    }
+    // The assign dropdowns are rendered from this same list on the server, so
+    // the table below has to be told rather than left showing a stale option.
+    router.refresh();
+  }
 
   return (
     <div className={cn("overflow-hidden", className)}>
@@ -47,16 +74,16 @@ export function TelnyxNumbers({
           Your Telnyx numbers
         </p>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          Buy and release these in the Telnyx portal. Assigning one here only
+          Reserve the ones answering for a client and they stop appearing as
+          options below. Buy and release them in the Telnyx portal. Assigning
+          one here only
           sets what a prospect sees; it changes nothing about the number in
           Telnyx. But a prospect who rings back reaches whatever is already on
           the other end, so avoid the ones answering for a client.
         </p>
       </div>
 
-      {numbers === null ? (
-        <p className="px-4 py-6 text-[13px] text-muted-foreground">Loading…</p>
-      ) : numbers.length === 0 ? (
+      {numbers.length === 0 ? (
         <p className="px-4 py-6 text-[13px] text-muted-foreground">
           No numbers on the account, or Telnyx could not be reached.
         </p>
@@ -87,8 +114,22 @@ export function TelnyxNumbers({
                     who ? "font-semibold" : "text-muted-foreground",
                   )}
                 >
-                  {who ? who.name : "Nobody yet"}
+                  {n.available ? (who ? who.name : "Nobody yet") : "Reserved"}
                 </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 shrink-0"
+                  disabled={!n.available && !!who}
+                  title={
+                    !n.available && who
+                      ? "Unassign it from that person first."
+                      : undefined
+                  }
+                  onClick={() => toggle(n.phoneNumber, !n.available)}
+                >
+                  {n.available ? "Reserve" : "Make available"}
+                </Button>
               </li>
             );
           })}

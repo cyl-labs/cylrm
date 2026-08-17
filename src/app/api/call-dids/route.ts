@@ -1,3 +1,5 @@
+import { sql } from "drizzle-orm";
+import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
 
 /**
@@ -65,5 +67,45 @@ export async function GET() {
     }
   }
 
-  return Response.json({ numbers });
+  // Only the numbers deliberately taken out of the pool have a row, so an
+  // absent one is available. A number bought tomorrow works without anyone
+  // remembering to come here.
+  const rows = (await db.execute(sql`
+    select phone_number, available from call_number
+  `)) as { phone_number: string; available: boolean }[];
+  const reserved = new Set(
+    rows.filter((r) => !r.available).map((r) => r.phone_number),
+  );
+
+  return Response.json({
+    numbers: numbers.map((n) => ({
+      ...n,
+      available: !reserved.has(n.phoneNumber),
+    })),
+  });
+}
+
+export async function PATCH(request: Request) {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
+  const body = (await request.json().catch(() => null)) as {
+    phoneNumber?: unknown;
+    available?: unknown;
+  } | null;
+  if (
+    !body ||
+    typeof body.phoneNumber !== "string" ||
+    typeof body.available !== "boolean"
+  ) {
+    return Response.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  await db.execute(sql`
+    insert into call_number (phone_number, available, updated_at)
+    values (${body.phoneNumber}, ${body.available}, now())
+    on conflict (phone_number) do update
+      set available = excluded.available, updated_at = now()
+  `);
+  return Response.json({ phoneNumber: body.phoneNumber, available: body.available });
 }

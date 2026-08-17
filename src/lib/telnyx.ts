@@ -199,3 +199,46 @@ export async function recordingDownloadUrl(
   };
   return body.data?.download_urls?.mp3 ?? body.data?.download_urls?.wav ?? null;
 }
+
+export type AccountNumber = {
+  phoneNumber: string;
+  country: string | null;
+  /** What inbound calls to it already reach, so a client's line is visible. */
+  inbound: string | null;
+  available: boolean;
+};
+
+/**
+ * The numbers on the account, with the ones taken out of the pool marked.
+ *
+ * Best effort on the Telnyx half: if it is unreachable the screen still works,
+ * it just cannot offer a list to pick from.
+ */
+export async function listAccountNumbers(
+  reserved: Set<string>,
+): Promise<AccountNumber[]> {
+  const apiKey = process.env.TELNYX_API_KEY;
+  if (!apiKey) return [];
+  try {
+    const res = await fetch(`${API}/phone_numbers?page%5Bsize%5D=50`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as {
+      data?: {
+        phone_number: string;
+        country_iso_alpha2?: string;
+        connection_name?: string | null;
+      }[];
+    };
+    return (body.data ?? []).map((n) => ({
+      phoneNumber: n.phone_number,
+      country: n.country_iso_alpha2 ?? null,
+      inbound: n.connection_name ?? null,
+      available: !reserved.has(n.phone_number),
+    }));
+  } catch {
+    return [];
+  }
+}

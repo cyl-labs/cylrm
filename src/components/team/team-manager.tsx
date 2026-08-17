@@ -48,23 +48,21 @@ const PREFIX: Record<string, string> = { sg: "+65", us: "+1", gb: "+44" };
 const MARKET_LABEL: Record<string, string> = { sg: "Singapore", us: "US", gb: "UK" };
 
 export function TeamManager({
+  numbers: accountNumbers,
   team,
   meId,
   canManage,
 }: {
+  numbers: { phoneNumber: string; available: boolean }[];
   team: TeamMember[];
   meId: number | null;
   canManage: boolean;
 }) {
   const router = useRouter();
   const iAmOwner = team.some((t) => t.id === meId && t.isOwner);
-  const [numbers, setNumbers] = React.useState<string[]>([]);
-  React.useEffect(() => {
-    fetch("/api/call-dids")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setNumbers(d.numbers.map((n: { phoneNumber: string }) => n.phoneNumber)))
-      .catch(() => {});
-  }, []);
+  const numbers = accountNumbers
+    .filter((n) => n.available)
+    .map((n) => n.phoneNumber);
   const numbersFor = (region: string | null) =>
     region ? numbers.filter((n) => n.startsWith(PREFIX[region] ?? "+")) : [];
   const [adding, setAdding] = React.useState(false);
