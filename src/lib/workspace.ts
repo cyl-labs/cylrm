@@ -5,6 +5,7 @@ import {
   MailOpen,
   PhoneCall,
   PhoneForwarded,
+  ScrollText,
   Send,
   ShieldCheck,
   Table2,
@@ -62,6 +63,7 @@ export const WORKSPACES: Workspace[] = [
     links: [
       { href: "/calls", label: "Call lists", icon: PhoneCall },
       { href: "/callbacks", label: "Callbacks", icon: PhoneForwarded },
+      { href: "/sop", label: "Scripts", icon: ScrollText },
       { href: "/call-sheet", label: "Spreadsheet", icon: Table2 },
       { href: "/call-pipeline", label: "Pipeline", icon: Kanban },
       { href: "/call-stats", label: "Stats", icon: BarChart3 },
@@ -129,6 +131,7 @@ export function workspacesFor(role: "admin" | "caller" | undefined) {
 const CALL_PREFIXES = [
   "/calls",
   "/callbacks",
+  "/sop",
   "/call-sheet",
   "/call-pipeline",
   "/call-stats",

@@ -7,6 +7,7 @@ import {
   getCallQueue,
   type CallQueueFilter,
 } from "@/lib/calls";
+import { getObjectionSheets } from "@/lib/sop";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
 import { cn } from "@/lib/utils";
@@ -42,7 +43,16 @@ export default async function CallListPage({
   const list = await getCallList(listId, callScope(me));
   if (!list) notFound();
 
-  const leads = await getCallQueue(listId, filter);
+  // Both sheets, fetched once here: the region follows whichever lead is in
+  // front of the caller, and that changes client-side as the queue advances.
+  const [leads, sheets] = await Promise.all([
+    getCallQueue(listId, filter),
+    getObjectionSheets(),
+  ]);
+  const objections = {
+    sg: sheets.sg?.sections ?? [],
+    us: sheets.us?.sections ?? [],
+  };
 
   // What the Queue tab holds: never rung, rung and not reached, and callbacks
   // whose time has come. One booked for Tuesday is not in it until Tuesday.
@@ -174,6 +184,7 @@ export default async function CallListPage({
       )}
       {/* The Closed view is read-only: those calls are already finished. */}
       <Dialler
+            objections={objections}
         leads={leads}
         truncated={leads.length >= CALL_QUEUE_LIMIT}
         readOnly={filter === "closed"}

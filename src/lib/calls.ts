@@ -242,6 +242,10 @@ export type QueueLead = {
    *  as well as the dial button: copying a listed number to ring it from a
    *  desk phone is the same call. Always null for Singapore — see lib/dnc.ts. */
   dncBlock: string | null;
+  /** Which script and objection sheet this lead is worked from. Resolved here
+   *  rather than in the browser: the rule lives in `calls.ts`, which imports
+   *  the database, and a client component may only take types from it. */
+  sopRegion: SopRegion | null;
 };
 
 export type CallQueueFilter = "queue" | "callbacks" | "closed" | "all";
@@ -294,6 +298,7 @@ function toLead(r: Row): QueueLead {
       },
       dialCountry(String(r.phone)),
     ),
+    sopRegion: sopRegion(String(r.phone)),
   };
 }
 
@@ -691,4 +696,27 @@ export function didFor(country: DialCountry | null): string | null {
 export function dialCountry(raw: string): DialCountry | null {
   const kind = classifyPhone(raw);
   return kind === "sg" || kind === "us" || kind === "gb" ? kind : null;
+}
+
+/** Which region's script and objection sheet this lead is worked from. */
+export type SopRegion = "sg" | "us";
+
+/**
+ * The script variant for a number, derived from the number itself — there is
+ * no toggle and no per-caller setting.
+ *
+ * UK maps to the US variant because no UK script exists and the only thing
+ * separating the two is WhatsApp, which UK prospects do not use for business
+ * either. Writing a UK script later is a one-line change here.
+ */
+export function sopRegion(raw: string): SopRegion | null {
+  switch (dialCountry(raw)) {
+    case "sg":
+      return "sg";
+    case "us":
+    case "gb":
+      return "us";
+    default:
+      return null;
+  }
 }

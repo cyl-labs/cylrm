@@ -74,6 +74,13 @@ if [[ -n "$NEED_INSTALL" ]]; then
   ssh "$HOST" "cd $REMOTE && npm ci --omit=dev"
 fi
 
+# Scripts and procedures are edited as markdown in content/sop/ and published
+# here, which is what makes "edit the file and deploy" the whole workflow.
+# Idempotent, and it runs before the restart so the app never serves a page
+# from content the files have already moved past.
+say "Publishing SOP content"
+ssh "$HOST" "cd $REMOTE && node --env-file=.env scripts/seed-sop.mjs"
+
 say "Restarting"
 ssh "$HOST" "pm2 restart crm crm-worker"
 

@@ -7,12 +7,15 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  MessageSquareWarning,
   ShieldAlert,
   SkipForward,
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { CallOutcome, QueueLead } from "@/lib/calls";
+import type { CallOutcome, QueueLead, SopRegion } from "@/lib/calls";
+import type { SopSection } from "@/lib/sop";
+import { ObjectionDrawer } from "@/components/sop/objection-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,6 +109,46 @@ function CopyNumber({
       )}
       {copied ? "Copied" : phone}
     </button>
+  );
+}
+
+/**
+ * What counts as a booked meeting.
+ *
+ * On the card rather than behind a tap: it is the test every call is measured
+ * against and the thing a caller is paid on, so it should never be something
+ * anyone has to go and look up.
+ *
+ * PLACEHOLDER — replace with the real criteria. Edit this list and nothing
+ * else; it is deliberately hard-coded rather than a document, so that what
+ * earns a caller their fee cannot be scrolled past or edited by accident.
+ */
+function QualificationCriteria() {
+  const CRITERIA = [
+    "PLACEHOLDER — speaking to the owner or a decision maker",
+    "PLACEHOLDER — fits the ICP",
+    "PLACEHOLDER — agreed to a specific slot in the calendar, not “send me something”",
+    "PLACEHOLDER — a trigger worth calling about",
+  ];
+  return (
+    <div className="mt-3 rounded-lg border border-dashed bg-muted/30 px-3.5 py-2.5">
+      <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+        Counts as booked
+      </p>
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {CRITERIA.map((c) => (
+          <li
+            key={c}
+            className="flex gap-1.5 text-[13px] leading-snug text-muted-foreground"
+          >
+            <span aria-hidden className="text-muted-foreground/60">
+              •
+            </span>
+            <span>{c}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -289,10 +332,16 @@ function CallForm({
 
 export function Dialler({
   leads,
+  objections,
   truncated = false,
   readOnly = false,
 }: {
   leads: QueueLead[];
+  /** Both regions' objection sheets, already rendered. Both, because the
+   *  region follows whichever lead is in front of the caller and that changes
+   *  as the queue advances — fetching one mid-call would mean a request
+   *  landing while someone is talking. */
+  objections?: Partial<Record<SopRegion, SopSection[]>>;
   /** More leads match this view than were loaded — said out loud, because a
    *  tab labelled "All" showing part of a list is a lie. */
   truncated?: boolean;
@@ -309,6 +358,10 @@ export function Dialler({
   // A lead picked out of the list below jumps the queue. Cleared as soon as it
   // is worked, so the order resumes where it was.
   const [pickedId, setPickedId] = React.useState<number | null>(null);
+
+  // Owned here rather than by the lead card, so the drawer outlives a change
+  // of lead — and, once dialling is in the browser, an active call.
+  const [objectionsOpen, setObjectionsOpen] = React.useState(false);
 
   const remaining = React.useMemo(
     () => leads.filter((l) => !done.has(l.id) && !skipped.includes(l.id)),
@@ -328,6 +381,30 @@ export function Dialler({
     // the server agree, so it cannot reappear on the next navigation.
     router.refresh();
   }
+
+  const region = current?.sopRegion ?? null;
+  const sections = (region && objections?.[region]) || [];
+
+  // One key opens the sheet. Ignored while typing, or the notes field would
+  // swallow every "o" a caller writes.
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "o" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      setObjectionsOpen((v) => !v);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   if (!current) {
     return (
@@ -431,6 +508,24 @@ export function Dialler({
           </p>
         )}
 
+        <QualificationCriteria />
+
+        {sections.length > 0 && (
+          // Beside the number rather than in the header: it is reached in the
+          // middle of a sentence, with one hand, while someone is talking.
+          <Button
+            variant="outline"
+            className="mt-3 h-11 w-full"
+            onClick={() => setObjectionsOpen(true)}
+          >
+            <MessageSquareWarning data-icon="inline-start" />
+            Objection handling
+            <kbd className="ml-auto hidden rounded border px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground sm:inline-block">
+              O
+            </kbd>
+          </Button>
+        )}
+
         {!readOnly && (
           // Keyed on the lead so moving to the next number remounts the form:
           // notes and the callback picker reset by construction rather than by
@@ -494,6 +589,17 @@ export function Dialler({
           )}
         </div>
       )}
+
+      {/* Mounted by the dialler, not by the lead card. It renders through a
+          portal, so the DOM node moves but this tree does not — opening it
+          cannot unmount the dialler, and once dialling happens in the browser
+          that is what stops it dropping a live call. */}
+      <ObjectionDrawer
+        open={objectionsOpen}
+        onOpenChange={setObjectionsOpen}
+        sections={sections}
+        regionLabel={region === "sg" ? "Singapore" : "US"}
+      />
     </div>
   );
 }

@@ -109,6 +109,44 @@ The app is used on phones as well as desktops. Conventions:
   - **Inbound: IMAP** (`imap.gmail.com:993`) with per-account **app passwords** — used both for verification at connect time and by the Phase 5 poller. Do not remove the app-password flow; sending and polling use different credentials. The Google OAuth connect flow does NOT set an app password, and `POST /api/accounts` refuses an email it already knows, so an OAuth-connected account gains one via `PATCH /api/accounts/[id]` with `appPassword` ("Add app password" in the account menu), verified with a real IMAP login before storing. Without it an account sends fine and never sees a reply, so the activation preflight blocks when no sending account has one and warns when only some do.
   - Both secrets encrypted at rest with AES-256-GCM (`src/lib/crypto.ts`, key = `TOKEN_ENCRYPTION_KEY`).
 
+## Scripts and procedures (Call CRM)
+
+`/sop` is the library callers work from: cold-calling scripts, objection
+handling, and region-agnostic procedures. **Read-only in the app.** Content is
+markdown under `content/sop/`, published by `scripts/seed-sop.mjs`, which
+`deploy.sh` runs on every deploy — so the workflow is edit the file, commit,
+deploy. There is no editor, no upload and no revision history, because the
+files are in git and that is the better history. A document whose file is
+deleted is removed from the table too.
+
+- **Region is the only axis** — `sg` or `us`, or null for shared. The two
+  variants are separate documents that happen to differ, not one document with
+  conditional sections: the only difference is WhatsApp, which the US does not
+  sell. Resolution lives in `sopRegion()` in `src/lib/calls.ts`, beside
+  `classifyPhone`, and **GB maps to `us`** because no UK script exists and UK
+  prospects do not use WhatsApp for business either. Adding a GB variant is one
+  line there.
+- `sopRegion` is resolved **server-side into `QueueLead`**, like `dialFrom` and
+  `dncBlock`, because a client component may only take types from `@/lib/calls`.
+- **Markdown is parsed on the server** (`src/lib/sop.ts`, `marked`) and split at
+  `##` into sections. The parser never reaches the browser bundle, and the
+  drawer needs sections — one per objection — to collapse and search them.
+- **Speaker blocks are blockquotes led by a bold label** (`> **You say** …` /
+  `> **Prospect** …`); `sop-prose.tsx` tags them `data-speaker` and tints them.
+  Plain markdown, so the content files stay hand-editable.
+- **The objection drawer is mounted by `Dialler`, never by the lead card.** It
+  opens through the shadcn `Sheet`, which renders via a Radix portal — the DOM
+  node moves, the React tree does not — so opening it cannot unmount the
+  dialler or, once dialling is in the browser, drop a live call. Anything that
+  navigates away instead would kill the call. Both regions' sheets are fetched
+  once by the page and passed down, because the region follows the current lead
+  and that changes client-side.
+- The `o` hotkey is ignored while focus is in an input or textarea, or it would
+  eat every "o" typed into the notes field.
+- **Qualification criteria are hard-coded in `dialler.tsx`**, not a document:
+  what earns a caller their fee should not be scrollable-past or editable by
+  accident. Currently **placeholder text awaiting the real criteria.**
+
 ## Do Not Call screening (Call CRM)
 
 **Built but dormant — parked 2026-08-18, nothing is switched on.** It waits on

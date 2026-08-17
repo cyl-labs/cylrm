@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -484,6 +485,38 @@ export const call = pgTable(
   (t) => [
     index("call_user_id_idx").on(t.userId),
     index("call_telnyx_session_id_idx").on(t.telnyxSessionId),
+  ],
+);
+
+/**
+ * The scripts and procedures callers work from.
+ *
+ * Read-only in the app. Content lives as markdown under `content/sop/` and is
+ * published by `scripts/seed-sop.mjs` on deploy — there is no editor and no
+ * revision history, because the files are in git and that is the better
+ * history. `region` is the only axis: 'sg' | 'us', or null for shared.
+ */
+export const sopDocument = pgTable(
+  "sop_document",
+  {
+    id: serial("id").primaryKey(),
+    /** The file name, and the key the seeder upserts on — stable across
+     *  rewrites so a bookmarked URL survives one. */
+    slug: text("slug").notNull().unique(),
+    kind: text("kind").notNull().$type<"script" | "objections" | "procedure">(),
+    region: text("region").$type<"sg" | "us">(),
+    title: text("title").notNull(),
+    bodyMd: text("body_md").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  // One script and one objection sheet per region. Procedures are exempt:
+  // there can be many, and they all sit at region null.
+  (t) => [
+    uniqueIndex("sop_document_kind_region_idx")
+      .on(t.kind, t.region)
+      .where(sql`kind in ('script', 'objections')`),
   ],
 );
 
