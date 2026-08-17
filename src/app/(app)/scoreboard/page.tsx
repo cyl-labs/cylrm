@@ -2,6 +2,7 @@ import { Trophy } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { RangeTabs } from "@/components/calls/range-tabs";
 import { getCurrentUser } from "@/lib/session";
+import { listTeam } from "@/lib/users";
 import {
   getPersonStats,
   todayInCallTz,
@@ -47,16 +48,28 @@ export default async function ScoreboardPage({
   const range = RANGES.some((r) => r.key === raw) ? raw! : "today";
 
   const me = await getCurrentUser();
-  const all = await getPersonStats(windowFor(range));
+  const [all, team] = await Promise.all([
+    getPersonStats(windowFor(range)),
+    listTeam(),
+  ]);
 
-  // Calls made before staff logins existed belong to nobody, and "Not
-  // attributed" is not a competitor.
+  // Founders are not on the board. They are not doing this job, their history
+  // predates staff logins and would sit unbeatable at the top of any range
+  // wide enough to include it, and a leaderboard you cannot win is one nobody
+  // looks at twice.
+  const callers = new Set(
+    team.filter((t) => t.role === "caller").map((t) => t.id),
+  );
   const people = all
-    .filter((p) => p.id !== null)
+    .filter((p) => p.id !== null && callers.has(p.id))
     .sort((a, b) => b.demos - a.demos || b.calls - a.calls);
 
   const mine = people.find((p) => p.id === me?.id);
   const myRank = mine ? people.indexOf(mine) + 1 : null;
+  const ahead = myRank && myRank > 1 ? people[myRank - 2] : null;
+  // What it would take to move up one place, in the thing that is ranked.
+  const gap = ahead && mine ? ahead.demos - mine.demos : 0;
+  const topCalls = Math.max(1, ...people.map((p) => p.calls));
 
   return (
     <PageShell title="Scoreboard" actions={<RangeTabs ranges={RANGES} active={range} />}>
@@ -87,6 +100,38 @@ export default async function ScoreboardPage({
               </div>
             ))}
           </div>
+          {/* A number on its own does not tell you whether to push. The gap
+              to the person above is the only figure that changes what you do
+              next. */}
+          {mine && ahead && (
+            <p className="mt-2.5 border-t pt-2 text-[13px] text-muted-foreground">
+              {gap > 0 ? (
+                <>
+                  <span className="font-bold text-foreground">
+                    {gap} {gap === 1 ? "demo" : "demos"}
+                  </span>{" "}
+                  behind {ahead.name}.
+                </>
+              ) : (
+                <>
+                  Level with {ahead.name} on demos.{" "}
+                  <span className="font-bold text-foreground">
+                    {Math.max(0, ahead.calls - mine.calls) + 1} more calls
+                  </span>{" "}
+                  puts you ahead.
+                </>
+              )}
+            </p>
+          )}
+          {mine && myRank === 1 && people.length > 1 && (
+            <p className="mt-2.5 border-t pt-2 text-[13px] text-muted-foreground">
+              Leading by{" "}
+              <span className="font-bold text-foreground">
+                {mine.demos - (people[1]?.demos ?? 0)}
+              </span>
+              . Second is {people[1]?.name}.
+            </p>
+          )}
           {(mine?.calls ?? 0) === 0 && (
             <p className="mt-2 text-[13px] text-muted-foreground">
               Nothing logged yet {range === "today" ? "today" : "in this range"}.
@@ -136,7 +181,16 @@ export default async function ScoreboardPage({
                         )}
                       >
                         <td className="w-10 px-4 py-2.5 tabular-nums text-muted-foreground">
-                          {i + 1}
+                          {i === 0 ? (
+                            <span
+                              className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground"
+                              title="Leading"
+                            >
+                              1
+                            </span>
+                          ) : (
+                            i + 1
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5 font-semibold">
                           {p.name}
@@ -147,7 +201,23 @@ export default async function ScoreboardPage({
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums">
-                          {p.calls.toLocaleString()}
+                          {/* Demos decide the ranking, but demos are rare and
+                              lumpy. The bar shows the dialling underneath
+                              them, which is the part a caller controls. */}
+                          <span className="inline-flex items-center justify-end gap-2">
+                            <span
+                              aria-hidden
+                              className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-muted sm:block"
+                            >
+                              <span
+                                className="block h-full rounded-full bg-primary/45"
+                                style={{
+                                  width: `${Math.round((p.calls / topCalls) * 100)}%`,
+                                }}
+                              />
+                            </span>
+                            {p.calls.toLocaleString()}
+                          </span>
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                           {pct(p.pickups, p.calls)}

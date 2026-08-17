@@ -3,6 +3,7 @@ import { BookText, ChevronRight, MessageSquareWarning, ScrollText } from "lucide
 import { PageShell } from "@/components/page-shell";
 import { getCurrentUser } from "@/lib/session";
 import { callRegionOf } from "@/lib/users";
+import { sopRegionFor } from "@/lib/calls";
 import { listSopDocuments, type SopKind } from "@/lib/sop";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ const KIND_ICON: Record<SopKind, typeof ScrollText> = {
 export default async function SopPage() {
   const me = await getCurrentUser();
   const region = await callRegionOf(me?.id);
-  const docs = await listSopDocuments(region);
+  const docs = await listSopDocuments(sopRegionFor(region));
 
   return (
     <PageShell title="Scripts">

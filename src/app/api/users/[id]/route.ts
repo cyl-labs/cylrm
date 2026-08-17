@@ -70,13 +70,13 @@ export async function PATCH(
   // and it is what a new account has before anyone sets it.
   if ("callRegion" in body) {
     const region = body.callRegion;
-    if (region !== null && region !== "sg" && region !== "us") {
+    if (region !== null && !["sg", "us", "gb"].includes(region as string)) {
       return Response.json(
-        { error: "Region must be sg, us, or empty." },
+        { error: "Region must be sg, us, gb, or empty." },
         { status: 400 },
       );
     }
-    values.callRegion = region;
+    values.callRegion = region as "sg" | "us" | "gb" | null;
   }
 
   if ("password" in body) {

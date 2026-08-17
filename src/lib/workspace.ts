@@ -98,11 +98,13 @@ export const EMAIL_PREFIXES = [
 /**
  * Call CRM screens a caller may not open either.
  *
- * Stats is the floor's performance, including everyone else's numbers, and
- * that is the admins' business. Kept separate from EMAIL_PREFIXES so the two
- * reasons stay legible: one is a different product, this is a permission.
+ * Stats is the whole operation's performance and Team is who has a login and
+ * what they are paid to do; both are the admins' business. Callers get the
+ * Scoreboard instead, which shows the floor's numbers without showing the
+ * floor's staffing. Kept separate from EMAIL_PREFIXES so the two reasons stay
+ * legible: one is a different product, this is a permission.
  */
-export const ADMIN_ONLY_CALL_PREFIXES = ["/call-stats"];
+export const ADMIN_ONLY_CALL_PREFIXES = ["/call-stats", "/team"];
 
 /** `/stats` must not swallow `/call-stats`, hence startsWith on a path that
  *  begins with a slash rather than a bare contains. */

@@ -9,6 +9,7 @@ import {
 } from "@/lib/calls";
 import { getDiallerSop } from "@/lib/sop";
 import { callRegionOf } from "@/lib/users";
+import { sopRegionFor } from "@/lib/calls";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
 import { cn } from "@/lib/utils";
@@ -48,7 +49,7 @@ export default async function CallListPage({
   // than by the lead in front of them — so nothing switches mid-call.
   const [leads, sop] = await Promise.all([
     getCallQueue(listId, filter),
-    getDiallerSop(await callRegionOf(me?.id)),
+    getDiallerSop(sopRegionFor(await callRegionOf(me?.id))),
   ]);
 
   // What the Queue tab holds: never rung, rung and not reached, and callbacks

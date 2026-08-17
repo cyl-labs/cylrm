@@ -693,8 +693,25 @@ export function dialCountry(raw: string): DialCountry | null {
   return kind === "sg" || kind === "us" || kind === "gb" ? kind : null;
 }
 
-/** Which market a caller's script comes from. Set per person on the Team
- *  screen rather than derived from the lead: a caller works one market all
- *  day, and deriving it per lead meant the library had to carry both at once,
- *  labelled, so nobody could tell which was theirs. */
+/**
+ * The market a caller works, set per person on the Team screen.
+ *
+ * Derived from the lead once, which meant the library had to carry every
+ * region at once and labelled, so nobody could tell which was theirs. A caller
+ * works one market all day.
+ */
+export type CallRegion = "sg" | "us" | "gb";
+
+/**
+ * Which set of documents a market reads.
+ *
+ * The UK is its own market but has no script of its own: it reads the US one,
+ * which differs only on WhatsApp, and UK businesses do not use that for this
+ * either. Kept as a separate mapping rather than storing `us` against a UK
+ * caller, so "who works the UK" stays answerable and writing a UK script later
+ * is one line here instead of a data migration.
+ */
 export type SopRegion = "sg" | "us";
+
+export const sopRegionFor = (region: CallRegion | null): SopRegion | null =>
+  region === "sg" ? "sg" : region === "us" || region === "gb" ? "us" : null;

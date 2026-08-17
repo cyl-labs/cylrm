@@ -36,12 +36,13 @@ async function hashPassword(pw) {
   return `scrypt$16384$${salt.toString("hex")}$${key.toString("hex")}`;
 }
 
-// `call_region` decides which script they read, and only Singapore and the US
-// have one. Maxi works UK leads, which map to the US script: the two differ
-// only on WhatsApp, which UK businesses do not use for this either.
+// `call_region` is the market they work. The UK is its own market even though
+// it reads the US documents: the two scripts differ only on WhatsApp, which UK
+// businesses do not use for this either, and `sopRegionFor` does that mapping
+// so "who works the UK" stays a question the data can answer.
 const CALLERS = [
   { username: "samson", name: "Samson", region: "us", country: "us" },
-  { username: "maxi", name: "Maxi", region: "us", country: "gb" },
+  { username: "maxi", name: "Maxi", region: "gb", country: "gb" },
   { username: "victoria", name: "Victoria", region: "us", country: "us" },
 ];
 

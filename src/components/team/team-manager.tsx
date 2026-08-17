@@ -178,6 +178,7 @@ export function TeamManager({
                           <SelectContent>
                             <SelectItem value="sg">Singapore</SelectItem>
                             <SelectItem value="us">US</SelectItem>
+                            <SelectItem value="gb">UK</SelectItem>
                             {/* Not a market — it is "show me everything",
                                 which is what an admin reviewing both wants. */}
                             <SelectItem value="all">Every region</SelectItem>
@@ -189,7 +190,9 @@ export function TeamManager({
                             ? "Singapore"
                             : m.callRegion === "us"
                               ? "US"
-                              : "Every region"}
+                              : m.callRegion === "gb"
+                                ? "UK"
+                                : "Every region"}
                         </span>
                       )}
                     </td>

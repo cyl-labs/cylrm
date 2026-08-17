@@ -5,6 +5,7 @@ import { PageShell } from "@/components/page-shell";
 import { SopProse } from "@/components/sop/sop-prose";
 import { getCurrentUser } from "@/lib/session";
 import { callRegionOf } from "@/lib/users";
+import { sopRegionFor } from "@/lib/calls";
 import { getSopDocument } from "@/lib/sop";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +31,7 @@ export default async function SopDocumentPage({
   const me = await getCurrentUser();
   // Scoped the same way the index is, so typing another region's slug into the
   // address bar gets the same not-found as a document that never existed.
-  const doc = await getSopDocument(slug, await callRegionOf(me?.id));
+  const doc = await getSopDocument(slug, sopRegionFor(await callRegionOf(me?.id)));
   if (!doc) notFound();
 
   const showToc = doc.sections.length > TOC_THRESHOLD;

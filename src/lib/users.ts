@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
+import type { CallRegion } from "@/lib/calls";
 import { appUser, call } from "@/db/schema";
 import { hashPassword, normaliseUsername } from "@/lib/password";
 
@@ -14,7 +15,7 @@ export type TeamMember = {
   lastSeenAt: string | null;
   /** Which market they work, and so which script they see. Null shows every
    *  region — see the Team screen. */
-  callRegion: "sg" | "us" | null;
+  callRegion: CallRegion | null;
   /** Lifetime, across every list — what the Team screen shows next to a name
    *  so a dormant account is obvious without opening Stats. */
   calls: number;
@@ -80,7 +81,7 @@ export async function listTeam(): Promise<TeamMember[]> {
  * the same reason `countUnreadReplies` is.
  */
 export const callRegionOf = cache(
-  async (userId: number | null | undefined): Promise<"sg" | "us" | null> => {
+  async (userId: number | null | undefined): Promise<CallRegion | null> => {
     if (!userId) return null;
     const [row] = await db
       .select({ region: appUser.callRegion })
