@@ -20,6 +20,8 @@ export type TeamMember = {
   telnyxDid: string | null;
   /** `browser` | `handset`. See schema. */
   dialMethod: "browser" | "handset";
+  /** The founders' account: protected from other admins. */
+  isOwner: boolean;
   /** Lifetime, across every list — what the Team screen shows next to a name
    *  so a dormant account is obvious without opening Stats. */
   calls: number;
@@ -45,6 +47,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       callRegion: appUser.callRegion,
       telnyxDid: appUser.telnyxDid,
       dialMethod: appUser.dialMethod,
+      isOwner: appUser.isOwner,
       // A join rather than a correlated subquery, because the subquery this
       // replaces was silently wrong. Drizzle renders an interpolated column
       // unqualified inside `.select()`, so `${appUser.id}` came out as a bare

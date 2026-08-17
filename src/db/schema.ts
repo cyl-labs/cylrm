@@ -446,6 +446,10 @@ export const appUser = pgTable("app_user", {
    *  its own market but reads the US documents. Null means show every region,
    *  which is what an admin reviewing all of them wants. */
   callRegion: text("call_region").$type<"sg" | "us" | "gb">(),
+  /** The founders' account. Another admin cannot demote it, switch it off or
+   *  reset its password: being trusted with Stats and the team is a different
+   *  thing from being able to lock the business out of its own CRM. */
+  isOwner: boolean("is_owner").notNull().default(false),
   /** `browser` | `handset`. Some callers dial from their own phone and always
    *  will; the browser dialler is for the people with no usable handset for
    *  international calls, not the way everyone must work. A handset caller is

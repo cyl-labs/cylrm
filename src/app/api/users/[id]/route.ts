@@ -57,6 +57,32 @@ export async function PATCH(
     return Response.json({ error: "Person not found." }, { status: 404 });
   }
 
+  // Read from the row, not the session: the cookie is only refreshed at
+  // sign-in, and whether someone is the owner must not depend on when they
+  // last logged in.
+  const [actor] = await db
+    .select({ isOwner: appUser.isOwner })
+    .from(appUser)
+    .where(eq(appUser.id, me.id));
+
+  // An admin may run the team; only the owner may touch the owner. Enforced
+  // here rather than by hiding the buttons, since a hidden button is one
+  // fetch away from being pressed anyway. Editing your own name or password
+  // stays open, or the owner could not change their own details either.
+  const touchesOwner =
+    target.isOwner &&
+    !actor?.isOwner &&
+    ("role" in body || "active" in body || "password" in body);
+  if (touchesOwner) {
+    return Response.json(
+      {
+        error:
+          "That is the founders' account. Another admin cannot change its role, switch it off, or reset its password.",
+      },
+      { status: 403 },
+    );
+  }
+
   const values: Partial<typeof appUser.$inferInsert> = {};
 
   if ("name" in body) {

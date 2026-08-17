@@ -56,6 +56,7 @@ export function TeamManager({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const iAmOwner = team.some((t) => t.id === meId && t.isOwner);
   const [numbers, setNumbers] = React.useState<string[]>([]);
   React.useEffect(() => {
     fetch("/api/call-dids")
@@ -163,6 +164,11 @@ export function TeamManager({
                           <span className="text-[11px] font-medium text-muted-foreground">
                             (you)
                           </span>
+                        )}
+                        {m.isOwner && (
+                          <Badge variant="outline" className="shrink-0">
+                            Founder
+                          </Badge>
                         )}
                       </span>
                     </td>
@@ -276,6 +282,8 @@ export function TeamManager({
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
                       {canManage && (
                         <span className="flex justify-end gap-1">
+                          {/* Shown or not, the API refuses it; this just stops
+                              offering an action that cannot be taken. */}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -296,6 +304,7 @@ export function TeamManager({
                             <KeyRound data-icon="inline-start" />
                             Password
                           </Button>
+                          {(!m.isOwner || iAmOwner) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -321,6 +330,8 @@ export function TeamManager({
                           >
                             {m.role === "admin" ? "Make caller" : "Make admin"}
                           </Button>
+                          )}
+                          {(!m.isOwner || iAmOwner) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -340,6 +351,7 @@ export function TeamManager({
                           >
                             {m.active ? "Switch off" : "Switch on"}
                           </Button>
+                          )}
                         </span>
                       )}
                     </td>
