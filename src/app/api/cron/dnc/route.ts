@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { DNC_VALID_DAYS } from "@/lib/dnc";
+import { DNC_VALID_DAYS, dncEnforced } from "@/lib/dnc";
 
 /**
  * Re-screen US leads against the locally held Do Not Call register.
@@ -25,6 +25,19 @@ export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Dormant until switched on, and this guard is what makes the feature safe
+  // to ship unfinished: the worker calls this every five minutes, and the
+  // tables it reads only exist where the DNC migrations have been applied.
+  // Without the early return, a deploy to a database that has not seen them
+  // puts a 500 in the worker log every tick, for a feature nobody is using.
+  if (!dncEnforced()) {
+    return NextResponse.json({
+      ok: true,
+      job: "dnc",
+      skipped: "DNC_ENFORCE is not set",
+    });
   }
 
   const stale = sql`${`${DNC_VALID_DAYS} days`}::interval`;

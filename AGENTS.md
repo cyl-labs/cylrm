@@ -111,6 +111,15 @@ The app is used on phones as well as desktops. Conventions:
 
 ## Do Not Call screening (Call CRM)
 
+**Built but dormant — parked 2026-08-18, nothing is switched on.** It waits on
+knowing how US leads will actually be sourced: the free tier covers five area
+codes, so a list clustered in a few cities is free to screen and a nationally
+scattered one is not, and that is a purchasing decision rather than a code one.
+Switching it on is `DNC_ENFORCE=1` plus the two migrations; everything below
+already works and is verified. Until then `/api/cron/dnc` returns immediately,
+which is what makes it safe to deploy without applying those migrations, and
+`dncBlockReason` returns null so no screen shows anything.
+
 **US numbers only, against a register held locally. Singapore is deliberately
 not screened**, because the PDPA's DNC provisions do not apply to
 business-to-business marketing and every Singapore lead here is a company.
