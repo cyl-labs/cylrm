@@ -13,6 +13,9 @@ export type TeamMember = {
   active: boolean;
   createdAt: string;
   lastSeenAt: string | null;
+  /** Their most recent call. What the floor is actually judged on, where
+   *  "last seen" only says a tab was open. */
+  lastDialedAt: string | null;
   /** Which market they work, and so which script they see. Null shows every
    *  region — see the Team screen. */
   callRegion: CallRegion | null;
@@ -62,6 +65,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       // still produces one all-NULL row, and `*` scores that phantom as a
       // call — the same trap `getCallLists` documents.
       calls: count(call.id),
+      lastDialedAt: sql<string | null>`max(${call.calledAt})`,
     })
     .from(appUser)
     .leftJoin(call, eq(call.userId, appUser.id))
@@ -76,6 +80,7 @@ export async function listTeam(): Promise<TeamMember[]> {
     role: r.role,
     createdAt: r.createdAt.toISOString(),
     lastSeenAt: r.lastSeenAt ? r.lastSeenAt.toISOString() : null,
+    lastDialedAt: r.lastDialedAt ? new Date(r.lastDialedAt).toISOString() : null,
     calls: Number(r.calls ?? 0),
   }));
 }

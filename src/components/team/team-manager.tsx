@@ -45,6 +45,7 @@ const NO_DID = "__market__";
 /** Only that person's market. A US number ringing Singapore leads is worse
  *  than sharing a Singapore one, and the API refuses it anyway. */
 const PREFIX: Record<string, string> = { sg: "+65", us: "+1", gb: "+44" };
+const MARKET_LABEL: Record<string, string> = { sg: "Singapore", us: "US", gb: "UK" };
 
 export function TeamManager({
   team,
@@ -118,7 +119,7 @@ export function TeamManager({
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b text-left">
-                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Calls", "Last seen", ""].map(
+                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Calls", "Last dialled", ""].map(
                   (h, i) => (
                     <th
                       key={h || "actions"}
@@ -241,14 +242,29 @@ export function TeamManager({
                     <td className="whitespace-nowrap px-4 py-2.5">
                       {canManage ? (
                         <Select
-                          value={m.telnyxDid ?? NO_DID}
-                          disabled={busyId === m.id || m.dialMethod === "handset"}
+                          value={m.telnyxDid ?? (numbersFor(m.callRegion).length ? NO_DID : "")}
+                          disabled={
+                            busyId === m.id ||
+                            m.dialMethod === "handset" ||
+                            // Nothing to pick is not the same as a broken
+                            // control: an empty dropdown with no explanation
+                            // reads as one, so it says what is missing.
+                            (!m.telnyxDid && numbersFor(m.callRegion).length === 0)
+                          }
                           onValueChange={(v) =>
                             patch(m, { telnyxDid: v === NO_DID ? "" : v })
                           }
                         >
-                          <SelectTrigger size="sm" className="w-40">
-                            <SelectValue />
+                          <SelectTrigger size="sm" className="w-44">
+                            <SelectValue
+                              placeholder={
+                                m.dialMethod === "handset"
+                                  ? "Own phone"
+                                  : !m.callRegion
+                                    ? "Set a market first"
+                                    : `No ${MARKET_LABEL[m.callRegion]} numbers`
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value={NO_DID}>Not assigned</SelectItem>
@@ -277,7 +293,7 @@ export function TeamManager({
                       {m.calls.toLocaleString()}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
-                      {fmt(m.lastSeenAt) ?? "Never signed in"}
+                      {fmt(m.lastDialedAt) ?? "Never dialled"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
                       {canManage && (
