@@ -1,52 +1,41 @@
 import Link from "next/link";
-import { BookText, MessageSquareWarning, ScrollText } from "lucide-react";
+import { BookText, ChevronRight, MessageSquareWarning, ScrollText } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
-import { Badge } from "@/components/ui/badge";
 import { callScope, getCurrentUser } from "@/lib/session";
-import { listSopDocuments, type SopKind } from "@/lib/sop";
+import { listSopDocuments, type SopDoc, type SopKind } from "@/lib/sop";
 
 export const dynamic = "force-dynamic";
 
-const GROUPS: { kind: SopKind; label: string; blurb: string; icon: typeof BookText }[] =
-  [
-    {
-      kind: "script",
-      label: "Scripts",
-      blurb: "What to say, in order, from the opener to the close.",
-      icon: ScrollText,
-    },
-    {
-      kind: "objections",
-      label: "Objection handling",
-      blurb: "These come up anywhere in the call. Also one tap away in the dialler.",
-      icon: MessageSquareWarning,
-    },
-    {
-      kind: "procedure",
-      label: "Procedures",
-      blurb: "How things are done here, whichever region you call.",
-      icon: BookText,
-    },
-  ];
-
-const REGION_LABELS: Record<string, string> = {
-  sg: "Singapore",
-  us: "US",
+const KIND_ICON: Record<SopKind, typeof ScrollText> = {
+  script: ScrollText,
+  objections: MessageSquareWarning,
+  procedure: BookText,
 };
 
 /**
- * The library.
+ * Grouped by region, not by kind.
  *
- * Read-only: content is edited as markdown in `content/sop/` and published on
- * deploy, so there is nothing to add, edit or delete from here.
+ * Kind-first put two rows called "Cold Calling Script" under a heading called
+ * Scripts, told apart only by a badge at the far right — three words of
+ * repetition and a scan across the whole row to answer "which one is mine".
+ * A caller works one region, so the region is the question they are actually
+ * asking, and inside a group the titles differ on their own.
  */
+const GROUPS: { key: "sg" | "us" | "shared"; label: string }[] = [
+  { key: "sg", label: "Singapore" },
+  { key: "us", label: "US" },
+  { key: "shared", label: "Everyone" },
+];
+
 export default async function SopPage() {
   const me = await getCurrentUser();
   const docs = await listSopDocuments(callScope(me));
 
+  const bucket = (d: SopDoc) => d.region ?? "shared";
+
   return (
     <PageShell title="Scripts">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:px-6">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-5 sm:px-6">
         {docs.length === 0 ? (
           <div className="rounded-xl border border-dashed py-16 text-center">
             <p className="text-sm font-semibold">Nothing here yet.</p>
@@ -55,46 +44,55 @@ export default async function SopPage() {
             </p>
           </div>
         ) : (
-          GROUPS.map(({ kind, label, blurb, icon: Icon }) => {
-            const group = docs.filter((d) => d.kind === kind);
+          GROUPS.map(({ key, label }) => {
+            const group = docs.filter((d) => bucket(d) === key);
             if (group.length === 0) return null;
             return (
-              <section key={kind}>
-                <div className="flex items-center gap-2">
-                  <Icon className="size-4 text-muted-foreground" strokeWidth={2.2} />
-                  <h2 className="text-sm font-extrabold tracking-[-0.01em]">
-                    {label}
-                  </h2>
-                </div>
-                <p className="mt-0.5 text-[13px] text-muted-foreground">{blurb}</p>
-                <ul className="mt-2.5 flex flex-col gap-2">
-                  {group.map((d) => (
-                    <li key={d.slug}>
-                      <Link
-                        href={`/sop/${d.slug}`}
-                        className="flex items-center gap-3 rounded-xl border bg-card p-3.5 transition-colors hover:bg-muted/50 sm:p-4"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-bold tracking-[-0.01em]">
+              <section key={key}>
+                <h2 className="px-1 pb-1.5 text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+                  {label}
+                </h2>
+                <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+                  {group.map((d) => {
+                    const Icon = KIND_ICON[d.kind];
+                    return (
+                      <li key={d.slug}>
+                        <Link
+                          href={`/sop/${d.slug}`}
+                          className="flex items-center gap-3 px-3.5 py-3 transition-colors hover:bg-muted/50"
+                        >
+                          <Icon
+                            className="size-4 shrink-0 text-muted-foreground"
+                            strokeWidth={2.2}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[-0.01em]">
                             {d.title}
-                          </p>
-                          <p className="mt-0.5 text-[13px] text-muted-foreground">
-                            {d.sections.length}{" "}
-                            {d.kind === "objections" ? "objections" : "sections"}
-                          </p>
-                        </div>
-                        {d.region && (
-                          <Badge variant="secondary" className="shrink-0">
-                            {REGION_LABELS[d.region] ?? d.region}
-                          </Badge>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
+                          </span>
+                          <span className="shrink-0 text-[13px] tabular-nums text-muted-foreground">
+                            {d.sections.length}
+                          </span>
+                          <ChevronRight
+                            className="size-4 shrink-0 text-muted-foreground/60"
+                            strokeWidth={2.2}
+                          />
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             );
           })
+        )}
+
+        {/* Said plainly rather than left as an empty heading: there are no
+            procedures yet because none have been written, and an empty
+            section reads like something is broken. */}
+        {!docs.some((d) => d.kind === "procedure") && (
+          <p className="px-1 text-[13px] text-muted-foreground">
+            No procedures yet. They live alongside the scripts once written,
+            and apply to everyone whichever region they call.
+          </p>
         )}
       </div>
     </PageShell>
