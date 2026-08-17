@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { marked } from "marked";
 import { db } from "@/db";
-import { sopRegion, type SopRegion } from "@/lib/calls";
+import type { SopRegion } from "@/lib/calls";
 
 /**
  * The scripts and procedures callers work from.
@@ -92,68 +92,55 @@ function toDoc(r: Row): SopDoc {
 /**
  * Every document this person may open.
  *
- * A caller sees the regions they actually work — derived from the leads on the
- * lists assigned to them, so nobody has to maintain a second list of who works
- * where — plus every shared procedure. An admin sees all of it.
+ * Filtered by the market they are set to work, not by the leads in front of
+ * them: a caller works one market all day, and deriving it per lead meant the
+ * library had to carry every region's document at once, labelled, so nobody
+ * could tell at a glance which was theirs. Null means show everything, which
+ * is what an admin reviewing both markets wants.
  */
-export async function listSopDocuments(ownerId?: number): Promise<SopDoc[]> {
+export async function listSopDocuments(
+  region: SopRegion | null,
+): Promise<SopDoc[]> {
   const rows = (await db.execute(sql`
     select id, slug, kind, region, title, body_md, updated_at
     from sop_document
+    ${region ? sql`where region is null or region = ${region}` : sql``}
     order by
       case kind when 'script' then 1 when 'objections' then 2 else 3 end,
       region nulls first,
       title
   `)) as Row[];
-  const docs = rows.map(toDoc);
-  if (ownerId === undefined) return docs;
-
-  // Which regions this caller actually works, decided by running their own
-  // leads through `sopRegion` rather than re-deriving the rule in SQL. That
-  // rule lives in exactly one place, so adding a GB variant stays the one-line
-  // change it is meant to be. Distinct numbers only, so this is a few hundred
-  // rows even on the largest assignment.
-  const phones = (await db.execute(sql`
-    select distinct l.phone
-    from call_lead l
-    join call_list cl on cl.id = l.call_list_id
-    where cl.assigned_user_id = ${ownerId}
-      and l.duplicate_of_lead_id is null
-  `)) as { phone: string }[];
-
-  const mine = new Set(
-    phones.map((p) => sopRegion(p.phone)).filter(Boolean) as SopRegion[],
-  );
-  return docs.filter((d) => d.region === null || mine.has(d.region));
+  return rows.map(toDoc);
 }
 
 /** One document, scoped the same way the index is. */
 export async function getSopDocument(
   slug: string,
-  ownerId?: number,
+  region: SopRegion | null,
 ): Promise<SopDoc | null> {
-  const all = await listSopDocuments(ownerId);
+  const all = await listSopDocuments(region);
   return all.find((d) => d.slug === slug) ?? null;
 }
 
 /**
- * Both objection sheets, for the dialler.
+ * The script and objection sheet the dialler shows, for one market.
  *
- * Both, because the region follows the lead in front of the caller and that
- * changes as the queue advances — fetching per lead would mean a request in
- * the middle of a live call. Two documents is a few kilobytes.
+ * One region, resolved server-side from the caller, so nothing has to be
+ * chosen or switched while a call is in progress.
  */
-export async function getObjectionSheets(): Promise<
-  Record<SopRegion, SopDoc | null>
-> {
+export async function getDiallerSop(region: SopRegion | null): Promise<{
+  script: SopSection[];
+  objections: SopSection[];
+}> {
+  if (!region) return { script: [], objections: [] };
   const rows = (await db.execute(sql`
     select id, slug, kind, region, title, body_md, updated_at
     from sop_document
-    where kind = 'objections'
+    where region = ${region} and kind in ('script', 'objections')
   `)) as Row[];
   const docs = rows.map(toDoc);
   return {
-    sg: docs.find((d) => d.region === "sg") ?? null,
-    us: docs.find((d) => d.region === "us") ?? null,
+    script: docs.find((d) => d.kind === "script")?.sections ?? [],
+    objections: docs.find((d) => d.kind === "objections")?.sections ?? [],
   };
 }

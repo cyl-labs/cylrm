@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser, call } from "@/db/schema";
@@ -11,6 +12,9 @@ export type TeamMember = {
   active: boolean;
   createdAt: string;
   lastSeenAt: string | null;
+  /** Which market they work, and so which script they see. Null shows every
+   *  region — see the Team screen. */
+  callRegion: "sg" | "us" | null;
   /** Lifetime, across every list — what the Team screen shows next to a name
    *  so a dormant account is obvious without opening Stats. */
   calls: number;
@@ -33,6 +37,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       active: appUser.active,
       createdAt: appUser.createdAt,
       lastSeenAt: appUser.lastSeenAt,
+      callRegion: appUser.callRegion,
       // A join rather than a correlated subquery, because the subquery this
       // replaces was silently wrong. Drizzle renders an interpolated column
       // unqualified inside `.select()`, so `${appUser.id}` came out as a bare
@@ -64,6 +69,26 @@ export async function listTeam(): Promise<TeamMember[]> {
     calls: Number(r.calls ?? 0),
   }));
 }
+
+/**
+ * Which market this person works.
+ *
+ * Read from the database rather than the session, because the session cookie
+ * is only refreshed at sign-in — an admin changing someone's market should
+ * take effect on their next page load, not their next login. `cache()`d
+ * because the Scripts page and the dialler both ask while rendering one page,
+ * the same reason `countUnreadReplies` is.
+ */
+export const callRegionOf = cache(
+  async (userId: number | null | undefined): Promise<"sg" | "us" | null> => {
+    if (!userId) return null;
+    const [row] = await db
+      .select({ region: appUser.callRegion })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.region ?? null;
+  },
+);
 
 export async function findByUsername(username: string) {
   const [row] = await db

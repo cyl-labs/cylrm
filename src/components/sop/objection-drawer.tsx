@@ -30,12 +30,10 @@ export function ObjectionDrawer({
   open,
   onOpenChange,
   sections,
-  regionLabel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sections: SopSection[];
-  regionLabel: string;
 }) {
   const [query, setQuery] = React.useState("");
   const [expanded, setExpanded] = React.useState<number | null>(null);
@@ -70,12 +68,9 @@ export function ObjectionDrawer({
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <SheetHeader className="gap-2 border-b p-4">
-          <SheetTitle className="flex items-center gap-2 text-sm">
-            Objection handling
-            <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-              {regionLabel}
-            </span>
-          </SheetTitle>
+          {/* No region badge: a caller sees one market's sheet and nothing
+              else, so naming it on every open is noise. */}
+          <SheetTitle className="text-sm">Objection handling</SheetTitle>
           <div className="relative">
             <Search
               className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"

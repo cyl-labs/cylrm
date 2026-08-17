@@ -8,14 +8,17 @@ import {
   ExternalLink,
   Globe,
   MessageSquareWarning,
+  ScrollText,
   ShieldAlert,
   SkipForward,
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { CallOutcome, QueueLead, SopRegion } from "@/lib/calls";
+import type { CallOutcome, QueueLead } from "@/lib/calls";
 import type { SopSection } from "@/lib/sop";
 import { ObjectionDrawer } from "@/components/sop/objection-drawer";
+import { ScriptPanel } from "@/components/sop/script-panel";
+import { ScriptDrawer } from "@/components/sop/script-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -332,16 +335,17 @@ function CallForm({
 
 export function Dialler({
   leads,
+  script,
   objections,
   truncated = false,
   readOnly = false,
 }: {
   leads: QueueLead[];
-  /** Both regions' objection sheets, already rendered. Both, because the
-   *  region follows whichever lead is in front of the caller and that changes
-   *  as the queue advances — fetching one mid-call would mean a request
-   *  landing while someone is talking. */
-  objections?: Partial<Record<SopRegion, SopSection[]>>;
+  /** The caller's own script and objection sheet, already rendered. One
+   *  market, decided by who is signed in rather than by the lead, so nothing
+   *  switches while a call is in progress. */
+  script?: SopSection[];
+  objections?: SopSection[];
   /** More leads match this view than were loaded — said out loud, because a
    *  tab labelled "All" showing part of a list is a lie. */
   truncated?: boolean;
@@ -362,6 +366,7 @@ export function Dialler({
   // Owned here rather than by the lead card, so the drawer outlives a change
   // of lead — and, once dialling is in the browser, an active call.
   const [objectionsOpen, setObjectionsOpen] = React.useState(false);
+  const [scriptOpen, setScriptOpen] = React.useState(false);
 
   const remaining = React.useMemo(
     () => leads.filter((l) => !done.has(l.id) && !skipped.includes(l.id)),
@@ -382,8 +387,8 @@ export function Dialler({
     router.refresh();
   }
 
-  const region = current?.sopRegion ?? null;
-  const sections = (region && objections?.[region]) || [];
+  const sections = objections ?? [];
+  const scriptSections = script ?? [];
 
   // One key opens the sheet. Ignored while typing, or the notes field would
   // swallow every "o" a caller writes.
@@ -433,7 +438,25 @@ export function Dialler({
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-5 sm:px-6">
+    // Two columns once there is room for them: the script sits in the space
+    // that was empty to the left of the card, and the card keeps its own
+    // width rather than stretching to fill a wider screen. Below `xl` the
+    // script becomes a drawer — see the button on the card.
+    <div
+      className={cn(
+        "mx-auto w-full px-4 py-5 sm:px-6",
+        scriptSections.length > 0
+          ? "max-w-2xl xl:grid xl:max-w-6xl xl:grid-cols-[minmax(0,22rem)_minmax(0,42rem)] xl:justify-center xl:gap-6"
+          : "max-w-2xl",
+      )}
+    >
+      {scriptSections.length > 0 && (
+        <aside className="hidden xl:block">
+          <ScriptPanel sections={scriptSections} />
+        </aside>
+      )}
+
+      <div className="min-w-0">
       <div className="rounded-xl border bg-card p-4 sm:p-5">
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
           <div className="min-w-0">
@@ -510,6 +533,20 @@ export function Dialler({
 
         <QualificationCriteria />
 
+        {scriptSections.length > 0 && (
+          // Only where the side panel cannot fit. On a wide screen the script
+          // is already open beside this card and a button to open it again
+          // would be a second way to reach the same words.
+          <Button
+            variant="outline"
+            className="mt-3 h-11 w-full xl:hidden"
+            onClick={() => setScriptOpen(true)}
+          >
+            <ScrollText data-icon="inline-start" />
+            Script
+          </Button>
+        )}
+
         {sections.length > 0 && (
           // Beside the number rather than in the header: it is reached in the
           // middle of a sentence, with one hand, while someone is talking.
@@ -520,9 +557,6 @@ export function Dialler({
           >
             <MessageSquareWarning data-icon="inline-start" />
             Objection handling
-            <kbd className="ml-auto hidden rounded border px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground sm:inline-block">
-              O
-            </kbd>
           </Button>
         )}
 
@@ -590,6 +624,8 @@ export function Dialler({
         </div>
       )}
 
+      </div>
+
       {/* Mounted by the dialler, not by the lead card. It renders through a
           portal, so the DOM node moves but this tree does not — opening it
           cannot unmount the dialler, and once dialling happens in the browser
@@ -598,7 +634,11 @@ export function Dialler({
         open={objectionsOpen}
         onOpenChange={setObjectionsOpen}
         sections={sections}
-        regionLabel={region === "sg" ? "Singapore" : "US"}
+      />
+      <ScriptDrawer
+        open={scriptOpen}
+        onOpenChange={setScriptOpen}
+        sections={scriptSections}
       />
     </div>
   );

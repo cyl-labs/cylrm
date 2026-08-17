@@ -41,6 +41,7 @@ export async function PATCH(
     password?: unknown;
     role?: unknown;
     active?: unknown;
+    callRegion?: unknown;
   } | null;
   if (!body) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
@@ -62,6 +63,20 @@ export async function PATCH(
       return Response.json({ error: "A name is required." }, { status: 400 });
     }
     values.name = name;
+  }
+
+  // Which market they work, and so which script they are shown. Null is
+  // allowed and means "every region" — an admin reviewing both wants that,
+  // and it is what a new account has before anyone sets it.
+  if ("callRegion" in body) {
+    const region = body.callRegion;
+    if (region !== null && region !== "sg" && region !== "us") {
+      return Response.json(
+        { error: "Region must be sg, us, or empty." },
+        { status: 400 },
+      );
+    }
+    values.callRegion = region;
   }
 
   if ("password" in body) {

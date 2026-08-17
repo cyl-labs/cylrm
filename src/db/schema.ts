@@ -441,6 +441,10 @@ export const appUser = pgTable("app_user", {
     .notNull()
     .defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  /** Which market they work: `sg` | `us`. Decides which script and objection
+   *  sheet they see, and is set by an admin rather than by them. Null means
+   *  show every region, which is what an admin reviewing both wants. */
+  callRegion: text("call_region").$type<"sg" | "us">(),
   /** Their Telnyx telephony credential, reused across restarts. Held here
    *  rather than in process memory because Telnyx does not enforce unique
    *  credential names — forgetting the id on a deploy mints another one and

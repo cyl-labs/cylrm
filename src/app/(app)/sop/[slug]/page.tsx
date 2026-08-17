@@ -2,14 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
-import { Badge } from "@/components/ui/badge";
 import { SopProse } from "@/components/sop/sop-prose";
-import { callScope, getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
+import { callRegionOf } from "@/lib/users";
 import { getSopDocument } from "@/lib/sop";
 
 export const dynamic = "force-dynamic";
-
-const REGION_LABELS: Record<string, string> = { sg: "Singapore", us: "US" };
 
 /** Long enough that finding a section by scrolling stops being reasonable. */
 const TOC_THRESHOLD = 6;
@@ -31,7 +29,7 @@ export default async function SopDocumentPage({
   const me = await getCurrentUser();
   // Scoped the same way the index is, so typing another region's slug into the
   // address bar gets the same not-found as a document that never existed.
-  const doc = await getSopDocument(slug, callScope(me));
+  const doc = await getSopDocument(slug, await callRegionOf(me?.id));
   if (!doc) notFound();
 
   const showToc = doc.sections.length > TOC_THRESHOLD;
@@ -39,13 +37,6 @@ export default async function SopDocumentPage({
   return (
     <PageShell
       title={doc.title}
-      actions={
-        doc.region ? (
-          <Badge variant="secondary">
-            {REGION_LABELS[doc.region] ?? doc.region}
-          </Badge>
-        ) : null
-      }
     >
       <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
         <Link

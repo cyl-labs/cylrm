@@ -102,13 +102,13 @@ export function TeamManager({
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b text-left">
-                {["Name", "Username", "Role", "Calls", "Last seen", ""].map(
+                {["Name", "Username", "Role", "Market", "Calls", "Last seen", ""].map(
                   (h, i) => (
                     <th
                       key={h || "actions"}
                       className={cn(
                         "whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground",
-                        i === 3 && "text-right",
+                        i === 4 && "text-right",
                       )}
                     >
                       {h}
@@ -121,7 +121,7 @@ export function TeamManager({
               {team.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-10 text-center text-muted-foreground"
                   >
                     Nobody yet.
@@ -162,6 +162,36 @@ export function TeamManager({
                             ? "Admin"
                             : "Caller"}
                       </Badge>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2.5">
+                      {canManage ? (
+                        <Select
+                          value={m.callRegion ?? "all"}
+                          disabled={busyId === m.id}
+                          onValueChange={(v) =>
+                            patch(m, { callRegion: v === "all" ? null : v })
+                          }
+                        >
+                          <SelectTrigger size="sm" className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sg">Singapore</SelectItem>
+                            <SelectItem value="us">US</SelectItem>
+                            {/* Not a market — it is "show me everything",
+                                which is what an admin reviewing both wants. */}
+                            <SelectItem value="all">Every region</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {m.callRegion === "sg"
+                            ? "Singapore"
+                            : m.callRegion === "us"
+                              ? "US"
+                              : "Every region"}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums">
                       {m.calls.toLocaleString()}

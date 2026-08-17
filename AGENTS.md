@@ -119,21 +119,29 @@ deploy. There is no editor, no upload and no revision history, because the
 files are in git and that is the better history. A document whose file is
 deleted is removed from the table too.
 
-- **Region is the only axis** — `sg` or `us`, or null for shared. The two
-  variants are separate documents that happen to differ, not one document with
-  conditional sections: the only difference is WhatsApp, which the US does not
-  sell. Resolution lives in `sopRegion()` in `src/lib/calls.ts`, beside
-  `classifyPhone`, and **GB maps to `us`** because no UK script exists and UK
-  prospects do not use WhatsApp for business either. Adding a GB variant is one
-  line there.
-- `sopRegion` is resolved **server-side into `QueueLead`**, like `dialFrom` and
-  `dncBlock`, because a client component may only take types from `@/lib/calls`.
+- **Region comes from the caller, not the lead.** `app_user.call_region`
+  (`sg` | `us`), set by an admin on the Team screen. It was originally derived
+  from the lead's phone number, which meant the library had to carry every
+  region's document at once, labelled, so nobody could tell which was theirs —
+  and a caller works one market all day anyway. Null means show everything,
+  which is what an admin reviewing both wants.
+- Read with `callRegionOf()` in `src/lib/users.ts` — from the database, not the
+  session, so an admin changing someone's market takes effect on their next
+  page load rather than their next login. `cache()`d, like `countUnreadReplies`.
+- **No region labels anywhere.** A caller sees one market's documents, so
+  naming it on every row and every drawer open is noise. The only exception is
+  someone with no market set, who is seeing more than one market's worth.
 - **Markdown is parsed on the server** (`src/lib/sop.ts`, `marked`) and split at
   `##` into sections. The parser never reaches the browser bundle, and the
   drawer needs sections — one per objection — to collapse and search them.
 - **Speaker blocks are blockquotes led by a bold label** (`> **You say** …` /
   `> **Prospect** …`); `sop-prose.tsx` tags them `data-speaker` and tints them.
   Plain markdown, so the content files stay hand-editable.
+- **The script sits beside the dial card**, in the column that was empty, and
+  is sticky. It is read top to bottom on every call, so it is not behind a tap.
+  Below `xl` there is no room for a second column and it becomes a left-hand
+  drawer instead. Objections stay collapsible and searchable because you want
+  one of fifteen; a script is followed in order, so collapsing it adds taps.
 - **The objection drawer is mounted by `Dialler`, never by the lead card.** It
   opens through the shadcn `Sheet`, which renders via a Radix portal — the DOM
   node moves, the React tree does not — so opening it cannot unmount the
