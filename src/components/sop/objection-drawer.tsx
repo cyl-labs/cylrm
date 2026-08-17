@@ -94,10 +94,20 @@ export function ObjectionDrawer({
             </p>
           ) : (
             <ul className="divide-y">
-              {matches.map(({ s, i }) => {
+              {matches.map(({ s, i }, n) => {
+                // A group heading each time the category changes. Skipped
+                // while searching: the results are already narrow, and
+                // headings would only push them off the screen.
+                const newGroup =
+                  !needle && s.category && s.category !== matches[n - 1]?.s.category;
                 const isOpen = expanded === i;
                 return (
                   <li key={s.title}>
+                    {newGroup && (
+                      <p className="bg-muted/60 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                        {s.category}
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={() => setExpanded(isOpen ? null : i)}

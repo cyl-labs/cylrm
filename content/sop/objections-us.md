@@ -6,31 +6,13 @@ title: Objection Handling
 
 These can come up anywhere in the call, not just at the end.
 
-## Prospect is hesitant / wavering, no clear objection yet
+## Brushing you off | Prospect is hesitant / wavering, no clear objection yet
+
 
 > **You say** Honestly, I'm not gonna hard sell you on this. I even offer free trials to a lot of businesses if they're not sure they're getting enough calls to see if it'd add value. And we're not even at that point yet, right, I'm really just trying to see if you like what I can build you, because we're pretty good at it, we work with a lot of other [industry] companies. So I think I could impress you, and that'd basically be it. Wouldn't be a hard sales pitch, you either like it or you don't.
 
-## Prospect: "I need to talk to my partner / boss first."
+## Brushing you off | Prospect: "I'm not interested."
 
-> **You say** That's fine, you can consult them. But when it comes to voice agents, we're really the experts, so would it be helpful to set up a time where we can all get on a call together and I can answer any questions they might have?
-
-## Prospect: "I don't get enough calls."
-
-> **You say** Fair enough. Quick question though, what's an average ticket worth for you?
-
-_(let them answer)_
-
-> **You say** And how many calls do you think you're missing on a weekly basis?
-
-_(let them answer)_
-
-> **You say** So if you're missing around [X] calls a week at [ticket value] each, that's real money walking out the door. If there was a service that charged you a fraction of that to capture it, would it be worth it?
-
-## Prospect: "We only get a few calls (3-5) and I answer all of them anyway."
-
-> **You say** That's fair, honestly you'd be surprised though, most people miss more calls than they think they do. Why don't we run a 30-day trial? You'll actually see the number of calls you're missing, and if it's basically nothing, no harm done. But usually the number's higher than people expect, so let's just let the data show you.
-
-## Prospect: "I'm not interested."
 
 > **You say** Okay that's fair. Before I let you go, can I just ask one thing?
 
@@ -42,11 +24,41 @@ _(let them answer)_
 
 > **You say** Well, 80% of callers who hit your voicemail hang up and call the next company. Before you spend money on ads or marketing, wouldn't it make sense to capture all of the calls you're currently getting?
 
-## Receptionist / gatekeeper keeps saying "not interested"
+## Brushing you off | Prospect: "Now's not a good time."
 
-> **You say** Totally get it, and I don't want to take up more of your time. I've actually already built out a demo specifically for you guys, so can you transfer me to the owner? I have a feeling they'll want to hear it before we just leave it there.
 
-## Prospect: "I tried that once and it didn't work / I didn't like it…"
+> **You say** That's fine. I wasn't trying to get into the details right now. I was hoping to schedule a time with you when you're free.
+
+## Brushing you off | Prospect: "Just send me an email / send me info."
+
+
+> **You say** I can send something over, but the best way is to just hear it for yourself. I can call you, we do a quick conference call, you hear the agent live. Then you'll know if it's right for you or not.
+
+## Brushing you off | Prospect: "We're too busy / it's our busy season."
+
+
+> **You say** Got it. Just out of curiosity, how many calls do you get during your busy season compared to when things are slow?
+
+## Says they don't need it | Prospect: "I don't get enough calls."
+
+
+> **You say** Fair enough. Quick question though, what's an average ticket worth for you?
+
+_(let them answer)_
+
+> **You say** And how many calls do you think you're missing on a weekly basis?
+
+_(let them answer)_
+
+> **You say** So if you're missing around [X] calls a week at [ticket value] each, that's real money walking out the door. If there was a service that charged you a fraction of that to capture it, would it be worth it?
+
+## Says they don't need it | Prospect: "We only get a few calls (3-5) and I answer all of them anyway."
+
+
+> **You say** That's fair, honestly you'd be surprised though, most people miss more calls than they think they do. Why don't we run a 30-day trial? You'll actually see the number of calls you're missing, and if it's basically nothing, no harm done. But usually the number's higher than people expect, so let's just let the data show you.
+
+## Doubts it works | Prospect: "I tried that once and it didn't work / I didn't like it…"
+
 
 > **You say** Okay that's fair. Before I let you go, can I just ask one thing?
 
@@ -54,22 +66,22 @@ _(let them answer)_
 
 > **You say** I know the one you tried kind of sucked. I get it, I think a lot of them suck too… but what if there was a scenario where there was one that didn't suck?
 
-## Prospect: "I don't want some robot voice / won't it sound fake?"
+## Doubts it works | Prospect: "I don't want some robot voice / won't it sound fake?"
+
 
 > **You say** Yeah, most of them do suck, I get that. But for us, most of the time people can't even tell it's a robot. And if you want, we can set it up so it's conditional too: your normal line rings first, and the agent only picks up if nobody answers after a few rings.
 
-## Prospect: "Now's not a good time."
+## Already sorted | Prospect: "We already have something for that."
 
-> **You say** That's fine. I wasn't trying to get into the details right now. I was hoping to schedule a time with you when you're free.
-
-## Prospect: "We already have something for that."
 
 > **You say** Nice. How's your experience been with it so far?
 
-## Prospect: "Just send me an email / send me info."
+## Not the decision maker | Prospect: "I need to talk to my partner / boss first."
 
-> **You say** I can send something over, but the best way is to just hear it for yourself. I can call you, we do a quick conference call, you hear the agent live. Then you'll know if it's right for you or not.
 
-## Prospect: "We're too busy / it's our busy season."
+> **You say** That's fine, you can consult them. But when it comes to voice agents, we're really the experts, so would it be helpful to set up a time where we can all get on a call together and I can answer any questions they might have?
 
-> **You say** Got it. Just out of curiosity, how many calls do you get during your busy season compared to when things are slow?
+## Not the decision maker | Receptionist / gatekeeper keeps saying "not interested"
+
+
+> **You say** Totally get it, and I don't want to take up more of your time. I've actually already built out a demo specifically for you guys, so can you transfer me to the owner? I have a feeling they'll want to hear it before we just leave it there.

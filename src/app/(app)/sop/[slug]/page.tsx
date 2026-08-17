@@ -103,9 +103,12 @@ export default async function SopDocumentPage({
                   step += 1;
                   depth = 0;
                 }
+                const newGroup =
+                  s.category && s.category !== doc.sections[i - 1]?.category;
                 return (
                   <section
                     key={s.title}
+                    data-group={newGroup ? s.category : undefined}
                     className={cn(
                       // A step is a thing you do, then stop, then do the next
                       // one. Run together they read as one wall of dialogue,
@@ -118,6 +121,11 @@ export default async function SopDocumentPage({
                       s.branch && depth >= 2 && "ml-6 sm:ml-10",
                     )}
                   >
+                    {newGroup && (
+                      <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.07em] text-primary">
+                        {s.category}
+                      </p>
+                    )}
                     <h2
                       id={anchor(s.title, i)}
                       className={cn(

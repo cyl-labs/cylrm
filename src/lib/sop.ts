@@ -18,6 +18,10 @@ export type SopSection = {
   /** The `##` heading, verbatim. On an objection sheet this is the objection
    *  as a prospect actually says it, which is what the drawer lists. */
   title: string;
+  /** The group this belongs to, written as "Category | Title" in the heading.
+   *  Fifteen objections is a list you read; five groups is something you scan
+   *  while somebody is talking. Null on documents that do not group. */
+  category: string | null;
   /** A conditional step — a branch off the call rather than the next thing to
    *  say. Decided by the heading, so a script author marks one by writing "If
    *  …" and nothing else has to be kept in step. Branches are indented and
@@ -70,11 +74,15 @@ function toSections(md: string): { intro: string; sections: SopSection[] } {
   const intro = parts.shift() ?? "";
   const sections = parts.map((part) => {
     const at = part.indexOf("\n");
-    const title = (at === -1 ? part : part.slice(0, at)).trim();
+    const heading = (at === -1 ? part : part.slice(0, at)).trim();
+    const bar = heading.indexOf(" | ");
+    const category = bar === -1 ? null : heading.slice(0, bar).trim();
+    const title = bar === -1 ? heading : heading.slice(bar + 3).trim();
     const body = at === -1 ? "" : part.slice(at + 1);
     const html = marked.parse(body, { async: false }) as string;
     return {
       title,
+      category,
       branch: /^(if|only if|otherwise)\b/i.test(title),
       html,
       search: `${title} ${stripTags(html)}`.toLowerCase(),
