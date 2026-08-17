@@ -64,7 +64,7 @@ export async function POST(
   if (existingDeal && existingDeal.stage !== "replied") {
     return Response.json(
       {
-        error: `The deal has already progressed to "${existingDeal.stage}" — reclassifying now would delete pipeline history. Move the deal back first if this is intended.`,
+        error: `The deal has already progressed to "${existingDeal.stage}": reclassifying now would delete pipeline history. Move the deal back first if this is intended.`,
       },
       { status: 409 },
     );

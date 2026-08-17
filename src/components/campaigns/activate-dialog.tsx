@@ -144,7 +144,7 @@ function PreflightDialog({
         else setData(body);
       })
       .catch(() => {
-        if (!cancelled) setError("Could not load the preview — network error.");
+        if (!cancelled) setError("Could not load the preview: network error.");
       });
     return () => {
       cancelled = true;
@@ -162,7 +162,7 @@ function PreflightDialog({
           <DialogTitle>Start sending?</DialogTitle>
           <DialogDescription>
             {data
-              ? `${data.campaignName} — what happens once this campaign goes active.`
+              ? `${data.campaignName}: what happens once this campaign goes active.`
               : "Checking the campaign…"}
           </DialogDescription>
         </DialogHeader>
@@ -194,7 +194,7 @@ function PreflightDialog({
                         "en-US",
                         { month: "short", day: "numeric", year: "numeric" },
                       )
-                    : "—"
+                    : "-"
                 }
               />
             </div>
@@ -253,7 +253,7 @@ function PreflightDialog({
                 What goes out
                 {data.sampleContactEmail && (
                   <span className="ml-1.5 font-normal text-muted-foreground">
-                    — previewed for {data.sampleContactEmail}
+                   : previewed for {data.sampleContactEmail}
                   </span>
                 )}
               </h3>

@@ -140,7 +140,7 @@ export function ImportDialog({
       setResult(data);
       router.refresh();
     } catch {
-      setError("Import failed — network error.");
+      setError("Import failed: network error.");
     } finally {
       setSubmitting(false);
     }
@@ -278,7 +278,7 @@ export function ImportDialog({
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Only the contacts this file adds are enrolled — anyone
+                    Only the contacts this file adds are enrolled: anyone
                     already in the list is left alone.
                   </p>
                 </div>

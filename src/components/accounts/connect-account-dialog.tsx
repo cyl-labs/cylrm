@@ -88,7 +88,7 @@ export function ConnectAccountDialog({
       reset();
       router.refresh();
     } catch {
-      setError("Connect failed — network error.");
+      setError("Connect failed: network error.");
     } finally {
       setSubmitting(false);
     }
@@ -118,7 +118,7 @@ export function ConnectAccountDialog({
           <DialogHeader>
             <DialogTitle>Connect Gmail account</DialogTitle>
             <DialogDescription>
-              Uses a Gmail app password — generate one under Google Account
+              Uses a Gmail app password: generate one under Google Account
               &rarr; Security &rarr; 2-Step Verification &rarr; App passwords.
               Credentials are verified against Gmail before saving.
             </DialogDescription>

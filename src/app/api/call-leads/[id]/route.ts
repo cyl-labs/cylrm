@@ -109,7 +109,7 @@ export async function PATCH(
         {
           error:
             kind === "foreign"
-              ? "That number cannot be dialled — Singapore, UK and US numbers only. A UK or US number needs its country code."
+              ? "That number cannot be dialled: Singapore, UK and US numbers only. A UK or US number needs its country code."
               : "That number is the wrong length for Singapore.",
         },
         { status: 400 },

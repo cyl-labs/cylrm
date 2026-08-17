@@ -209,7 +209,7 @@ export async function getCampaignPreflight(
       checks.push({
         level: "warning",
         title: `${unnamed.length} mailbox${unnamed.length === 1 ? "" : "es"} have no sender name`,
-        detail: `${unnamed.map((a) => a.email).join(", ")} — your copy signs off with {{sender_name}}, which renders as nothing for anything sent from ${unnamed.length === 1 ? "it" : "them"}. Set it on the Accounts screen.`,
+        detail: `${unnamed.map((a) => a.email).join(", ")}: your copy signs off with {{sender_name}}, which renders as nothing for anything sent from ${unnamed.length === 1 ? "it" : "them"}. Set it on the Accounts screen.`,
       });
     }
   }
@@ -226,7 +226,7 @@ export async function getCampaignPreflight(
     checks.push({
       level: "warning",
       title: `${blindSenders.length} of ${sendReady.length} accounts cannot detect replies`,
-      detail: `${blindSenders.map((a) => a.email).join(", ")} — no Gmail app password, so replies to anything they send are never seen. Contacts are spread across the whole pool, so roughly ${Math.round((blindSenders.length / sendReady.length) * 100)}% of this campaign would be affected.`,
+      detail: `${blindSenders.map((a) => a.email).join(", ")}: no Gmail app password, so replies to anything they send are never seen. Contacts are spread across the whole pool, so roughly ${Math.round((blindSenders.length / sendReady.length) * 100)}% of this campaign would be affected.`,
     });
   }
 
@@ -235,7 +235,7 @@ export async function getCampaignPreflight(
       accountRows.length === 0
         ? "No sending accounts exist yet."
         : accountRows.every((a) => !a.active)
-          ? "Every sending account is deactivated — activate one on the Accounts screen."
+          ? "Every sending account is deactivated: activate one on the Accounts screen."
           : "No account is both active and connected to Google without needing a reconnect.";
     checks.push({
       level: "blocker",
@@ -267,7 +267,7 @@ export async function getCampaignPreflight(
     checks.push({
       level: "warning",
       title: `${expiring.length} Google connection${expiring.length === 1 ? "" : "s"} near expiry`,
-      detail: `${expiring.map((a) => a.email).join(", ")} — refresh tokens last about 7 days on this GCP project. Reconnect before they lapse or sending stalls.`,
+      detail: `${expiring.map((a) => a.email).join(", ")}: refresh tokens last about 7 days on this GCP project. Reconnect before they lapse or sending stalls.`,
     });
   }
 
@@ -276,7 +276,7 @@ export async function getCampaignPreflight(
     checks.push({
       level: "warning",
       title: `${needsReconnect.length} account${needsReconnect.length === 1 ? "" : "s"} need reconnecting`,
-      detail: `${needsReconnect.map((a) => a.email).join(", ")} — not counted in capacity until reconnected.`,
+      detail: `${needsReconnect.map((a) => a.email).join(", ")}: not counted in capacity until reconnected.`,
     });
   }
 
@@ -296,7 +296,7 @@ export async function getCampaignPreflight(
     title: `Sends ${progress.window.start.slice(0, 5)}–${progress.window.end.slice(0, 5)} ${progress.window.timezone}${weekdaysOnly ? ", weekdays only" : ", every day including weekends"}`,
     detail: progress.window.open
       ? `The window is open now, with ${progress.window.minutesRemaining} minutes left today.`
-      : "The window is closed right now — the first send goes out when it next opens.",
+      : "The window is closed right now: the first send goes out when it next opens.",
   });
 
   if (progress.activeCampaigns > 1) {

@@ -19,12 +19,12 @@ const RANGES: Record<string, number | null> = { "7": 7, "30": 30, "90": 90, all:
 const BOUNCE_ALARM = 0.02;
 
 const pct = (num: number, den: number) =>
-  den === 0 ? "—" : `${((num / den) * 100).toFixed(1)}%`;
+  den === 0 ? "-" : `${((num / den) * 100).toFixed(1)}%`;
 const per100 = (num: number, den: number) =>
-  den === 0 ? "—" : ((num / den) * 100).toFixed(1);
+  den === 0 ? "-" : ((num / den) * 100).toFixed(1);
 
 function humanizeSeconds(secs: number | null): string {
-  if (secs === null) return "—";
+  if (secs === null) return "-";
   if (secs < 3600) return `${Math.round(secs / 60)}m`;
   if (secs < 86_400) return `${(secs / 3600).toFixed(1)}h`;
   return `${(secs / 86_400).toFixed(1)}d`;
@@ -199,7 +199,7 @@ export default async function StatsPage({
       <div className="mx-auto flex max-w-[920px] flex-col gap-[18px] px-4 pb-10 pt-6 sm:px-7">
         <p className="text-[12.5px] font-semibold leading-normal text-muted-foreground/75">
           Live comparison over the selected range. Differences under roughly 2×
-          at low volume are noise — keep at most 2 active approach tests running
+          at low volume are noise. Keep at most 2 active approach tests running
           and change one variable between them.
         </p>
         {panelA || panelB ? (
@@ -222,7 +222,7 @@ export default async function StatsPage({
           </div>
         ) : (
           <div className="rounded-[14px] border border-dashed px-6 py-12 text-center text-[13px] font-semibold text-muted-foreground">
-            Nothing to compare yet — create a campaign and enroll contacts
+            Nothing to compare yet. Create a campaign and enroll contacts
             first.
           </div>
         )}
@@ -233,7 +233,7 @@ export default async function StatsPage({
               Accounts &amp; domains
             </p>
             <p className="mt-1 text-xs font-semibold text-muted-foreground/75">
-              Bounce alarm at &gt;2% per domain — display-only, sending is not
+              Bounce alarm at &gt;2% per domain: display-only, sending is not
               auto-paused.
             </p>
           </div>

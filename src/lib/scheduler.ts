@@ -438,7 +438,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
       stepNum === 1 ? step1Subject : step1Subject ? `Re: ${step1Subject}` : "";
     if (subject === "") {
       const detail =
-        "Step 1 has no subject, so no email can be built. Every step takes its subject from step 1 — add one in the campaign's sequence editor.";
+        "Step 1 has no subject, so no email can be built. Every step takes its subject from step 1: add one in the campaign's sequence editor.";
       await recordIssue({
         signature: `no_subject:${e.campaignId}`,
         kind: "no_subject",
@@ -546,7 +546,7 @@ export async function runSchedulerTick(): Promise<TickResult> {
           signature: `auth_expired:${account.id}`,
           kind: "auth_expired",
           accountId: account.id,
-          detail: `${account.email} can no longer send — its Google connection expired or was revoked. Use "Reconnect Google" on the Accounts screen. (${err.message})`,
+          detail: `${account.email} can no longer send: its Google connection expired or was revoked. Use "Reconnect Google" on the Accounts screen. (${err.message})`,
         });
         act("error_auth", { accountEmail: account.email, detail: err.message });
         continue;

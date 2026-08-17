@@ -51,41 +51,49 @@
 }
 
 :root {
-  /* "Vibe Design System UI Redesign" palette (claude.ai/design project). */
-  --background: #f7f8fc;
-  --foreground: #292f4c;
+  /* Warm palette, taken from the printed scripts: a red-orange accent over
+     off-white rather than the indigo-over-cool-grey this started as. The
+     accent is #d2451f because it is the most orange value that still clears
+     4.5:1 against white — the dial button is white-on-primary and is read at
+     a glance. It measures 4.55:1, the same as the indigo it replaces, so
+     nothing became harder to read. Neutrals are warmed a couple of degrees to
+     match; cool grey under a warm accent is what makes a recolour look like a
+     mistake. Destructive stays pink-red, which still reads as separate from
+     the orange. */
+  --background: #faf8f6;
+  --foreground: #2c2724;
   --card: #ffffff;
-  --card-foreground: #292f4c;
+  --card-foreground: #2c2724;
   --popover: #ffffff;
-  --popover-foreground: #292f4c;
-  --primary: #635fff;
+  --popover-foreground: #2c2724;
+  --primary: #d2451f;
   --primary-foreground: #ffffff;
-  --secondary: #f2f3fa;
-  --secondary-foreground: #40476b;
-  --muted: #f2f3fa;
-  --muted-foreground: #6b7190;
-  --accent: #f2f3fa;
-  --accent-foreground: #292f4c;
+  --secondary: #f3efec;
+  --secondary-foreground: #4a423c;
+  --muted: #f3efec;
+  --muted-foreground: #79706a;
+  --accent: #f3efec;
+  --accent-foreground: #2c2724;
   --destructive: #e2445c;
   --success: #00a06a;
   --warning: oklch(0.666 0.157 58.3);
-  --border: #e4e7f2;
-  --input: #d5d9e8;
-  --ring: #a9a7ff;
-  --chart-1: #635fff;
-  --chart-2: #8b88ff;
+  --border: #e8e2dc;
+  --input: #dbd3cb;
+  --ring: #eda88f;
+  --chart-1: #d2451f;
+  --chart-2: #f08a63;
   --chart-3: #00a06a;
   --chart-4: oklch(0.666 0.157 58.3);
-  --chart-5: #6b7190;
+  --chart-5: #79706a;
   --radius: 0.5625rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #565d7e;
-  --sidebar-primary: #635fff;
+  --sidebar-foreground: #625952;
+  --sidebar-primary: #d2451f;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f2f3fa;
-  --sidebar-accent-foreground: #292f4c;
-  --sidebar-border: #e4e7f2;
-  --sidebar-ring: #a9a7ff;
+  --sidebar-accent: #f6efeb;
+  --sidebar-accent-foreground: #2c2724;
+  --sidebar-border: #e8e2dc;
+  --sidebar-ring: #eda88f;
 }
 
 .dark {
@@ -95,7 +103,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.9);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: #7b78ff;
+  --primary: #f2683c;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.274 0.005 286);
   --secondary-foreground: oklch(0.985 0 0);
@@ -108,20 +116,20 @@
   --warning: oklch(0.769 0.165 70.1);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: #5b58c9;
-  --chart-1: #7b78ff;
+  --ring: #a8492c;
+  --chart-1: #f2683c;
   --chart-2: oklch(0.714 0.143 254.6);
   --chart-3: oklch(0.723 0.192 149.6);
   --chart-4: oklch(0.769 0.165 70.1);
   --chart-5: oklch(0.712 0.013 286.1);
   --sidebar: oklch(0.179 0.004 286);
   --sidebar-foreground: oklch(0.871 0.005 286.3);
-  --sidebar-primary: #7b78ff;
+  --sidebar-primary: #f2683c;
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.274 0.005 286);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: #5b58c9;
+  --sidebar-ring: #a8492c;
 }
 
 @layer base {

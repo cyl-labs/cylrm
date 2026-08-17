@@ -71,7 +71,7 @@ export function dncBlockReason(
 
   const ageMs = now.getTime() - new Date(lead.dncCheckedAt).getTime();
   if (ageMs > DNC_VALID_DAYS * 24 * 60 * 60 * 1000) {
-    return `Do Not Call check expired — results last ${DNC_VALID_DAYS} days`;
+    return `Do Not Call check expired: results last ${DNC_VALID_DAYS} days`;
   }
   return null;
 }

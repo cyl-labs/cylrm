@@ -73,7 +73,7 @@ function VariantFields({
       );
       router.refresh();
     } catch {
-      toast.error("Failed to save step — network error.");
+      toast.error("Failed to save step: network error.");
     } finally {
       setSaving(false);
     }
@@ -159,7 +159,7 @@ function StepCard({
       }
       router.refresh();
     } catch {
-      toast.error("Failed to save wait days — network error.");
+      toast.error("Failed to save wait days: network error.");
     } finally {
       setSavingWait(false);
     }
@@ -170,7 +170,7 @@ function StepCard({
       hasEnrollments &&
       !window.confirm(
         "This campaign already has contacts enrolled. Half of them are on arm B and " +
-          "will switch to this new copy from their next email onwards — emails they " +
+          "will switch to this new copy from their next email onwards: emails they " +
           "have already received stay as they were, so the comparison will be muddied. " +
           "Add it anyway?",
       )
@@ -185,10 +185,10 @@ function StepCard({
         toast.error(data.error ?? "Failed to add B version.");
         return;
       }
-      toast.success(`Step ${stepNumber} B version added — edit the wording.`);
+      toast.success(`Step ${stepNumber} B version added: edit the wording.`);
       router.refresh();
     } catch {
-      toast.error("Failed to add B version — network error.");
+      toast.error("Failed to add B version: network error.");
     } finally {
       setBusy(false);
     }
@@ -204,10 +204,10 @@ function StepCard({
         toast.error(data.error ?? "Failed to remove B version.");
         return;
       }
-      toast.success(`Step ${stepNumber} B version removed — everyone gets A.`);
+      toast.success(`Step ${stepNumber} B version removed: everyone gets A.`);
       router.refresh();
     } catch {
-      toast.error("Failed to remove B version — network error.");
+      toast.error("Failed to remove B version: network error.");
     } finally {
       setBusy(false);
     }
@@ -225,7 +225,7 @@ function StepCard({
       toast.success(`Step ${stepNumber} deleted.`);
       router.refresh();
     } catch {
-      toast.error("Failed to delete step — network error.");
+      toast.error("Failed to delete step: network error.");
     } finally {
       setBusy(false);
     }
@@ -346,7 +346,7 @@ export function StepsEditor({
       }
       router.refresh();
     } catch {
-      toast.error("Failed to add step — network error.");
+      toast.error("Failed to add step: network error.");
     } finally {
       setAdding(false);
     }

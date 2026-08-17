@@ -114,7 +114,7 @@ export async function PATCH(
     (values.role === "caller" || values.active === false);
   if (losingAdmin && (await countActiveAdmins()) <= 1) {
     return Response.json(
-      { error: "Someone has to stay an admin — promote another first." },
+      { error: "Someone has to stay an admin: promote another first." },
       { status: 400 },
     );
   }

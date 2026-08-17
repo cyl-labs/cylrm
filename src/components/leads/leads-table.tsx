@@ -63,7 +63,7 @@ const columns: ColumnDef<ContactRow>[] = [
       const name = [firstName, lastName].filter(Boolean).join(" ");
       return (
         <div className="flex items-center gap-2">
-          <span className="font-medium">{name || "—"}</span>
+          <span className="font-medium">{name || "-"}</span>
           {duplicateOfContactId !== null && (
             <Badge className="bg-warning/10 text-warning">Duplicate</Badge>
           )}
@@ -81,14 +81,14 @@ const columns: ColumnDef<ContactRow>[] = [
   {
     accessorKey: "company",
     header: "Company",
-    cell: ({ getValue }) => getValue<string | null>() || "—",
+    cell: ({ getValue }) => getValue<string | null>() || "-",
   },
   {
     accessorKey: "title",
     header: "Title",
     cell: ({ getValue }) => (
       <span className="text-muted-foreground">
-        {getValue<string | null>() || "—"}
+        {getValue<string | null>() || "-"}
       </span>
     ),
   },

@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { VariantStats } from "@/lib/stats";
 
 const pct = (num: number, den: number) =>
-  den === 0 ? "—" : `${((num / den) * 100).toFixed(1)}%`;
+  den === 0 ? "-" : `${((num / den) * 100).toFixed(1)}%`;
 
 function Arm({
   armName,
@@ -33,7 +33,7 @@ function Arm({
         {pct(stats.replies, stats.sent)}
       </p>
       <p className="text-[13px] text-muted-foreground">
-        reply rate — {stats.replies.toLocaleString()} of{" "}
+        reply rate: {stats.replies.toLocaleString()} of{" "}
         {stats.sent.toLocaleString()} sent
       </p>
       <p className="text-[13px] text-muted-foreground">
@@ -80,7 +80,7 @@ export function AbTestCard({
           </p>
         ) : tooEarly ? (
           <p className="text-[13px] text-muted-foreground">
-            Too early to call — under 100 sends on one side, where a few replies
+            Too early to call: under 100 sends on one side, where a few replies
             either way swing the rate. Differences smaller than roughly 2× are
             noise at this volume.
           </p>

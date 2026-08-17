@@ -122,7 +122,7 @@ export async function DELETE(
       parts.push(`${dealCount} deal${dealCount === 1 ? "" : "s"}`);
     return Response.json(
       {
-        error: `${camp.name} has ${parts.join(" and ")} counted in your stats — deleting it would change past numbers. Pause it instead.`,
+        error: `${camp.name} has ${parts.join(" and ")} counted in your stats: deleting it would change past numbers. Pause it instead.`,
       },
       { status: 409 },
     );

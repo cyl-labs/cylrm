@@ -27,7 +27,7 @@ export class NeedsReconnectError extends Error {
   constructor(email: string, message?: string) {
     super(
       message ??
-        `Google authorization for ${email} has expired or been revoked — reconnect the account via Google on the Accounts screen.`,
+        `Google authorization for ${email} has expired or been revoked: reconnect the account via Google on the Accounts screen.`,
     );
     this.name = "NeedsReconnectError";
   }
@@ -202,7 +202,7 @@ export async function sendViaGmailApi(params: {
     if (JSON.stringify(data).includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT")) {
       throw new NeedsReconnectError(
         params.fromEmail,
-        `The Google connection for ${params.fromEmail} is missing the "Send email on your behalf" permission — reconnect and tick that checkbox on Google's consent screen.`,
+        `The Google connection for ${params.fromEmail} is missing the "Send email on your behalf" permission: reconnect and tick that checkbox on Google's consent screen.`,
       );
     }
     throw new NeedsReconnectError(params.fromEmail);

@@ -61,7 +61,7 @@ export function AppPasswordDialog({
       onOpenChange(false);
       router.refresh();
     } catch {
-      setError("Could not save — network error.");
+      setError("Could not save: network error.");
     } finally {
       setSaving(false);
     }
@@ -76,7 +76,7 @@ export function AppPasswordDialog({
               {hasAppPassword ? "Replace app password" : "Add app password"}
             </DialogTitle>
             <DialogDescription>
-              {email} — sending uses Google, but detecting replies needs a Gmail
+              {email}: sending uses Google, but detecting replies needs a Gmail
               app password for IMAP. Without one, replies to this account are
               never seen and follow-ups keep going out.
             </DialogDescription>

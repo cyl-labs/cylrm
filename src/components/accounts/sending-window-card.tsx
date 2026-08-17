@@ -63,7 +63,7 @@ function timeIn(now: Date, timeZone?: string) {
       hour12: false,
     }).format(now);
   } catch {
-    return "—";
+    return "-";
   }
 }
 
@@ -134,7 +134,7 @@ export function SendingWindowCard({ initial }: { initial: SendingWindow }) {
       toast.success("Sending window saved.");
       router.refresh();
     } catch {
-      toast.error("Failed to save sending window — network error.");
+      toast.error("Failed to save sending window: network error.");
     } finally {
       setSaving(false);
     }

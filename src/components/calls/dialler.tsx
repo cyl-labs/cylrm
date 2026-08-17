@@ -68,7 +68,7 @@ function CopyNumber({
       // Long enough to register, short enough that the next tap reads as new.
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      toast.error("Could not copy — select the number and copy it manually.");
+      toast.error("Could not copy: select the number and copy it manually.");
     }
   }
 
@@ -232,11 +232,11 @@ function CallForm({
         return;
       }
       toast.success(
-        `${OUTCOME_LABELS[outcome]} — ${lead.company ?? lead.phone}`,
+        `${OUTCOME_LABELS[outcome]}: ${lead.company ?? lead.phone}`,
       );
       onLogged();
     } catch {
-      toast.error("Could not save — network error.");
+      toast.error("Could not save: network error.");
     } finally {
       setSaving(false);
     }

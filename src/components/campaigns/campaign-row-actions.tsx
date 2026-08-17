@@ -47,7 +47,7 @@ export function CampaignRowActions({
       toast.success(`${name} deleted.`);
       router.refresh();
     } catch {
-      toast.error("Failed to delete — network error.");
+      toast.error("Failed to delete: network error.");
     } finally {
       setBusy(false);
     }

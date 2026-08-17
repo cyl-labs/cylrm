@@ -226,11 +226,11 @@ function CategoryMenu({
         return;
       }
       toast.success(
-        `${OUTCOME_LABELS[outcome]} — ${who}, attempt ${lead.attempts + 1}`,
+        `${OUTCOME_LABELS[outcome]}: ${who}, attempt ${lead.attempts + 1}`,
       );
       onLogged(lead.id, outcome);
     } catch {
-      toast.error("Could not log it — network error.");
+      toast.error("Could not log it: network error.");
     } finally {
       setSaving(false);
     }
@@ -259,7 +259,7 @@ function CategoryMenu({
       toast.success(`${who} → ${CATEGORY_LABELS[next]}`);
       onCorrected(lead.id, next);
     } catch {
-      toast.error("Could not change it — network error.");
+      toast.error("Could not change it: network error.");
     } finally {
       setSaving(false);
     }
@@ -308,7 +308,7 @@ function CategoryMenu({
             ))}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => correct("uncalled")}>
-              Undo — back to never called
+              Undo: back to never called
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -592,7 +592,7 @@ export function LeadsGrid({
         );
       }
     } catch {
-      toast.error("Could not copy — select the text and copy it manually.");
+      toast.error("Could not copy: select the text and copy it manually.");
     }
   }
 
@@ -659,7 +659,7 @@ export function LeadsGrid({
       cancelEditing();
       router.refresh();
     } catch {
-      toast.error("Could not save — network error.");
+      toast.error("Could not save: network error.");
     } finally {
       setSaving(false);
     }
@@ -804,7 +804,7 @@ export function LeadsGrid({
           is how a long note is read without widening the column. */}
       <div className="flex items-center gap-2 border-b bg-card px-3 py-1.5">
         <span className="w-16 shrink-0 rounded border px-1.5 py-0.5 text-center text-[12px] font-semibold tabular-nums">
-          {selected ? `${colLetter(sel.c)}${selR + 2}` : "—"}
+          {selected ? `${colLetter(sel.c)}${selR + 2}` : "-"}
         </span>
         <span className="text-[13px] font-semibold text-muted-foreground">
           fx

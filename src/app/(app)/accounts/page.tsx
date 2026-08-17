@@ -99,7 +99,7 @@ export default async function AccountsPage({
         >
           {googleError
             ? googleError === "missing_send_permission"
-              ? 'Google connected without the "Send email on your behalf" permission — reconnect and tick that checkbox on Google\'s consent screen.'
+              ? 'Google connected without the "Send email on your behalf" permission: reconnect and tick that checkbox on Google\'s consent screen.'
               : `Google connect failed: ${googleError}`
             : `Google connected for ${googleConnected}.`}
         </div>

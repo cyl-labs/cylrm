@@ -50,9 +50,9 @@ const dayLabel = (date: string) =>
   });
 
 const pct = (num: number, den: number) =>
-  den === 0 ? "—" : `${((num / den) * 100).toFixed(1)}%`;
+  den === 0 ? "-" : `${((num / den) * 100).toFixed(1)}%`;
 const per100 = (num: number, den: number) =>
-  den === 0 ? "—" : ((num / den) * 100).toFixed(1);
+  den === 0 ? "-" : ((num / den) * 100).toFixed(1);
 
 const CARD = "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]";
 
@@ -176,7 +176,7 @@ export default async function CallStatsPage({
           <p className="text-[13px] text-muted-foreground">
             {totals.badNumbers.toLocaleString()}{" "}
             {totals.badNumbers === 1 ? "number was" : "numbers were"} logged as
-            bad — those are wrong in the source data, and can be corrected on
+            bad. Those are wrong in the source data, and can be corrected on
             the spreadsheet rather than re-dialled.
           </p>
         )}

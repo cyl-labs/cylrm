@@ -69,7 +69,7 @@ export async function notifyReply(r: ReplyNotification): Promise<void> {
   const body = (r.body ?? "").trim();
 
   const lines = [
-    `${r.asksToBeRemoved ? "🚫" : "📬"} Reply from ${who}${r.company ? ` — ${r.company}` : ""}`,
+    `${r.asksToBeRemoved ? "🚫" : "📬"} Reply from ${who}${r.company ? `: ${r.company}` : ""}`,
     `${r.contactEmail} · ${r.campaignName} · to ${r.mailbox}`,
   ];
   if (r.variant) {

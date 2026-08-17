@@ -100,7 +100,7 @@ export function CallImportDialog({
       setResult(data as ImportResult);
       router.refresh();
     } catch {
-      setError("Import failed — network error.");
+      setError("Import failed: network error.");
     } finally {
       setSubmitting(false);
     }
@@ -137,7 +137,7 @@ export function CallImportDialog({
               </p>
               {result.duplicates > 0 && (
                 <p className="text-muted-foreground">
-                  {result.duplicates} flagged — that number is already on
+                  {result.duplicates} flagged: that number is already on
                   another list, so they stay out of the queue
                 </p>
               )}
@@ -161,13 +161,13 @@ export function CallImportDialog({
               {result.skippedBadNumber.length > 0 && (
                 <div className="rounded-lg bg-muted/50 px-3 py-2">
                   <p className="font-medium">
-                    {result.skippedBadNumber.length} skipped — not a Singapore
+                    {result.skippedBadNumber.length} skipped: not a Singapore
                     number:
                   </p>
                   <ul className="mt-1 space-y-0.5 text-muted-foreground">
                     {result.skippedBadNumber.slice(0, 6).map((b) => (
                       <li key={`${b.company}-${b.phone}`} className="truncate">
-                        {b.company} — {b.phone}
+                        {b.company}: {b.phone}
                       </li>
                     ))}
                     {result.skippedBadNumber.length > 6 && (
@@ -186,8 +186,8 @@ export function CallImportDialog({
             <DialogHeader>
               <DialogTitle>Import call list</DialogTitle>
               <DialogDescription>
-                A CSV with a phone column. Everything else — name, company,
-                title, email — is optional.
+                A CSV with a phone column. Everything else (name, company,
+                title, email) is optional.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">

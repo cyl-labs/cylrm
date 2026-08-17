@@ -73,7 +73,7 @@ export async function POST(request: Request) {
   }
   if (!account.googleRefreshToken) {
     return Response.json(
-      { error: `${account.email} has no Google connection — use "Connect via Google" on the Accounts screen.` },
+      { error: `${account.email} has no Google connection: use "Connect via Google" on the Accounts screen.` },
       { status: 400 },
     );
   }

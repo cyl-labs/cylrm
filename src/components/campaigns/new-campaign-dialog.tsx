@@ -43,7 +43,7 @@ export function NewCampaignDialog() {
       router.push(`/campaigns/${data.campaign.id}`);
       router.refresh();
     } catch {
-      setError("Create failed — network error.");
+      setError("Create failed: network error.");
     } finally {
       setSubmitting(false);
     }
@@ -81,7 +81,7 @@ export function NewCampaignDialog() {
               id="campaign-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. steel fabricators — pain-point pitch"
+              placeholder="e.g. steel fabricators: pain-point pitch"
               required
             />
             {error && <p className="text-[13px] text-destructive">{error}</p>}

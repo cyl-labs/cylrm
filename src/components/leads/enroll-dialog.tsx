@@ -95,7 +95,7 @@ export function EnrollDialog({
       onEnrolled();
       router.refresh();
     } catch {
-      setError("Enroll failed — network error.");
+      setError("Enroll failed: network error.");
     } finally {
       setSubmitting(false);
     }
@@ -117,7 +117,7 @@ export function EnrollDialog({
               {guarded.map((g) => (
                 <li key={g.contactId}>
                   <span className="font-medium">{g.email}</span>{" "}
-                  <span className="text-muted-foreground">— {g.reason}</span>
+                  <span className="text-muted-foreground">{g.reason}</span>
                 </li>
               ))}
             </ul>

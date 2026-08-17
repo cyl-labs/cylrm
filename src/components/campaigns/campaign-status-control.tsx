@@ -37,7 +37,7 @@ export function CampaignStatusControl({
       setConfirmOpen(false);
       router.refresh();
     } catch {
-      toast.error("Failed to update status — network error.");
+      toast.error("Failed to update status: network error.");
     } finally {
       setBusy(false);
     }

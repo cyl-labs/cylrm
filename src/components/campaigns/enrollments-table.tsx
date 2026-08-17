@@ -161,11 +161,11 @@ export function EnrollmentsTable({
               page.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="whitespace-nowrap text-[13px]">
-                    <div className="font-medium">{r.contactName ?? "—"}</div>
+                    <div className="font-medium">{r.contactName ?? "-"}</div>
                     <div className="text-muted-foreground">{r.contactEmail}</div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-[13px]">
-                    {r.company ?? "—"}
+                    {r.company ?? "-"}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-[13px]">
                     {r.currentStep === 0 ? (
@@ -192,7 +192,7 @@ export function EnrollmentsTable({
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-[13px]">
                     {r.nextSendAt === null ? (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground">-</span>
                     ) : (
                       <span className="flex items-center gap-1.5">
                         {timeFormatter.format(new Date(r.nextSendAt))}

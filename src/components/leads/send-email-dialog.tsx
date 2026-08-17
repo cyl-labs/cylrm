@@ -83,7 +83,7 @@ export function SendEmailDialog({
       toast.success(`Sent to ${target.email}.`);
       handleOpenChange(false);
     } catch {
-      setError("Send failed — network error.");
+      setError("Send failed: network error.");
     } finally {
       setSending(false);
     }

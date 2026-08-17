@@ -124,7 +124,7 @@ export async function DELETE(
 
   if (step.stepNumber === 1) {
     return Response.json(
-      { error: "Step 1 cannot be deleted — campaigns need an opening email." },
+      { error: "Step 1 cannot be deleted: campaigns need an opening email." },
       { status: 400 },
     );
   }

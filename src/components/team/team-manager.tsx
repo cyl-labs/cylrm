@@ -356,7 +356,7 @@ function AddPersonDialog({
           <DialogTitle>Add someone to the team</DialogTitle>
           <DialogDescription>
             They sign in with this username and password. Give it to them
-            directly — nothing is emailed.
+            directly: nothing is emailed.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
@@ -397,7 +397,7 @@ function AddPersonDialog({
               placeholder="At least 8 characters"
             />
             <p className="text-[11px] text-muted-foreground">
-              Shown as you type on purpose — you are reading it out to them,
+              Shown as you type on purpose: you are reading it out to them,
               not keeping it secret from yourself.
             </p>
           </div>
@@ -412,10 +412,10 @@ function AddPersonDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="caller">
-                  Caller — everything except managing the team
+                  Caller: everything except managing the team
                 </SelectItem>
                 <SelectItem value="admin">
-                  Admin — can also add and switch off people
+                  Admin: can also add and switch off people
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -519,7 +519,7 @@ function ResetPasswordDialog({
           <DialogTitle>New password for {member?.name}</DialogTitle>
           <DialogDescription>
             Their old one stops working straight away. Any session they already
-            have open stays signed in until it expires — switch the account off
+            have open stays signed in until it expires: switch the account off
             if you need them out now.
           </DialogDescription>
         </DialogHeader>

@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (name === "") {
     return Response.json(
-      { error: "A display name is required — it is what the stats show." },
+      { error: "A display name is required: it is what the stats show." },
       { status: 400 },
     );
   }

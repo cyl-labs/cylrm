@@ -122,8 +122,8 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
           No replies yet
         </h2>
         <p className="mt-1.5 max-w-sm text-center text-[13px] leading-relaxed text-muted-foreground">
-          Anything a contact sends back — replies, out-of-office notices and
-          bounces — appears here within five minutes of arriving.
+          Anything a contact sends back: replies, out-of-office notices and
+          bounces: appears here within five minutes of arriving.
         </p>
       </div>
     );
@@ -257,7 +257,7 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
                   <div>
                     <p className="text-[11px] font-medium text-muted-foreground">
                       {r.contactEmail} wrote
-                      {r.subject ? ` — ${r.subject}` : ""}
+                      {r.subject ? `: ${r.subject}` : ""}
                     </p>
                     <p className="mt-1 whitespace-pre-wrap text-[13px]">
                       {(showingFull ? r.body?.trim() : written.text) ||
@@ -280,7 +280,7 @@ export function RepliesList({ replies }: { replies: ReplyRow[] }) {
                       {r.repliedToStep !== null
                         ? `They were answering step ${r.repliedToStep}`
                         : "The email they were answering"}
-                      {r.repliedToSubject ? ` — ${r.repliedToSubject}` : ""}
+                      {r.repliedToSubject ? `: ${r.repliedToSubject}` : ""}
                     </summary>
                     <p className="mt-1 whitespace-pre-wrap text-[13px] text-muted-foreground">
                       {r.repliedToBody

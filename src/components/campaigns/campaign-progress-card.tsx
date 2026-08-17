@@ -26,7 +26,7 @@ function Tile({
 const hhmm = (t: string) => t.slice(0, 5);
 
 function etaLabel(days: number | null) {
-  if (days === null) return "—";
+  if (days === null) return "-";
   if (days <= 0) return "today";
   if (days === 1) return "~1 day";
   return `~${days} days`;

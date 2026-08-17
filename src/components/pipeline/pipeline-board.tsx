@@ -68,7 +68,7 @@ export function PipelineBoard({ deals }: { deals: DealCard[] }) {
       }
       router.refresh();
     } catch {
-      toast.error("Failed to move deal — network error.");
+      toast.error("Failed to move deal: network error.");
       setOverrides((o) => {
         const { [dealId]: _, ...rest } = o;
         return rest;

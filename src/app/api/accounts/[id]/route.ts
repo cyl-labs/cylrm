@@ -163,7 +163,7 @@ export async function DELETE(
   if (messageCount > 0) {
     return Response.json(
       {
-        error: `${account.email} has ${messageCount} message${messageCount === 1 ? "" : "s"} in its history — deleting it would change past stats. Deactivate it instead to stop it being assigned sends.`,
+        error: `${account.email} has ${messageCount} message${messageCount === 1 ? "" : "s"} in its history: deleting it would change past stats. Deactivate it instead to stop it being assigned sends.`,
       },
       { status: 409 },
     );

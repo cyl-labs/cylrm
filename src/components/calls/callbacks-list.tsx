@@ -82,7 +82,7 @@ function CopyNumber({
           setCopied(true);
           setTimeout(() => setCopied(false), 1600);
         } catch {
-          toast.error("Could not copy — select the number and copy it.");
+          toast.error("Could not copy: select the number and copy it.");
         }
       }}
       className={cn(
@@ -134,11 +134,11 @@ export function CallbacksList({
         return;
       }
       toast.success(
-        `${OUTCOME_LABELS[outcome]} — ${who}, attempt ${lead.attempts + 1}`,
+        `${OUTCOME_LABELS[outcome]}: ${who}, attempt ${lead.attempts + 1}`,
       );
       router.refresh();
     } catch {
-      toast.error("Could not log the call — network error.");
+      toast.error("Could not log the call: network error.");
       setLogged((p) => {
         const next = new Set(p);
         next.delete(lead.id);

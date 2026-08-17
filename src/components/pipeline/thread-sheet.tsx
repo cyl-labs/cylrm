@@ -70,7 +70,7 @@ export function ThreadSheet({
       if (res.ok) setData(await res.json());
       else toast.error("Failed to load thread.");
     } catch {
-      toast.error("Failed to load thread — network error.");
+      toast.error("Failed to load thread: network error.");
     } finally {
       setLoading(false);
     }
@@ -105,7 +105,7 @@ export function ThreadSheet({
       load(data.deal.id);
       router.refresh();
     } catch {
-      toast.error("Unsubscribe failed — network error.");
+      toast.error("Unsubscribe failed: network error.");
     } finally {
       setBusy(false);
     }
@@ -124,12 +124,12 @@ export function ThreadSheet({
         return;
       }
       toast.success(
-        "Marked as auto-reply — deal removed, enrollment paused 7 days.",
+        "Marked as auto-reply: deal removed, enrollment paused 7 days.",
       );
       onOpenChange(false);
       router.refresh();
     } catch {
-      toast.error("Reclassify failed — network error.");
+      toast.error("Reclassify failed: network error.");
     } finally {
       setBusy(false);
     }

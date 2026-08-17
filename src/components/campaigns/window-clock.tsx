@@ -108,7 +108,7 @@ export function WindowClock({
   return (
     <p className="text-xs text-muted-foreground">
       <span className="font-medium tabular-nums text-foreground">{clock}</span>{" "}
-      {timezone.replace("_", " ")} — <span className="tabular-nums">{tail}</span>
+      {timezone.replace("_", " ")}: <span className="tabular-nums">{tail}</span>
     </p>
   );
 }

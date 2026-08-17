@@ -65,7 +65,7 @@ const n = (v: unknown) => Number(v ?? 0);
  *  real query can't drift apart in wording. */
 export function notActiveReason(status: string): string {
   const described = status === "draft" ? "still a draft" : status;
-  return `This campaign is ${described} — the scheduler skips it, so nothing will send.`;
+  return `This campaign is ${described}: the scheduler skips it, so nothing will send.`;
 }
 
 const timeToMinutes = (t: string) => {
@@ -238,7 +238,7 @@ export async function getCampaignProgress(
     blockedReason = notActiveReason(String(campRow?.status ?? "unknown"));
   else if (eligibleAccounts === 0)
     blockedReason =
-      "No active Google-connected account — nothing can send until one is reconnected.";
+      "No active Google-connected account: nothing can send until one is reconnected.";
   else if (capacityPerDay === 0)
     blockedReason = "Every eligible account has a daily cap of 0.";
 

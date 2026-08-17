@@ -73,7 +73,7 @@ function GoogleStatus({ account }: { account: AccountRow }) {
       <Badge variant="secondary">Google: not connected</Badge>
     ) : kind === "expired" ? (
       <Badge className="bg-destructive/10 text-destructive">
-        Google: expired — reconnect
+        Google: expired: reconnect
       </Badge>
     ) : kind === "soon" ? (
       <Badge className="bg-warning/10 text-warning">
@@ -99,7 +99,7 @@ function GoogleStatus({ account }: { account: AccountRow }) {
 }
 
 function bounceRateLabel(bounces: number, sent: number) {
-  if (sent === 0) return "—";
+  if (sent === 0) return "-";
   return `${((bounces / sent) * 100).toFixed(1)}%`;
 }
 
@@ -131,7 +131,7 @@ function DailyCapInput({ account }: { account: AccountRow }) {
       toast.success(`Daily cap for ${account.email} set to ${cap}.`);
       router.refresh();
     } catch {
-      toast.error("Failed to save daily cap — network error.");
+      toast.error("Failed to save daily cap: network error.");
       setValue(String(account.dailyCap));
     } finally {
       setSaving(false);
@@ -185,7 +185,7 @@ function SenderNameInput({ account }: { account: AccountRow }) {
       );
       router.refresh();
     } catch {
-      toast.error("Failed to save sender name — network error.");
+      toast.error("Failed to save sender name: network error.");
       setValue(account.senderName ?? "");
     } finally {
       setSaving(false);
@@ -230,14 +230,14 @@ function AccountMenu({ account }: { account: AccountRow }) {
       );
       router.refresh();
     } catch {
-      toast.error("Failed to update account — network error.");
+      toast.error("Failed to update account: network error.");
     }
   }
 
   async function remove() {
     if (
       !window.confirm(
-        `Delete ${account.email}?\n\nIts stored Google connection and IMAP app password are removed too — ` +
+        `Delete ${account.email}?\n\nIts stored Google connection and IMAP app password are removed too: ` +
           `reconnecting later means going through Google's consent screen again. This cannot be undone.`,
       )
     ) {
@@ -256,7 +256,7 @@ function AccountMenu({ account }: { account: AccountRow }) {
       toast.success(`${account.email} deleted.`);
       router.refresh();
     } catch {
-      toast.error("Failed to delete account — network error.");
+      toast.error("Failed to delete account: network error.");
     } finally {
       setDeleting(false);
     }
@@ -278,7 +278,7 @@ function AccountMenu({ account }: { account: AccountRow }) {
         </DropdownMenuItem>
         {account.active ? (
           <DropdownMenuItem onSelect={() => setActive(false)}>
-            Deactivate — stop assigning sends
+            Deactivate: stop assigning sends
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem onSelect={() => setActive(true)}>
@@ -288,7 +288,7 @@ function AccountMenu({ account }: { account: AccountRow }) {
         <DropdownMenuItem onSelect={() => setPwOpen(true)}>
           {account.hasAppPassword
             ? "Replace app password"
-            : "Add app password — enables replies"}
+            : "Add app password: enables replies"}
         </DropdownMenuItem>
         <DropdownMenuItem
           variant="destructive"
@@ -400,7 +400,7 @@ export function AccountsView({ accounts }: { accounts: AccountRow[] }) {
                             <GoogleStatus account={account} />
                             {!account.hasAppPassword && (
                               <Badge className="bg-warning/10 text-warning">
-                                No app password — replies not detected
+                                No app password: replies not detected
                               </Badge>
                             )}
                           </div>

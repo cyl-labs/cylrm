@@ -55,7 +55,7 @@ export default async function CallPipelinePage({
             <p className="shrink-0 text-[13px] text-muted-foreground">
               Drag a card, or use its menu, to log a call. Moving a card
               <em> is </em>
-              logging the call — there is no status here that a phone call did
+              logging the call. There is no status here that a phone call did
               not put there.
             </p>
             <CallBoard

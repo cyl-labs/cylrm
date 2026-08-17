@@ -58,7 +58,7 @@ const COLUMNS: {
     key: "lost",
     label: "Lost",
     logs: "lost",
-    hint: "No sale — refused, wrong number, or a trial that did not convert",
+    hint: "No sale: refused, wrong number, or a trial that did not convert",
   },
 ];
 
@@ -98,7 +98,7 @@ function CopyNumber({
   if (blocked) {
     return (
       <span
-        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed py-1.5 text-[13px] font-bold text-muted-foreground"
+        className="mt-2.5 flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-dashed py-2 text-[13px] font-bold text-muted-foreground"
         title={blocked}
       >
         <ShieldAlert className="size-3.5 shrink-0" strokeWidth={2.2} />
@@ -117,11 +117,11 @@ function CopyNumber({
           setCopied(true);
           setTimeout(() => setCopied(false), 1600);
         } catch {
-          toast.error("Could not copy — select the number and copy it.");
+          toast.error("Could not copy: select the number and copy it.");
         }
       }}
       className={cn(
-        "mt-2 flex w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-[13px] font-bold tabular-nums transition-colors",
+        "mt-2.5 flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-md py-2 text-[13px] font-bold tabular-nums transition-colors",
         copied
           ? "bg-success text-primary-foreground"
           : "bg-primary/10 text-primary hover:bg-primary/15",
@@ -194,10 +194,10 @@ export function CallBoard({
         });
         return;
       }
-      toast.success(`${OUTCOME_LABELS[outcome]} — ${who}, attempt ${attempts}`);
+      toast.success(`${OUTCOME_LABELS[outcome]}: ${who}, attempt ${attempts}`);
       router.refresh();
     } catch {
-      toast.error("Could not log the call — network error.");
+      toast.error("Could not log the call: network error.");
       setLogged((p) => {
         const next = { ...p };
         delete next[card.id];
@@ -226,7 +226,7 @@ export function CallBoard({
     // board takes, just with more to scroll through.
     <div
       ref={scrollerRef}
-      className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 xl:mx-0 xl:grid xl:grid-cols-7 xl:overflow-x-visible xl:px-0"
+      className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 2xl:mx-0 2xl:grid 2xl:grid-cols-7 2xl:overflow-x-visible 2xl:px-0"
     >
       {COLUMNS.map((col) => {
         const all = rows.filter((c) => c.stage === col.key);
@@ -236,7 +236,7 @@ export function CallBoard({
             key={col.key}
             data-column={col.key}
             className={cn(
-              "flex min-h-0 w-[78vw] max-w-[320px] shrink-0 snap-start flex-col rounded-lg border bg-muted/30 xl:w-auto xl:max-w-none xl:shrink",
+              "flex min-h-0 w-[78vw] max-w-[340px] shrink-0 snap-start flex-col rounded-lg border bg-muted/30 2xl:w-auto 2xl:max-w-none 2xl:shrink",
               (dragOver === col.key || touch.over === col.key) &&
                 col.logs !== null &&
                 "border-primary/50 bg-primary/5",
@@ -257,7 +257,7 @@ export function CallBoard({
               }
             }}
           >
-            <div className="flex shrink-0 items-baseline gap-2 px-3 pb-1 pt-2.5">
+            <div className="flex shrink-0 items-baseline gap-2 px-3.5 pb-2 pt-3">
               <span className="text-xs font-semibold text-muted-foreground">
                 {col.label}
               </span>
@@ -272,7 +272,7 @@ export function CallBoard({
             </div>
             <div
               data-column-scroll
-              className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto p-2"
+              className="flex min-h-16 flex-1 flex-col gap-2.5 overflow-y-auto p-2.5"
             >
               {shown.map((c) => (
                 <div
@@ -285,7 +285,7 @@ export function CallBoard({
                   onDragEnd={() => setDragId(null)}
                   {...touch.cardProps(c.id)}
                   className={cn(
-                    "group cursor-grab rounded-md border bg-card p-3 shadow-xs transition-colors hover:border-ring/60 active:cursor-grabbing",
+                    "group cursor-grab rounded-lg border bg-card p-3.5 shadow-xs transition-colors hover:border-ring/60 active:cursor-grabbing",
                     // The held card stays in place, faded, so the column does
                     // not reflow under the finger mid-drag.
                     touch.dragId === c.id && "opacity-40",
@@ -312,7 +312,7 @@ export function CallBoard({
                   {/* Wraps rather than truncates: with seven columns sharing
                       the width there is not always room for the list badge
                       and "2 tries · 4h ago" on one line. */}
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                  <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
                     {showList && (
                       <Badge
                         variant="outline"
@@ -341,7 +341,7 @@ export function CallBoard({
                       fire on touch — so every outcome is also reachable from
                       a menu, which is the only route on a phone. */}
                   <DropdownMenu>
-                    <DropdownMenuTrigger className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed py-1 text-[11px] text-muted-foreground transition-[color,opacity] hover:border-solid hover:text-foreground xl:opacity-0 xl:group-focus-within:opacity-100 xl:group-hover:opacity-100 xl:data-[state=open]:opacity-100">
+                    <DropdownMenuTrigger className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed py-1 text-[11px] text-muted-foreground transition-[color,opacity] hover:border-solid hover:text-foreground 2xl:opacity-0 2xl:group-focus-within:opacity-100 2xl:group-hover:opacity-100 2xl:data-[state=open]:opacity-100">
                       <PhoneOutgoing className="size-3" />
                       Log a call
                     </DropdownMenuTrigger>
@@ -369,7 +369,7 @@ export function CallBoard({
               )}
               {all.length > shown.length && (
                 <p className="rounded-md border border-dashed px-2 py-2 text-center text-[11px] text-muted-foreground">
-                  {(all.length - shown.length).toLocaleString()} more — work
+                  {(all.length - shown.length).toLocaleString()} more: work
                   them from the dialler or the spreadsheet.
                 </p>
               )}
