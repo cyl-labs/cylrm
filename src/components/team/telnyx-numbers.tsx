@@ -27,7 +27,7 @@ export function TelnyxNumbers({
   className?: string;
 }) {
   const [numbers, setNumbers] = React.useState<
-    { phoneNumber: string; country: string | null }[] | null
+    { phoneNumber: string; country: string | null; inbound: string | null }[] | null
   >(null);
 
   React.useEffect(() => {
@@ -47,8 +47,10 @@ export function TelnyxNumbers({
           Your Telnyx numbers
         </p>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          Buy and release these in the Telnyx portal. Here you only choose who
-          rings from which, in the table below.
+          Buy and release these in the Telnyx portal. Assigning one here only
+          sets what a prospect sees; it changes nothing about the number in
+          Telnyx. But a prospect who rings back reaches whatever is already on
+          the other end, so avoid the ones answering for a client.
         </p>
       </div>
 
@@ -71,6 +73,14 @@ export function TelnyxNumbers({
                 <span className="text-muted-foreground">
                   {COUNTRY[n.country as keyof typeof COUNTRY] ?? n.country ?? "-"}
                 </span>
+                {n.inbound && (
+                  <span
+                    className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground"
+                    title={`Inbound calls to this number go to "${n.inbound}"`}
+                  >
+                    answers: {n.inbound}
+                  </span>
+                )}
                 <span
                   className={cn(
                     "ml-auto",

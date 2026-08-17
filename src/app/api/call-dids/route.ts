@@ -28,7 +28,11 @@ export async function GET() {
 
   // Best effort. If Telnyx is unreachable the screen still shows what is set;
   // it just cannot offer the list to pick from.
-  let numbers: { phoneNumber: string; country: string | null }[] = [];
+  let numbers: {
+    phoneNumber: string;
+    country: string | null;
+    inbound: string | null;
+  }[] = [];
   const apiKey = process.env.TELNYX_API_KEY;
   if (apiKey) {
     try {
@@ -41,11 +45,19 @@ export async function GET() {
       );
       if (res.ok) {
         const body = (await res.json()) as {
-          data?: { phone_number: string; country_iso_alpha2?: string }[];
+          data?: {
+            phone_number: string;
+            country_iso_alpha2?: string;
+            connection_name?: string | null;
+          }[];
         };
+        // What the number is wired to for *inbound*. Assigning it as a caller
+        // ID here changes none of that, but a prospect who rings back reaches
+        // whatever is on the other end, so the screen has to say what that is.
         numbers = (body.data ?? []).map((n) => ({
           phoneNumber: n.phone_number,
           country: n.country_iso_alpha2 ?? null,
+          inbound: n.connection_name ?? null,
         }));
       }
     } catch {
