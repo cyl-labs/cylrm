@@ -160,6 +160,13 @@ function QualificationCriteria() {
           </li>
         ))}
       </ul>
+      {/* The criteria say whether it counts; this says how to finish it. Both
+          on the card because both are needed in the same thirty seconds, while
+          someone is still on the phone. */}
+      <p className="mt-2.5 border-t pt-2 text-[12px] leading-snug text-muted-foreground">
+        Before you hang up: get their email, confirm the day and time, then log
+        it as <span className="font-bold">Demo booked</span>.
+      </p>
     </div>
   );
 }

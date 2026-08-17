@@ -69,6 +69,34 @@ _(let them answer)_
 
 _(let them answer)_
 
+## Once they say yes
+
+Do all of this before you hang up. A booking made after the call is a booking
+that does not happen.
+
+> **You say** Perfect. What day suits you better, and roughly what time?
+
+_(let them answer)_
+
+> **You say** And what is the best email for the invite?
+
+_(let them answer)_
+
+> **You say** Let me read that back so I do not get it wrong: [spell it out]. Is that right?
+
+_(let them answer)_
+
+Now book it, while they are still on the phone. Pick **Demo booked**, type
+their email and name into the form, and press **Book it on Cal.com**. It opens
+in a new tab, so you do not lose your place. Pick the slot you just agreed.
+
+**Nothing sooner than two hours from now.** Cal.com will not take it, so if
+they want it right away, agree the earliest slot it offers instead.
+
+> **You say** Done. You will get a calendar invite in the next minute with a Google Meet link, and a reminder the day before. See you [day] at [time].
+
+Then come back and log the call as **Demo booked**.
+
 ## If they say "not interested"
 
 > **You say** Okay that's fair. Before I let you go, can I just ask one thing?
