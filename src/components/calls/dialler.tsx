@@ -122,16 +122,21 @@ function CopyNumber({
  * against and the thing a caller is paid on, so it should never be something
  * anyone has to go and look up.
  *
- * PLACEHOLDER — replace with the real criteria. Edit this list and nothing
- * else; it is deliberately hard-coded rather than a document, so that what
- * earns a caller their fee cannot be scrolled past or edited by accident.
+ * Every box is answered by a question the script actually asks — the first two
+ * were added to section 03 for exactly this reason. A bar the script cannot
+ * reach does not raise quality, it just moves the argument to payday, which is
+ * also why "showed some interest" is not on this list: it is a judgment made
+ * by the person paying, after the work is done. Agreeing to a specific time is
+ * the interest signal, and it is checkable by both sides.
+ *
+ * Hard-coded rather than a document, so what earns a caller their fee cannot
+ * be scrolled past or edited by accident.
  */
 function QualificationCriteria() {
   const CRITERIA = [
-    "PLACEHOLDER — speaking to the owner or a decision maker",
-    "PLACEHOLDER — fits the ICP",
-    "PLACEHOLDER — agreed to a specific slot in the calendar, not “send me something”",
-    "PLACEHOLDER — a trigger worth calling about",
+    "Owner, or bringing whoever decides",
+    "Misses 5+ calls a week",
+    "Agreed a specific day and time",
   ];
   return (
     <div className="mt-3 rounded-lg border border-dashed bg-muted/30 px-3.5 py-2.5">
@@ -142,10 +147,13 @@ function QualificationCriteria() {
         {CRITERIA.map((c) => (
           <li
             key={c}
-            className="flex gap-1.5 text-[13px] leading-snug text-muted-foreground"
+            className="flex gap-2 text-[13px] leading-snug text-muted-foreground"
           >
-            <span aria-hidden className="text-muted-foreground/60">
-              •
+            {/* A printed box, not a control: nothing is stored and there is
+                nothing to tap while agreeing a time. The outcome button is
+                already the record that a meeting was booked. */}
+            <span aria-hidden className="text-muted-foreground/70">
+              &#9744;
             </span>
             <span>{c}</span>
           </li>

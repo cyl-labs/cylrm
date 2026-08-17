@@ -44,6 +44,14 @@ _(let them answer)_
 
 _(let them answer)_
 
+> **You say** Roughly how many calls do you reckon you're missing in a week?
+
+_(let them answer)_
+
+> **You say** And are you the one who'd decide on something like this, or is there someone else who'd want to see it?
+
+_(let them answer)_
+
 > **You say** My goal wasn't to sell you anything today. I actually built out a demo for your business and I was hoping to find a time where we could do a quick Google Meet.
 
 _(let them answer)_
@@ -51,6 +59,14 @@ _(let them answer)_
 ## If they seem confused or skeptical of "voice agent"
 
 > **You say** Oh, it's AI. It picks up your phone instantly, 24/7, whenever you're busy on a job or closed. Answers the common questions, can even book the appointment, so you stop losing callers. And if you're worried about it sounding like a robot, there's over 10,000 voices to choose from, I can customize everything to how you want it to sound.
+
+_(let them answer)_
+
+> **You say** Roughly how many calls do you reckon you're missing in a week?
+
+_(let them answer)_
+
+> **You say** And are you the one who'd decide on something like this, or is there someone else who'd want to see it?
 
 _(let them answer)_
 
