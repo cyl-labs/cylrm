@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -424,22 +425,77 @@ export const appUser = pgTable("app_user", {
     .notNull()
     .defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  /** Their Telnyx telephony credential, reused across restarts. Held here
+   *  rather than in process memory because Telnyx does not enforce unique
+   *  credential names — forgetting the id on a deploy mints another one and
+   *  leaves no handle to delete the old. */
+  telnyxCredentialId: text("telnyx_credential_id"),
+  telnyxCredentialExpiresAt: timestamp("telnyx_credential_expires_at", {
+    withTimezone: true,
+  }),
 });
 
-export const call = pgTable("call", {
-  id: serial("id").primaryKey(),
-  callLeadId: integer("call_lead_id")
-    .notNull()
-    .references(() => callLead.id),
-  /** Who logged it. Nullable because the calls made before logins existed
-   *  have no one to attribute them to, and guessing would be worse than the
-   *  screens saying "unattributed". */
-  userId: integer("user_id").references(() => appUser.id),
-  outcome: callOutcomeEnum("outcome").notNull(),
-  notes: text("notes"),
-  /** When they asked to be rung back. Only meaningful for `callback`. */
-  callbackAt: timestamp("callback_at", { withTimezone: true }),
-  calledAt: timestamp("called_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const call = pgTable(
+  "call",
+  {
+    id: serial("id").primaryKey(),
+    callLeadId: integer("call_lead_id")
+      .notNull()
+      .references(() => callLead.id),
+    /** Who logged it. Nullable because the calls made before logins existed
+     *  have no one to attribute them to, and guessing would be worse than the
+     *  screens saying "unattributed". */
+    userId: integer("user_id").references(() => appUser.id),
+    outcome: callOutcomeEnum("outcome").notNull(),
+    notes: text("notes"),
+    /** When they asked to be rung back. Only meaningful for `callback`. */
+    callbackAt: timestamp("callback_at", { withTimezone: true }),
+    calledAt: timestamp("called_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Telnyx's id for the browser call, written by the disposition. Null for
+     *  every call placed on a handset, which is all of them before this and
+     *  still both the UK/US callers. Joins to `call_recording`. */
+    telnyxSessionId: text("telnyx_session_id"),
+    /** Answer to hangup, measured in the browser. Distinct from the recording's
+     *  duration: a no-answer has one of these and no recording at all, and
+     *  no-answers are most of the volume. */
+    durationSeconds: integer("duration_seconds"),
+  },
+  // Both of these must be declared here, not only in the migration that made
+  // them: `drizzle-kit push` drops any index it cannot see in this file, so
+  // `call_user_id_idx` — created by 2026-08-13-app-user.sql and never declared
+  // — was silently removed the first time push ran after it.
+  (t) => [
+    index("call_user_id_idx").on(t.userId),
+    index("call_telnyx_session_id_idx").on(t.telnyxSessionId),
+  ],
+);
+
+/**
+ * What Telnyx recorded, filed by its own webhook.
+ *
+ * A separate table rather than columns on `call` because the two writers race:
+ * the caller taps an outcome whenever they finish typing, the webhook lands on
+ * Telnyx's schedule, and either can be first. Updating `call` would mean the
+ * webhook has nowhere to put a recording that arrives while the caller is
+ * still writing notes.
+ */
+export const callRecording = pgTable(
+  "call_recording",
+  {
+    id: serial("id").primaryKey(),
+    /** Idempotency key: a retry carries the original payload. */
+    recordingId: text("recording_id").notNull().unique(),
+    /** Deliberately not unique — a session with two recordings keeps both. */
+    callSessionId: text("call_session_id").notNull(),
+    callLegId: text("call_leg_id"),
+    durationMs: integer("duration_ms"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("call_recording_session_idx").on(t.callSessionId)],
+);

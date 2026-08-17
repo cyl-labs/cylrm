@@ -9,6 +9,11 @@ import { websiteHref } from "@/lib/website";
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 500;
 
+/** The number kinds we hold a caller ID for. Anything else cannot be rung
+ *  from this app, so it is refused at the door rather than sitting in a
+ *  queue waiting to waste a dial. */
+const DIALLABLE = new Set(["sg", "sg_tollfree", "us", "gb"]);
+
 /**
  * Header matching, deliberately forgiving.
  *
@@ -251,7 +256,11 @@ export async function POST(request: Request) {
     // line on a Singapore workshop, a 13-digit string. They are reported by
     // name rather than silently dropped, so a real number entered wrongly can
     // be chased rather than quietly lost.
-    if (kind !== "sg" && kind !== "sg_tollfree") {
+    //
+    // US and UK are accepted alongside Singapore because those are the three
+    // countries we hold a caller ID for; anywhere else still has no DID to
+    // ring from, so importing it would only fill the queue with dead rows.
+    if (!DIALLABLE.has(kind)) {
       skippedBadNumber.push({
         company: pick(rec, companyCols) ?? phone,
         phone,

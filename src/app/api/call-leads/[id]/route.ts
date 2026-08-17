@@ -101,15 +101,15 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    // Same rule the importer applies: a number that cannot be rung in
-    // Singapore is refused at the point of entry rather than sitting in the
-    // queue waiting to waste a dial.
-    if (kind !== "sg" && kind !== "sg_tollfree") {
+    // Same rule the importer applies: a number we hold no caller ID for is
+    // refused at the point of entry rather than sitting in the queue waiting
+    // to waste a dial. Singapore, the UK and the US are the three.
+    if (kind !== "sg" && kind !== "sg_tollfree" && kind !== "us" && kind !== "gb") {
       return Response.json(
         {
           error:
             kind === "foreign"
-              ? "That is not a Singapore number."
+              ? "That number cannot be dialled — Singapore, UK and US numbers only. A UK or US number needs its country code."
               : "That number is the wrong length for Singapore.",
         },
         { status: 400 },

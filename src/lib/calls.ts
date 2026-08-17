@@ -48,7 +48,7 @@ const SPOKE_TO = sql`('gatekeeper','callback','not_interested','demo_booked','tr
  */
 const latestCall = sql`
   left join lateral (
-    select c.outcome, c.called_at, c.callback_at, c.notes,
+    select c.outcome, c.called_at, c.callback_at, c.notes, c.telnyx_session_id,
       -- Who made it. Joined here rather than on the outer query so it stays
       -- the *latest* call's caller, not every caller this lead has had.
       (select u.name from app_user u where u.id = c.user_id) as by_name
@@ -57,6 +57,17 @@ const latestCall = sql`
     order by c.called_at desc, c.id desc
     limit 1
   ) lc on true
+  -- What Telnyx recorded of that call, if it was dialled from the browser and
+  -- the webhook has landed. Joined out here rather than inside the lateral
+  -- above so every screen that shows a lead's last call gets the recording
+  -- with it. Latest first: a session can produce more than one file.
+  left join lateral (
+    select r.recording_id, r.duration_ms
+    from call_recording r
+    where r.call_session_id = lc.telnyx_session_id
+    order by r.started_at desc nulls last, r.id desc
+    limit 1
+  ) lr on true
 `;
 
 export type CallListSummary = {
@@ -214,6 +225,18 @@ export type QueueLead = {
   /** Who logged the most recent call. Null for the calls made before staff
    *  logins existed, and for a lead nobody has rung. */
   lastCalledBy: string | null;
+  /** Telnyx's id for the last call's recording, resolved to a fresh playable
+   *  link by `/api/recordings/[id]`. Null for handset calls, for calls with no
+   *  audio, and until the webhook lands. */
+  recordingId: string | null;
+  /** Length of that recording. Not the length of the call — a no-answer has
+   *  no recording at all. */
+  recordingMs: number | null;
+  /** The number to ring, E.164. Null when it cannot be dialled from here. */
+  dialTo: string | null;
+  /** The caller ID to present, chosen by the lead's country. Null when no DID
+   *  is configured for it, which disables the dial button with a reason. */
+  dialFrom: string | null;
 };
 
 export type CallQueueFilter = "queue" | "callbacks" | "closed" | "all";
@@ -229,6 +252,7 @@ const leadColumns = sql`
   l.id, l.phone, l.name, l.company, l.title, l.email, l.website,
   lc.outcome as last_outcome, lc.called_at as last_called_at,
   lc.callback_at, lc.notes as last_notes, lc.by_name as last_called_by,
+  lr.recording_id, lr.duration_ms as recording_ms,
   (select count(*) from call c where c.call_lead_id = l.id) as attempts
 `;
 
@@ -251,6 +275,10 @@ function toLead(r: Row): QueueLead {
       : null,
     lastNotes: (r.last_notes as string | null) ?? null,
     lastCalledBy: (r.last_called_by as string | null) ?? null,
+    recordingId: (r.recording_id as string | null) ?? null,
+    recordingMs: r.recording_ms === null ? null : n(r.recording_ms),
+    dialTo: e164(String(r.phone)),
+    dialFrom: didFor(dialCountry(String(r.phone))),
   };
 }
 
@@ -544,25 +572,108 @@ export async function getCallList(
  * exactly as found rather than guessed at.
  */
 export function phoneKey(raw: string): string {
+  // Anything we can put in E.164 keys off that, so every way of writing the
+  // same line collapses to one value. This matters beyond Singapore now: a UK
+  // number carries a trunk "0" that only applies when dialling domestically,
+  // so "+44 (0)20 7946 0958" and "+44 20 7946 0958" are one line written two
+  // ways, and keying on bare digits would let both into the same list.
+  const canonical = e164(raw);
+  if (canonical) return canonical.slice(1);
+
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 8 && /^[3689]/.test(digits)) return `65${digits}`;
   return digits;
 }
 
 /**
- * Is this a number that can actually be rung in Singapore?
+ * The national part of a UK number, or null if this is not one.
+ *
+ * Scrapes write the trunk prefix that only applies when dialling inside the
+ * country — "+44 (0)20 7946 0958" — and keeping that 0 makes a number that
+ * cannot be rung from anywhere. Exactly one is stripped.
+ */
+function gbNational(digits: string): string | null {
+  if (!digits.startsWith("44")) return null;
+  const rest = digits.slice(2).replace(/^0/, "");
+  return rest.length === 9 || rest.length === 10 ? rest : null;
+}
+
+/**
+ * Which country's phone system this number belongs to.
  *
  * The local eight-digit form has to be tested *before* the "65" country code,
  * because a local landline like 6524 3913 also begins with those two digits.
  * Testing the prefix first brands every 65xx xxxx line malformed.
+ *
+ * `us` and `gb` require the country code. A bare ten-digit 4155551234 is
+ * indistinguishable from Singapore's own 65xxxxxxxx form, so it stays foreign
+ * rather than being guessed at and rung wrong.
+ *
+ * Known collision, left alone deliberately: Singapore toll-free (1800 + 7
+ * digits) and US toll-free (+1 800 + 7) are the same eleven digits, so a US
+ * 800 number reads as `sg_tollfree`. Preserving the existing rule matters more
+ * — the live base is Singapore — and nobody cold-calls a toll-free line.
  */
 export function classifyPhone(
   raw: string,
-): "sg" | "sg_tollfree" | "foreign" | "malformed" | "missing" {
+): "sg" | "sg_tollfree" | "us" | "gb" | "foreign" | "malformed" | "missing" {
   const d = raw.replace(/\D/g, "");
   if (!d) return "missing";
   if (d.startsWith("1800")) return "sg_tollfree";
   if (d.length === 8 && /^[3689]/.test(d)) return "sg";
   if (d.length === 10 && d.startsWith("65")) return "sg";
+  if (d.length === 11 && d.startsWith("1")) return "us";
+  if (gbNational(d)) return "gb";
   return d.startsWith("65") ? "malformed" : "foreign";
+}
+
+/** Countries we can present a caller ID for. */
+export type DialCountry = "sg" | "us" | "gb";
+
+/**
+ * The number in the form Telnyx wants to dial, or null if we cannot build one.
+ *
+ * Toll-free is null on purpose: Singapore 1800 lines are generally not
+ * reachable from outside the country, and offering a dial button that fails is
+ * worse than offering none — the copy-to-clipboard button still works.
+ */
+export function e164(raw: string): string | null {
+  const d = raw.replace(/\D/g, "");
+  switch (classifyPhone(raw)) {
+    case "sg":
+      return `+65${d.length === 8 ? d : d.slice(2)}`;
+    case "us":
+      return `+${d}`;
+    case "gb":
+      return `+44${gbNational(d)}`;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Our caller ID for that country, or null when none is configured.
+ *
+ * Read per call rather than at module scope, like `google.ts` does with its
+ * client config: a missing variable should make one button say why it is
+ * disabled, not stop the process booting.
+ *
+ * There is deliberately no fallback to another country's number. A UK business
+ * seeing a US caller ID answers far less often, and that halves a connect rate
+ * with nothing on any screen to point at.
+ */
+export function didFor(country: DialCountry | null): string | null {
+  if (!country) return null;
+  const env = {
+    sg: process.env.TELNYX_DID_SG,
+    us: process.env.TELNYX_DID_US,
+    gb: process.env.TELNYX_DID_GB,
+  }[country];
+  return env && env.trim() ? env.trim() : null;
+}
+
+/** The country whose DID should be presented when ringing this number. */
+export function dialCountry(raw: string): DialCountry | null {
+  const kind = classifyPhone(raw);
+  return kind === "sg" || kind === "us" || kind === "gb" ? kind : null;
 }
