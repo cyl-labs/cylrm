@@ -251,6 +251,27 @@ A JWT's `exp` is exactly its parent credential's `expires_at`, so any token cach
 must expire at `min(cacheTtl, credentialExpiresAt)` — caching a token minted late
 in a credential's life for a flat period hands out one that is already dead.
 
+**Recordings and transcripts.** Audio lives in Telnyx's own S3; the CRM stores
+only `recording_id` and timing in `call_recording`, never a URL — the ones in
+the webhook are presigned and expire in ten minutes, so `/api/recordings/[id]`
+mints a fresh one per play. That is why a recording opened a month later still
+works. Nothing deletes them: `DELETE /v2/recordings/{id}` is the lever if a
+retention policy is ever wanted.
+
+The outbound voice profile records **dual-channel** — caller on one track, the
+prospect on the other — so a transcript's speaker labels come from which track
+the audio is on rather than from diarisation guessing over a noisy line. It
+must stay dual: single-channel recordings cannot be relabelled afterwards.
+`POST /api/recordings/[id]/transcribe` sends a fresh URL to Deepgram
+(`multichannel` + `utterances`) and stores the result on the recording row, so
+the first person to open a call pays for it and everyone after reads it free.
+On demand rather than on every dial, because it is billed per minute and these
+are read a handful of times a week to settle a commission. Unset
+`DEEPGRAM_API_KEY` means the button reports it and nothing else changes.
+`CALLER_CHANNEL` in `src/lib/deepgram.ts` assumes Telnyx puts the originating
+leg on channel 0 — **confirm on the first real call**; if the labels come out
+swapped that constant is the only thing to change.
+
 Not built and not optional before volume dialling: a recorded-line announcement
 in the opener (recording is per-profile, so there is no per-call toggle and no
 beep), a retention period, and Singapore DNC scrubbing.

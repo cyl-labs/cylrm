@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, PhoneOutgoing, ShieldAlert } from "lucide-react";
+import { AudioLines, Check, Copy, PhoneOutgoing, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { BoardCard, CallOutcome, CallStage } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
+import { RecordingSheet } from "@/components/calls/recording-sheet";
 import { useTouchDrag } from "@/components/kanban/use-touch-drag";
 import { dialableNumber } from "@/lib/phone";
 import { Badge } from "@/components/ui/badge";
@@ -174,6 +175,11 @@ export function CallBoard({
     [cards, logged],
   );
 
+  // Which card's recording is open. The sheet is mounted once, below the
+  // board, rather than one per card: a Radix portal per card is a hundred
+  // hidden dialogs on a full board.
+  const [playing, setPlaying] = React.useState<BoardCard | null>(null);
+
   async function logCall(card: BoardCard, outcome: CallOutcome) {
     const attempts = (logged[card.id]?.attempts ?? card.attempts) + 1;
     const who = card.company ?? card.name ?? card.phone;
@@ -309,6 +315,21 @@ export function CallBoard({
 
                   <CopyNumber phone={c.phone} blocked={c.dncBlock} />
 
+                  {/* Only on cards that actually have audio: a handset call,
+                      a no-answer and any call made before browser dialling
+                      have no recording, and an always-present button that
+                      usually does nothing is worse than no button. */}
+                  {c.recordingId && (
+                    <button
+                      type="button"
+                      onClick={() => setPlaying(c)}
+                      className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                    >
+                      <AudioLines className="size-3" />
+                      Listen back
+                    </button>
+                  )}
+
                   {/* Wraps rather than truncates: with seven columns sharing
                       the width there is not always room for the list badge
                       and "2 tries · 4h ago" on one line. */}
@@ -392,6 +413,17 @@ export function CallBoard({
             {draggingCard.phone}
           </p>
         </div>
+      )}
+
+      {playing?.recordingId && (
+        <RecordingSheet
+          recordingId={playing.recordingId}
+          recordingMs={playing.recordingMs}
+          title={playing.company ?? playing.name ?? playing.phone}
+          subtitle={playing.company ? playing.name : null}
+          open
+          onOpenChange={(isOpen: boolean) => !isOpen && setPlaying(null)}
+        />
       )}
     </div>
   );

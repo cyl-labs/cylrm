@@ -617,6 +617,14 @@ export const dncAreaCode = pgTable("dnc_area_code", {
  * webhook has nowhere to put a recording that arrives while the caller is
  * still writing notes.
  */
+export type TranscriptTurn = {
+  /** Which side of the call, from the recording's two channels. */
+  speaker: "caller" | "prospect";
+  /** Seconds from the start of the recording. */
+  start: number;
+  text: string;
+};
+
 export const callRecording = pgTable(
   "call_recording",
   {
@@ -632,6 +640,12 @@ export const callRecording = pgTable(
     receivedAt: timestamp("received_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /** Null until someone asks for one: transcription is billed per minute. */
+    transcriptText: text("transcript_text"),
+    /** Speaker-separated turns, which exist only because the recording is
+     *  dual-channel. Shape: `{ speaker, start, text }[]`. */
+    transcriptTurns: jsonb("transcript_turns").$type<TranscriptTurn[]>(),
+    transcribedAt: timestamp("transcribed_at", { withTimezone: true }),
   },
   (t) => [index("call_recording_session_idx").on(t.callSessionId)],
 );
