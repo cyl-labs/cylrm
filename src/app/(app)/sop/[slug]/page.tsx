@@ -6,6 +6,7 @@ import { SopProse } from "@/components/sop/sop-prose";
 import { getCurrentUser } from "@/lib/session";
 import { callRegionOf } from "@/lib/users";
 import { getSopDocument } from "@/lib/sop";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,7 @@ export default async function SopDocumentPage({
   const showToc = doc.sections.length > TOC_THRESHOLD;
 
   return (
-    <PageShell
-      title={doc.title}
-    >
+    <PageShell title={doc.title}>
       <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
         <Link
           href="/sop"
@@ -62,8 +61,16 @@ export default async function SopDocumentPage({
                     <li key={s.title}>
                       <a
                         href={`#${anchor(s.title, i)}`}
-                        className="-ml-px block border-l-2 border-transparent pl-3 text-[13px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+                        className={cn(
+                          "-ml-px block border-l-2 border-transparent pl-3 text-[13px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
+                          s.branch && "pl-6 text-[12px] opacity-75",
+                        )}
                       >
+                        {s.branch && (
+                          <span aria-hidden className="mr-1">
+                            ↳
+                          </span>
+                        )}
                         {s.title}
                       </a>
                     </li>
@@ -82,20 +89,52 @@ export default async function SopDocumentPage({
                 className="mb-6 text-muted-foreground"
               />
             )}
-            {doc.sections.map((s, i) => (
-              <section key={s.title} className="mt-7 first:mt-0">
-                <h2
-                  id={anchor(s.title, i)}
-                  className="scroll-mt-6 text-[15px] font-extrabold tracking-[-0.01em]"
-                >
-                  <span className="mr-2 text-muted-foreground/70 tabular-nums">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  {s.title}
-                </h2>
-                <SopProse html={s.html} className="mt-2" />
-              </section>
-            ))}
+            {/* Steps are numbered; branches are not. Numbering a conditional
+                "If they say not interested" as step 06 says you always reach
+                it, which is the opposite of true — so branches indent off the
+                step above and carry a ↳ instead of a number. */}
+            {(() => {
+              let step = 0;
+              let depth = 0;
+              return doc.sections.map((s, i) => {
+                if (s.branch) depth = Math.min(depth + 1, 2);
+                else {
+                  step += 1;
+                  depth = 0;
+                }
+                return (
+                  <section
+                    key={s.title}
+                    className={cn(
+                      "mt-7 first:mt-0",
+                      s.branch &&
+                        "mt-4 border-l-2 border-dashed border-border pl-4 sm:pl-5",
+                      s.branch && depth === 1 && "ml-1 sm:ml-3",
+                      s.branch && depth >= 2 && "ml-6 sm:ml-10",
+                    )}
+                  >
+                    <h2
+                      id={anchor(s.title, i)}
+                      className={cn(
+                        "scroll-mt-6 tracking-[-0.01em]",
+                        s.branch
+                          ? "text-[13px] font-bold text-muted-foreground"
+                          : "text-[15px] font-extrabold",
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className="mr-2 text-muted-foreground/70 tabular-nums"
+                      >
+                        {s.branch ? "↳" : String(step).padStart(2, "0")}
+                      </span>
+                      {s.title}
+                    </h2>
+                    <SopProse html={s.html} className="mt-2" />
+                  </section>
+                );
+              });
+            })()}
           </article>
         </div>
       </div>

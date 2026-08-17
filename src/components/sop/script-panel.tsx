@@ -36,17 +36,47 @@ export function ScriptPanel({
         <ScrollText className="size-3.5" strokeWidth={2.2} />
         Script
       </p>
-      {sections.map((s, i) => (
-        <section key={s.title} className="mt-4 first:mt-3">
-          <h3 className="text-[13px] font-extrabold tracking-[-0.01em]">
-            <span className="mr-1.5 tabular-nums text-muted-foreground/70">
-              {String(i + 1).padStart(2, "0")}
-            </span>
-            {s.title}
-          </h3>
-          <SopProse html={s.html} className="mt-1 text-[13px]" />
-        </section>
-      ))}
+      {/* Steps numbered, branches not — a conditional numbered in sequence
+          reads as something you always say. See the document page. */}
+      {(() => {
+        let step = 0;
+        let depth = 0;
+        return sections.map((s) => {
+          if (s.branch) depth = Math.min(depth + 1, 2);
+          else {
+            step += 1;
+            depth = 0;
+          }
+          return (
+            <section
+              key={s.title}
+              className={cn(
+                "mt-4 first:mt-3",
+                s.branch && "mt-3 border-l-2 border-dashed border-border pl-3",
+                s.branch && depth >= 2 && "ml-4",
+              )}
+            >
+              <h3
+                className={cn(
+                  "tracking-[-0.01em]",
+                  s.branch
+                    ? "text-[12px] font-bold text-muted-foreground"
+                    : "text-[13px] font-extrabold",
+                )}
+              >
+                <span
+                  aria-hidden
+                  className="mr-1.5 tabular-nums text-muted-foreground/70"
+                >
+                  {s.branch ? "↳" : String(step).padStart(2, "0")}
+                </span>
+                {s.title}
+              </h3>
+              <SopProse html={s.html} className="mt-1 text-[13px]" />
+            </section>
+          );
+        });
+      })()}
     </div>
   );
 }

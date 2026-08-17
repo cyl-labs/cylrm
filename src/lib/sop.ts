@@ -18,6 +18,12 @@ export type SopSection = {
   /** The `##` heading, verbatim. On an objection sheet this is the objection
    *  as a prospect actually says it, which is what the drawer lists. */
   title: string;
+  /** A conditional step — a branch off the call rather than the next thing to
+   *  say. Decided by the heading, so a script author marks one by writing "If
+   *  …" and nothing else has to be kept in step. Branches are indented and
+   *  left unnumbered, so the shape of the tree is visible instead of seven
+   *  steps in a row implying you say all of them. */
+  branch: boolean;
   html: string;
   /** Heading and body as plain text, lowercased, for the drawer's search. */
   search: string;
@@ -67,7 +73,12 @@ function toSections(md: string): { intro: string; sections: SopSection[] } {
     const title = (at === -1 ? part : part.slice(0, at)).trim();
     const body = at === -1 ? "" : part.slice(at + 1);
     const html = marked.parse(body, { async: false }) as string;
-    return { title, html, search: `${title} ${stripTags(html)}`.toLowerCase() };
+    return {
+      title,
+      branch: /^(if|only if|otherwise)\b/i.test(title),
+      html,
+      search: `${title} ${stripTags(html)}`.toLowerCase(),
+    };
   });
   return {
     intro: intro.trim() ? (marked.parse(intro, { async: false }) as string) : "",

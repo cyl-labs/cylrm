@@ -40,7 +40,15 @@ export function SopProse({
         "text-[15px] leading-relaxed",
         // Headings: the section titles, which double as the objection text.
         "[&_h2]:mt-7 [&_h2]:scroll-mt-20 [&_h2]:text-[15px] [&_h2]:font-extrabold [&_h2]:tracking-[-0.01em] [&_h2]:first:mt-0",
-        "[&_h3]:mt-4 [&_h3]:text-[11px] [&_h3]:font-bold [&_h3]:uppercase [&_h3]:tracking-[0.08em] [&_h3]:text-muted-foreground",
+        // Sub-headings are detours and branch letters. Not uppercased: these
+        // started as single letters (A/B/C) where shouting was harmless, and
+        // now carry whole sentences like "Only if they seem confused", which
+        // in caps reads as the next step rather than a step to skip.
+        // Sub-headings inside a section are parallel options — the A / B / C
+        // the prospect might say. Given a rule and an indent so three possible
+        // answers do not read as three things that happen in a row.
+        "[&_h3]:mt-4 [&_h3]:text-[11px] [&_h3]:font-bold [&_h3]:tracking-[0.06em] [&_h3]:text-muted-foreground",
+        "[&_h3]:border-l-2 [&_h3]:border-primary/30 [&_h3]:pl-2",
         "[&_p]:mt-2.5",
         // Stage directions — italic, quiet, and never mistaken for a line to
         // read out.
