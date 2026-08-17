@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser, call } from "@/db/schema";
 import { hashPassword, normaliseUsername } from "@/lib/password";
@@ -33,9 +33,26 @@ export async function listTeam(): Promise<TeamMember[]> {
       active: appUser.active,
       createdAt: appUser.createdAt,
       lastSeenAt: appUser.lastSeenAt,
-      calls: sql<number>`(select count(*) from ${call} where ${call.userId} = ${appUser.id})`,
+      // A join rather than a correlated subquery, because the subquery this
+      // replaces was silently wrong. Drizzle renders an interpolated column
+      // unqualified inside `.select()`, so `${appUser.id}` came out as a bare
+      // `"id"` — and within `select ... from "call"` that binds to `call.id`,
+      // not the user's. It counted calls whose own id happened to equal their
+      // user_id, which correlates with nothing and returns the same number for
+      // every row: 0 for everyone while user_id was null, then 1 for everyone
+      // once the backfill set it. Qualify by joining, where Drizzle has two
+      // tables to tell apart and prefixes them.
+      //
+      // `count(call.id)`, not `count(*)`: a LEFT JOIN that matches nothing
+      // still produces one all-NULL row, and `*` scores that phantom as a
+      // call — the same trap `getCallLists` documents.
+      calls: count(call.id),
     })
     .from(appUser)
+    .leftJoin(call, eq(call.userId, appUser.id))
+    // Grouping by the primary key alone is enough; the rest are functionally
+    // dependent on it.
+    .groupBy(appUser.id)
     // Descending on a boolean puts the active accounts first.
     .orderBy(desc(appUser.active), asc(appUser.name));
 
