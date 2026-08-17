@@ -109,6 +109,49 @@ The app is used on phones as well as desktops. Conventions:
   - **Inbound: IMAP** (`imap.gmail.com:993`) with per-account **app passwords** — used both for verification at connect time and by the Phase 5 poller. Do not remove the app-password flow; sending and polling use different credentials. The Google OAuth connect flow does NOT set an app password, and `POST /api/accounts` refuses an email it already knows, so an OAuth-connected account gains one via `PATCH /api/accounts/[id]` with `appPassword` ("Add app password" in the account menu), verified with a real IMAP login before storing. Without it an account sends fine and never sees a reply, so the activation preflight blocks when no sending account has one and warns when only some do.
   - Both secrets encrypted at rest with AES-256-GCM (`src/lib/crypto.ts`, key = `TOKEN_ENCRYPTION_KEY`).
 
+## Telnyx browser dialling (Call CRM)
+
+Being built. Only the three Nigerian callers need it — the UK/US pair keep
+dialling from their own handsets, which is what the copy-to-clipboard button has
+always been for.
+
+Account resources created 2026-08-17, both **dedicated to this app** so nothing
+else on the droplet's Telnyx account is affected:
+
+- Credential connection **`cylrm-dialler`** = `3028596445818127404`. A *credential*
+  connection is the only kind a WebRTC softphone can register against; the
+  pre-existing "Forward Only" was left alone, and the other two connections are
+  `elevenlabs` and `portal-conference-bridge`.
+- Outbound voice profile **`cylrm-dialler`** = `3028597272247010421`, recording
+  `all`, mp3, single channel, destinations `SG`/`US`.
+
+**Recording is configured on the outbound voice profile, not on the connection** —
+there is no recording field anywhere on a credential connection. This matters
+because a profile is shared by every connection attached to it: the existing
+`cyllabs` profile had four, so switching recording on there would have started
+recording the conference bridge and the email CTA too. Hence a profile of its
+own. `whitelisted_destinations` on that profile is also what decides which
+countries can be rung at all — UK is deliberately absent.
+
+Env (all optional; unset means no dial button and every other calling screen
+behaves exactly as before): `TELNYX_API_KEY`, `TELNYX_CONNECTION_ID`,
+`TELNYX_PUBLIC_KEY` (Ed25519 webhook key, `GET /v2/public_key` — the webhook
+route refuses everything when it is unset), and `TELNYX_DID_SG` / `_US` / `_GB`
+in E.164. **No DIDs are set yet.** A lead whose country has no DID gets a
+disabled dial button saying so, never another country's number.
+
+The three DIDs already on the account are attached to the conference bridge and
+the email CTA, so they are not usable as cold-call caller ID: a prospect ringing
+back would land in a conference. Buy a number for calling before going live.
+
+A JWT's `exp` is exactly its parent credential's `expires_at`, so any token cache
+must expire at `min(cacheTtl, credentialExpiresAt)` — caching a token minted late
+in a credential's life for a flat period hands out one that is already dead.
+
+Not built and not optional before volume dialling: a recorded-line announcement
+in the opener (recording is per-profile, so there is no per-call toggle and no
+beep), a retention period, and Singapore DNC scrubbing.
+
 ## Local dev
 
 ```sh
