@@ -9,6 +9,7 @@ import {
   Send,
   ShieldCheck,
   Table2,
+  Trophy,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -66,6 +67,7 @@ export const WORKSPACES: Workspace[] = [
       { href: "/sop", label: "Scripts", icon: ScrollText },
       { href: "/call-sheet", label: "Spreadsheet", icon: Table2 },
       { href: "/call-pipeline", label: "Pipeline", icon: Kanban },
+      { href: "/scoreboard", label: "Scoreboard", icon: Trophy },
       { href: "/call-stats", label: "Stats", icon: BarChart3 },
       // Deliberately not "Accounts": that is the Gmail sending accounts on
       // the email side, and two screens with one name is how the wrong one
@@ -134,6 +136,7 @@ const CALL_PREFIXES = [
   "/sop",
   "/call-sheet",
   "/call-pipeline",
+  "/scoreboard",
   "/call-stats",
   "/team",
 ];
