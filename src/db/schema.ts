@@ -446,6 +446,12 @@ export const appUser = pgTable("app_user", {
    *  its own market but reads the US documents. Null means show every region,
    *  which is what an admin reviewing all of them wants. */
   callRegion: text("call_region").$type<"sg" | "us" | "gb">(),
+  /** `browser` | `handset`. Some callers dial from their own phone and always
+   *  will; the browser dialler is for the people with no usable handset for
+   *  international calls, not the way everyone must work. A handset caller is
+   *  offered no dial button and, importantly, no apology for the absence of
+   *  one. */
+  dialMethod: text("dial_method").notNull().default("browser").$type<"browser" | "handset">(),
   /** The number this caller rings from. Null falls back to their market's
    *  number in `call_did`, so a new hire dials on day one. Per person rather
    *  than per market so a callback reaches whoever spoke to them, and so one

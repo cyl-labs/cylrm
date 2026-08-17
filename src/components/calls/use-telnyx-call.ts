@@ -43,7 +43,7 @@ export type TelnyxLine = {
   reset: () => void;
 };
 
-export function useTelnyxCall(audioId: string): TelnyxLine {
+export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
   const clientRef = React.useRef<{
     newCall: (opts: Record<string, unknown>) => TelnyxCall;
     disconnect: () => void;
@@ -60,6 +60,9 @@ export function useTelnyxCall(audioId: string): TelnyxLine {
   // Connect once, on mount. Never per lead: registering again for every number
   // would be a new SIP registration a few seconds apart all day.
   React.useEffect(() => {
+    // A caller who dials from their own phone needs no line, so none is
+    // opened: no token minted, no credential created, no SIP registration.
+    if (!enabled) return;
     let cancelled = false;
 
     (async () => {
@@ -126,7 +129,7 @@ export function useTelnyxCall(audioId: string): TelnyxLine {
         // Unmounting during a call is already the bad case; nothing to do.
       }
     };
-  }, []);
+  }, [enabled]);
 
   // The visible timer. Counts from the moment they answer, not from dialling,
   // so it is the length of the conversation rather than of the ringing.

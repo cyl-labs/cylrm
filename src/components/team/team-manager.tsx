@@ -117,13 +117,13 @@ export function TeamManager({
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b text-left">
-                {["Name", "Username", "Role", "Market", "Rings from", "Calls", "Last seen", ""].map(
+                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Calls", "Last seen", ""].map(
                   (h, i) => (
                     <th
                       key={h || "actions"}
                       className={cn(
                         "whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground",
-                        i === 5 && "text-right",
+                        i === 6 && "text-right",
                       )}
                     >
                       {h}
@@ -136,7 +136,7 @@ export function TeamManager({
               {team.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-10 text-center text-muted-foreground"
                   >
                     Nobody yet.
@@ -214,8 +214,29 @@ export function TeamManager({
                     <td className="whitespace-nowrap px-4 py-2.5">
                       {canManage ? (
                         <Select
-                          value={m.telnyxDid ?? NO_DID}
+                          value={m.dialMethod}
                           disabled={busyId === m.id}
+                          onValueChange={(v) => patch(m, { dialMethod: v })}
+                        >
+                          <SelectTrigger size="sm" className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="browser">The CRM</SelectItem>
+                            <SelectItem value="handset">Own phone</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {m.dialMethod === "handset" ? "Own phone" : "The CRM"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2.5">
+                      {canManage ? (
+                        <Select
+                          value={m.telnyxDid ?? NO_DID}
+                          disabled={busyId === m.id || m.dialMethod === "handset"}
                           onValueChange={(v) =>
                             patch(m, { telnyxDid: v === NO_DID ? "" : v })
                           }
@@ -224,12 +245,7 @@ export function TeamManager({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {/* Falling back is the sane default, not an
-                                error: a new hire dials on day one on the
-                                market's number. */}
-                            <SelectItem value={NO_DID}>
-                              Market default
-                            </SelectItem>
+                            <SelectItem value={NO_DID}>Not assigned</SelectItem>
                             {m.telnyxDid &&
                               !numbersFor(m.callRegion).includes(m.telnyxDid) && (
                                 <SelectItem value={m.telnyxDid}>
@@ -245,7 +261,9 @@ export function TeamManager({
                         </Select>
                       ) : (
                         <span className="text-muted-foreground">
-                          {m.telnyxDid ?? "Market default"}
+                          {m.dialMethod === "handset"
+                            ? "n/a"
+                            : (m.telnyxDid ?? "Not assigned")}
                         </span>
                       )}
                     </td>

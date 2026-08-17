@@ -18,6 +18,8 @@ export type TeamMember = {
   callRegion: CallRegion | null;
   /** The number they ring from. Null falls back to their market's. */
   telnyxDid: string | null;
+  /** `browser` | `handset`. See schema. */
+  dialMethod: "browser" | "handset";
   /** Lifetime, across every list — what the Team screen shows next to a name
    *  so a dormant account is obvious without opening Stats. */
   calls: number;
@@ -42,6 +44,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       lastSeenAt: appUser.lastSeenAt,
       callRegion: appUser.callRegion,
       telnyxDid: appUser.telnyxDid,
+      dialMethod: appUser.dialMethod,
       // A join rather than a correlated subquery, because the subquery this
       // replaces was silently wrong. Drizzle renders an interpolated column
       // unqualified inside `.select()`, so `${appUser.id}` came out as a bare
@@ -91,6 +94,18 @@ export const callRegionOf = cache(
       .from(appUser)
       .where(eq(appUser.id, userId));
     return row?.region ?? null;
+  },
+);
+
+/** How this person places calls. Cached for the same reason callRegionOf is. */
+export const dialMethodOf = cache(
+  async (userId: number | null | undefined): Promise<"browser" | "handset"> => {
+    if (!userId) return "browser";
+    const [row] = await db
+      .select({ method: appUser.dialMethod })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.method ?? "browser";
   },
 );
 

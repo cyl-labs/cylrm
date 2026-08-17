@@ -8,7 +8,7 @@ import {
   type CallQueueFilter,
 } from "@/lib/calls";
 import { getDiallerSop } from "@/lib/sop";
-import { callRegionOf } from "@/lib/users";
+import { callRegionOf, dialMethodOf } from "@/lib/users";
 import { sopRegionFor } from "@/lib/calls";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
@@ -47,6 +47,7 @@ export default async function CallListPage({
 
   // One market's script and objections, decided by who is signed in rather
   // than by the lead in front of them — so nothing switches mid-call.
+  const dialMethod = await dialMethodOf(me?.id);
   const [leads, sop] = await Promise.all([
     getCallQueue(listId, filter),
     getDiallerSop(sopRegionFor(await callRegionOf(me?.id))),
@@ -183,6 +184,7 @@ export default async function CallListPage({
       {/* The Closed view is read-only: those calls are already finished. */}
       <Dialler
             calBookingUrl={process.env.CAL_BOOKING_URL}
+            canDialFromBrowser={dialMethod === "browser"}
             script={sop.script}
             objections={sop.objections}
         leads={leads}

@@ -43,6 +43,7 @@ export async function PATCH(
     active?: unknown;
     callRegion?: unknown;
     telnyxDid?: unknown;
+    dialMethod?: unknown;
   } | null;
   if (!body) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
@@ -78,6 +79,16 @@ export async function PATCH(
       );
     }
     values.callRegion = region as "sg" | "us" | "gb" | null;
+  }
+
+  if ("dialMethod" in body) {
+    if (body.dialMethod !== "browser" && body.dialMethod !== "handset") {
+      return Response.json(
+        { error: "Dial method must be browser or handset." },
+        { status: 400 },
+      );
+    }
+    values.dialMethod = body.dialMethod;
   }
 
   // The number they ring from. Checked against their market, because a US

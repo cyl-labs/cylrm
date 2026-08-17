@@ -136,10 +136,17 @@ function CopyNumber({
 function DialControls({
   lead,
   line,
+  enabled,
 }: {
   lead: QueueLead;
   line: TelnyxLine;
+  /** False when this caller works from their own phone. */
+  enabled: boolean;
 }) {
+  // Nothing at all, not even the fallback line. Telling someone who always
+  // dials from their own phone that there is "no caller ID yet" is an apology
+  // for a missing setup, when they are already working exactly as intended.
+  if (!enabled) return null;
   const busy = line.state !== "idle";
   const blocked =
     lead.dncBlock ??
@@ -511,6 +518,7 @@ export function Dialler({
   script,
   objections,
   calBookingUrl,
+  canDialFromBrowser = false,
   truncated = false,
   readOnly = false,
 }: {
@@ -524,6 +532,10 @@ export function Dialler({
    *  changing it is a variable rather than a deploy, and unset simply means no
    *  button. */
   calBookingUrl?: string;
+  /** False when this caller works from their own phone, which is a real
+   *  choice rather than a missing setup: they get no dial button and, more
+   *  to the point, no line explaining its absence. */
+  canDialFromBrowser?: boolean;
   /** More leads match this view than were loaded — said out loud, because a
    *  tab labelled "All" showing part of a list is a lie. */
   truncated?: boolean;
@@ -547,7 +559,7 @@ export function Dialler({
   const [scriptOpen, setScriptOpen] = React.useState(false);
   // One line for the whole session, held here so changing lead or refreshing
   // after an outcome cannot drop a call in progress.
-  const line = useTelnyxCall(REMOTE_AUDIO_ID);
+  const line = useTelnyxCall(REMOTE_AUDIO_ID, canDialFromBrowser);
 
   const remaining = React.useMemo(
     () => leads.filter((l) => !done.has(l.id) && !skipped.includes(l.id)),
@@ -684,7 +696,11 @@ export function Dialler({
         {/* Keys are prefixed because this and CallForm below are siblings:
             keying both on the bare lead id gave one parent two children with
             the same key, which React is entitled to conflate. */}
-        <DialControls lead={current} line={line} />
+        <DialControls
+          lead={current}
+          line={line}
+          enabled={canDialFromBrowser}
+        />
         <CopyNumber
           key={`number-${current.id}`}
           phone={current.phone}

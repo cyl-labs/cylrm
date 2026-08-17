@@ -2,7 +2,6 @@ import { PageShell } from "@/components/page-shell";
 import { getCurrentUser } from "@/lib/session";
 import { listTeam } from "@/lib/users";
 import { TeamManager } from "@/components/team/team-manager";
-import { CallerIdCard } from "@/components/team/caller-id-card";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +22,6 @@ export default async function TeamPage() {
   return (
     <PageShell title="Team">
       <div className="px-4 py-4 sm:px-6">
-        {me?.role === "admin" && (
-          <CallerIdCard className="mb-5 rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]" />
-        )}
         <TeamManager
           team={team}
           meId={me?.id ?? null}

@@ -685,41 +685,27 @@ export function e164(raw: string): string | null {
 export type DidMap = Partial<Record<DialCountry, string>>;
 
 /**
- * Caller ID per market.
+ * The number this caller rings from.
  *
- * From the database, set on the Team screen, falling back to the environment
- * so an existing deployment does not lose its numbers the moment this ships.
- * `cache()`d because every lead query asks once per request.
+ * One number, assigned to them on the Team screen. This started with a second
+ * layer of a number per market that a person with none fell back to, which
+ * meant the caller ID on any given call could come from two places and neither
+ * was obvious from the screen. A caller either has a number or does not, and
+ * "not yet" is a clearer thing to show than a shared one they did not choose.
  *
- * There is deliberately no fallback to another country's number. A UK business
- * seeing a US caller ID answers far less often, and that halves a connect rate
- * with nothing on any screen to point at.
+ * Returned as a map keyed by the lead's country so `toLead` stays unchanged,
+ * but every entry is the same number: it is theirs, and every lead they can
+ * see is in their own market anyway.
  */
 export const getDids = cache(async (): Promise<DidMap> => {
-  const rows = (await db.execute(sql`
-    select region, phone_number from call_did
-  `)) as { region: DialCountry; phone_number: string }[];
-
-  const out: DidMap = {};
-  for (const c of ["sg", "us", "gb"] as const) {
-    const env = process.env[`TELNYX_DID_${c.toUpperCase()}`];
-    if (env?.trim()) out[c] = env.trim();
-  }
-  for (const r of rows) if (r.phone_number?.trim()) out[r.region] = r.phone_number.trim();
-
-  // A caller's own number wins, but only for the market they work: a US
-  // number ringing Singapore leads is worse than a shared Singapore one.
-  // Everyone else, and anyone without a number, keeps the market default.
   const me = await getCurrentUser();
-  if (me) {
-    const [row] = (await db.execute(sql`
-      select call_region, telnyx_did from app_user where id = ${me.id}
-    `)) as { call_region: DialCountry | null; telnyx_did: string | null }[];
-    if (row?.call_region && row.telnyx_did?.trim()) {
-      out[row.call_region] = row.telnyx_did.trim();
-    }
-  }
-  return out;
+  if (!me) return {};
+  const [row] = (await db.execute(sql`
+    select call_region, telnyx_did from app_user where id = ${me.id}
+  `)) as { call_region: DialCountry | null; telnyx_did: string | null }[];
+  const did = row?.telnyx_did?.trim();
+  if (!did) return {};
+  return { sg: did, us: did, gb: did };
 });
 
 export function didFor(
