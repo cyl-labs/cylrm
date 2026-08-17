@@ -494,6 +494,23 @@ export const call = pgTable(
 );
 
 /**
+ * Caller ID per market, managed from the Team screen.
+ *
+ * Was an environment variable, which made changing a phone number an SSH
+ * session and a restart. A number is operational data: it changes when one is
+ * bought or ported, not when the app is deployed.
+ */
+export const callDid = pgTable("call_did", {
+  /** `sg` | `us` | `gb`, matching CallRegion. */
+  region: text("region").primaryKey().$type<"sg" | "us" | "gb">(),
+  /** E.164, as Telnyx reports it. */
+  phoneNumber: text("phone_number").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
  * The scripts and procedures callers work from.
  *
  * Read-only in the app. Content lives as markdown under `content/sop/` and is

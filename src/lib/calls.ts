@@ -262,7 +262,7 @@ const leadColumns = sql`
   (select count(*) from call c where c.call_lead_id = l.id) as attempts
 `;
 
-function toLead(r: Row): QueueLead {
+function toLead(r: Row, dids: DidMap): QueueLead {
   return {
     id: n(r.id),
     phone: String(r.phone),
@@ -284,7 +284,7 @@ function toLead(r: Row): QueueLead {
     recordingId: (r.recording_id as string | null) ?? null,
     recordingMs: r.recording_ms === null ? null : n(r.recording_ms),
     dialTo: e164(String(r.phone)),
-    dialFrom: didFor(dialCountry(String(r.phone))),
+    dialFrom: didFor(dialCountry(String(r.phone)), dids),
     dncBlock: dncBlockReason(
       {
         dncStatus: (r.dnc_status as "clean" | "listed" | null) ?? null,
@@ -333,8 +333,9 @@ export async function getSheetLeads(ownerId?: number): Promise<SheetLead[]> {
     limit ${CALL_SHEET_LIMIT}
   `)) as Row[];
 
+  const dids = await getDids();
   return rows.map((r) => ({
-    ...toLead(r),
+    ...toLead(r, dids),
     listId: n(r.list_id),
     listName: String(r.list_name),
   }));
@@ -411,8 +412,9 @@ export async function getCallbacks(
     limit ${CALL_SHEET_LIMIT}
   `)) as Row[];
 
+  const dids = await getDids();
   return rows.map((r) => ({
-    ...toLead(r),
+    ...toLead(r, dids),
     listId: n(r.list_id),
     listName: String(r.list_name),
     due: r.due === true,
@@ -475,8 +477,9 @@ export async function getCallBoard(
     limit ${CALL_SHEET_LIMIT}
   `)) as Row[];
 
+  const dids = await getDids();
   return rows.map((r) => {
-    const lead = toLead(r);
+    const lead = toLead(r, dids);
     return {
       ...lead,
       listId: n(r.list_id),
@@ -533,7 +536,8 @@ export async function getCallQueue(
     limit ${CALL_QUEUE_LIMIT}
   `)) as Row[];
 
-  return rows.map(toLead);
+  const dids = await getDids();
+  return rows.map((r) => toLead(r, dids));
 }
 
 /** The summary is already everything the detail screen shows; it stays a
@@ -677,14 +681,38 @@ export function e164(raw: string): string | null {
  * seeing a US caller ID answers far less often, and that halves a connect rate
  * with nothing on any screen to point at.
  */
-export function didFor(country: DialCountry | null): string | null {
-  if (!country) return null;
-  const env = {
-    sg: process.env.TELNYX_DID_SG,
-    us: process.env.TELNYX_DID_US,
-    gb: process.env.TELNYX_DID_GB,
-  }[country];
-  return env && env.trim() ? env.trim() : null;
+export type DidMap = Partial<Record<DialCountry, string>>;
+
+/**
+ * Caller ID per market.
+ *
+ * From the database, set on the Team screen, falling back to the environment
+ * so an existing deployment does not lose its numbers the moment this ships.
+ * `cache()`d because every lead query asks once per request.
+ *
+ * There is deliberately no fallback to another country's number. A UK business
+ * seeing a US caller ID answers far less often, and that halves a connect rate
+ * with nothing on any screen to point at.
+ */
+export const getDids = cache(async (): Promise<DidMap> => {
+  const rows = (await db.execute(sql`
+    select region, phone_number from call_did
+  `)) as { region: DialCountry; phone_number: string }[];
+
+  const out: DidMap = {};
+  for (const c of ["sg", "us", "gb"] as const) {
+    const env = process.env[`TELNYX_DID_${c.toUpperCase()}`];
+    if (env?.trim()) out[c] = env.trim();
+  }
+  for (const r of rows) if (r.phone_number?.trim()) out[r.region] = r.phone_number.trim();
+  return out;
+});
+
+export function didFor(
+  country: DialCountry | null,
+  dids: DidMap,
+): string | null {
+  return country ? (dids[country] ?? null) : null;
 }
 
 /** The country whose DID should be presented when ringing this number. */
