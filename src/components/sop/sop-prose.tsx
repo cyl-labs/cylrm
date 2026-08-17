@@ -54,6 +54,16 @@ export function SopProse({
         // being said stay the loudest thing in the block.
         "[&_blockquote_strong]:mr-1.5 [&_blockquote_strong]:text-[10px] [&_blockquote_strong]:font-bold [&_blockquote_strong]:uppercase [&_blockquote_strong]:tracking-[0.08em] [&_blockquote_strong]:text-muted-foreground",
         "[&_blockquote_p]:mt-0 [&_blockquote_em]:not-italic",
+        // Procedures are prose and lists where a script is dialogue.
+        "[&_ul]:mt-2.5 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-1.5 [&_ul]:pl-1",
+        "[&_ol]:mt-2.5 [&_ol]:flex [&_ol]:flex-col [&_ol]:gap-1.5 [&_ol]:list-decimal [&_ol]:pl-5",
+        "[&_ul>li]:relative [&_ul>li]:pl-4",
+        "[&_ul>li]:before:absolute [&_ul>li]:before:left-0 [&_ul>li]:before:text-muted-foreground/60 [&_ul>li]:before:content-['•']",
+        "[&_li>p]:mt-0",
+        // Bold outside a speaker block is emphasis, not a label, so it must
+        // not inherit the shrunken caption styling above.
+        "[&_p>strong]:font-bold [&_li>strong]:font-bold",
+        "[&_a]:underline [&_a]:underline-offset-2",
         "[&_hr]:my-6 [&_hr]:border-border",
         className,
       )}
