@@ -128,7 +128,16 @@ export default async function SopDocumentPage({
                       >
                         {s.branch ? "↳" : String(step).padStart(2, "0")}
                       </span>
-                      {s.title}
+                      {/* An objection is quoted speech, so it gets the
+                          highlighter the printed sheet gives it. The rest of
+                          the headings are instructions and stay plain. */}
+                      {s.title.startsWith("Prospect:") ? (
+                        <span className="rounded-[3px] bg-[#EDEDED] px-1.5 py-0.5 dark:bg-[#26262a]">
+                          {s.title}
+                        </span>
+                      ) : (
+                        s.title
+                      )}
                     </h2>
                     <SopProse html={s.html} className="mt-2" />
                   </section>

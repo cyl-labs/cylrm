@@ -4,8 +4,8 @@ region: sg
 title: Cold Calling Script
 ---
 
-Top to bottom is the call. Indented blocks are detours — take one only if it
-happens, then carry on where you left off.
+Top to bottom is the call. Indented blocks are detours.
+Take one only if it happens, then carry on where you left off.
 
 ## Opener sequence
 
@@ -55,7 +55,7 @@ _(let them answer, then carry on below)_
 
 ## Before you book
 
-> **You say** Roughly how many calls do you reckon you're missing in a week?
+> **You say** Roughly how many calls do you think you're missing in a week?
 
 _(let them answer)_
 

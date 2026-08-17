@@ -72,7 +72,7 @@ export function ScriptPanel({
                 </span>
                 {s.title}
               </h3>
-              <SopProse html={s.html} className="mt-1 text-[13px]" />
+              <SopProse html={s.html} gutter={false} className="mt-1 text-[13px]" />
             </section>
           );
         });

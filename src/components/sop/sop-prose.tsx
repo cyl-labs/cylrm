@@ -17,9 +17,14 @@ import { cn } from "@/lib/utils";
 export function SopProse({
   html,
   className,
+  gutter = true,
 }: {
   html: string;
   className?: string;
+  /** Put the speaker label in a left gutter, as the printed script does.
+   *  Turned off in the dialler's side panel, where the column is ~350px and a
+   *  76px gutter leaves about thirty characters a line. */
+  gutter?: boolean;
 }) {
   // Tag the blockquotes by who is speaking. The label is emitted by `marked`
   // as the first <strong> inside the quote, so the match is on that exact
@@ -40,28 +45,41 @@ export function SopProse({
         "text-[15px] leading-relaxed",
         // Headings: the section titles, which double as the objection text.
         "[&_h2]:mt-7 [&_h2]:scroll-mt-20 [&_h2]:text-[15px] [&_h2]:font-extrabold [&_h2]:tracking-[-0.01em] [&_h2]:first:mt-0",
-        // Sub-headings are detours and branch letters. Not uppercased: these
-        // started as single letters (A/B/C) where shouting was harmless, and
-        // now carry whole sentences like "Only if they seem confused", which
-        // in caps reads as the next step rather than a step to skip.
-        // Sub-headings inside a section are parallel options — the A / B / C
-        // the prospect might say. Given a rule and an indent so three possible
-        // answers do not read as three things that happen in a row.
+        // Sub-headings are parallel options: the A / B / C a prospect might
+        // say. A rule and an indent, so three possible answers do not read as
+        // three things that happen in a row.
         "[&_h3]:mt-4 [&_h3]:text-[11px] [&_h3]:font-bold [&_h3]:tracking-[0.06em] [&_h3]:text-muted-foreground",
         "[&_h3]:border-l-2 [&_h3]:border-primary/30 [&_h3]:pl-2",
         "[&_p]:mt-2.5",
-        // Stage directions — italic, quiet, and never mistaken for a line to
-        // read out.
+        // Stage directions: italic, quiet, never mistaken for a line to read
+        // out.
         "[&_em]:text-[13px] [&_em]:text-muted-foreground",
-        // The speaker blocks. Left rule plus a tint, so the eye can find the
-        // next thing to say without reading any of it.
-        "[&_blockquote]:mt-2.5 [&_blockquote]:rounded-lg [&_blockquote]:border-l-[3px] [&_blockquote]:px-3.5 [&_blockquote]:py-2.5",
-        "[&_blockquote[data-speaker=you]]:border-l-primary [&_blockquote[data-speaker=you]]:bg-primary/[0.07]",
-        "[&_blockquote[data-speaker=prospect]]:border-l-border [&_blockquote[data-speaker=prospect]]:bg-muted/60",
-        // The bold speaker label itself, shrunk to a caption so the words
-        // being said stay the loudest thing in the block.
-        "[&_blockquote_strong]:mr-1.5 [&_blockquote_strong]:text-[10px] [&_blockquote_strong]:font-bold [&_blockquote_strong]:uppercase [&_blockquote_strong]:tracking-[0.08em] [&_blockquote_strong]:text-muted-foreground",
-        "[&_blockquote_p]:mt-0 [&_blockquote_em]:not-italic",
+
+        // Speaker blocks, laid out like the printed script they came from: the
+        // label sits in a gutter to the left and the words to say sit in a
+        // flat highlighted block. No rounded card, no border, no shadow. A
+        // card says "this is a component"; a highlight says "read this bit",
+        // which is the only thing a caller wants from it mid-sentence.
+        //
+        // The blockquote itself carries no colour. It is only the positioning
+        // context, so the tint hugs the words rather than the gutter too.
+        "[&_blockquote]:relative [&_blockquote]:mt-2.5",
+        gutter && "sm:[&_blockquote]:pl-[4.75rem]",
+        "[&_blockquote>p]:mt-0 [&_blockquote>p]:rounded-[3px] [&_blockquote>p]:px-3.5 [&_blockquote>p]:py-2.5",
+        // Warm for the words you say, neutral for theirs, matching the script
+        // as written. `dark:` variants are here in case a theme is ever wired
+        // up; today the app is light only.
+        "[&_blockquote[data-speaker=you]>p]:bg-[#FDE7E1] dark:[&_blockquote[data-speaker=you]>p]:bg-[#3b211c]",
+        "[&_blockquote[data-speaker=prospect]>p]:bg-[#EDEDED] dark:[&_blockquote[data-speaker=prospect]>p]:bg-[#26262a]",
+        "[&_blockquote>p]:text-foreground dark:[&_blockquote>p]:text-foreground",
+        // The label, lifted out of the flow into the gutter. Inline again on a
+        // phone, where there is no gutter to lift it into.
+        "[&_blockquote_strong]:mr-1.5 [&_blockquote_strong]:text-[10px] [&_blockquote_strong]:font-bold [&_blockquote_strong]:uppercase [&_blockquote_strong]:tracking-[0.08em]",
+        gutter &&
+          "sm:[&_blockquote_strong]:absolute sm:[&_blockquote_strong]:left-0 sm:[&_blockquote_strong]:top-3 sm:[&_blockquote_strong]:mr-0",
+        "[&_blockquote[data-speaker=you]_strong]:text-[#C0392B] dark:[&_blockquote[data-speaker=you]_strong]:text-[#e8897a]",
+        "[&_blockquote[data-speaker=prospect]_strong]:text-muted-foreground",
+        "[&_blockquote_em]:not-italic",
         // Procedures are prose and lists where a script is dialogue.
         "[&_ul]:mt-2.5 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-1.5 [&_ul]:pl-1",
         "[&_ol]:mt-2.5 [&_ol]:flex [&_ol]:flex-col [&_ol]:gap-1.5 [&_ol]:list-decimal [&_ol]:pl-5",
