@@ -1,33 +1,25 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { classifyPhone } from "@/lib/calls";
-import {
-  DNC_VALID_DAYS,
-  DncNotConfiguredError,
-  checkUnitedStates,
-  screened,
-} from "@/lib/dnc";
+import { DNC_VALID_DAYS } from "@/lib/dnc";
 
 /**
- * How many numbers one tick will screen.
+ * Re-screen US leads against the locally held Do Not Call register.
  *
- * Every check costs money, so this is a spend cap as much as a runtime one: a
- * bug that made every lead look stale can waste at most this many lookups per
- * tick instead of the whole list. RealPhoneValidation asks for no more than 10
- * requests a second and this loops serially, so 100 is also roughly a
- * ten-second tick.
- */
-const PER_TICK = 100;
-
-/**
- * Re-screen US leads whose Do Not Call check is missing or has lapsed.
+ * One statement, because the register is a table we own rather than a service
+ * we call: no batching, no rate limit, no per-number cost. The whole job is a
+ * set membership test.
  *
- * Runs on the same worker as the scheduler and poller. Doing nothing is the
- * normal outcome: once every US lead has a fresh result this finds no rows,
- * and only about one thirty-first of them fall out of date on any given day.
+ * A lead is only marked from a *fresh* snapshot. Marking it against an area
+ * code downloaded a year ago would give a lead a recent `dnc_checked_at` and
+ * make it look screened, which is the same trap as storing a status with no
+ * date — one level further up. A lead whose area code was never downloaded is
+ * left unchecked, which blocks it.
  *
- * Singapore leads are never screened — see the note at the top of lib/dnc.ts.
+ * Singapore leads are never touched — see the note at the top of lib/dnc.ts.
+ * The US filter is done in SQL rather than in JS afterwards, because unscreened
+ * leads have a null `dnc_checked_at`, sort first, and would otherwise fill
+ * every page and crowd the US leads out permanently.
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
@@ -35,78 +27,64 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // The country test has to happen in SQL, not just in JS afterwards. Fetching
-  // a page of candidates and filtering them here looks equivalent and is not:
-  // every unscreened Singapore lead has a null `dnc_checked_at`, sorts first
-  // under `nulls first`, and fills the page — so the US leads are crowded out
-  // of every page forever and the job silently checks nothing.
-  //
-  // `phone_key` is E.164 digits (see phoneKey), so a US number is 11 of them
-  // starting with 1. That also matches Singapore toll-free, which is the same
-  // shape — `classifyPhone` below is still the authority and drops those.
+  const stale = sql`${`${DNC_VALID_DAYS} days`}::interval`;
+
   const rows = (await db.execute(sql`
-    select id, phone
+    with fresh as (
+      select area_code from dnc_area_code where loaded_at > now() - ${stale}
+    ),
+    target as (
+      select l.id,
+             -- phone_key is E.164 digits, so a US number is 1 + 10 more.
+             substr(l.phone_key, 2, 3) as area_code,
+             substr(l.phone_key, 2)    as national
+      from call_lead l
+      where l.duplicate_of_lead_id is null
+        and l.phone_key like '1%'
+        and length(l.phone_key) = 11
+        and (
+          l.dnc_checked_at is null
+          or l.dnc_checked_at < now() - ${stale}
+        )
+    )
+    update call_lead l
+    set dnc_status = case
+          when exists (select 1 from dnc_number n where n.number = t.national)
+          then 'listed' else 'clean' end,
+        dnc_checked_at = now(),
+        dnc_source = 'us_ftc',
+        dnc_detail = jsonb_build_object('area_code', t.area_code)
+    from target t
+    where l.id = t.id
+      and t.area_code in (select area_code from fresh)
+    returning l.dnc_status
+  `)) as { dnc_status: string }[];
+
+  const listed = rows.filter((r) => r.dnc_status === "listed").length;
+
+  // What could not be screened, and why — otherwise "checked: 0" is
+  // indistinguishable from "nothing needed checking".
+  const [gap] = (await db.execute(sql`
+    select
+      count(*) filter (
+        where substr(phone_key, 2, 3) not in (select area_code from dnc_area_code)
+      ) as area_code_never_loaded,
+      count(*) filter (
+        where substr(phone_key, 2, 3) in (
+          select area_code from dnc_area_code where loaded_at <= now() - ${stale}
+        )
+      ) as snapshot_stale
     from call_lead
     where duplicate_of_lead_id is null
-      and phone_key like '1%'
-      and length(phone_key) = 11
-      and (
-        dnc_checked_at is null
-        or dnc_checked_at < now() - ${`${DNC_VALID_DAYS} days`}::interval
-      )
-    order by dnc_checked_at asc nulls first, id asc
-    limit ${PER_TICK * 5}
-  `)) as { id: number; phone: string }[];
-
-  const due = rows
-    .filter((r) => screened(classifyPhone(r.phone)))
-    .slice(0, PER_TICK);
-
-  if (due.length === 0) {
-    return NextResponse.json({ ok: true, job: "dnc", checked: 0 });
-  }
-
-  let results;
-  try {
-    results = await checkUnitedStates(due.map((r) => r.phone));
-  } catch (err) {
-    // Unconfigured is the steady state until someone buys a token, so it is
-    // reported rather than thrown — a tick that cannot screen must not take
-    // the scheduler and poller down with it.
-    if (err instanceof DncNotConfiguredError) {
-      return NextResponse.json({
-        ok: true,
-        job: "dnc",
-        checked: 0,
-        skipped: err.message,
-      });
-    }
-    return NextResponse.json(
-      { ok: false, job: "dnc", error: (err as Error).message },
-      { status: 502 },
-    );
-  }
-
-  const byPhone = new Map(results.map((r) => [r.phone, r]));
-  let listed = 0;
-  for (const lead of due) {
-    const result = byPhone.get(lead.phone);
-    if (!result) continue;
-    if (result.status === "listed") listed++;
-    await db.execute(sql`
-      update call_lead
-      set dnc_status = ${result.status},
-          dnc_checked_at = now(),
-          dnc_source = 'us_rpv',
-          dnc_detail = ${JSON.stringify(result.detail)}::jsonb
-      where id = ${lead.id}
-    `);
-  }
+      and phone_key like '1%' and length(phone_key) = 11
+  `)) as { area_code_never_loaded: string; snapshot_stale: string }[];
 
   return NextResponse.json({
     ok: true,
     job: "dnc",
-    checked: results.length,
+    checked: rows.length,
     listed,
+    areaCodeNeverLoaded: Number(gap?.area_code_never_loaded ?? 0),
+    snapshotStale: Number(gap?.snapshot_stale ?? 0),
   });
 }

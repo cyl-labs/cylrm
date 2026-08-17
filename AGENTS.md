@@ -111,41 +111,51 @@ The app is used on phones as well as desktops. Conventions:
 
 ## Do Not Call screening (Call CRM)
 
-**US numbers only. Singapore is deliberately not screened**, because the PDPA's
-DNC provisions do not apply to business-to-business marketing and every
-Singapore lead here is a company. If that exemption is ever found not to cover a
-list, `screened()` in `src/lib/dnc.ts` is the one place to change — but note
-PDPC never distributes the register, only answers per-number queries, so there
-is no free local scrub: it is ~SGD 0.02/number, results expire after **21 days**
-(1,000 free credits a year), which is ~SGD 220/year at the current list size.
-The US is the opposite — the FTC hands out the list, and the first five area
-codes cost nothing, so a downloaded file plus a set-membership test is free.
-`checkUnitedStates` uses RealPhoneValidation instead only because it adds state
-registers, DMA and the litigator flag; swapping it for the free FTC file is a
-legitimate later move.
+**US numbers only, against a register held locally. Singapore is deliberately
+not screened**, because the PDPA's DNC provisions do not apply to
+business-to-business marketing and every Singapore lead here is a company.
+`screened()` in `src/lib/dnc.ts` is the one place to change if that stops being
+true — but note there is no cheap option there: PDPC never releases its
+register and answers only metered per-number queries (~SGD 0.02/number,
+21-day expiry, 1,000 free credits a year).
 
-- **Off unless `DNC_ENFORCE=1`.** Load-bearing, not cautious: with no registry
-  credentials every lead reads as "never checked", so enforcing by default would
-  block every US lead on the day it shipped.
-- **A status without a date answers the wrong question.** A result expires (31
-  days under the TSR), so `dncBlockReason` requires a *recent* clean result —
-  a list scrubbed at import is legally unscrubbed a month later while still
-  sitting in the dialler looking fine. Never-checked, listed and lapsed are all
-  blocks; they read differently only because they need different actions.
-- **The block hides the copy-to-clipboard button, not just the dial button.**
+The US works the opposite way round, which is why it is free. **The FTC
+distributes the register** — the first five area codes cost nothing a year with
+a SAN from telemarketing.donotcall.gov — so screening is a set membership test
+against `dnc_number`, a table we own. No per-number cost, no rate limit, no
+third party. There is no public lookup and no way round the SAN: the register
+is gated precisely because an open one would be a list of confirmed-live
+numbers.
+
+- **Off unless `DNC_ENFORCE=1`.** Load-bearing, not cautious: with no register
+  loaded every lead reads as "never checked", so enforcing by default would
+  block every US lead the day it shipped.
+- **Two tables, because a register and its age answer different questions.**
+  `dnc_number` is the list; `dnc_area_code` is when each slice was downloaded.
+  A lead is only marked from a snapshot newer than `DNC_VALID_DAYS` (31, the
+  TSR safe harbour) — otherwise it would get a recent `dnc_checked_at` off a
+  year-old file and look perfectly screened. Same trap as a status with no
+  date, one level up.
+- **Never checked, listed, and lapsed are all blocks**, including a lead whose
+  area code was simply never downloaded. They read differently only because
+  they need different actions.
+- **The block hides the copy-to-clipboard button**, not just the dial button.
   Handing over a number that may not be rung, on the assumption it will be
   dialled from a desk phone, is the same call — and the clipboard is how
   everyone dials today. All three `CopyNumber` copies (dialler, board,
   callbacks) take a `blocked` prop.
-- `/api/cron/dnc` re-screens on the worker's tick, capped at 100 numbers per run
-  because **every check is paid for by the number**. It filters to US numbers
-  **in SQL**, not afterwards in JS: unscreened leads have a null
-  `dnc_checked_at`, sort first under `nulls first`, and would fill every page —
-  the US leads get crowded out forever and the job silently checks nothing.
-- `checkUnitedStates` skips a failed lookup rather than throwing, so one bad
-  number cannot bin the ninety-nine already paid for.
-- Env: `DNC_ENFORCE`, `RPV_TOKEN` (needs a SAN from telemarketing.donotcall.gov),
-  and `RPV_API_BASE` to point a dev test at a local sink — never set that in prod.
+- **Load with `node --env-file=.env scripts/load-dnc.mjs <area-code> <file>`**,
+  one area code at a time, replaced wholesale — a partial refresh leaves behind
+  numbers that have since come *off* the register. The file is streamed: an
+  area code holds millions of numbers and reading it into a string is how this
+  falls over on the droplet.
+- `/api/cron/dnc` re-screens on the worker's tick in a single statement, and
+  reports `areaCodeNeverLoaded` / `snapshotStale` so that "checked: 0" is
+  never confused with "nothing needed checking". It filters to US numbers **in
+  SQL**: unscreened leads have a null `dnc_checked_at`, sort first under
+  `nulls first`, and would otherwise fill every page and crowd US leads out
+  permanently.
+- Env: `DNC_ENFORCE` only. No API key, because there is no API.
 
 ## Telnyx browser dialling (Call CRM)
 

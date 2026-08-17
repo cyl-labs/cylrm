@@ -488,6 +488,41 @@ export const call = pgTable(
 );
 
 /**
+ * The US Do Not Call register, held locally.
+ *
+ * The FTC distributes the list rather than answering queries — the first five
+ * area codes are free each year — so screening is a set membership test
+ * against a table we own, with no per-number cost and no rate limit. Loaded by
+ * `scripts/load-dnc.mjs`, one area code at a time.
+ */
+export const dncNumber = pgTable(
+  "dnc_number",
+  {
+    /** Ten-digit NANP, digits only. */
+    number: text("number").primaryKey(),
+    areaCode: text("area_code").notNull(),
+  },
+  (t) => [index("dnc_number_area_code_idx").on(t.areaCode)],
+);
+
+/**
+ * When each area code was last downloaded.
+ *
+ * Separate from the numbers because a register and its age answer different
+ * questions: without this, a lead could be marked clean against a snapshot
+ * taken a year ago and look perfectly screened — the same trap as a status
+ * with no check date, one level up. An area code missing here has never been
+ * screenable, which blocks its leads.
+ */
+export const dncAreaCode = pgTable("dnc_area_code", {
+  areaCode: text("area_code").primaryKey(),
+  loadedAt: timestamp("loaded_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  numberCount: integer("number_count").notNull().default(0),
+});
+
+/**
  * What Telnyx recorded, filed by its own webhook.
  *
  * A separate table rather than columns on `call` because the two writers race:
