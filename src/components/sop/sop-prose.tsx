@@ -48,9 +48,9 @@ export function SopProse({
         // Sub-headings are parallel options: the A / B / C a prospect might
         // say. A rule and an indent, so three possible answers do not read as
         // three things that happen in a row.
-        "[&_h3]:mt-4 [&_h3]:text-[11px] [&_h3]:font-bold [&_h3]:tracking-[0.06em] [&_h3]:text-muted-foreground",
+        "[&_h3]:mt-6 [&_h3]:text-[11px] [&_h3]:font-bold [&_h3]:tracking-[0.06em] [&_h3]:text-muted-foreground",
         "[&_h3]:border-l-2 [&_h3]:border-primary/30 [&_h3]:pl-2",
-        "[&_p]:mt-2.5",
+        "[&_p]:mt-3.5",
         // Stage directions: italic, quiet, never mistaken for a line to read
         // out.
         "[&_em]:text-[13px] [&_em]:text-muted-foreground",
@@ -63,7 +63,7 @@ export function SopProse({
         //
         // The blockquote itself carries no colour. It is only the positioning
         // context, so the tint hugs the words rather than the gutter too.
-        "[&_blockquote]:relative [&_blockquote]:mt-2.5",
+        "[&_blockquote]:relative [&_blockquote]:mt-3.5",
         gutter && "sm:[&_blockquote]:pl-[4.75rem]",
         "[&_blockquote>p]:mt-0 [&_blockquote>p]:rounded-[3px] [&_blockquote>p]:px-3.5 [&_blockquote>p]:py-2.5",
         // Warm for the words you say, neutral for theirs, matching the script
@@ -81,8 +81,8 @@ export function SopProse({
         "[&_blockquote[data-speaker=prospect]_strong]:text-muted-foreground",
         "[&_blockquote_em]:not-italic",
         // Procedures are prose and lists where a script is dialogue.
-        "[&_ul]:mt-2.5 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-1.5 [&_ul]:pl-1",
-        "[&_ol]:mt-2.5 [&_ol]:flex [&_ol]:flex-col [&_ol]:gap-1.5 [&_ol]:list-decimal [&_ol]:pl-5",
+        "[&_ul]:mt-3 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-1.5 [&_ul]:pl-1",
+        "[&_ol]:mt-3 [&_ol]:flex [&_ol]:flex-col [&_ol]:gap-1.5 [&_ol]:list-decimal [&_ol]:pl-5",
         "[&_ul>li]:relative [&_ul>li]:pl-4",
         "[&_ul>li]:before:absolute [&_ul>li]:before:left-0 [&_ul>li]:before:text-muted-foreground/60 [&_ul>li]:before:content-['•']",
         "[&_li>p]:mt-0",

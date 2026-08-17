@@ -107,9 +107,13 @@ export default async function SopDocumentPage({
                   <section
                     key={s.title}
                     className={cn(
-                      "mt-7 first:mt-0",
+                      // A step is a thing you do, then stop, then do the next
+                      // one. Run together they read as one wall of dialogue,
+                      // so each gets a rule above it and room to breathe, the
+                      // way the printed sheet separates them.
+                      "mt-10 border-t pt-7 first:mt-0 first:border-t-0 first:pt-0",
                       s.branch &&
-                        "mt-4 border-l-2 border-dashed border-border pl-4 sm:pl-5",
+                        "mt-5 border-t-0 pt-0 border-l-2 border-dashed border-border pl-4 sm:pl-5",
                       s.branch && depth === 1 && "ml-1 sm:ml-3",
                       s.branch && depth >= 2 && "ml-6 sm:ml-10",
                     )}
@@ -140,7 +144,7 @@ export default async function SopDocumentPage({
                         s.title
                       )}
                     </h2>
-                    <SopProse html={s.html} className="mt-2" />
+                    <SopProse html={s.html} className="mt-3" />
                   </section>
                 );
               });
