@@ -42,5 +42,9 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // `u` is the public unsubscribe page — recipients have no login, and
   // bouncing them to /login would make the link in every email dead.
-  matcher: ["/((?!api|u/|_next/static|_next/image|favicon.ico).*)"],
+  // `icon.png` has to be listed as well: it is the favicon Next generates the
+  // link for, and the browser asks for it while signed out, on the login page
+  // above all. Left in the matcher it redirects to /login and the browser is
+  // handed HTML where it expected an image.
+  matcher: ["/((?!api|u/|_next/static|_next/image|favicon.ico|icon.png).*)"],
 };
