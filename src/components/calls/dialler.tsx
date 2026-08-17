@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  ShieldAlert,
   SkipForward,
   Undo2,
 } from "lucide-react";
@@ -44,7 +45,13 @@ const CLOSE: CallOutcome[] = ["demo_booked", "not_interested", "bad_number"];
  * Mounted with `key={lead.id}` at the call site so "Copied" cannot linger from
  * the previous number.
  */
-function CopyNumber({ phone }: { phone: string }) {
+function CopyNumber({
+  phone,
+  blocked,
+}: {
+  phone: string;
+  blocked?: string | null;
+}) {
   const [copied, setCopied] = React.useState(false);
 
   async function copy() {
@@ -57,6 +64,27 @@ function CopyNumber({ phone }: { phone: string }) {
     } catch {
       toast.error("Could not copy — select the number and copy it manually.");
     }
+  }
+
+  // Screening blocks the clipboard too, not just a dial button. Handing over a
+  // number that may not be rung, on the assumption it will be dialled from a
+  // desk phone instead, is the same call — the button is where the rule has to
+  // bite, because this is the only way anyone dials today.
+  if (blocked) {
+    return (
+      <div
+        className="mt-4 flex h-14 w-full flex-col items-center justify-center rounded-xl border border-dashed bg-muted/40 px-3 text-center"
+        role="note"
+      >
+        <span className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground">
+          <ShieldAlert className="size-4 shrink-0" strokeWidth={2.2} />
+          Do not call
+        </span>
+        <span className="mt-0.5 text-[12px] text-muted-foreground/80">
+          {blocked}
+        </span>
+      </div>
+    );
   }
 
   return (
@@ -374,7 +402,11 @@ export function Dialler({
         {/* Keys are prefixed because this and CallForm below are siblings:
             keying both on the bare lead id gave one parent two children with
             the same key, which React is entitled to conflate. */}
-        <CopyNumber key={`number-${current.id}`} phone={current.phone} />
+        <CopyNumber
+          key={`number-${current.id}`}
+          phone={current.phone}
+          blocked={current.dncBlock}
+        />
         {/* Sizing a business up before dialling — is this one van or forty —
             is the question the number cannot answer. A new tab rather than
             the same one: leaving this page loses the queue's position. */}

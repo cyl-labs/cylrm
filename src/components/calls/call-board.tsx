@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, PhoneOutgoing } from "lucide-react";
+import { Check, Copy, PhoneOutgoing, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { BoardCard, CallOutcome, CallStage } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
@@ -86,8 +86,26 @@ function due(iso: string | null) {
   return `in ${Math.round(hours / 24)}d`;
 }
 
-function CopyNumber({ phone }: { phone: string }) {
+function CopyNumber({
+  phone,
+  blocked,
+}: {
+  phone: string;
+  blocked?: string | null;
+}) {
   const [copied, setCopied] = React.useState(false);
+  // Screening blocks the clipboard, not only a dial button — see dialler.tsx.
+  if (blocked) {
+    return (
+      <span
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed py-1.5 text-[13px] font-bold text-muted-foreground"
+        title={blocked}
+      >
+        <ShieldAlert className="size-3.5 shrink-0" strokeWidth={2.2} />
+        Do not call
+      </span>
+    );
+  }
   return (
     <button
       type="button"
@@ -289,7 +307,7 @@ export function CallBoard({
                     </p>
                   )}
 
-                  <CopyNumber phone={c.phone} />
+                  <CopyNumber phone={c.phone} blocked={c.dncBlock} />
 
                   {/* Wraps rather than truncates: with seven columns sharing
                       the width there is not always room for the list badge

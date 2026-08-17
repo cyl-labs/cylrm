@@ -109,6 +109,44 @@ The app is used on phones as well as desktops. Conventions:
   - **Inbound: IMAP** (`imap.gmail.com:993`) with per-account **app passwords** — used both for verification at connect time and by the Phase 5 poller. Do not remove the app-password flow; sending and polling use different credentials. The Google OAuth connect flow does NOT set an app password, and `POST /api/accounts` refuses an email it already knows, so an OAuth-connected account gains one via `PATCH /api/accounts/[id]` with `appPassword` ("Add app password" in the account menu), verified with a real IMAP login before storing. Without it an account sends fine and never sees a reply, so the activation preflight blocks when no sending account has one and warns when only some do.
   - Both secrets encrypted at rest with AES-256-GCM (`src/lib/crypto.ts`, key = `TOKEN_ENCRYPTION_KEY`).
 
+## Do Not Call screening (Call CRM)
+
+**US numbers only. Singapore is deliberately not screened**, because the PDPA's
+DNC provisions do not apply to business-to-business marketing and every
+Singapore lead here is a company. If that exemption is ever found not to cover a
+list, `screened()` in `src/lib/dnc.ts` is the one place to change — but note
+PDPC never distributes the register, only answers per-number queries, so there
+is no free local scrub: it is ~SGD 0.02/number, results expire after **21 days**
+(1,000 free credits a year), which is ~SGD 220/year at the current list size.
+The US is the opposite — the FTC hands out the list, and the first five area
+codes cost nothing, so a downloaded file plus a set-membership test is free.
+`checkUnitedStates` uses RealPhoneValidation instead only because it adds state
+registers, DMA and the litigator flag; swapping it for the free FTC file is a
+legitimate later move.
+
+- **Off unless `DNC_ENFORCE=1`.** Load-bearing, not cautious: with no registry
+  credentials every lead reads as "never checked", so enforcing by default would
+  block every US lead on the day it shipped.
+- **A status without a date answers the wrong question.** A result expires (31
+  days under the TSR), so `dncBlockReason` requires a *recent* clean result —
+  a list scrubbed at import is legally unscrubbed a month later while still
+  sitting in the dialler looking fine. Never-checked, listed and lapsed are all
+  blocks; they read differently only because they need different actions.
+- **The block hides the copy-to-clipboard button, not just the dial button.**
+  Handing over a number that may not be rung, on the assumption it will be
+  dialled from a desk phone, is the same call — and the clipboard is how
+  everyone dials today. All three `CopyNumber` copies (dialler, board,
+  callbacks) take a `blocked` prop.
+- `/api/cron/dnc` re-screens on the worker's tick, capped at 100 numbers per run
+  because **every check is paid for by the number**. It filters to US numbers
+  **in SQL**, not afterwards in JS: unscreened leads have a null
+  `dnc_checked_at`, sort first under `nulls first`, and would fill every page —
+  the US leads get crowded out forever and the job silently checks nothing.
+- `checkUnitedStates` skips a failed lookup rather than throwing, so one bad
+  number cannot bin the ninety-nine already paid for.
+- Env: `DNC_ENFORCE`, `RPV_TOKEN` (needs a SAN from telemarketing.donotcall.gov),
+  and `RPV_API_BASE` to point a dev test at a local sink — never set that in prod.
+
 ## Telnyx browser dialling (Call CRM)
 
 Being built. Only the three Nigerian callers need it — the UK/US pair keep

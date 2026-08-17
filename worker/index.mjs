@@ -25,6 +25,11 @@ async function tick(job) {
 async function run() {
   await tick("scheduler");
   await tick("poller");
+  // Cheap to run this often even though results last 31 days: a lead that has
+  // just been screened is not selected again, so the job finds nothing on all
+  // but a handful of ticks. It is capped per tick because every check is paid
+  // for by the number.
+  await tick("dnc");
 }
 
 run();

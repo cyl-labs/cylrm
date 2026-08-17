@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { dncBlockReason } from "@/lib/dnc";
 
 type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
@@ -237,6 +238,10 @@ export type QueueLead = {
   /** The caller ID to present, chosen by the lead's country. Null when no DID
    *  is configured for it, which disables the dial button with a reason. */
   dialFrom: string | null;
+  /** Why this number may not be rung at all, or null. Blocks the handset route
+   *  as well as the dial button: copying a listed number to ring it from a
+   *  desk phone is the same call. Always null for Singapore — see lib/dnc.ts. */
+  dncBlock: string | null;
 };
 
 export type CallQueueFilter = "queue" | "callbacks" | "closed" | "all";
@@ -250,6 +255,7 @@ export type CallCategory = CallOutcome | "uncalled";
  *  sheet cannot drift into showing different fields for the same lead. */
 const leadColumns = sql`
   l.id, l.phone, l.name, l.company, l.title, l.email, l.website,
+  l.dnc_status, l.dnc_checked_at,
   lc.outcome as last_outcome, lc.called_at as last_called_at,
   lc.callback_at, lc.notes as last_notes, lc.by_name as last_called_by,
   lr.recording_id, lr.duration_ms as recording_ms,
@@ -279,6 +285,15 @@ function toLead(r: Row): QueueLead {
     recordingMs: r.recording_ms === null ? null : n(r.recording_ms),
     dialTo: e164(String(r.phone)),
     dialFrom: didFor(dialCountry(String(r.phone))),
+    dncBlock: dncBlockReason(
+      {
+        dncStatus: (r.dnc_status as "clean" | "listed" | null) ?? null,
+        dncCheckedAt: r.dnc_checked_at
+          ? new Date(r.dnc_checked_at as string).toISOString()
+          : null,
+      },
+      dialCountry(String(r.phone)),
+    ),
   };
 }
 

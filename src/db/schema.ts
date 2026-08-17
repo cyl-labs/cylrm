@@ -397,8 +397,23 @@ export const callLead = pgTable(
     importedAt: timestamp("imported_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /** Do Not Call screening. `clean` | `listed`; null means never checked,
+     *  which blocks the same way once enforcement is on. Paired with the
+     *  timestamp because a result expires — 21 days in Singapore, 31 in the
+     *  US — so the status alone answers the wrong question. See lib/dnc.ts. */
+    dncStatus: text("dnc_status").$type<"clean" | "listed">(),
+    dncCheckedAt: timestamp("dnc_checked_at", { withTimezone: true }),
+    /** Which registry answered: `sg_pdpc` | `us_rpv`. */
+    dncSource: text("dnc_source"),
+    /** The registry's verbatim answer. "clean" is our conclusion; this is the
+     *  evidence, and the only place the US service's four separate flags
+     *  survive after they collapse into one status. */
+    dncDetail: jsonb("dnc_detail").$type<Record<string, unknown>>(),
   },
-  (t) => [uniqueIndex("call_lead_list_phone_idx").on(t.callListId, t.phoneKey)],
+  (t) => [
+    uniqueIndex("call_lead_list_phone_idx").on(t.callListId, t.phoneKey),
+    index("call_lead_dnc_checked_at_idx").on(t.dncCheckedAt),
+  ],
 );
 
 /**

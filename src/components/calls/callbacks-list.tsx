@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, PhoneOutgoing } from "lucide-react";
+import { Check, Copy, PhoneOutgoing, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { CallbackLead, CallOutcome } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
@@ -52,8 +52,26 @@ function when(iso: string | null) {
   return { label: `in ${size}`, overdue: false, soon: mins <= 60 };
 }
 
-function CopyNumber({ phone }: { phone: string }) {
+function CopyNumber({
+  phone,
+  blocked,
+}: {
+  phone: string;
+  blocked?: string | null;
+}) {
   const [copied, setCopied] = React.useState(false);
+  // Screening blocks the clipboard, not only a dial button — see dialler.tsx.
+  if (blocked) {
+    return (
+      <span
+        className="flex items-center gap-1.5 rounded-md border border-dashed px-3 py-1.5 text-[13px] font-bold text-muted-foreground"
+        title={blocked}
+      >
+        <ShieldAlert className="size-3.5 shrink-0" strokeWidth={2.2} />
+        Do not call
+      </span>
+    );
+  }
   return (
     <button
       type="button"
@@ -206,7 +224,7 @@ export function CallbacksList({
             )}
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <CopyNumber phone={l.phone} />
+              <CopyNumber phone={l.phone} blocked={l.dncBlock} />
               <DropdownMenu>
                 <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted">
                   <PhoneOutgoing className="size-3.5" />
