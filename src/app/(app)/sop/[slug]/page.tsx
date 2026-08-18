@@ -82,13 +82,17 @@ export default async function SopDocumentPage({
                 <div className="mt-3 flex flex-col gap-1">
                   {tocGroups.map((g) => {
                     const links = (
-                      <ul className="flex flex-col">
+                      // Hairlines between entries, not just spacing: these
+                      // titles are whole sentences that wrap to two lines, so
+                      // without a rule the second line of one reads as the
+                      // start of the next.
+                      <ul className="flex flex-col divide-y divide-border/60">
                         {g.items.map(({ section, index }) => (
                           <li key={section.title}>
                             <a
                               href={`#${anchor(section.title, index)}`}
                               className={cn(
-                                "-ml-px block border-l-2 border-transparent py-0.5 pl-3 text-[13px] leading-snug text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
+                                "-ml-px block border-l-2 border-transparent py-2 pl-3 text-[13px] leading-snug text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
                                 g.category && "ml-2",
                                 section.branch && "pl-6 text-[12px] opacity-75",
                               )}
