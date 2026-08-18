@@ -8,15 +8,41 @@ title: After you book a meeting
 order, but the details marked PLACEHOLDER need filling in before anyone relies
 on it. Edit `content/sop/procedure-after-booking.md` and deploy.
 
-## Before you hang up, get their email
+## Tap Demo booked before you discuss times
 
-The booking is not finished until you have it. Without an email nothing can be
-sent, no reminder goes out, and the meeting is far more likely to be a no-show.
+The form shows you which slots are actually open. Agreeing a time you cannot
+see means ringing them back to move it, and every rebooking is a chance for
+them to change their mind.
 
-> **You say** PLACEHOLDER: the line you use to ask for the email.
+## Take their name, number and email
 
-Confirm it back to them letter by letter if there is any doubt. A typo here
-costs the whole meeting.
+The booking is not finished until you have the email. Without one nothing can
+be sent, no reminder goes out, and the meeting is far more likely to be a
+no-show. The number is how you reach them if anything changes.
+
+> **You say** Perfect, let me get you in the diary. Can I take your full name and the best number for you?
+
+> **You say** And the best email for the invite?
+
+Confirm the email back to them letter by letter if there is any doubt. A typo
+here costs the whole meeting.
+
+## Offer two days and two times, never "when are you free"
+
+This is where most bookings are lost. Asking when they are free hands the work
+back to them, and the answer is almost always "send me some times and I will
+check", which is a no with extra steps.
+
+Offer instead. **Two days, two times each.** Four options is enough to feel
+accommodating and few enough that they can answer on the spot.
+
+> **You say** I have [Tuesday] at [10am] or [2pm], or [Thursday] at [11am] or [4pm]. Which of those works best for you?
+
+If none of the four suit, offer two more. Do not open it up again.
+
+Read the times off the open slots in front of you, and space the two days
+apart rather than offering the same day twice. Nothing sooner than two hours
+from now: Cal.com will not accept it.
 
 ## Then log it as Demo booked
 

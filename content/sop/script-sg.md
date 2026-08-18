@@ -74,11 +74,15 @@ _(let them answer)_
 Do all of this before you hang up. A booking made after the call is a booking
 that does not happen.
 
-> **You say** Perfect. What day suits you better, and roughly what time?
+**Tap Demo booked first, before you talk about times.** It opens the form and
+shows you which slots are actually free. You cannot offer a time you cannot
+see, and guessing means rebooking them later.
+
+> **You say** Perfect, let me get you in the diary. Can I take your full name and the best number for you?
 
 _(let them answer)_
 
-> **You say** And what is the best email for the invite?
+> **You say** And the best email for the invite?
 
 _(let them answer)_
 
@@ -86,9 +90,31 @@ _(let them answer)_
 
 _(let them answer)_
 
-Now book it, while they are still on the phone. Pick **Demo booked**, type
-their email and name into the form, and press **Book it on Cal.com**. It opens
-in a new tab, so you do not lose your place. Pick the slot you just agreed.
+### Offer times, never ask for them
+
+This is where most bookings are lost. "When are you free?" hands the work back
+to them, and the answer is almost always "send me some times and I will check".
+That is a no with extra steps.
+
+Offer instead. **Two days, two times each.** Four options is enough to feel
+accommodating and few enough to answer straight away.
+
+> **You say** I have [Tuesday] at [10am] or [2pm], or [Thursday] at [11am] or [4pm]. Which of those works best for you?
+
+_(let them answer)_
+
+If none of the four suit, offer two more. Do not open it up.
+
+> **You say** No problem. What about [day] at [time], or [day] at [time]?
+
+_(let them answer)_
+
+Read the times off the open slots in front of you, and space the two days
+apart rather than offering tomorrow morning and tomorrow afternoon.
+
+Now book it, while they are still on the phone. Type their name and email into
+the form and press **Book it on Cal.com**. It opens in a new tab, so you do not
+lose your place. Pick the slot you just agreed.
 
 **Nothing sooner than two hours from now.** Cal.com will not take it, so if
 they want it right away, agree the earliest slot it offers instead.
