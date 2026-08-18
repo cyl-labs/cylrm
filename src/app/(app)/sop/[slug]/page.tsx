@@ -53,7 +53,14 @@ export default async function SopDocumentPage({
             // and parks itself on a desktop, and hidden below lg because a
             // narrow screen has no room to spare beside the words.
             <nav className="hidden shrink-0 lg:block lg:w-64">
-              <div className="sticky top-4">
+              {/* Scrolls inside itself once it is taller than the screen.
+                  Without the height cap a fifteen-objection list simply runs
+                  off the bottom of a sticky box, and the entries down there
+                  cannot be reached until the whole page has scrolled past
+                  them - by which point the contents list is no use. Scrolling
+                  is left to chain to the page at either end, so a flick over
+                  the list still moves the article. */}
+              <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto pr-2">
                 <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                   On this page
                 </p>
