@@ -53,16 +53,6 @@ _(let them answer)_
 
 _(let them answer, then carry on below)_
 
-## Before you book
-
-> **You say** Roughly how many calls do you think you're missing in a week?
-
-_(let them answer)_
-
-> **You say** And are you the one who'd decide on something like this, or is there someone else who'd want to see it?
-
-_(let them answer)_
-
 ## The close
 
 > **You say** My goal wasn't to sell you anything today. I actually built out a demo for your business and I was hoping to find a time where we could do a quick Google Meet.
