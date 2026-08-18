@@ -38,6 +38,7 @@ export default async function CallSheetPage({
         </div>
       ) : (
         <LeadsGrid
+          showClosed={me?.role === "admin"}
           leads={leads}
           // Every niche goes down, with a flag for whether anyone has called
           // it: the called ones get tabs, the rest fold under "Not called

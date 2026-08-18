@@ -142,14 +142,27 @@ export function CallBoard({
   cards,
   columnLimit,
   showList = true,
+  showClosed = true,
 }: {
   cards: BoardCard[];
   columnLimit: number;
+  /** Won and Lost are the founders' view of a deal, not a caller's. A caller
+   *  works the phone up to Demo booked; what happens weeks later is somebody
+   *  else's column. False hides both, and drops them from the log menu too so
+   *  no card can be moved somewhere it would then be invisible. */
+  showClosed?: boolean;
   /** False when the board is already filtered to one niche, where the badge
    *  would repeat the same name on every card. */
   showList?: boolean;
 }) {
   const router = useRouter();
+
+  const columns = showClosed
+    ? COLUMNS
+    : COLUMNS.filter((c) => c.key !== "won" && c.key !== "lost");
+  const loggable = showClosed
+    ? LOGGABLE
+    : LOGGABLE.filter((o) => o !== "won" && o !== "lost");
   const [dragId, setDragId] = React.useState<number | null>(null);
   const [dragOver, setDragOver] = React.useState<CallStage | null>(null);
   // A logged call moves the card at once; the server list catches up behind.
@@ -220,7 +233,7 @@ export function CallBoard({
       COLUMNS.some((c) => c.key === column && c.logs !== null),
     onDrop: (id, column) => {
       const card = rows.find((c) => c.id === id);
-      const col = COLUMNS.find((c) => c.key === column);
+      const col = columns.find((c) => c.key === column);
       if (card && col?.logs && card.stage !== col.key) logCall(card, col.logs);
     },
   });
@@ -234,7 +247,7 @@ export function CallBoard({
       ref={scrollerRef}
       className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 2xl:mx-0 2xl:grid 2xl:grid-cols-7 2xl:overflow-x-visible 2xl:px-0"
     >
-      {COLUMNS.map((col) => {
+      {columns.map((col) => {
         const all = rows.filter((c) => c.stage === col.key);
         const shown = all.slice(0, columnLimit);
         return (
@@ -370,7 +383,7 @@ export function CallBoard({
                       <DropdownMenuLabel>
                         Attempt {c.attempts + 1}
                       </DropdownMenuLabel>
-                      {LOGGABLE.map((o) => (
+                      {loggable.map((o) => (
                         <DropdownMenuItem
                           key={o}
                           onSelect={() => logCall(c, o)}

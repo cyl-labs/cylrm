@@ -200,8 +200,10 @@ function CategoryMenu({
   lead,
   onLogged,
   onCorrected,
+  showClosed,
 }: {
   lead: SheetLead;
+  showClosed: boolean;
   /** A call happened: one more attempt, rung just now. */
   onLogged: (id: number, outcome: CallOutcome) => void;
   /** The last call was mislabelled: same attempt, different outcome. */
@@ -265,7 +267,12 @@ function CategoryMenu({
     }
   }
 
-  const outcomes = Object.keys(OUTCOME_LABELS) as CallOutcome[];
+  // Won and Lost are the founders' to record. Dropped from logging and from
+  // correcting alike: a caller who could still correct one into Lost would be
+  // filing a lead into a category their own screens do not show.
+  const outcomes = (Object.keys(OUTCOME_LABELS) as CallOutcome[]).filter(
+    (o) => showClosed || (o !== "won" && o !== "lost"),
+  );
 
   return (
     <DropdownMenu>
@@ -373,8 +380,12 @@ export function LeadsGrid({
   initialTab = "all",
   truncated = false,
   meName = null,
+  showClosed = true,
 }: {
   leads: SheetLead[];
+  /** Same rule as the board: Won and Lost belong to the founders, so a caller
+   *  neither sees those categories nor can set one. */
+  showClosed?: boolean;
   /** Every niche. `called` decides whether its tab is out on the strip or
    *  folded away under "Not called yet". */
   lists: { id: number; name: string; called: boolean }[];
@@ -953,7 +964,9 @@ export function LeadsGrid({
                       }
                       options={[
                         { key: "all", label: "All categories", count: inTab.length },
-                        ...CALL_CATEGORIES.map((k) => ({
+                        ...CALL_CATEGORIES.filter(
+                          (k) => showClosed || (k !== "won" && k !== "lost"),
+                        ).map((k) => ({
                           key: k,
                           label: CATEGORY_LABELS[k],
                           count: counts.get(k) ?? 0,
@@ -1108,6 +1121,7 @@ export function LeadsGrid({
                                     lead={l}
                                     onLogged={handleLogged}
                                     onCorrected={handleCorrected}
+                                    showClosed={showClosed}
                                   />
                                 )}
                               </span>
