@@ -219,19 +219,21 @@ function DialControls({
  *
  * Every box is answered by a question the script actually asks — the first two
  * were added to section 03 for exactly this reason. A bar the script cannot
- * reach does not raise quality, it just moves the argument to payday, which is
- * also why "showed some interest" is not on this list: it is a judgment made
- * by the person paying, after the work is done. Agreeing to a specific time is
- * the interest signal, and it is checkable by both sides.
+ * reach does not raise quality, it just moves the argument to payday.
+ *
+ * A missed-calls threshold was on this list and came off: it made the caller
+ * interrogate a prospect who had already agreed to meet, and a number nobody
+ * verifies is not a qualification. Interest replaced it, judged on the call
+ * and paired with a specific date and time — the part both sides can check.
  *
  * Hard-coded rather than a document, so what earns a caller their fee cannot
  * be scrolled past or edited by accident.
  */
 function QualificationCriteria() {
   const CRITERIA = [
-    "Owner, or bringing whoever decides",
-    "Misses 5+ calls a week",
-    "Agreed a specific day and time",
+    "Owner or decision maker",
+    "Interested",
+    "Agreed a specific date and time",
   ];
   return (
     <div className="mt-3 rounded-lg border border-dashed bg-muted/30 px-3.5 py-2.5">
