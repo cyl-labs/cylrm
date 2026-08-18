@@ -200,10 +200,10 @@ function CategoryMenu({
   lead,
   onLogged,
   onCorrected,
-  showClosed,
+  showDealStages,
 }: {
   lead: SheetLead;
-  showClosed: boolean;
+  showDealStages: boolean;
   /** A call happened: one more attempt, rung just now. */
   onLogged: (id: number, outcome: CallOutcome) => void;
   /** The last call was mislabelled: same attempt, different outcome. */
@@ -267,11 +267,12 @@ function CategoryMenu({
     }
   }
 
-  // Won and Lost are the founders' to record. Dropped from logging and from
-  // correcting alike: a caller who could still correct one into Lost would be
-  // filing a lead into a category their own screens do not show.
+  // Trial, Won and Lost are the founders' to record. Dropped from logging and
+  // from correcting alike: a caller who could still correct one into Lost
+  // would be filing a lead into a category their own screens do not show.
   const outcomes = (Object.keys(OUTCOME_LABELS) as CallOutcome[]).filter(
-    (o) => showClosed || (o !== "won" && o !== "lost"),
+    (o) =>
+      showDealStages || (o !== "trial" && o !== "won" && o !== "lost"),
   );
 
   return (
@@ -380,12 +381,12 @@ export function LeadsGrid({
   initialTab = "all",
   truncated = false,
   meName = null,
-  showClosed = true,
+  showDealStages = true,
 }: {
   leads: SheetLead[];
-  /** Same rule as the board: Won and Lost belong to the founders, so a caller
-   *  neither sees those categories nor can set one. */
-  showClosed?: boolean;
+  /** Same rule as the board: Trial, Won and Lost belong to the founders, so a
+   *  caller neither sees those categories nor can set one. */
+  showDealStages?: boolean;
   /** Every niche. `called` decides whether its tab is out on the strip or
    *  folded away under "Not called yet". */
   lists: { id: number; name: string; called: boolean }[];
@@ -965,7 +966,9 @@ export function LeadsGrid({
                       options={[
                         { key: "all", label: "All categories", count: inTab.length },
                         ...CALL_CATEGORIES.filter(
-                          (k) => showClosed || (k !== "won" && k !== "lost"),
+                          (k) =>
+                            showDealStages ||
+                            (k !== "trial" && k !== "won" && k !== "lost"),
                         ).map((k) => ({
                           key: k,
                           label: CATEGORY_LABELS[k],
@@ -1121,7 +1124,7 @@ export function LeadsGrid({
                                     lead={l}
                                     onLogged={handleLogged}
                                     onCorrected={handleCorrected}
-                                    showClosed={showClosed}
+                                    showDealStages={showDealStages}
                                   />
                                 )}
                               </span>

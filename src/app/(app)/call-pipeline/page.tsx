@@ -59,7 +59,7 @@ export default async function CallPipelinePage({
               not put there.
             </p>
             <CallBoard
-              showClosed={me?.role === "admin"}
+              showDealStages={me?.role === "admin"}
               cards={cards}
               columnLimit={BOARD_COLUMN_LIMIT}
               showList={listId === undefined}

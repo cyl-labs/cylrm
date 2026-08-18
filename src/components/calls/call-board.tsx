@@ -142,27 +142,32 @@ export function CallBoard({
   cards,
   columnLimit,
   showList = true,
-  showClosed = true,
+  showDealStages = true,
 }: {
   cards: BoardCard[];
   columnLimit: number;
-  /** Won and Lost are the founders' view of a deal, not a caller's. A caller
-   *  works the phone up to Demo booked; what happens weeks later is somebody
-   *  else's column. False hides both, and drops them from the log menu too so
-   *  no card can be moved somewhere it would then be invisible. */
-  showClosed?: boolean;
+  /** Trial, Won and Lost are the founders' view of a deal, not a caller's. A
+   *  caller works the phone up to Demo booked; what the deal does over the
+   *  following weeks is somebody else's column. False hides all three, and
+   *  drops them from the log menu too, so no card can be moved somewhere it
+   *  would then be invisible to the person who moved it. */
+  showDealStages?: boolean;
   /** False when the board is already filtered to one niche, where the badge
    *  would repeat the same name on every card. */
   showList?: boolean;
 }) {
   const router = useRouter();
 
-  const columns = showClosed
+  const columns = showDealStages
     ? COLUMNS
-    : COLUMNS.filter((c) => c.key !== "won" && c.key !== "lost");
-  const loggable = showClosed
+    : COLUMNS.filter(
+        (c) => c.key !== "trial" && c.key !== "won" && c.key !== "lost",
+      );
+  const loggable = showDealStages
     ? LOGGABLE
-    : LOGGABLE.filter((o) => o !== "won" && o !== "lost");
+    : LOGGABLE.filter(
+        (o) => o !== "trial" && o !== "won" && o !== "lost",
+      );
   const [dragId, setDragId] = React.useState<number | null>(null);
   const [dragOver, setDragOver] = React.useState<CallStage | null>(null);
   // A logged call moves the card at once; the server list catches up behind.
