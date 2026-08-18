@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { SopProse } from "@/components/sop/sop-prose";
 import { getCurrentUser } from "@/lib/session";
@@ -36,6 +36,20 @@ export default async function SopDocumentPage({
 
   const showToc = doc.sections.length > TOC_THRESHOLD;
 
+  // Consecutive sections sharing a heading become one collapsible chapter.
+  // Built here rather than inline so the anchor index stays the section's
+  // real position in the document - grouping must not renumber the links.
+  const tocGroups: {
+    category: string | null;
+    items: { section: (typeof doc.sections)[number]; index: number }[];
+  }[] = [];
+  doc.sections.forEach((section, index) => {
+    const category = section.category ?? null;
+    const last = tocGroups[tocGroups.length - 1];
+    if (last && last.category === category) last.items.push({ section, index });
+    else tocGroups.push({ category, items: [{ section, index }] });
+  });
+
   return (
     <PageShell title={doc.title}>
       <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
@@ -53,51 +67,66 @@ export default async function SopDocumentPage({
             // and parks itself on a desktop, and hidden below lg because a
             // narrow screen has no room to spare beside the words.
             <nav className="hidden shrink-0 lg:block lg:w-64">
-              {/* Scrolls inside itself once it is taller than the screen.
-                  Without the height cap a fifteen-objection list simply runs
-                  off the bottom of a sticky box, and the entries down there
-                  cannot be reached until the whole page has scrolled past
-                  them - by which point the contents list is no use. Scrolling
-                  is left to chain to the page at either end, so a flick over
-                  the list still moves the article. */}
+              {/* Collapsed chapters rather than one long list. Fifteen
+                  objections under five headings overflowed any screen, and a
+                  box that scrolls inside a page that also scrolls gives two
+                  scrollbars fighting under one cursor. Closed, the whole nav
+                  is five rows and never needs to scroll at all.
+
+                  Native <details>, so this stays a server component and the
+                  open/closed state survives without any JavaScript. */}
               <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto pr-2">
                 <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                   On this page
                 </p>
-                {/* Chapters, not a flat list. The category is the thing you
-                    are looking for first — "they are brushing me off" — and
-                    the individual line second, so the group carries the
-                    weight and the entries hang under it. */}
-                <ul className="mt-3 flex flex-col">
-                  {doc.sections.map((s, i) => {
-                    const newGroup =
-                      s.category && s.category !== doc.sections[i - 1]?.category;
+                <div className="mt-3 flex flex-col gap-1">
+                  {tocGroups.map((g) => {
+                    const links = (
+                      <ul className="flex flex-col">
+                        {g.items.map(({ section, index }) => (
+                          <li key={section.title}>
+                            <a
+                              href={`#${anchor(section.title, index)}`}
+                              className={cn(
+                                "-ml-px block border-l-2 border-transparent py-0.5 pl-3 text-[13px] leading-snug text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
+                                g.category && "ml-2",
+                                section.branch && "pl-6 text-[12px] opacity-75",
+                              )}
+                            >
+                              {section.branch && (
+                                <span aria-hidden className="mr-1">
+                                  ↳
+                                </span>
+                              )}
+                              {section.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+
+                    // No heading to hang them under, so nothing to collapse.
+                    if (!g.category) {
+                      return <div key="ungrouped">{links}</div>;
+                    }
+
                     return (
-                      <li key={s.title}>
-                        {newGroup && (
-                          <p className="mb-1.5 mt-4 rounded-md bg-primary/10 px-2 py-1 text-[13px] font-extrabold tracking-[-0.01em] text-primary first:mt-0">
-                            {s.category}
-                          </p>
-                        )}
-                        <a
-                          href={`#${anchor(s.title, i)}`}
-                          className={cn(
-                            "-ml-px block border-l-2 border-transparent py-0.5 pl-3 text-[13px] leading-snug text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
-                            s.category && "ml-2",
-                            s.branch && "pl-6 text-[12px] opacity-75",
-                          )}
-                        >
-                          {s.branch && (
-                            <span aria-hidden className="mr-1">
-                              ↳
-                            </span>
-                          )}
-                          {s.title}
-                        </a>
-                      </li>
+                      <details key={g.category} className="group/toc">
+                        <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[13px] font-extrabold tracking-[-0.01em] text-primary [&::-webkit-details-marker]:hidden">
+                          <ChevronRight
+                            aria-hidden
+                            className="size-3.5 shrink-0 transition-transform group-open/toc:rotate-90"
+                          />
+                          <span className="min-w-0">{g.category}</span>
+                          <span className="ml-auto text-[11px] font-bold opacity-60">
+                            {g.items.length}
+                          </span>
+                        </summary>
+                        <div className="mt-1 mb-1">{links}</div>
+                      </details>
                     );
                   })}
-                </ul>
+                </div>
               </div>
             </nav>
           )}
