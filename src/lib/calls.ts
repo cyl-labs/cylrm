@@ -733,13 +733,17 @@ export type CallRegion = "sg" | "us" | "gb";
 /**
  * Which set of documents a market reads.
  *
- * The UK is its own market but has no script of its own: it reads the US one,
- * which differs only on WhatsApp, and UK businesses do not use that for this
- * either. Kept as a separate mapping rather than storing `us` against a UK
- * caller, so "who works the UK" stays answerable and writing a UK script later
- * is one line here instead of a data migration.
+ * There are two scripts, and what separates them is WhatsApp rather than
+ * geography: the `sg` set pitches it, the `us` set does not. The UK is its own
+ * market with no script of its own and reads the WhatsApp one, because UK
+ * businesses do run on it — it was pointed at the US set on the assumption
+ * they did not, which was wrong.
+ *
+ * Kept as a mapping rather than storing the script's name against a caller, so
+ * "who works the UK" stays answerable and giving the UK a script of its own
+ * later is one line here instead of a data migration.
  */
 export type SopRegion = "sg" | "us";
 
 export const sopRegionFor = (region: CallRegion | null): SopRegion | null =>
-  region === "sg" ? "sg" : region === "us" || region === "gb" ? "us" : null;
+  region === "sg" || region === "gb" ? "sg" : region === "us" ? "us" : null;
