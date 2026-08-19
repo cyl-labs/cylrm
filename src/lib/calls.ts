@@ -639,6 +639,12 @@ export function classifyPhone(
 ): "sg" | "sg_tollfree" | "us" | "gb" | "foreign" | "malformed" | "missing" {
   const d = raw.replace(/\D/g, "");
   if (!d) return "missing";
+  // Singapore writes its toll-free numbers 1800 xxx xxxx with no country code,
+  // and the US writes its own +1 800 xxx xxxx - identical once the digits are
+  // stripped. An explicit +1 is the only thing that tells them apart, so it is
+  // read before the 1800 rule. Without this every US toll-free lead came out
+  // as an uncallable Singapore number.
+  if (/^\+1\d{10}$/.test(raw.replace(/[^\d+]/g, ""))) return "us";
   if (d.startsWith("1800")) return "sg_tollfree";
   if (d.length === 8 && /^[3689]/.test(d)) return "sg";
   if (d.length === 10 && d.startsWith("65")) return "sg";
