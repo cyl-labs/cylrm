@@ -561,6 +561,9 @@ export type CallListDetail = {
   niche: string | null;
 } & Pick<
   CallListSummary,
+  // The dialler falls back to this when the person signed in has no market of
+  // their own, which is every admin.
+  | "region"
   | "total"
   | "uncalled"
   | "calledToday"

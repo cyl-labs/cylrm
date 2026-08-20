@@ -46,11 +46,19 @@ export default async function CallListPage({
   if (!list) notFound();
 
   // One market's script and objections, decided by who is signed in rather
-  // than by the lead in front of them — so nothing switches mid-call.
+  // than by the lead in front of them, so nothing switches mid-call.
+  //
+  // Falling back to the list's own market matters for anyone with no market
+  // set, which is every admin: the library shows them both markets, but the
+  // dialler can only show one script, and it showed none at all. A founder
+  // opening a list to try the dialler got no script panel and no objection
+  // drawer, which reads as the feature having disappeared.
   const dialMethod = await dialMethodOf(me?.id);
+  const sopRegion =
+    sopRegionFor(await callRegionOf(me?.id)) ?? sopRegionFor(list.region);
   const [leads, sop] = await Promise.all([
     getCallQueue(listId, filter),
-    getDiallerSop(sopRegionFor(await callRegionOf(me?.id))),
+    getDiallerSop(sopRegion),
   ]);
 
   // What the Queue tab holds: never rung, rung and not reached, and callbacks
