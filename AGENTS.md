@@ -42,6 +42,27 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 **Demo mode is gone** (removed 2026-08-13, was a `cylrm_demo` cookie swapping every screen onto `lib/demo-data.ts` fixtures). It existed to show the app off before there was real data in it; once the CRM held live leads and staff logins it was a second code path through every page and API route, guarding writes that per-user auth already guards. Do not reintroduce it as a cookie: if a sales demo is ever needed again, a seeded throwaway database is one environment variable instead of a branch in thirty files.
 
 - Phone is the key and email is optional here — the mirror of the email side. Dedupe is on digits only (`phoneKey`).
+- **`classifyPhone`/`e164`/`phoneKey` take the list's market as an optional
+  second argument**, and it applies *only* to a number written without a
+  country code. Most scrapes are national format — Google returns
+  "(907) 659-2550" for a US business — and with no market to read them in
+  there is nothing to say what country that is: a 278-row US list once
+  imported four rows, the only survivors being Puerto Rico and American Samoa
+  listings where Google happened to supply international format. An explicit
+  `+` always beats the default, because it is the one part of the string that
+  is not a guess. The default also settles a real collision the bare-digit
+  rules cannot: a US number in area code 650/656/659 is ten digits beginning
+  "65", which is also a Singapore number with its country code and no plus.
+  NANP shape is validated (neither area code nor exchange may start 0 or 1),
+  so an invalid US shape still falls through to the Singapore reading.
+- The importer stores `phone` **rewritten to E.164 only when it would not
+  otherwise parse** — i.e. exactly the numbers that needed the market's
+  context. Everything downstream re-reads that column with no idea which list
+  it came from, so those must carry their country code; a number that already
+  parses alone is left as written, which keeps Singapore numbers reading the
+  way Singaporeans write them. The raw value is in `source_fields` regardless.
+  `/api/call-leads/[id]` applies the same rule, reading the market off the
+  lead's list.
 - A lead's state is **derived from its most recent call**, never stored, so a mis-tapped outcome is fixed by logging again.
 - No telephony and no dialling: the number is a **copy-to-clipboard button**, the call is placed on a separate handset, the outcome logged after. `tel:` was tried and dropped — it dials from whichever device the browser is on. Adding Twilio would be a real build, not a config change.
 - **Logging a call ≠ correcting one.** A repeat dial is a new `call` row (`POST /api/calls`): it bumps the try count and the last-called time. Correcting a mis-tap overwrites the latest row (`PATCH`). The sheet's category menu and the board's card menu both put logging at the top level and correction one level in, because picking the outcome a lead already had used to be a no-op and a whole re-dial vanished.

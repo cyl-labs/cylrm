@@ -118,6 +118,47 @@ export function CallImportDialog({
     setResults(null);
   }
 
+  /**
+   * Ask the server what is in a file, reading it in the given market.
+   *
+   * Re-run whenever the folder changes, because the folder is what decides
+   * how a number written without a country code is read: the same US file is
+   * four usable rows as Unfiled and 278 as United States.
+   */
+  const scanFile = React.useCallback(
+    async (key: string, file: File, region: CallRegion | "none") => {
+      setStaged((prev) =>
+        prev.map((s) => (s.key === key ? { ...s, scan: null, error: null } : s)),
+      );
+      const body = new FormData();
+      body.append("file", file);
+      body.append("dryRun", "1");
+      if (region !== "none") body.append("region", region);
+      try {
+        const res = await fetch("/api/call-lists", { method: "POST", body });
+        const data = await res.json().catch(() => ({}));
+        setStaged((prev) =>
+          prev.map((s) =>
+            s.key === key
+              ? res.ok
+                ? { ...s, scan: data as Scan, error: null }
+                : { ...s, scan: null, error: data.error ?? "Could not read it." }
+              : s,
+          ),
+        );
+      } catch {
+        setStaged((prev) =>
+          prev.map((s) =>
+            s.key === key
+              ? { ...s, scan: null, error: "Could not read it." }
+              : s,
+          ),
+        );
+      }
+    },
+    [],
+  );
+
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
     // The same input can be used twice; clearing it means re-picking the same
@@ -145,28 +186,7 @@ export function CallImportDialog({
     // 1 vCPU box, and parsing them in parallel is how the other apps on it
     // notice. Each result lands as it arrives.
     for (const entry of additions) {
-      const body = new FormData();
-      body.append("file", entry.file);
-      body.append("dryRun", "1");
-      try {
-        const res = await fetch("/api/call-lists", { method: "POST", body });
-        const data = await res.json().catch(() => ({}));
-        setStaged((prev) =>
-          prev.map((s) =>
-            s.key === entry.key
-              ? res.ok
-                ? { ...s, scan: data as Scan, error: null }
-                : { ...s, scan: null, error: data.error ?? "Could not read it." }
-              : s,
-          ),
-        );
-      } catch {
-        setStaged((prev) =>
-          prev.map((s) =>
-            s.key === entry.key ? { ...s, error: "Could not read it." } : s,
-          ),
-        );
-      }
+      await scanFile(entry.key, entry.file, entry.region);
     }
     setScanning(false);
   }
@@ -346,18 +366,31 @@ export function CallImportDialog({
                               {s.error}
                             </p>
                           ) : s.scan ? (
-                            <p className="mt-0.5 text-[13px]">
-                              <span className="font-semibold">
-                                {s.scan.usable}
-                              </span>{" "}
-                              usable
-                              {s.scan.skippedBadNumber.length > 0 &&
-                                ` · ${s.scan.skippedBadNumber.length} unusable`}
-                              {s.scan.skippedNoPhone > 0 &&
-                                ` · ${s.scan.skippedNoPhone} with no number`}
-                              {s.scan.skippedRepeatedInFile > 0 &&
-                                ` · ${s.scan.skippedRepeatedInFile} repeated`}
-                            </p>
+                            <>
+                              <p className="mt-0.5 text-[13px]">
+                                <span className="font-semibold">
+                                  {s.scan.usable}
+                                </span>{" "}
+                                usable
+                                {s.scan.skippedBadNumber.length > 0 &&
+                                  ` · ${s.scan.skippedBadNumber.length} unusable`}
+                                {s.scan.skippedNoPhone > 0 &&
+                                  ` · ${s.scan.skippedNoPhone} with no number`}
+                                {s.scan.skippedRepeatedInFile > 0 &&
+                                  ` · ${s.scan.skippedRepeatedInFile} repeated`}
+                              </p>
+                              {/* Most scrapes write numbers the local way, with
+                                  no country code, and those can only be read
+                                  once the market is known. Saying so beats
+                                  leaving someone to conclude the file is bad. */}
+                              {s.region === "none" &&
+                                s.scan.skippedBadNumber.length > 0 && (
+                                  <p className="mt-0.5 text-[12px] text-muted-foreground">
+                                    Set a folder to read those in that
+                                    country&rsquo;s format.
+                                  </p>
+                                )}
+                            </>
                           ) : (
                             <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted-foreground">
                               <Loader2 className="size-3 animate-spin" />
@@ -392,9 +425,14 @@ export function CallImportDialog({
                           />
                           <Select
                             value={s.region}
-                            onValueChange={(v) =>
-                              update(s.key, { region: v as CallRegion | "none" })
-                            }
+                            onValueChange={(v) => {
+                              const next = v as CallRegion | "none";
+                              update(s.key, { region: next });
+                              // The count is only true for one market, so it
+                              // is re-read rather than left saying what the
+                              // previous folder found.
+                              void scanFile(s.key, s.file, next);
+                            }}
                           >
                             <SelectTrigger
                               className="w-full sm:w-40"

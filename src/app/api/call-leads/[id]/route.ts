@@ -1,7 +1,7 @@
 import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { callLead } from "@/db/schema";
-import { classifyPhone, phoneKey } from "@/lib/calls";
+import { callLead, callList } from "@/db/schema";
+import { classifyPhone, e164, phoneKey } from "@/lib/calls";
 import { getSession } from "@/lib/session";
 import { websiteHref } from "@/lib/website";
 
@@ -49,9 +49,17 @@ export async function PATCH(
     return Response.json({ error: "Invalid request body." }, { status: 400 });
   }
 
+  // The list's market comes along because a corrected number is typed the way
+  // people in that market write it — "(907) 659-2550" on a US niche — and
+  // without it that reads as unusable, which is the same trap the importer had.
   const [lead] = await db
-    .select({ id: callLead.id, callListId: callLead.callListId })
+    .select({
+      id: callLead.id,
+      callListId: callLead.callListId,
+      region: callList.region,
+    })
     .from(callLead)
+    .innerJoin(callList, eq(callList.id, callLead.callListId))
     .where(eq(callLead.id, leadId));
   if (!lead) {
     return Response.json({ error: "Lead not found." }, { status: 404 });
@@ -94,7 +102,7 @@ export async function PATCH(
 
   if ("phone" in body) {
     const phone = typeof body.phone === "string" ? body.phone.trim() : "";
-    const kind = classifyPhone(phone);
+    const kind = classifyPhone(phone, lead.region);
     if (kind === "missing") {
       return Response.json(
         { error: "A lead needs a phone number." },
@@ -116,7 +124,7 @@ export async function PATCH(
       );
     }
 
-    const key = phoneKey(phone);
+    const key = phoneKey(phone, lead.region);
     // (call_list_id, phone_key) is unique, so a clash would otherwise come
     // back as a database error with nothing useful to show the caller.
     const [clash] = await db
@@ -138,7 +146,9 @@ export async function PATCH(
       );
     }
 
-    values.phone = phone;
+    // Same rule as the importer: canonicalised only when it would otherwise
+    // be unreadable without knowing which list it came from.
+    values.phone = e164(phone) ? phone : (e164(phone, lead.region) ?? phone);
     values.phoneKey = key;
   }
 

@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser, callLead, callList } from "@/db/schema";
 import { csvToRecords, type CsvRecord } from "@/lib/csv";
-import { classifyPhone, phoneKey } from "@/lib/calls";
+import { classifyPhone, e164, phoneKey } from "@/lib/calls";
 import { getSession } from "@/lib/session";
 import { websiteHref } from "@/lib/website";
 
@@ -230,10 +230,14 @@ export async function POST(request: Request) {
     assignedUserId = parsed;
   }
 
-  let existingList: { id: number; name: string } | null = null;
+  let existingList: {
+    id: number;
+    name: string;
+    region: "sg" | "us" | "gb" | null;
+  } | null = null;
   if (appendTo !== null) {
     const [found] = await db
-      .select({ id: callList.id, name: callList.name })
+      .select({ id: callList.id, name: callList.name, region: callList.region })
       .from(callList)
       .where(eq(callList.id, appendTo));
     if (!found) {
@@ -241,6 +245,11 @@ export async function POST(request: Request) {
     }
     existingList = found;
   }
+
+  // National-format numbers are read in the list's market. Appending uses the
+  // list's own, so a file added to a US niche is parsed the way the rest of
+  // that niche was rather than the way this request happens to be labelled.
+  const parseRegion = existingList ? existingList.region : region;
 
   const { headers, records } = csvToRecords(await file.text());
   if (records.length === 0) {
@@ -280,8 +289,8 @@ export async function POST(request: Request) {
 
   for (const rec of records) {
     const phone = pick(rec, phoneCols) ?? "";
-    const key = phoneKey(phone);
-    const kind = classifyPhone(phone);
+    const key = phoneKey(phone, parseRegion);
+    const kind = classifyPhone(phone, parseRegion);
 
     if (kind === "missing") {
       skippedNoPhone++;
@@ -314,7 +323,15 @@ export async function POST(request: Request) {
     const full = [first, last].filter(Boolean).join(" ");
 
     rows.push({
-      phone,
+      // Rewritten to E.164 only when it would otherwise be unreadable outside
+      // this function. Everything downstream — the dial button, the copy
+      // button, DNC screening — re-reads this column with no idea which list
+      // it came from, so a number that needed the market's context to parse
+      // has to carry its country code from here on. One that already parses
+      // on its own is left exactly as the scrape wrote it, which keeps
+      // Singapore's numbers reading the way Singaporeans write them. The
+      // original is in source_fields either way.
+      phone: e164(phone) ? phone : (e164(phone, parseRegion) ?? phone),
       key,
       name: full || null,
       company: pick(rec, companyCols),

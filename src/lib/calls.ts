@@ -594,13 +594,16 @@ export async function getCallList(
  * digits starting 3, 6, 8 or 9 is the SG numbering plan; anything else is left
  * exactly as found rather than guessed at.
  */
-export function phoneKey(raw: string): string {
+export function phoneKey(
+  raw: string,
+  defaultRegion?: CallRegion | null,
+): string {
   // Anything we can put in E.164 keys off that, so every way of writing the
   // same line collapses to one value. This matters beyond Singapore now: a UK
   // number carries a trunk "0" that only applies when dialling domestically,
   // so "+44 (0)20 7946 0958" and "+44 20 7946 0958" are one line written two
   // ways, and keying on bare digits would let both into the same list.
-  const canonical = e164(raw);
+  const canonical = e164(raw, defaultRegion);
   if (canonical) return canonical.slice(1);
 
   const digits = raw.replace(/\D/g, "");
@@ -621,6 +624,24 @@ function gbNational(digits: string): string | null {
   return rest.length === 9 || rest.length === 10 ? rest : null;
 }
 
+/** A UK number as a Briton writes it: "020 7946 0100", trunk zero and all. */
+function gbLocal(digits: string): string | null {
+  if (!digits.startsWith("0")) return null;
+  const rest = digits.slice(1);
+  return rest.length === 9 || rest.length === 10 ? rest : null;
+}
+
+/**
+ * A North American number as an American writes it: "(907) 659-2550".
+ *
+ * Neither the area code nor the exchange may start with 0 or 1, which is what
+ * stops a ten-digit serial number or a mangled string being read as a phone
+ * number just because it is the right length.
+ */
+function nanpNational(digits: string): boolean {
+  return /^[2-9]\d{2}[2-9]\d{6}$/.test(digits);
+}
+
 /**
  * Which country's phone system this number belongs to.
  *
@@ -637,17 +658,53 @@ function gbNational(digits: string): string | null {
  * 800 number reads as `sg_tollfree`. Preserving the existing rule matters more
  * — the live base is Singapore — and nobody cold-calls a toll-free line.
  */
+/**
+ * What kind of number is this, read in the market it came from.
+ *
+ * `defaultRegion` is the list's own market, and it only ever applies to a
+ * number written *without* a country code. Most scraped numbers are national
+ * format — Google hands back "(907) 659-2550" for a US business — and with no
+ * market to read them in there is nothing to say whether that is American,
+ * or a mis-typed something else. A US list of 278 once imported four rows for
+ * exactly this reason: the only survivors were Puerto Rico and American Samoa
+ * listings, where Google happened to supply international format.
+ *
+ * An explicit "+" always wins over the default, because it is the one thing
+ * in the string that is not a guess.
+ */
 export function classifyPhone(
   raw: string,
+  defaultRegion?: CallRegion | null,
 ): "sg" | "sg_tollfree" | "us" | "gb" | "foreign" | "malformed" | "missing" {
+  const cleaned = raw.replace(/[^\d+]/g, "");
   const d = raw.replace(/\D/g, "");
   if (!d) return "missing";
-  // Singapore writes its toll-free numbers 1800 xxx xxxx with no country code,
-  // and the US writes its own +1 800 xxx xxxx - identical once the digits are
-  // stripped. An explicit +1 is the only thing that tells them apart, so it is
-  // read before the 1800 rule. Without this every US toll-free lead came out
-  // as an uncallable Singapore number.
-  if (/^\+1\d{10}$/.test(raw.replace(/[^\d+]/g, ""))) return "us";
+
+  // Written with a country code: believe it, and never consult the default.
+  if (cleaned.startsWith("+")) {
+    if (/^\+1\d{10}$/.test(cleaned)) return "us";
+    if (/^\+65\d{8}$/.test(cleaned)) return "sg";
+    if (gbNational(d)) return "gb";
+    return "foreign";
+  }
+
+  // Written the way people in that market write it. Checked before the
+  // bare-digit rules below because those collide: a US number in area code
+  // 650 or 656 is ten digits beginning "65", which is also how a Singapore
+  // number with its country code and no plus looks.
+  if (defaultRegion === "us") {
+    if (nanpNational(d)) return "us";
+    if (d.length === 11 && d.startsWith("1") && nanpNational(d.slice(1))) {
+      return "us";
+    }
+  }
+  if (defaultRegion === "gb" && gbLocal(d)) return "gb";
+  if (defaultRegion === "sg" && d.length === 8 && /^[3689]/.test(d)) return "sg";
+
+  // Country code present but the plus missing, which is how a lot of scrapes
+  // write it. Singapore writes its toll-free numbers 1800 xxx xxxx with no
+  // country code and the US writes its own +1 800 xxx xxxx; identical once
+  // the digits are stripped, which is why the plus is read first above.
   if (d.startsWith("1800")) return "sg_tollfree";
   if (d.length === 8 && /^[3689]/.test(d)) return "sg";
   if (d.length === 10 && d.startsWith("65")) return "sg";
@@ -666,15 +723,21 @@ export type DialCountry = "sg" | "us" | "gb";
  * reachable from outside the country, and offering a dial button that fails is
  * worse than offering none — the copy-to-clipboard button still works.
  */
-export function e164(raw: string): string | null {
+export function e164(
+  raw: string,
+  defaultRegion?: CallRegion | null,
+): string | null {
   const d = raw.replace(/\D/g, "");
-  switch (classifyPhone(raw)) {
+  switch (classifyPhone(raw, defaultRegion)) {
     case "sg":
       return `+65${d.length === 8 ? d : d.slice(2)}`;
     case "us":
-      return `+${d}`;
-    case "gb":
-      return `+44${gbNational(d)}`;
+      // Ten digits national, eleven with the country code already on it.
+      return `+1${d.length === 11 && d.startsWith("1") ? d.slice(1) : d}`;
+    case "gb": {
+      const national = gbNational(d) ?? gbLocal(d);
+      return national ? `+44${national}` : null;
+    }
     default:
       return null;
   }
