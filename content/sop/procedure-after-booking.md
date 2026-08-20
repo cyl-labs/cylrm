@@ -4,10 +4,6 @@ region: null
 title: After you book a meeting
 ---
 
-**PLACEHOLDER: this document is a skeleton.** The steps are in the right
-order, but the details marked PLACEHOLDER need filling in before anyone relies
-on it. Edit `content/sop/procedure-after-booking.md` and deploy.
-
 ## Tap Demo booked before you discuss times
 
 The form shows you which slots are actually open. Agreeing a time you cannot
@@ -52,28 +48,36 @@ you.
 
 ## What happens automatically
 
-- PLACEHOLDER: what gets sent, and when (confirmation, reminders, calendar
-  invite).
-- PLACEHOLDER: which address it comes from.
-- PLACEHOLDER: whether you need to do anything to trigger it, or it is
-  automatic once the meeting is booked.
+Cal.com sends the calendar invite with the Google Meet link within a minute of
+booking, and a reminder the day before. The booking email comes through to us
+at the same time, so nothing depends on you remembering.
 
-## What you do next
+## Tell us anyway
 
-- PLACEHOLDER: anything you are expected to do between booking and the
-  meeting.
-- PLACEHOLDER: who runs the meeting.
-- PLACEHOLDER: where to look to see whether it was attended.
+Once it is logged, let us know. The email reaches us either way, but a word
+from you is what gets the meeting looked at the same day rather than whenever
+somebody checks the inbox.
+
+## Between the booking and the meeting
+
+Nothing. You do not run the demo and you are not expected to chase them. Your
+part of the job finished when the time was agreed and logged.
 
 ## If they do not show up
 
-- PLACEHOLDER: whether you rebook them, and how many times.
-- PLACEHOLDER: what to log against the lead.
+Ring them and rebook. **You get two of those.** After the second miss it is
+lost, and it stops counting toward your pay.
+
+Tell us when a lead reaches that point. Lost is a founder's outcome and is not
+on your list of options, so it is not something you can close off yourself.
 
 ## When you get paid
 
-- PLACEHOLDER: what counts as a qualified meeting that showed up.
-- PLACEHOLDER: when it is paid, and how you can check what you are owed.
+**If they show up, you are paid.** Whether they buy is not your problem and
+does not change anything: turning up is the whole bar.
+
+Payment goes out the **Friday after the meeting**, by whatever method you
+prefer.
 
 The qualification test is also on the dial card, in front of you on every call,
 so it is never something you have to come and look up.
