@@ -355,6 +355,15 @@ export const callList = pgTable("call_list", {
   /** e.g. "aircon servicing SG" — the calling equivalent of lead_list.niche. */
   niche: text("niche"),
   /**
+   * Which market, and so which folder it files under on the lists screen.
+   *
+   * The same vocabulary as `app_user.call_region` on purpose: a free-text
+   * folder would group just as well today but could never be checked against
+   * a caller's market later. Null is unfiled, which is what an import is until
+   * someone says otherwise — it still shows, under its own heading.
+   */
+  region: text("region").$type<"sg" | "us" | "gb">(),
+  /**
    * Whose niche this is. Null means nobody's in particular.
    *
    * A label, not a lock: the dialler still lets anyone work any list, because

@@ -112,6 +112,8 @@ export type CallListSummary = {
    *  not a lock; anyone can still work any list. */
   assignedUserId: number | null;
   assignedName: string | null;
+  /** Which folder it files under on the lists screen. Null is unfiled. */
+  region: CallRegion | null;
 };
 
 /**
@@ -135,7 +137,7 @@ export async function getCallLists(
   // NULLs. count(*) scores that phantom as an uncalled lead, which made an
   // empty list read "-1 of 0 worked".
   const rows = (await db.execute(sql`
-    select cl.id, cl.name, cl.niche, cl.created_at,
+    select cl.id, cl.name, cl.niche, cl.created_at, cl.region,
       cl.assigned_user_id,
       (select u.name from app_user u where u.id = cl.assigned_user_id) as assigned_name,
       count(l.id) as total,
@@ -208,6 +210,7 @@ export async function getCallLists(
     duplicates: n(r.duplicates),
     assignedUserId: r.assigned_user_id === null ? null : n(r.assigned_user_id),
     assignedName: (r.assigned_name as string | null) ?? null,
+    region: (r.region as CallRegion | null) ?? null,
   }));
 }
 
