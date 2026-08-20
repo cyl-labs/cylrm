@@ -114,6 +114,10 @@ export type CallListSummary = {
   assignedName: string | null;
   /** Which folder it files under on the lists screen. Null is unfiled. */
   region: CallRegion | null;
+  /** Every call ever logged against this list's leads. Only the delete
+   *  confirmation reads it — the number it has to say out loud is what would
+   *  be destroyed, and that is history rather than today's activity. */
+  callsLogged: number;
 };
 
 /**
@@ -179,7 +183,10 @@ export async function getCallLists(
         where lc.outcome = 'callback' and lc.callback_at > now()
       ) as callbacks_later,
       (select count(*) from call_lead d
-        where d.call_list_id = cl.id and d.duplicate_of_lead_id is not null) as duplicates
+        where d.call_list_id = cl.id and d.duplicate_of_lead_id is not null) as duplicates,
+      (select count(*) from call c
+        join call_lead cll on cll.id = c.call_lead_id
+        where cll.call_list_id = cl.id) as calls_logged
     from call_list cl
     left join call_lead l
       on l.call_list_id = cl.id and l.duplicate_of_lead_id is null
@@ -211,6 +218,7 @@ export async function getCallLists(
     assignedUserId: r.assigned_user_id === null ? null : n(r.assigned_user_id),
     assignedName: (r.assigned_name as string | null) ?? null,
     region: (r.region as CallRegion | null) ?? null,
+    callsLogged: n(r.calls_logged),
   }));
 }
 

@@ -106,6 +106,21 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   stops the run with the already-created lists intact rather than rolling back
   work that succeeded. Appending to an existing list is still offered, but
   only when exactly one file is staged.
+- **Renaming and deleting a list** are on a `⋯` menu on each card, admin only
+  and enforced in `PATCH`/`DELETE /api/call-lists/[id]` rather than by hiding
+  the button. Delete is genuinely destructive and says what it will destroy in
+  numbers first: a list imported from the wrong file reads "231 leads, no
+  calls" and is an easy call, while a worked list gets a second, louder line,
+  because leads are re-importable from the CSV and a record of who was rung is
+  not. It deletes leaf-first inside a transaction (`call` → `call_lead` →
+  `call_list`) and clears `duplicate_of_lead_id` on leads *elsewhere* that
+  pointed into it, so their numbers return to the queue instead of tripping the
+  foreign key.
+- Controls positioned over a card must stop only propagation, never
+  `preventDefault`. The card is one big link so the *trigger* needs both, but
+  the menu and dialogs render through a portal and never reach that anchor —
+  and `preventDefault` on a dialog's clicks cancels the submit button's own
+  default action, which made the rename form silently do nothing.
 - Board and stats both take `?list=<id>` to narrow to one niche. Both selects live in `src/components/calls/call-filters.tsx` **together** on purpose: a range select that rebuilt the query string on its own dropped `?list=` every time it fired, quietly widening the numbers back to every niche.
 - The board carries **every** lead now that Lost is a column of its own; there is no exclusion set left. Watch the older trap if one is ever reintroduced: `TERMINAL` means "out of the cold-calling queue", which includes `demo_booked`, `trial` and `won` — filtering the board by it emptied the columns those leads belong in.
 - The call outcome enum lost `interested` and gained `trial`, `won`, `lost` on 2026-08-03 (`scripts/migrations/2026-08-03-call-outcome-pipeline.sql`). Postgres cannot drop an enum value, so the type is rebuilt; `drizzle-kit push` cannot do it either (a diff that both drops and adds enum values goes interactive and crashes with no TTY). **Apply the SQL before deploying the code** — the new code writes outcomes the old type does not have.

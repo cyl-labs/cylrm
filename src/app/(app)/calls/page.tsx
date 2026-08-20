@@ -6,6 +6,7 @@ import { listTeam } from "@/lib/users";
 import { PageShell } from "@/components/page-shell";
 import { CallImportDialog } from "@/components/calls/call-import-dialog";
 import { ListAssignment } from "@/components/calls/list-assignment";
+import { ListActions } from "@/components/calls/list-actions";
 import { ListRegion } from "@/components/calls/list-region";
 import { REGION_LABELS, REGION_ORDER } from "@/components/calls/region";
 import { Badge } from "@/components/ui/badge";
@@ -184,6 +185,14 @@ function ListCard({
           people={people}
           canManage={isAdmin}
         />
+        {isAdmin && (
+          <ListActions
+            listId={l.id}
+            name={l.name}
+            leads={l.total}
+            calls={l.callsLogged}
+          />
+        )}
       </div>
       <Link
         href={`/calls/${l.id}`}
@@ -199,7 +208,7 @@ function ListCard({
       >
         {/* Room for the controls pinned to that corner — without it a long
             niche name runs underneath them. Wider now there are two. */}
-        <div className="flex items-start gap-2 pr-32">
+        <div className="flex items-start gap-2 pr-40">
           <div className="min-w-0">
             <p className="truncate font-bold tracking-[-0.01em]">
               {l.name}
