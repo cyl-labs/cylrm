@@ -81,6 +81,8 @@ export default async function CallsPage({
           )}
           <CallImportDialog
             callLists={all.map((l) => ({ id: l.id, name: l.name }))}
+            people={people}
+            canAssign={isAdmin}
           />
         </div>
       }

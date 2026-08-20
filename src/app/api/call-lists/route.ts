@@ -1,6 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { callLead, callList } from "@/db/schema";
+import { appUser, callLead, callList } from "@/db/schema";
 import { csvToRecords, type CsvRecord } from "@/lib/csv";
 import { classifyPhone, phoneKey } from "@/lib/calls";
 import { getSession } from "@/lib/session";
@@ -176,6 +176,14 @@ export async function POST(request: Request) {
   const file = form.get("file");
   const name = form.get("name");
   const niche = form.get("niche");
+  const regionRaw = form.get("region");
+  const ownerRaw = form.get("assignedUserId");
+  // Parse and report, write nothing. The bulk import runs this over every file
+  // first so the review screen shows what each one actually holds - how many
+  // usable numbers, what got skipped - before anybody commits to creating a
+  // list. Counting rows in the browser would have to reimplement the phone
+  // rules below and would drift from them the first time they changed.
+  const dryRun = form.get("dryRun") === "1";
   const appendToRaw = form.get("callListId");
   const appendTo =
     typeof appendToRaw === "string" && appendToRaw !== ""
@@ -191,8 +199,35 @@ export async function POST(request: Request) {
   if (appendTo !== null && !Number.isInteger(appendTo)) {
     return Response.json({ error: "Invalid call list." }, { status: 400 });
   }
-  if (appendTo === null && (typeof name !== "string" || name.trim() === "")) {
+  if (appendTo === null && !dryRun && (typeof name !== "string" || name.trim() === "")) {
     return Response.json({ error: "Call list name is required." }, { status: 400 });
+  }
+
+  // Both only mean anything on a new list: appending to one that exists must
+  // not quietly re-file it or hand it to somebody else.
+  let region: "sg" | "us" | "gb" | null = null;
+  if (typeof regionRaw === "string" && regionRaw !== "") {
+    if (regionRaw !== "sg" && regionRaw !== "us" && regionRaw !== "gb") {
+      return Response.json({ error: "Invalid folder." }, { status: 400 });
+    }
+    region = regionRaw;
+  }
+  let assignedUserId: number | null = null;
+  if (typeof ownerRaw === "string" && ownerRaw !== "") {
+    const parsed = Number(ownerRaw);
+    if (!Number.isInteger(parsed)) {
+      return Response.json({ error: "Invalid person." }, { status: 400 });
+    }
+    // Checked here rather than left to the foreign key, which would come back
+    // as a constraint error with nothing to show the user.
+    const [person] = await db
+      .select({ id: appUser.id })
+      .from(appUser)
+      .where(eq(appUser.id, parsed));
+    if (!person) {
+      return Response.json({ error: "Person not found." }, { status: 404 });
+    }
+    assignedUserId = parsed;
   }
 
   let existingList: { id: number; name: string } | null = null;
@@ -300,6 +335,16 @@ export async function POST(request: Request) {
     );
   }
 
+  if (dryRun) {
+    return Response.json({
+      dryRun: true,
+      usable: rows.length,
+      skippedNoPhone,
+      skippedBadNumber,
+      skippedRepeatedInFile,
+    });
+  }
+
   // A number already being worked on another list is flagged rather than
   // dropped, so the row is visible but stays out of the queue — calling the
   // same business twice from two lists is the thing worth preventing.
@@ -335,6 +380,8 @@ export async function POST(request: Request) {
               typeof niche === "string" && niche.trim() !== ""
                 ? niche.trim()
                 : null,
+            region,
+            assignedUserId,
           })
           .returning({ id: callList.id, name: callList.name })
       )[0];

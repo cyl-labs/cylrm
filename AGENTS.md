@@ -58,6 +58,20 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   rather than being guessed. Empty folders are not rendered. The chip on each
   card is the control, not the label — the folder is already legible from the
   heading the card sits under.
+- **Bulk import**: the import dialog takes many CSVs at once, and each becomes
+  its own list. Every file is first sent to `POST /api/call-lists` with
+  `dryRun=1`, which runs the real parser and reports usable/skipped counts
+  **without writing anything** — so the review step shows what a file actually
+  holds before a list exists, and counting rows in the browser never has to
+  reimplement the phone rules. Name, folder and owner are set per file there
+  and posted on submit (`region`, `assignedUserId`), which is the point:
+  importing fifteen niches and then opening fifteen cards to assign each was
+  the tedious part. Folder is guessed from the filename ("movers-sg.csv" →
+  Singapore). Files are scanned and imported **one at a time**, not in
+  parallel — this is a 1 vCPU box shared with four other apps — and a failure
+  stops the run with the already-created lists intact rather than rolling back
+  work that succeeded. Appending to an existing list is still offered, but
+  only when exactly one file is staged.
 - Board and stats both take `?list=<id>` to narrow to one niche. Both selects live in `src/components/calls/call-filters.tsx` **together** on purpose: a range select that rebuilt the query string on its own dropped `?list=` every time it fired, quietly widening the numbers back to every niche.
 - The board carries **every** lead now that Lost is a column of its own; there is no exclusion set left. Watch the older trap if one is ever reintroduced: `TERMINAL` means "out of the cold-calling queue", which includes `demo_booked`, `trial` and `won` — filtering the board by it emptied the columns those leads belong in.
 - The call outcome enum lost `interested` and gained `trial`, `won`, `lost` on 2026-08-03 (`scripts/migrations/2026-08-03-call-outcome-pipeline.sql`). Postgres cannot drop an enum value, so the type is rebuilt; `drizzle-kit push` cannot do it either (a diff that both drops and adds enum values goes interactive and crashes with no TTY). **Apply the SQL before deploying the code** — the new code writes outcomes the old type does not have.

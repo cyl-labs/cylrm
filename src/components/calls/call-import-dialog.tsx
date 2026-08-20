@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Upload } from "lucide-react";
+import { Loader2, Upload, X } from "lucide-react";
+import type { CallRegion } from "@/lib/calls";
+import { REGION_LABELS, REGION_ORDER } from "@/components/calls/region";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,9 +24,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
+/**
+ * Import one CSV or twenty, and set up each list before it exists.
+ *
+ * Pick the files, and every one is parsed by the server *without being
+ * written* — so the review step can say what each actually holds before
+ * anybody commits. Name, folder and owner are set per list there, which is the
+ * whole point: importing fifteen niches and then opening fifteen cards to
+ * assign each one was the tedious part.
+ *
+ * Nothing is created until Import is pressed. Removing a file from the review
+ * list therefore costs nothing and leaves nothing behind.
+ */
+
+type Scan = {
+  usable: number;
+  skippedNoPhone: number;
+  skippedRepeatedInFile: number;
+  skippedBadNumber: { company: string; phone: string }[];
+};
+
+type Staged = {
+  /** Stable across re-renders; two files can share a name. */
+  key: string;
+  file: File;
+  name: string;
+  region: CallRegion | "none";
+  ownerId: string;
+  scan: Scan | null;
+  /** Why this file cannot be imported, from the server's own parser. */
+  error: string | null;
+};
 
 type ImportResult = {
-  callListId: number;
   callListName: string;
   appended: boolean;
   inserted: number;
@@ -36,69 +70,154 @@ type ImportResult = {
 };
 
 const NEW_LIST = "__new__";
+const NO_OWNER = "__none__";
 
 function nameFromFilename(filename: string) {
   return filename.replace(/\.csv$/i, "").replace(/[_-]+/g, " ").trim();
 }
 
+/** The suffix every existing list already carries, so a file called
+ *  "movers-sg.csv" lands in the right folder without being told. */
+function guessRegion(name: string): CallRegion | "none" {
+  const t = name.toLowerCase();
+  if (/\b(sg|singapore)\b/.test(t)) return "sg";
+  if (/\b(us|usa|united states)\b/.test(t)) return "us";
+  if (/\b(uk|gb|britain|united kingdom)\b/.test(t)) return "gb";
+  return "none";
+}
+
 export function CallImportDialog({
   callLists,
+  people = [],
+  canAssign = false,
 }: {
   callLists: { id: number; name: string }[];
+  /** Who a list can be handed to. Empty for a caller, who cannot assign. */
+  people?: { id: number; name: string; active: boolean }[];
+  canAssign?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [file, setFile] = React.useState<File | null>(null);
+  const [staged, setStaged] = React.useState<Staged[]>([]);
+  const [scanning, setScanning] = React.useState(false);
   const [target, setTarget] = React.useState<string>(NEW_LIST);
-  const [name, setName] = React.useState("");
-  const [nameEdited, setNameEdited] = React.useState(false);
-  const [niche, setNiche] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [result, setResult] = React.useState<ImportResult | null>(null);
+  const [results, setResults] = React.useState<ImportResult[] | null>(null);
 
-  const creatingList = target === NEW_LIST;
+  // Appending only makes sense for a single file: five files into one list is
+  // a merge nobody asked for, and it would hide which rows came from where.
+  const appending = staged.length === 1 && target !== NEW_LIST;
 
   function reset() {
-    setFile(null);
+    setStaged([]);
+    setScanning(false);
     setTarget(NEW_LIST);
-    setName("");
-    setNameEdited(false);
-    setNiche("");
     setSubmitting(false);
     setError(null);
-    setResult(null);
+    setResults(null);
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0] ?? null;
-    setFile(selected);
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    // The same input can be used twice; clearing it means re-picking the same
+    // file fires change again rather than silently doing nothing.
+    e.target.value = "";
+    if (picked.length === 0) return;
     setError(null);
-    if (selected && !nameEdited) setName(nameFromFilename(selected.name));
+
+    const additions: Staged[] = picked.map((file, i) => {
+      const name = nameFromFilename(file.name);
+      return {
+        key: `${file.name}-${file.size}-${file.lastModified}-${i}`,
+        file,
+        name,
+        region: guessRegion(name),
+        ownerId: NO_OWNER,
+        scan: null,
+        error: null,
+      };
+    });
+    setStaged((prev) => [...prev, ...additions]);
+
+    setScanning(true);
+    // Sequential rather than all at once: a bulk import is a dozen files on a
+    // 1 vCPU box, and parsing them in parallel is how the other apps on it
+    // notice. Each result lands as it arrives.
+    for (const entry of additions) {
+      const body = new FormData();
+      body.append("file", entry.file);
+      body.append("dryRun", "1");
+      try {
+        const res = await fetch("/api/call-lists", { method: "POST", body });
+        const data = await res.json().catch(() => ({}));
+        setStaged((prev) =>
+          prev.map((s) =>
+            s.key === entry.key
+              ? res.ok
+                ? { ...s, scan: data as Scan, error: null }
+                : { ...s, scan: null, error: data.error ?? "Could not read it." }
+              : s,
+          ),
+        );
+      } catch {
+        setStaged((prev) =>
+          prev.map((s) =>
+            s.key === entry.key ? { ...s, error: "Could not read it." } : s,
+          ),
+        );
+      }
+    }
+    setScanning(false);
   }
+
+  function update(key: string, patch: Partial<Staged>) {
+    setStaged((prev) =>
+      prev.map((s) => (s.key === key ? { ...s, ...patch } : s)),
+    );
+  }
+
+  const importable = staged.filter((s) => s.error === null);
+  const ready =
+    importable.length > 0 &&
+    !scanning &&
+    (appending || importable.every((s) => s.name.trim() !== ""));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file || submitting) return;
+    if (!ready || submitting) return;
     setSubmitting(true);
     setError(null);
+
+    const done: ImportResult[] = [];
     try {
-      const body = new FormData();
-      body.append("file", file);
-      if (creatingList) {
-        body.append("name", name);
-        body.append("niche", niche);
-      } else {
-        body.append("callListId", target);
+      // One at a time, so a list that fails does not take the rest with it and
+      // the ones already created stay created.
+      for (const s of importable) {
+        const body = new FormData();
+        body.append("file", s.file);
+        if (appending) {
+          body.append("callListId", target);
+        } else {
+          body.append("name", s.name.trim());
+          if (s.region !== "none") body.append("region", s.region);
+          if (s.ownerId !== NO_OWNER) body.append("assignedUserId", s.ownerId);
+        }
+        const res = await fetch("/api/call-lists", { method: "POST", body });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(
+            `${s.name || s.file.name}: ${data.error ?? `failed (${res.status})`}` +
+              (done.length ? ` — ${done.length} imported before this.` : ""),
+          );
+          break;
+        }
+        done.push(data as ImportResult);
       }
-      const res = await fetch("/api/call-lists", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? `Import failed (${res.status}).`);
-        return;
+      if (done.length > 0) {
+        setResults(done);
+        router.refresh();
       }
-      setResult(data as ImportResult);
-      router.refresh();
     } catch {
       setError("Import failed: network error.");
     } finally {
@@ -111,6 +230,8 @@ export function CallImportDialog({
     if (!next) reset();
   }
 
+  const totalUsable = importable.reduce((a, s) => a + (s.scan?.usable ?? 0), 0);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -119,64 +240,44 @@ export function CallImportDialog({
           Import CSV
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        {result ? (
+      <DialogContent
+        className={cn(
+          "max-h-[90vh] overflow-y-auto",
+          staged.length > 0 || results ? "sm:max-w-2xl" : "sm:max-w-md",
+        )}
+      >
+        {results ? (
           <>
             <DialogHeader>
-              <DialogTitle>Import complete</DialogTitle>
+              <DialogTitle>
+                {results.length === 1
+                  ? results[0].appended
+                    ? `Added to “${results[0].callListName}”`
+                    : `“${results[0].callListName}” created`
+                  : `${results.length} lists created`}
+              </DialogTitle>
               <DialogDescription>
-                {result.appended
-                  ? `Added to “${result.callListName}”.`
-                  : `Call list “${result.callListName}” created.`}
+                {results.reduce((a, r) => a + r.inserted, 0)} leads imported.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-1.5 text-[13px]">
-              <p>
-                <span className="font-medium">{result.inserted}</span> leads
-                imported
-              </p>
-              {result.duplicates > 0 && (
-                <p className="text-muted-foreground">
-                  {result.duplicates} flagged: that number is already on
-                  another list, so they stay out of the queue
-                </p>
-              )}
-              {result.alreadyInList > 0 && (
-                <p className="text-muted-foreground">
-                  {result.alreadyInList} already in this list, skipped
-                </p>
-              )}
-              {result.skippedRepeatedInFile > 0 && (
-                <p className="text-muted-foreground">
-                  {result.skippedRepeatedInFile} repeated in the file, skipped
-                </p>
-              )}
-              {result.skippedNoPhone > 0 && (
-                <p className="text-muted-foreground">
-                  {result.skippedNoPhone}{" "}
-                  {result.skippedNoPhone === 1 ? "row had" : "rows had"} no
-                  phone number
-                </p>
-              )}
-              {result.skippedBadNumber.length > 0 && (
-                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                  <p className="font-medium">
-                    {result.skippedBadNumber.length} skipped: not a Singapore
-                    number:
+            <ul className="divide-y text-[13px]">
+              {results.map((r) => (
+                <li key={r.callListName} className="py-2">
+                  <p className="font-semibold">{r.callListName}</p>
+                  <p className="text-muted-foreground">
+                    {r.inserted} imported
+                    {r.duplicates > 0 &&
+                      ` · ${r.duplicates} already on another list, held out of the queue`}
+                    {r.alreadyInList > 0 && ` · ${r.alreadyInList} already here`}
+                    {r.skippedRepeatedInFile > 0 &&
+                      ` · ${r.skippedRepeatedInFile} repeated in the file`}
+                    {r.skippedNoPhone > 0 && ` · ${r.skippedNoPhone} with no number`}
+                    {r.skippedBadNumber.length > 0 &&
+                      ` · ${r.skippedBadNumber.length} unusable numbers`}
                   </p>
-                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                    {result.skippedBadNumber.slice(0, 6).map((b) => (
-                      <li key={`${b.company}-${b.phone}`} className="truncate">
-                        {b.company}: {b.phone}
-                      </li>
-                    ))}
-                    {result.skippedBadNumber.length > 6 && (
-                      <li>…and {result.skippedBadNumber.length - 6} more</li>
-                    )}
-                  </ul>
-                </div>
-              )}
-            </div>
+                </li>
+              ))}
+            </ul>
             <DialogFooter>
               <Button onClick={() => handleOpenChange(false)}>Done</Button>
             </DialogFooter>
@@ -184,72 +285,184 @@ export function CallImportDialog({
         ) : (
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>Import call list</DialogTitle>
+              <DialogTitle>Import call lists</DialogTitle>
               <DialogDescription>
-                A CSV with a phone column. Everything else (name, company,
-                title, email) is optional.
+                CSVs with a phone column. Pick as many as you like — each
+                becomes its own list, and nothing is created until you press
+                Import.
               </DialogDescription>
             </DialogHeader>
+
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="call-import-file">CSV file</Label>
+                <Label htmlFor="call-import-file">
+                  {staged.length > 0 ? "Add more files" : "CSV files"}
+                </Label>
                 <Input
                   id="call-import-file"
                   type="file"
                   accept=".csv,text/csv"
+                  multiple
                   onChange={handleFileChange}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="call-import-target">Call list</Label>
-                <Select value={target} onValueChange={setTarget}>
-                  <SelectTrigger id="call-import-target" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NEW_LIST}>Create a new list</SelectItem>
-                    {callLists.map((l) => (
-                      <SelectItem key={l.id} value={String(l.id)}>
-                        Add to: {l.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {creatingList && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="call-import-name">Call list name</Label>
-                    <Input
-                      id="call-import-name"
-                      value={name}
-                      onChange={(e) => {
-                        setName(e.target.value);
-                        setNameEdited(true);
-                      }}
-                      placeholder="e.g. aircon servicing SG, Aug 2026"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="call-import-niche">Niche (optional)</Label>
-                    <Input
-                      id="call-import-niche"
-                      value={niche}
-                      onChange={(e) => setNiche(e.target.value)}
-                      placeholder="e.g. aircon servicing"
-                    />
-                  </div>
-                </>
+
+              {staged.length === 1 && callLists.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="call-import-target">Call list</Label>
+                  <Select value={target} onValueChange={setTarget}>
+                    <SelectTrigger id="call-import-target" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NEW_LIST}>Create a new list</SelectItem>
+                      {callLists.map((l) => (
+                        <SelectItem key={l.id} value={String(l.id)}>
+                          Add to: {l.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
+
+              {staged.length > 0 && (
+                <ul className="space-y-2">
+                  {staged.map((s) => (
+                    <li
+                      key={s.key}
+                      className={cn(
+                        "rounded-lg border p-3",
+                        s.error && "border-destructive/40 bg-destructive/5",
+                      )}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[12px] text-muted-foreground">
+                            {s.file.name}
+                          </p>
+                          {s.error ? (
+                            <p className="mt-0.5 text-[13px] text-destructive">
+                              {s.error}
+                            </p>
+                          ) : s.scan ? (
+                            <p className="mt-0.5 text-[13px]">
+                              <span className="font-semibold">
+                                {s.scan.usable}
+                              </span>{" "}
+                              usable
+                              {s.scan.skippedBadNumber.length > 0 &&
+                                ` · ${s.scan.skippedBadNumber.length} unusable`}
+                              {s.scan.skippedNoPhone > 0 &&
+                                ` · ${s.scan.skippedNoPhone} with no number`}
+                              {s.scan.skippedRepeatedInFile > 0 &&
+                                ` · ${s.scan.skippedRepeatedInFile} repeated`}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                              <Loader2 className="size-3 animate-spin" />
+                              Reading…
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${s.file.name}`}
+                          onClick={() =>
+                            setStaged((prev) =>
+                              prev.filter((x) => x.key !== s.key),
+                            )
+                          }
+                          className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+
+                      {!s.error && !appending && (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                          <Input
+                            value={s.name}
+                            onChange={(e) =>
+                              update(s.key, { name: e.target.value })
+                            }
+                            placeholder="List name"
+                            aria-label={`Name for ${s.file.name}`}
+                            required
+                          />
+                          <Select
+                            value={s.region}
+                            onValueChange={(v) =>
+                              update(s.key, { region: v as CallRegion | "none" })
+                            }
+                          >
+                            <SelectTrigger
+                              className="w-full sm:w-40"
+                              aria-label={`Folder for ${s.file.name}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {REGION_ORDER.map((r) => (
+                                <SelectItem key={r} value={r}>
+                                  {REGION_LABELS[r]}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="none">Unfiled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {canAssign && (
+                            <Select
+                              value={s.ownerId}
+                              onValueChange={(v) =>
+                                update(s.key, { ownerId: v })
+                              }
+                            >
+                              <SelectTrigger
+                                className="w-full sm:w-40"
+                                aria-label={`Owner for ${s.file.name}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NO_OWNER}>
+                                  Nobody yet
+                                </SelectItem>
+                                {people.map((p) => (
+                                  <SelectItem key={p.id} value={String(p.id)}>
+                                    {p.name}
+                                    {!p.active && " (off)"}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
               {error && <p className="text-[13px] text-destructive">{error}</p>}
             </div>
-            <DialogFooter>
-              <Button
-                type="submit"
-                disabled={!file || (creatingList && name.trim() === "") || submitting}
-              >
-                {submitting ? "Importing…" : "Import"}
+
+            <DialogFooter className="items-center gap-2 sm:justify-between">
+              <p className="text-[13px] text-muted-foreground">
+                {importable.length > 0 &&
+                  !scanning &&
+                  `${totalUsable} leads across ${importable.length} ${
+                    importable.length === 1 ? "file" : "files"
+                  }`}
+              </p>
+              <Button type="submit" disabled={!ready || submitting}>
+                {submitting
+                  ? "Importing…"
+                  : appending
+                    ? "Add to list"
+                    : `Import${
+                        importable.length > 1 ? ` ${importable.length} lists` : ""
+                      }`}
               </Button>
             </DialogFooter>
           </form>
