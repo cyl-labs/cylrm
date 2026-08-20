@@ -7,6 +7,45 @@ title: Cold Calling Script
 Top to bottom is the call. Indented blocks are detours.
 Take one only if it happens, then carry on where you left off.
 
+## Before you call
+
+**Do not open with the company name.** "Hi, I'm calling from ..." tells them
+they are being sold to before they know what about, and the honest answer to a
+name they have never heard is "no thanks". Lead with the problem instead: the
+first two lines of the opener are questions about their phones, not an
+introduction. Say nothing about who you are until they ask.
+
+**When they do ask, answer with the problem and the fix, not the brand.**
+
+> **You say** My name's [your name]. I work with [their trade] on missed calls. We set up a voice agent that picks up when you're on a job or closed.
+
+Short version, if they are impatient:
+
+> **You say** Just me. I help [their trade] businesses stop losing after-hours calls.
+
+**If they ask a second time, or ask outright for the company name, give it.**
+Dodging twice is what a scam call sounds like, and you lose the call there.
+Say it plainly and go straight back to your question.
+
+> **You say** Cyllabs. Anyway, when you're out on a job, do those calls go to voicemail?
+
+**Say "voice agent", not "AI receptionist", "chatbot" or "answering
+service".** The script has a line ready for anyone who finds "voice agent"
+confusing, and the other three words each bring an assumption you then have to
+argue with.
+
+**The demo already exists. You are not offering to build one.** The close
+says you built it out for their business, so do not turn it into "I could put
+something together". A thing that exists is worth twenty minutes; a thing you
+might make is not.
+
+**PLACEHOLDER: what to say if they ask the price on the phone.** This will
+come up and there is currently no agreed answer. Decide it before anyone dials.
+
+**PLACEHOLDER: the recorded-line notice.** Calls made from the browser dialler
+are recorded. The wording that tells them so needs to go in the opener before
+any real prospect is called.
+
 ## Opener sequence
 
 > **You say** Hello, can I ask what time you close today?

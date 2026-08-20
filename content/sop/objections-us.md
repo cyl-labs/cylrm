@@ -11,6 +11,21 @@ These can come up anywhere in the call, not just at the end.
 
 > **You say** Honestly, I'm not gonna hard sell you on this. I even offer free trials to a lot of businesses if they're not sure they're getting enough calls to see if it'd add value. And we're not even at that point yet, right, I'm really just trying to see if you like what I can build you, because we're pretty good at it, we work with a lot of other [industry] companies. So I think I could impress you, and that'd basically be it. Wouldn't be a hard sales pitch, you either like it or you don't.
 
+## Brushing you off | Prospect: "Who is this? / What company are you with?"
+
+
+Lead with the problem and the fix. A name they have never heard gives them
+nothing to say yes to; a problem they have gives them something to agree with.
+
+> **You say** My name's [your name]. I work with [their trade] on missed calls. We set up a voice agent that picks up when you're on a job or closed.
+
+_(let them answer)_
+
+If they ask again, or ask outright for the company, give it. Dodging twice is
+what a scam call sounds like. Say it and go straight back to your question.
+
+> **You say** Cyllabs. Anyway, when you're out on a job, do those calls go to voicemail?
+
 ## Brushing you off | Prospect: "I'm not interested."
 
 
