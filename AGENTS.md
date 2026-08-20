@@ -55,6 +55,19 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   "65", which is also a Singapore number with its country code and no plus.
   NANP shape is validated (neither area code nor exchange may start 0 or 1),
   so an invalid US shape still falls through to the Singapore reading.
+- **A row's phone is chosen by what parses, not by column order.** Scrapes
+  often carry several — a display column, an `e164` column, site-scraped ones.
+  `pickPhone` walks the matched columns in alias order and takes the first that
+  classifies as diallable, falling back to the first present value so a bad row
+  is reported with a number a person recognises. An `e164` column wins outright
+  in the alias list, being the one form no country has to be inferred from: two
+  live scrapes carried a perfect `+1...` column beside a `(907) 276-4147`
+  display column, and reading only the display one rejected every row.
+- **A dry run never fails on "no usable number".** It reports `usable: 0` and
+  the counts instead, because a file whose numbers are all national format has
+  nothing usable *yet* — the fix is choosing the folder, and erroring left the
+  review row with no controls and no way forward. Only a real import errors on
+  an empty result, since there is nothing to create.
 - The importer stores `phone` **rewritten to E.164 only when it would not
   otherwise parse** — i.e. exactly the numbers that needed the market's
   context. Everything downstream re-reads that column with no idea which list

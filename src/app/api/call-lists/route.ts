@@ -30,8 +30,17 @@ const normalise = (h: string) =>
 // A mobile or direct line reaches a person; a main line reaches reception.
 const COLUMN_ALIASES = {
   phone: [
+    // A column already in E.164 is the one unambiguous form there is, so it
+    // wins outright: no country has to be inferred from it. Scrapes that
+    // resolve the number properly emit both this and a display column, and
+    // reading only the display one threw away the good value.
+    "e164",
+    "phone e164",
+    "e164 phone",
+    "international phone",
+    "phone international",
     // A number checked against the company's own published contact details
-    // beats anything the scrape guessed, so it wins outright.
+    // beats anything the scrape guessed, so it wins next.
     "verified phone",
     "mobile number",
     "mobile phone",
@@ -132,6 +141,33 @@ function findColumns(headers: string[], aliases: readonly string[]) {
 }
 
 /** First non-empty value across the candidate columns, for one row. */
+/**
+ * The best phone number on a row.
+ *
+ * A scrape often carries several: a display column, an E.164 column, a
+ * site-scraped one. Alias order says which to prefer, but preference is not
+ * the whole answer — the preferred column can hold something unusable while
+ * another holds the same line written properly. So the first candidate that
+ * actually classifies as diallable wins, and only if none do does the first
+ * present value get returned, so the row is reported with the number a person
+ * would recognise rather than a blank.
+ */
+function pickPhone(
+  rec: CsvRecord,
+  columns: string[],
+  region: "sg" | "us" | "gb" | null,
+): string | null {
+  const candidates: string[] = [];
+  for (const col of columns) {
+    const v = rec[col]?.trim();
+    if (v && v.toLowerCase() !== "na" && v !== "-") candidates.push(v);
+  }
+  for (const v of candidates) {
+    if (DIALLABLE.has(classifyPhone(v, region))) return v;
+  }
+  return candidates[0] ?? null;
+}
+
 function pick(rec: CsvRecord, columns: string[]): string | null {
   for (const col of columns) {
     const v = rec[col]?.trim();
@@ -288,7 +324,7 @@ export async function POST(request: Request) {
   const seenInFile = new Set<string>();
 
   for (const rec of records) {
-    const phone = pick(rec, phoneCols) ?? "";
+    const phone = pickPhone(rec, phoneCols, parseRegion) ?? "";
     const key = phoneKey(phone, parseRegion);
     const kind = classifyPhone(phone, parseRegion);
 
@@ -345,13 +381,10 @@ export async function POST(request: Request) {
     });
   }
 
-  if (rows.length === 0) {
-    return Response.json(
-      { error: "No row had a usable phone number." },
-      { status: 400 },
-    );
-  }
-
+  // Reported before the empty check below, never as an error: a file whose
+  // numbers are all national format has nothing usable *yet*, and telling the
+  // review screen so is what lets it offer the folder that fixes it. Failing
+  // here left the row with no controls and no way forward.
   if (dryRun) {
     return Response.json({
       dryRun: true,
@@ -360,6 +393,13 @@ export async function POST(request: Request) {
       skippedBadNumber,
       skippedRepeatedInFile,
     });
+  }
+
+  if (rows.length === 0) {
+    return Response.json(
+      { error: "No row had a usable phone number." },
+      { status: 400 },
+    );
   }
 
   // A number already being worked on another list is flagged rather than

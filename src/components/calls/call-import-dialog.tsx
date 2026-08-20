@@ -197,7 +197,14 @@ export function CallImportDialog({
     );
   }
 
-  const importable = staged.filter((s) => s.error === null);
+  // Staged but not importable: a file whose numbers are all national format
+  // reads as zero usable until a folder is chosen, and it has to stay on
+  // screen with its controls for that to be possible.
+  const importable = staged.filter(
+    (s) => s.error === null && (s.scan?.usable ?? 0) > 0,
+  );
+  const scanned = staged.filter((s) => s.error === null && s.scan !== null);
+  const empty = scanned.filter((s) => s.scan!.usable === 0);
   const ready =
     importable.length > 0 &&
     !scanning &&
@@ -383,13 +390,22 @@ export function CallImportDialog({
                                   no country code, and those can only be read
                                   once the market is known. Saying so beats
                                   leaving someone to conclude the file is bad. */}
-                              {s.region === "none" &&
+                              {s.scan.usable === 0 ? (
+                                <p className="mt-0.5 text-[12px] font-semibold text-destructive">
+                                  Nothing usable yet
+                                  {s.region === "none"
+                                    ? " — pick the folder for this list's country and these will be read in its format."
+                                    : ` — none of these look like ${REGION_LABELS[s.region as CallRegion]} numbers.`}
+                                </p>
+                              ) : (
+                                s.region === "none" &&
                                 s.scan.skippedBadNumber.length > 0 && (
                                   <p className="mt-0.5 text-[12px] text-muted-foreground">
                                     Set a folder to read those in that
                                     country&rsquo;s format.
                                   </p>
-                                )}
+                                )
+                              )}
                             </>
                           ) : (
                             <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -487,11 +503,14 @@ export function CallImportDialog({
 
             <DialogFooter className="items-center gap-2 sm:justify-between">
               <p className="text-[13px] text-muted-foreground">
-                {importable.length > 0 &&
-                  !scanning &&
-                  `${totalUsable} leads across ${importable.length} ${
-                    importable.length === 1 ? "file" : "files"
-                  }`}
+                {!scanning &&
+                  (importable.length > 0
+                    ? `${totalUsable} leads across ${importable.length} ${
+                        importable.length === 1 ? "file" : "files"
+                      }${empty.length > 0 ? `, ${empty.length} with nothing usable` : ""}`
+                    : empty.length > 0
+                      ? "Set a folder to read these numbers."
+                      : "")}
               </p>
               <Button type="submit" disabled={!ready || submitting}>
                 {submitting
