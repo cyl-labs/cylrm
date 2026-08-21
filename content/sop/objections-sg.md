@@ -79,7 +79,7 @@ _(let them answer)_
 
 _(let them answer)_
 
-> **You say** That's the thing, you'd be surprised. Most people miss more than they think they do. Why don't we run a 30-day trial? You'll actually see the number, and if it's basically nothing, no harm done. But usually it's higher than people expect, so let's just let the data show you.
+> **You say** That's the thing, you'd be surprised. Run a 30-day trial and you'll see the actual number. If it's nothing, no harm done.
 
 ## Says they don't need it | Prospect: "We get basically no after-hours calls, doesn't matter to us."
 
