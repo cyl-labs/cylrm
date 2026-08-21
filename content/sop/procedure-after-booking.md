@@ -10,15 +10,13 @@ The form shows you which slots are actually open. Agreeing a time you cannot
 see means ringing them back to move it, and every rebooking is a chance for
 them to change their mind.
 
-## Take their name, number and email
+## Take their name and email
 
-The booking is not finished until you have the email. Without one nothing can
-be sent, no reminder goes out, and the meeting is far more likely to be a
-no-show. The number is how you reach them if anything changes.
+The email is the only thing you do not already have, and the booking is not
+finished without it: no invite, no reminder, and a meeting far more likely to
+be a no-show. You are already on their number, so do not ask for one.
 
-> **You say** Perfect, let me get you in the diary. Can I take your name and the best number for you?
-
-> **You say** And the best email for the invite?
+> **You say** Perfect, let me get you in the diary. Can I take your name and the best email for the invite?
 
 Confirm the email back to them letter by letter if there is any doubt. A typo
 here costs the whole meeting.
