@@ -23,6 +23,25 @@ no-show. The number is how you reach them if anything changes.
 Confirm the email back to them letter by letter if there is any doubt. A typo
 here costs the whole meeting.
 
+## Set their time zone before you offer any times
+
+Cal.com shows its slots in **your** time zone, not theirs. The US alone spans
+four zones before Alaska and Hawaii, and both are in the lists.
+
+> **You say** And what time zone are you in?
+
+Then, on the Cal.com page:
+
+1. Press **Book it on Cal.com** from the Demo booked form. It opens in a new
+   tab with their name and email already filled in.
+2. On the left, under the meeting name, there is a time zone with a small
+   arrow next to it. It shows yours.
+3. Click it and pick theirs.
+4. Every slot on the right now reads in their local time.
+
+Do not convert in your head. Change the setting and read the times off the
+screen, so what you say and what you book are the same thing.
+
 ## Offer two days and two times, never "when are you free"
 
 This is where most bookings are lost. Asking when they are free hands the work
@@ -40,18 +59,9 @@ Read the times off the open slots in front of you, and space the two days
 apart rather than offering the same day twice. Nothing sooner than two hours
 from now: Cal.com will not accept it.
 
-## Confirm their time zone
+Say the time back to them once more before you hang up, in their zone.
 
-The slots on your screen are in your time zone, not theirs, and the US spans
-four of them before Alaska and Hawaii. Ask, then say the time back in theirs.
-
-> **You say** And what time zone are you in?
-
-> **You say** Got it, so that's [10am] your time on [Tuesday].
-
-Convert before you book: pick the slot that lands at the time you agreed in
-**their** time zone. Getting this wrong is a no-show that looks like a
-no-show.
+> **You say** Done. See you [day] at [time] your time.
 
 ## Then log it as Demo booked
 

@@ -104,6 +104,16 @@ _(let them answer)_
 
 _(let them answer)_
 
+### Set their time zone before you offer any times
+
+> **You say** And what time zone are you in?
+
+_(let them answer)_
+
+Press **Book it on Cal.com**, then change the time zone on the left of that
+page from yours to theirs. Every slot now reads in their local time, so you
+offer what they hear and book what they agreed. Do not convert in your head.
+
 ### Offer times, never ask for them
 
 **Two days, two times each.**
@@ -118,23 +128,9 @@ If none of the four suit, offer two more. Do not open it up.
 
 _(let them answer)_
 
-### Confirm their time zone
-
-The slots on your screen are in your time zone, not theirs.
-
-> **You say** And what time zone are you in?
-
-_(let them answer)_
-
-> **You say** Got it, so that's [10am] your time on [Tuesday].
-
-Convert before you book. Pick the slot that lands at the time you just agreed
-in **their** time zone.
-
 Read the times off the open slots in front of you. Space the two days apart.
 
-Book it while they are still on the phone. Type their name and email into the
-form and press **Book it on Cal.com**, then pick the slot you just agreed.
+Book the slot you just agreed, while they are still on the phone.
 
 **Nothing sooner than two hours from now.** If they want it right away, agree
 the earliest slot it offers.
