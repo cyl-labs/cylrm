@@ -79,7 +79,7 @@ _(let them answer)_
 
 _(let them answer)_
 
-> **You say** Makes sense. That's usually where one or two slip through without anyone noticing. Would it be worth a 30-day trial just to see the real number? If it's nothing, no harm done.
+> **You say** Makes sense. Only thing I'd say is you might be missing a couple there without ever knowing. If it's any use, we could run it for 30 days and it'd just count them for you. No pressure either way.
 
 ## Says they don't need it | Prospect: "We get basically no after-hours calls, doesn't matter to us."
 
