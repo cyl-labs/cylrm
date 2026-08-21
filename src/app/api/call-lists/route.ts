@@ -301,8 +301,20 @@ export async function POST(request: Request) {
   }
   const nameCols = findColumns(headers, COLUMN_ALIASES.name);
   const lastNameCols = findColumns(headers, COLUMN_ALIASES.lastName);
-  const companyCols = findColumns(headers, COLUMN_ALIASES.company);
-  const titleCols = findColumns(headers, COLUMN_ALIASES.title);
+  const companyColsFound = findColumns(headers, COLUMN_ALIASES.company);
+  const titleColsFound = findColumns(headers, COLUMN_ALIASES.title);
+
+  // A directory scrape names the business in `title` and carries no company
+  // column at all: "AK Auto Care LLC" is plainly not a job title. Read it as
+  // the company when there is nothing better, and do not also store it as the
+  // title, or every row ends up saying the same thing twice.
+  //
+  // Only when no company column matched. A contact list with both means
+  // `title` really is the person's role and must stay there.
+  const titleIsCompany =
+    companyColsFound.length === 0 && titleColsFound.length > 0;
+  const companyCols = titleIsCompany ? titleColsFound : companyColsFound;
+  const titleCols = titleIsCompany ? [] : titleColsFound;
   const emailCols = findColumns(headers, COLUMN_ALIASES.email);
   const websiteCols = findColumns(headers, COLUMN_ALIASES.website);
 

@@ -55,6 +55,13 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   "65", which is also a Singapore number with its country code and no plus.
   NANP shape is validated (neither area code nor exchange may start 0 or 1),
   so an invalid US shape still falls through to the Singapore reading.
+- **`title` is the business name when a CSV has no company column.** Directory
+  scrapes name the business in `title` and carry no `company` at all, so every
+  lead imported with an empty Company and "AK Auto Care LLC" filed as a job
+  title. The importer now reads the title column as the company in that case
+  and leaves the title empty, but only when no company column matched: a
+  contact list carrying both means `title` really is the person's role.
+  Backfilled 802 rows on 2026-08-21.
 - **A row's phone is chosen by what parses, not by column order.** Scrapes
   often carry several — a display column, an `e164` column, site-scraped ones.
   `pickPhone` walks the matched columns in alias order and takes the first that
