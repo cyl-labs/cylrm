@@ -72,6 +72,23 @@ _(let them answer)_
 
 > **You say** That's fair, honestly you'd be surprised though, most people miss more calls than they think they do. Why don't we run a 30-day trial? You'll actually see the number of calls you're missing, and if it's basically nothing, no harm done. But usually the number's higher than people expect, so let's just let the data show you.
 
+## Price | Prospect: "How much is it? / What does it cost?"
+
+
+Answer it. Dodging a straight question about money costs more than the number
+ever does, and "it depends" on its own sounds like you are working out what
+they will bear. Give the floor, tie it to volume, then take it back to the
+demo where you can show them where they actually land.
+
+> **You say** It depends on your call volume, but it starts at $99 a month. On the demo I can show you exactly where you'd land once I know roughly how many calls you're getting.
+
+_(let them answer)_
+
+If they push for an exact figure before the demo, price it against what a job
+is worth to them rather than against nothing.
+
+> **You say** Fair enough. What's an average job worth to you? Because the number only means anything next to that.
+
 ## Doubts it works | Prospect: "I tried that once and it didn't work / I didn't like it…"
 
 

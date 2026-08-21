@@ -82,6 +82,23 @@ _(let them answer)_
 
 > **You say** Sounds like you're still getting those calls, just on WhatsApp instead of the phone. And I get it if the questions you get are pretty custom, this isn't about the chatbot answering everything for you. It's about responding and capturing the lead fast, before they go to someone else. We actually have forms built right into WhatsApp, so for something like a quote, the customer just fills that in themselves. You still handle the custom stuff, you just don't lose people to slow response time.
 
+## Price | Prospect: "How much is it? / What does it cost?"
+
+
+Answer it. Dodging a straight question about money costs more than the number
+ever does, and "it depends" on its own sounds like you are working out what
+they will bear. Give the floor, tie it to volume, then take it back to the
+demo where you can show them where they actually land.
+
+> **You say** It depends on your call volume, but it starts at $99 a month. On the demo I can show you exactly where you'd land once I know roughly how many calls you're getting.
+
+_(let them answer)_
+
+If they push for an exact figure before the demo, price it against what a job
+is worth to them rather than against nothing.
+
+> **You say** Fair enough. What's an average job worth to you? Because the number only means anything next to that.
+
 ## Doubts it works | Prospect: "I tried that once and it didn't work / I didn't like it…"
 
 

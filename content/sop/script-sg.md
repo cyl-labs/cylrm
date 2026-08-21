@@ -39,8 +39,10 @@ says you built it out for their business, so do not turn it into "I could put
 something together". A thing that exists is worth twenty minutes; a thing you
 might make is not.
 
-**PLACEHOLDER: what to say if they ask the price on the phone.** This will
-come up and there is currently no agreed answer. Decide it before anyone dials.
+**If they ask the price, answer it.** It depends on their call volume and
+starts at $99 a month. Say that, then take it back to the demo, where you can
+show them where they would land. Dodging a straight question about money costs
+more than the number does. Full wording is in objection handling.
 
 **PLACEHOLDER: the recorded-line notice.** Calls made from the browser dialler
 are recorded. The wording that tells them so needs to go in the opener before
