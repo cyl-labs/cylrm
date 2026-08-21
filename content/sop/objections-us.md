@@ -66,15 +66,15 @@ _(let them answer)_
 ## Says they don't need it | Prospect: "I answer all of them anyway" / "I don't get after-hours calls"
 
 
-> **You say** Fair enough. What happens when you're out on a job though, do you pick up?
+> **You say** Fair enough. What do you do when you're out on a job, do you still pick up?
 
 _(let them answer)_
 
-> **You say** And if someone rings while you're already on the phone with another customer?
+> **You say** And if someone rings while you're already on with another customer?
 
 _(let them answer)_
 
-> **You say** That's the thing, you'd be surprised. Run a 30-day trial and you'll see the actual number. If it's nothing, no harm done.
+> **You say** Makes sense. That's usually where one or two slip through without anyone noticing. Would it be worth a 30-day trial just to see the real number? If it's nothing, no harm done.
 
 ## Price | Prospect: "How much is it? / What does it cost?"
 
