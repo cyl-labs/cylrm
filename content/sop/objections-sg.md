@@ -68,10 +68,18 @@ _(let them answer)_
 
 > **You say** So if you're missing around [X] calls a week at [ticket value] each, that's real money walking out the door. If there was a service that charged you a fraction of that to capture it, would it be worth it?
 
-## Says they don't need it | Prospect: "We only get a few calls (3-5) and I answer all of them anyway."
+## Says they don't need it | Prospect: "I answer all of them anyway" / "I don't get after-hours calls"
 
 
-> **You say** That's fair, honestly you'd be surprised though, most people miss more calls than they think they do. Why don't we run a 30-day trial? You'll actually see the number of calls you're missing, and if it's basically nothing, no harm done. But usually the number's higher than people expect, so let's just let the data show you.
+> **You say** Fair enough. What happens when you're out on a job though, do you pick up?
+
+_(let them answer)_
+
+> **You say** And if someone rings while you're already on the phone with another customer?
+
+_(let them answer)_
+
+> **You say** That's the thing, you'd be surprised. Most people miss more than they think they do. Why don't we run a 30-day trial? You'll actually see the number, and if it's basically nothing, no harm done. But usually it's higher than people expect, so let's just let the data show you.
 
 ## Says they don't need it | Prospect: "We get basically no after-hours calls, doesn't matter to us."
 
