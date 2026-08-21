@@ -16,7 +16,7 @@ The booking is not finished until you have the email. Without one nothing can
 be sent, no reminder goes out, and the meeting is far more likely to be a
 no-show. The number is how you reach them if anything changes.
 
-> **You say** Perfect, let me get you in the diary. Can I take your full name and the best number for you?
+> **You say** Perfect, let me get you in the diary. Can I take your name and the best number for you?
 
 > **You say** And the best email for the invite?
 

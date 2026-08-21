@@ -92,7 +92,7 @@ Do all of this before you hang up.
 
 **Tap Demo booked first.** It shows you which slots are free.
 
-> **You say** Perfect, let me get you in the diary. Can I take your full name and the best number for you?
+> **You say** Perfect, let me get you in the diary. Can I take your name and the best number for you?
 
 _(let them answer)_
 
