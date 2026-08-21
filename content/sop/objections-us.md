@@ -79,13 +79,13 @@ _(let them answer)_
 ## Price | Prospect: "How much is it? / What does it cost?"
 
 
-> **You say** It depends on your call volume, but it starts at $99 a month. On the demo I can show you exactly where you'd land once I know roughly how many calls you're getting.
+> **You say** It depends on your call volume, but it starts at $99 a month. On the demo we can show you exactly where you'd land once we know how many calls you're getting.
 
 _(let them answer)_
 
 If they push for an exact figure before the demo:
 
-> **You say** Fair enough. What's an average job worth to you? Because the number only means anything next to that.
+> **You say** I don't have the exact figure in front of me, but the team on the demo can work it out with you on the spot.
 
 ## Doubts it works | Prospect: "I tried that once and it didn't work / I didn't like it…"
 
