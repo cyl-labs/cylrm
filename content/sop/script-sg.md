@@ -104,16 +104,6 @@ _(let them answer)_
 
 _(let them answer)_
 
-### Set their time zone before you offer any times
-
-> **You say** And what time zone are you in?
-
-_(let them answer)_
-
-Press **Book it on Cal.com**, then change the time zone on the left of that
-page from yours to theirs. Every slot now reads in their local time, so you
-offer what they hear and book what they agreed. Do not convert in your head.
-
 ### Offer times, never ask for them
 
 **Two days, two times each.**
@@ -135,7 +125,7 @@ Book the slot you just agreed, while they are still on the phone.
 **Nothing sooner than two hours from now.** If they want it right away, agree
 the earliest slot it offers.
 
-> **You say** Done. You will get a calendar invite in the next minute with a Google Meet link, and a reminder the day before. See you [day] at [time] your time.
+> **You say** Done. You will get a calendar invite in the next minute with a Google Meet link, and a reminder the day before. See you [day] at [time].
 
 Then come back and log the call as **Demo booked**.
 

@@ -23,10 +23,13 @@ no-show. The number is how you reach them if anything changes.
 Confirm the email back to them letter by letter if there is any doubt. A typo
 here costs the whole meeting.
 
-## Set their time zone before you offer any times
+## Time zones, if you are calling the US
 
-Cal.com shows its slots in **your** time zone, not theirs. The US alone spans
-four zones before Alaska and Hawaii, and both are in the lists.
+Singapore is one time zone and so is the UK. If that is your market, set
+Cal.com to it once and this section never applies to you again.
+
+The US is four zones before Alaska and Hawaii, and both are in the lists, so
+there you have to ask.
 
 > **You say** And what time zone are you in?
 
