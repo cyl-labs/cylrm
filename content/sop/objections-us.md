@@ -93,6 +93,12 @@ _(let them answer)_
 
 > **You say** Yeah, most of them do suck, I get that. But for us, most of the time people can't even tell it's a robot. And if you want, we can set it up so it's conditional too: your normal line rings first, and the agent only picks up if nobody answers after a few rings.
 
+_(let them answer)_
+
+If they are still unsure:
+
+> **You say** There's over 10,000 voices to choose from, and I can customize everything to how you want it to sound.
+
 ## Already sorted | Prospect: "We already have something for that."
 
 

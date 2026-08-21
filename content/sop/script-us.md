@@ -76,7 +76,7 @@ _(let them answer)_
 
 ### Only if they seem confused or skeptical of "voice agent"
 
-> **You say** Oh, it's AI. It picks up your phone instantly, 24/7, whenever you're busy on a job or closed. Answers the common questions, can even book the appointment, so you stop losing callers. And if you're worried about it sounding like a robot, there's over 10,000 voices to choose from, I can customize everything to how you want it to sound.
+> **You say** Oh, it's AI. It picks up your phone instantly, 24/7, whenever you're busy on a job or closed. Answers the common questions, can even book the appointment, so you stop losing callers.
 
 _(let them answer, then carry on below)_
 
