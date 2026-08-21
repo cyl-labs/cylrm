@@ -16,7 +16,7 @@ The email is the only thing you do not already have, and the booking is not
 finished without it: no invite, no reminder, and a meeting far more likely to
 be a no-show. You are already on their number, so do not ask for one.
 
-> **You say** Perfect, let me get you in the diary. Can I take your name and the best email for the invite?
+> **You say** Perfect, let me get you scheduled in. Can I take your name and the best email for the invite?
 
 Confirm the email back to them letter by letter if there is any doubt. A typo
 here costs the whole meeting.

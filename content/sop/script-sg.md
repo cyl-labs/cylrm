@@ -88,7 +88,7 @@ Do all of this before you hang up.
 
 **Tap Demo booked first.** It shows you which slots are free.
 
-> **You say** Perfect, let me get you in the diary. Can I take your name and the best email for the invite?
+> **You say** Perfect, let me get you scheduled in. Can I take your name and the best email for the invite?
 
 _(let them answer)_
 

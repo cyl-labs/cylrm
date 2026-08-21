@@ -55,19 +55,6 @@ _(let them answer)_
 
 > **You say** Got it. Just out of curiosity, how many calls do you get during your busy season compared to when things are slow?
 
-## Says they don't need it | Prospect: "I don't get enough calls."
-
-
-> **You say** Fair enough. Quick question though, what's an average ticket worth for you?
-
-_(let them answer)_
-
-> **You say** And how many calls do you think you're missing on a weekly basis?
-
-_(let them answer)_
-
-> **You say** So if you're missing around [X] calls a week at [ticket value] each, that's real money walking out the door. If there was a service that charged you a fraction of that to capture it, would it be worth it?
-
 ## Says they don't need it | Prospect: "I answer all of them anyway" / "I don't get after-hours calls"
 
 
@@ -127,7 +114,7 @@ If they are still unsure:
 
 > **You say** Nice. How's your experience been with it so far?
 
-## Not the decision maker | Prospect: "I need to talk to my partner / boss first."
+## Not the decision maker | Prospect: "I need to talk to my partner first."
 
 
 > **You say** That's fine, you can consult them. But when it comes to voice agents, we're really the experts, so would it be helpful to set up a time where we can all get on a call together and I can answer any questions they might have?
