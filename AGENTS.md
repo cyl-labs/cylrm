@@ -227,7 +227,8 @@ deleted is removed from the table too.
   eat every "o" typed into the notes field.
 - **Qualification criteria are hard-coded in `dialler.tsx`**, not a document:
   what earns a caller their fee should not be scrollable-past or editable by
-  accident. Currently **placeholder text awaiting the real criteria.**
+  accident. They are: owner or decision maker, interested, and a specific date
+  and time agreed.
 
 ## Do Not Call screening (Call CRM)
 

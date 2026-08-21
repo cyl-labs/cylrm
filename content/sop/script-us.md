@@ -30,10 +30,6 @@ Short version:
 **If they ask the price:** it depends on their call volume and starts at $99 a
 month. Then take it back to the demo.
 
-**PLACEHOLDER: the recorded-line notice.** Calls made from the browser dialler
-are recorded. The wording that tells them so needs to go in the opener before
-any real prospect is called.
-
 ## Opener sequence
 
 > **You say** Hello, can I ask what time you close today?
