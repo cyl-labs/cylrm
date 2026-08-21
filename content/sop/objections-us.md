@@ -14,15 +14,11 @@ These can come up anywhere in the call, not just at the end.
 ## Brushing you off | Prospect: "Who is this? / What company are you with?"
 
 
-Lead with the problem and the fix. A name they have never heard gives them
-nothing to say yes to; a problem they have gives them something to agree with.
-
 > **You say** My name's [your name]. I work with [their trade] on missed calls. We set up a voice agent that picks up when you're on a job or closed.
 
 _(let them answer)_
 
-If they ask again, or ask outright for the company, give it. Dodging twice is
-what a scam call sounds like. Say it and go straight back to your question.
+If they ask again, give the name and go straight back to your question.
 
 > **You say** Cyllabs. Anyway, when you're out on a job, do those calls go to voicemail?
 
@@ -75,17 +71,11 @@ _(let them answer)_
 ## Price | Prospect: "How much is it? / What does it cost?"
 
 
-Answer it. Dodging a straight question about money costs more than the number
-ever does, and "it depends" on its own sounds like you are working out what
-they will bear. Give the floor, tie it to volume, then take it back to the
-demo where you can show them where they actually land.
-
 > **You say** It depends on your call volume, but it starts at $99 a month. On the demo I can show you exactly where you'd land once I know roughly how many calls you're getting.
 
 _(let them answer)_
 
-If they push for an exact figure before the demo, price it against what a job
-is worth to them rather than against nothing.
+If they push for an exact figure before the demo:
 
 > **You say** Fair enough. What's an average job worth to you? Because the number only means anything next to that.
 

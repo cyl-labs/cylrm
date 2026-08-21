@@ -9,40 +9,26 @@ Take one only if it happens, then carry on where you left off.
 
 ## Before you call
 
-**Do not open with the company name.** "Hi, I'm calling from ..." tells them
-they are being sold to before they know what about, and the honest answer to a
-name they have never heard is "no thanks". Lead with the problem instead: the
-first two lines of the opener are questions about their phones, not an
-introduction. Say nothing about who you are until they ask.
+**Do not open with the company name.** Lead with the problem.
 
-**When they do ask, answer with the problem and the fix, not the brand.**
+**When they ask who is calling:**
 
 > **You say** My name's [your name]. I work with [their trade] on missed calls and messages. We set up a voice agent that picks up when you're on a job or closed.
 
-Short version, if they are impatient:
+Short version:
 
 > **You say** Just me. I help [their trade] businesses stop losing after-hours calls and WhatsApps.
 
-**If they ask a second time, or ask outright for the company name, give it.**
-Dodging twice is what a scam call sounds like, and you lose the call there.
-Say it plainly and go straight back to your question.
+**If they ask again, give the name and go straight back to your question.**
 
 > **You say** Cyllabs. Anyway, when you're out on a job, do those calls and messages go to voicemail?
 
-**Say "voice agent", not "AI receptionist", "chatbot" or "answering
-service".** The script has a line ready for anyone who finds "voice agent"
-confusing, and the other three words each bring an assumption you then have to
-argue with.
+**Say "voice agent".** Not AI receptionist, chatbot or answering service.
 
-**The demo already exists. You are not offering to build one.** The close
-says you built it out for their business, so do not turn it into "I could put
-something together". A thing that exists is worth twenty minutes; a thing you
-might make is not.
+**The demo already exists.** You are not offering to build one.
 
-**If they ask the price, answer it.** It depends on their call volume and
-starts at $99 a month. Say that, then take it back to the demo, where you can
-show them where they would land. Dodging a straight question about money costs
-more than the number does. Full wording is in objection handling.
+**If they ask the price:** it depends on their call volume and starts at $99 a
+month. Then take it back to the demo.
 
 **PLACEHOLDER: the recorded-line notice.** Calls made from the browser dialler
 are recorded. The wording that tells them so needs to go in the opener before
@@ -102,12 +88,9 @@ _(let them answer)_
 
 ## Once they say yes
 
-Do all of this before you hang up. A booking made after the call is a booking
-that does not happen.
+Do all of this before you hang up.
 
-**Tap Demo booked first, before you talk about times.** It opens the form and
-shows you which slots are actually free. You cannot offer a time you cannot
-see, and guessing means rebooking them later.
+**Tap Demo booked first.** It shows you which slots are free.
 
 > **You say** Perfect, let me get you in the diary. Can I take your full name and the best number for you?
 
@@ -123,12 +106,7 @@ _(let them answer)_
 
 ### Offer times, never ask for them
 
-This is where most bookings are lost. "When are you free?" hands the work back
-to them, and the answer is almost always "send me some times and I will check".
-That is a no with extra steps.
-
-Offer instead. **Two days, two times each.** Four options is enough to feel
-accommodating and few enough to answer straight away.
+**Two days, two times each.**
 
 > **You say** I have [Tuesday] at [10am] or [2pm], or [Thursday] at [11am] or [4pm]. Which of those works best for you?
 
@@ -140,15 +118,13 @@ If none of the four suit, offer two more. Do not open it up.
 
 _(let them answer)_
 
-Read the times off the open slots in front of you, and space the two days
-apart rather than offering tomorrow morning and tomorrow afternoon.
+Read the times off the open slots in front of you. Space the two days apart.
 
-Now book it, while they are still on the phone. Type their name and email into
-the form and press **Book it on Cal.com**. It opens in a new tab, so you do not
-lose your place. Pick the slot you just agreed.
+Book it while they are still on the phone. Type their name and email into the
+form and press **Book it on Cal.com**, then pick the slot you just agreed.
 
-**Nothing sooner than two hours from now.** Cal.com will not take it, so if
-they want it right away, agree the earliest slot it offers instead.
+**Nothing sooner than two hours from now.** If they want it right away, agree
+the earliest slot it offers.
 
 > **You say** Done. You will get a calendar invite in the next minute with a Google Meet link, and a reminder the day before. See you [day] at [time].
 
