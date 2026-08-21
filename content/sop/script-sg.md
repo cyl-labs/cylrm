@@ -118,6 +118,19 @@ If none of the four suit, offer two more. Do not open it up.
 
 _(let them answer)_
 
+### Confirm their time zone
+
+The slots on your screen are in your time zone, not theirs.
+
+> **You say** And what time zone are you in?
+
+_(let them answer)_
+
+> **You say** Got it, so that's [10am] your time on [Tuesday].
+
+Convert before you book. Pick the slot that lands at the time you just agreed
+in **their** time zone.
+
 Read the times off the open slots in front of you. Space the two days apart.
 
 Book it while they are still on the phone. Type their name and email into the
@@ -126,7 +139,7 @@ form and press **Book it on Cal.com**, then pick the slot you just agreed.
 **Nothing sooner than two hours from now.** If they want it right away, agree
 the earliest slot it offers.
 
-> **You say** Done. You will get a calendar invite in the next minute with a Google Meet link, and a reminder the day before. See you [day] at [time].
+> **You say** Done. You will get a calendar invite in the next minute with a Google Meet link, and a reminder the day before. See you [day] at [time] your time.
 
 Then come back and log the call as **Demo booked**.
 

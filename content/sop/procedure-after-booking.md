@@ -40,6 +40,19 @@ Read the times off the open slots in front of you, and space the two days
 apart rather than offering the same day twice. Nothing sooner than two hours
 from now: Cal.com will not accept it.
 
+## Confirm their time zone
+
+The slots on your screen are in your time zone, not theirs, and the US spans
+four of them before Alaska and Hawaii. Ask, then say the time back in theirs.
+
+> **You say** And what time zone are you in?
+
+> **You say** Got it, so that's [10am] your time on [Tuesday].
+
+Convert before you book: pick the slot that lands at the time you agreed in
+**their** time zone. Getting this wrong is a no-show that looks like a
+no-show.
+
 ## Then log it as Demo booked
 
 Log the call as **Demo booked** and put the email and the agreed time in the
