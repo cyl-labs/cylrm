@@ -128,3 +128,14 @@ If they are still unsure:
 
 
 > **You say** Totally get it, and I don't want to take up more of your time. I've actually already built out a demo specifically for you guys, so can you transfer me to the owner? I have a feeling they'll want to hear it before we just leave it there.
+
+## Last resort | They have said no and you are about to lose the call
+
+
+Only after they have said no. Not before.
+
+> **You say** No problem. Last thing and then I'll leave you to it, would you be open to a 30-day trial? You'd see exactly how many calls you're missing, and if it turns out to be nothing, no harm done.
+
+_(let them answer)_
+
+If they take it, book the demo the same way you would have anyway.
