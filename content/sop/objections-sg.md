@@ -87,7 +87,7 @@ If they push for an exact figure before the demo:
 ## Doubts it works | Prospect: "Who else do you work with? / Have you done this for [their trade] before?"
 
 
-> **You say** Honest answer, you'd be the first [their trade] we've worked with. Most of our work has been with physiotherapists, construction companies and employment agencies, and the reason I called [their trade] specifically is the scheduling and dispatch problem looks close to identical. I'd rather show you than talk about it. Give me 20 minutes on a call, I'll walk you through exactly what we'd build for your business, and if it doesn't look like it saves you real hours you tell me no.
+> **You say** Honest answer, you'd be the first [their trade] we've worked with. Most of our work has been with physiotherapists, construction companies and employment agencies, and the reason I called [their trade] specifically is the scheduling and dispatch problem looks close to identical. I'd rather show you than talk about it. Give me 15 minutes on a call, I'll walk you through exactly what we'd build for your business, and if it doesn't look like it saves you real hours you tell me no.
 
 ## Doubts it works | Prospect: "I tried that once and it didn't work / I didn't like it…"
 
