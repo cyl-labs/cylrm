@@ -66,7 +66,7 @@ _(let them answer)_
 
 _(let them answer)_
 
-> **You say** Makes sense. We could run a 30-day trial for you though, and you'd be able to see how many customers you're losing. No pressure either way.
+> **You say** Makes sense. That's exactly what I'd show you on the demo, how many you're actually losing there. Do you have 15 minutes this week to take a look?
 
 ## Says they don't need it | Prospect: "We get basically no after-hours calls, doesn't matter to us."
 
