@@ -13,6 +13,7 @@ import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { PageShell } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
 import { CallFilters } from "@/components/calls/call-filters";
+import { listTeam } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -59,14 +60,30 @@ const CARD = "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05
 export default async function CallStatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; list?: string; day?: string }>;
+  searchParams: Promise<{
+    range?: string;
+    list?: string;
+    day?: string;
+    person?: string;
+  }>;
 }) {
-  const { range: raw, list, day: rawDay } = await searchParams;
+  const { range: raw, list, day: rawDay, person } = await searchParams;
   const day = isDay(rawDay) ? rawDay : undefined;
   const range = raw && RANGE_KEYS.has(raw) ? raw : "30";
   const w = windowFor(range, day);
 
-  const allLists = await getCallLists();
+  const [allLists, team] = await Promise.all([getCallLists(), listTeam()]);
+
+  // A `?person=` naming someone who has gone falls back to everyone, for the
+  // same reason a stale `?list=` does: reporting zeroes would read as the
+  // calling having stopped rather than as a filter pointing at nothing.
+  const wantedPerson = Number(person);
+  const personId = team.some((t) => t.id === wantedPerson)
+    ? wantedPerson
+    : undefined;
+  // Deactivated people stay listed: their calls are still in the numbers and
+  // last month's figures are a fair thing to go back and look at.
+  const peopleOptions = team.map((t) => ({ id: t.id, name: t.name }));
   // A `?list=` naming a niche that has gone falls back to all of them rather
   // than reporting zeroes as if the calling had stopped.
   const wanted = Number(list);
@@ -80,11 +97,11 @@ export default async function CallStatsPage({
   );
 
   const [totals, outcomes, lists, byDay, people] = await Promise.all([
-    getCallTotals(w, listId),
-    getOutcomeCounts(w, listId),
-    getListStats(w, listId),
-    getCallsByDay(14, listId),
-    getPersonStats(w, listId),
+    getCallTotals(w, listId, personId),
+    getOutcomeCounts(w, listId, personId),
+    getListStats(w, listId, personId),
+    getCallsByDay(14, listId, personId),
+    getPersonStats(w, listId, personId),
   ]);
 
   const tiles = [
@@ -125,6 +142,8 @@ export default async function CallStatsPage({
         <CallFilters
           lists={nicheOptions.map((l) => ({ id: l.id, name: l.name }))}
           listId={listId ?? "all"}
+          people={peopleOptions}
+          personId={personId ?? "all"}
           range={range}
           day={w.kind === "day" ? w.date : undefined}
         />

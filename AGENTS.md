@@ -128,6 +128,14 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   the menu and dialogs render through a portal and never reach that anchor —
   and `preventDefault` on a dialog's clicks cancels the submit button's own
   default action, which made the rename form silently do nothing.
+- Stats also take `?person=<id>` to narrow to one employee, applied to every
+  number on the page rather than just the "By person" table: "By list" then
+  means that person's calls per niche, and `worked` means leads *they* have
+  rung. `leads` stays the size of the list, being a property of the list and
+  not of anybody's day. A `?person=` naming someone who has gone falls back to
+  everyone, like a stale `?list=` does, so the page never reports zeroes that
+  read as the calling having stopped. Deactivated people stay in the picker:
+  their calls are still in the numbers.
 - Board and stats both take `?list=<id>` to narrow to one niche. Both selects live in `src/components/calls/call-filters.tsx` **together** on purpose: a range select that rebuilt the query string on its own dropped `?list=` every time it fired, quietly widening the numbers back to every niche.
 - The board carries **every** lead now that Lost is a column of its own; there is no exclusion set left. Watch the older trap if one is ever reintroduced: `TERMINAL` means "out of the cold-calling queue", which includes `demo_booked`, `trial` and `won` — filtering the board by it emptied the columns those leads belong in.
 - The call outcome enum lost `interested` and gained `trial`, `won`, `lost` on 2026-08-03 (`scripts/migrations/2026-08-03-call-outcome-pipeline.sql`). Postgres cannot drop an enum value, so the type is rebuilt; `drizzle-kit push` cannot do it either (a diff that both drops and adds enum values goes interactive and crashes with no TTY). **Apply the SQL before deploying the code** — the new code writes outcomes the old type does not have.

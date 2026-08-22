@@ -28,11 +28,16 @@ const RANGES = [
 export function CallFilters({
   lists,
   listId,
+  people,
+  personId = "all",
   range,
   day,
 }: {
   lists: { id: number; name: string }[];
   listId: number | "all";
+  /** Omitted on screens with no per-person view. Only Stats has one. */
+  people?: { id: number; name: string }[];
+  personId?: number | "all";
   /** Omitted on screens with no date range, like the board. */
   range?: string;
   /** A single Singapore day, YYYY-MM-DD, when one is picked off the chart. It
@@ -42,10 +47,21 @@ export function CallFilters({
   const router = useRouter();
   const pathname = usePathname();
 
-  function go(next: { list?: string; range?: string; day?: string | null }) {
+  function go(next: {
+    list?: string;
+    person?: string;
+    range?: string;
+    day?: string | null;
+  }) {
     const params = new URLSearchParams();
     const list = next.list ?? String(listId);
     if (list !== "all") params.set("list", list);
+
+    // Carried through every change for the same reason the niche is: a person
+    // filter that vanished when the range changed would quietly widen the
+    // numbers back to the whole floor.
+    const person = next.person ?? String(personId);
+    if (person !== "all") params.set("person", person);
 
     // A day and a range are the same question answered two ways, so setting
     // one clears the other.
@@ -73,6 +89,22 @@ export function CallFilters({
           ))}
         </SelectContent>
       </Select>
+
+      {people !== undefined && (
+        <Select value={String(personId)} onValueChange={(v) => go({ person: v })}>
+          <SelectTrigger size="sm" className="w-full sm:w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Everyone</SelectItem>
+            {people.map((u) => (
+              <SelectItem key={u.id} value={String(u.id)}>
+                {u.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {range !== undefined && (
         <>

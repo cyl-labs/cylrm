@@ -76,6 +76,12 @@ const since = (w: StatsWindow): SQL => {
 
 /** Narrow to one niche. Joining through the lead is the only route — `call`
  *  has no list of its own, by design. */
+/** Narrow to one person's calls. `call.user_id` is null for anything logged
+ *  before staff accounts existed, so those fall out of a person filter, which
+ *  is right: they belong to nobody. */
+const byUser = (userId?: number): SQL =>
+  userId ? sql`and c.user_id = ${userId}` : sql``;
+
 const inList = (listId?: number): SQL =>
   listId
     ? sql`and exists (
@@ -87,6 +93,7 @@ const inList = (listId?: number): SQL =>
 export async function getCallTotals(
   w: StatsWindow,
   listId?: number,
+  userId?: number,
 ): Promise<CallTotals> {
   const [row] = (await db.execute(sql`
     select
@@ -102,7 +109,7 @@ export async function getCallTotals(
       count(distinct c.call_lead_id) filter (where c.outcome = 'lost') as lost,
       count(distinct c.call_lead_id) filter (where c.outcome = 'bad_number') as bad_numbers
     from call c
-    where ${since(w)} ${inList(listId)}
+    where ${since(w)} ${inList(listId)} ${byUser(userId)}
   `)) as Row[];
 
   return {
@@ -120,11 +127,12 @@ export async function getCallTotals(
 export async function getOutcomeCounts(
   w: StatsWindow,
   listId?: number,
+  userId?: number,
 ): Promise<OutcomeCount[]> {
   const rows = (await db.execute(sql`
     select c.outcome, count(*) as calls
     from call c
-    where ${since(w)} ${inList(listId)}
+    where ${since(w)} ${inList(listId)} ${byUser(userId)}
     group by c.outcome
     order by count(*) desc
   `)) as Row[];
@@ -145,28 +153,35 @@ export async function getOutcomeCounts(
 export async function getListStats(
   w: StatsWindow,
   listId?: number,
+  userId?: number,
 ): Promise<ListStat[]> {
+  // Every call-level number is scoped to the person, including "worked":
+  // filtered to one caller, that column has to mean leads *they* have rung,
+  // not leads anyone has. `leads` stays the size of the list, which is a
+  // property of the list rather than of anybody's day.
+  const mine = userId ? sql`and c.user_id = ${userId}` : sql``;
+  const mineEver = userId ? sql`and x.user_id = ${userId}` : sql``;
   const rows = (await db.execute(sql`
     select cl.id, cl.name,
       count(distinct l.id) as leads,
       count(distinct l.id) filter (where ever.called) as worked,
-      count(c.id) filter (where ${since(w)}) as calls,
-      count(c.id) filter (where ${since(w)} and c.outcome in ${PICKUP}) as pickups,
+      count(c.id) filter (where ${since(w)} ${mine}) as calls,
+      count(c.id) filter (where ${since(w)} ${mine} and c.outcome in ${PICKUP}) as pickups,
       count(distinct c.call_lead_id) filter (
-        where ${since(w)} and c.outcome = 'demo_booked'
+        where ${since(w)} ${mine} and c.outcome = 'demo_booked'
       ) as demos,
       count(distinct c.call_lead_id) filter (
-        where ${since(w)} and c.outcome = 'trial'
+        where ${since(w)} ${mine} and c.outcome = 'trial'
       ) as trials,
       count(distinct c.call_lead_id) filter (
-        where ${since(w)} and c.outcome = 'won'
+        where ${since(w)} ${mine} and c.outcome = 'won'
       ) as won
     from call_list cl
     left join call_lead l
       on l.call_list_id = cl.id and l.duplicate_of_lead_id is null
     left join lateral (
       select true as called
-      from call x where x.call_lead_id = l.id limit 1
+      from call x where x.call_lead_id = l.id ${mineEver} limit 1
     ) ever on true
     left join call c on c.call_lead_id = l.id
     where ${listId ? sql`cl.id = ${listId}` : sql`true`}
@@ -212,6 +227,7 @@ export type PersonStat = {
 export async function getPersonStats(
   w: StatsWindow,
   listId?: number,
+  userId?: number,
 ): Promise<PersonStat[]> {
   const rows = (await db.execute(sql`
     select u.id, u.name,
@@ -222,7 +238,7 @@ export async function getPersonStats(
       count(distinct c.call_lead_id) filter (where c.outcome = 'won') as won
     from call c
     left join app_user u on u.id = c.user_id
-    where ${since(w)} ${inList(listId)}
+    where ${since(w)} ${inList(listId)} ${byUser(userId)}
     group by u.id, u.name
     order by count(*) desc, u.name asc
   `)) as Row[];
@@ -250,6 +266,7 @@ export type DayStat = { day: string; calls: number; pickups: number };
 export async function getCallsByDay(
   days: number,
   listId?: number,
+  userId?: number,
 ): Promise<DayStat[]> {
   const rows = (await db.execute(sql`
     select d::date as day,
@@ -271,6 +288,7 @@ export async function getCallsByDay(
         select 1 from call_lead l
         where l.id = c.call_lead_id and l.call_list_id = ${listId ?? null}
       ))
+      and (${userId ?? null}::int is null or c.user_id = ${userId ?? null})
     group by d
     order by d asc
   `)) as Row[];
