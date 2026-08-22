@@ -94,6 +94,12 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   onwards drop to a table below, and the podium degrades to two blocks or one
   rather than inventing empty plinths. Medals sit above the name plate, not
   straddling the seam, because a medal centred on the join covers the name.
+  Ranked by saturation in the brand colour rather than gold/silver/bronze,
+  which was a second palette bolted onto a screen that already has one: the
+  winner is the only block in full colour, and the pale blocks take dark text
+  so nothing is white-on-a-tint. The table underneath still lists everyone,
+  podium included, because the podium is the celebration and the table is
+  where you go to read the actual numbers.
 - The other four: **Call lists** (the dialler), **Spreadsheet** (`/call-sheet`), **Pipeline** (`/call-pipeline`, `src/components/calls/call-board.tsx`) and **Stats** (`/call-stats`, `src/lib/call-stats.ts`). Board stages are derived from the latest call like everything else, so moving a card logs a call — `to_call` accepts no drops because no phone call makes a lead never-rung.
 - Call lists are grouped into **folders by market** on the call lists screen
   (`call_list.region`, `sg`/`us`/`gb`, null = Unfiled). Founders-only: a caller

@@ -40,24 +40,31 @@ const pct = (num: number, den: number) =>
  * keep from the people doing the work.
  */
 
-/** Gold, silver, bronze. Written out rather than themed, because a podium
- *  that used the brand colour three times would rank nobody. */
+/**
+ * One colour, three strengths.
+ *
+ * Gold and silver were a second palette bolted onto a screen that already has
+ * one. Ranking by saturation instead leaves the winner as the only block in
+ * full colour, which says first place more plainly than a medal colour does,
+ * and every label stays legible because the pale blocks take dark text rather
+ * than white on a tint.
+ */
 const PLACES = [
   {
-    block: "bg-[#E8A317]",
-    medal: "bg-[#F5B301] text-[#5A3E00]",
+    block: "bg-primary text-primary-foreground",
+    medal: "bg-primary text-primary-foreground",
     height: "h-40 sm:h-52",
     label: "1st",
   },
   {
-    block: "bg-[#8B919C]",
-    medal: "bg-[#C7CCD6] text-[#3A3F49]",
+    block: "bg-primary/25 text-foreground",
+    medal: "bg-primary/30 text-primary",
     height: "h-28 sm:h-36",
     label: "2nd",
   },
   {
-    block: "bg-[#B87333]",
-    medal: "bg-[#CD8B4A] text-[#3D2210]",
+    block: "bg-primary/12 text-foreground",
+    medal: "bg-primary/20 text-primary",
     height: "h-20 sm:h-28",
     label: "3rd",
   },
@@ -128,7 +135,7 @@ function Podium({
 
               <div
                 className={cn(
-                  "relative flex w-full flex-col items-center justify-center rounded-b-lg pb-5 text-white",
+                  "relative flex w-full flex-col items-center justify-center rounded-b-lg pb-5",
                   place.block,
                   place.height,
                   isMe && "ring-2 ring-primary ring-offset-2 ring-offset-card",
@@ -137,14 +144,14 @@ function Podium({
                 <p className="text-2xl font-extrabold tabular-nums leading-none sm:text-3xl">
                   {person.demos}
                 </p>
-                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] opacity-90">
+                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] opacity-80">
                   {person.demos === 1 ? "demo" : "demos"}
                 </p>
-                <p className="mt-1 text-[11px] tabular-nums opacity-80">
+                <p className="mt-1 text-[11px] tabular-nums opacity-70">
                   {person.calls.toLocaleString()} calls
                 </p>
 
-                <span className="absolute bottom-1.5 text-[11px] font-bold opacity-70">
+                <span className="absolute bottom-1.5 text-[11px] font-bold opacity-60">
                   {place.label}
                 </span>
               </div>
@@ -187,9 +194,6 @@ export default async function ScoreboardPage({
   // What it would take to move up one place, in the thing that is ranked.
   const gap = ahead && mine ? ahead.demos - mine.demos : 0;
   const topCalls = Math.max(1, ...people.map((p) => p.calls));
-  // Fourth onwards. The top three are on the podium and repeating them in the
-  // table below would undo the point of putting them up there.
-  const rest = people.slice(3);
 
   return (
     <PageShell title="Scoreboard" actions={<RangeTabs ranges={RANGES} active={range} />}>
@@ -261,13 +265,11 @@ export default async function ScoreboardPage({
 
         {people.length > 0 && <Podium people={people} meId={me?.id} />}
 
-        {rest.length > 0 && (
+        {people.length > 0 && (
         <div className="overflow-hidden rounded-xl border bg-card">
           <div className="flex items-center gap-2 border-b px-4 py-3">
             <Trophy className="size-4 text-muted-foreground" strokeWidth={2.2} />
-            <p className="text-sm font-extrabold tracking-[-0.01em]">
-              Everyone else
-            </p>
+            <p className="text-sm font-extrabold tracking-[-0.01em]">Everyone</p>
             <p className="ml-auto text-[12px] text-muted-foreground">
               Ranked by demos, then calls
             </p>
@@ -290,7 +292,7 @@ export default async function ScoreboardPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {rest.map((p, i) => {
+                  {people.map((p, i) => {
                     const isMe = p.id === me?.id;
                     return (
                       <tr
@@ -301,7 +303,7 @@ export default async function ScoreboardPage({
                         )}
                       >
                         <td className="w-10 px-4 py-2.5 tabular-nums text-muted-foreground">
-                          {i + 4}
+                          {i + 1}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5 font-semibold">
                           {p.name}
