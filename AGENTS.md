@@ -87,6 +87,13 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 - No telephony and no dialling: the number is a **copy-to-clipboard button**, the call is placed on a separate handset, the outcome logged after. `tel:` was tried and dropped — it dials from whichever device the browser is on. Adding Twilio would be a real build, not a config change.
 - **Logging a call ≠ correcting one.** A repeat dial is a new `call` row (`POST /api/calls`): it bumps the try count and the last-called time. Correcting a mis-tap overwrites the latest row (`PATCH`). The sheet's category menu and the board's card menu both put logging at the top level and correction one level in, because picking the outcome a lead already had used to be a no-op and a whole re-dial vanished.
 - The Call CRM has five screens: **Callbacks** (`/callbacks`) is the diary — every lead whose latest outcome is `callback`, across all lists, overdue first. `countCallbacksDue` feeds a sidebar badge and is `cache()`d because the sidebar and `PageShell` both ask while rendering one page, the same reason `countUnreadReplies` is.
+- **Scoreboard** puts the top three on a podium: rendered 2, 1, 3 across so the
+  winner is centre and tallest, which is the only arrangement that reads as a
+  podium rather than a chart. Gold, silver and bronze are written out rather
+  than themed, since the brand colour used three times ranks nobody. Fourth
+  onwards drop to a table below, and the podium degrades to two blocks or one
+  rather than inventing empty plinths. Medals sit above the name plate, not
+  straddling the seam, because a medal centred on the join covers the name.
 - The other four: **Call lists** (the dialler), **Spreadsheet** (`/call-sheet`), **Pipeline** (`/call-pipeline`, `src/components/calls/call-board.tsx`) and **Stats** (`/call-stats`, `src/lib/call-stats.ts`). Board stages are derived from the latest call like everything else, so moving a card logs a call — `to_call` accepts no drops because no phone call makes a lead never-rung.
 - Call lists are grouped into **folders by market** on the call lists screen
   (`call_list.region`, `sg`/`us`/`gb`, null = Unfiled). Founders-only: a caller

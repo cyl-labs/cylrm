@@ -1,4 +1,4 @@
-import { Trophy } from "lucide-react";
+import { Crown, Medal, Trophy } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { RangeTabs } from "@/components/calls/range-tabs";
 import { getCurrentUser } from "@/lib/session";
@@ -39,6 +39,123 @@ const pct = (num: number, den: number) =>
  * person on it already knows about their own day, so there is nothing here to
  * keep from the people doing the work.
  */
+
+/** Gold, silver, bronze. Written out rather than themed, because a podium
+ *  that used the brand colour three times would rank nobody. */
+const PLACES = [
+  {
+    block: "bg-[#E8A317]",
+    medal: "bg-[#F5B301] text-[#5A3E00]",
+    height: "h-40 sm:h-52",
+    label: "1st",
+  },
+  {
+    block: "bg-[#8B919C]",
+    medal: "bg-[#C7CCD6] text-[#3A3F49]",
+    height: "h-28 sm:h-36",
+    label: "2nd",
+  },
+  {
+    block: "bg-[#B87333]",
+    medal: "bg-[#CD8B4A] text-[#3D2210]",
+    height: "h-20 sm:h-28",
+    label: "3rd",
+  },
+] as const;
+
+/**
+ * The top three, on a podium.
+ *
+ * Rendered 2, 1, 3 across so the winner is in the middle and tallest, which
+ * is the only arrangement that reads as a podium rather than a chart. A list
+ * sorted by demos already told you who was ahead; this is meant to be worth
+ * being on.
+ *
+ * Degrades to two blocks or one on a quiet day rather than inventing empty
+ * plinths for people who do not exist.
+ */
+function Podium({
+  people,
+  meId,
+}: {
+  people: { id: number | null; name: string; calls: number; demos: number }[];
+  meId?: number;
+}) {
+  const top = people.slice(0, 3);
+  // Visual order, not ranking order: second, first, third.
+  const arrangement = [1, 0, 2].filter((i) => top[i] !== undefined);
+
+  return (
+    <div className="rounded-xl border bg-card px-3 pt-5 pb-0 sm:px-6">
+      <div className="flex items-end justify-center gap-2 sm:gap-4">
+        {arrangement.map((i) => {
+          const person = top[i];
+          const place = PLACES[i];
+          const isMe = person.id === meId;
+          return (
+            <div
+              key={person.id}
+              className="flex min-w-0 flex-1 flex-col items-center sm:max-w-52"
+            >
+              {/* Above the plate rather than straddling the join: a medal
+                  centred on the seam sits squarely on top of the name, and
+                  the names are the point. */}
+              <span
+                className={cn(
+                  "mb-1.5 grid size-9 place-items-center rounded-full shadow-sm",
+                  place.medal,
+                )}
+                aria-hidden
+              >
+                {i === 0 ? (
+                  <Crown className="size-5" strokeWidth={2.6} />
+                ) : (
+                  <Medal className="size-4" strokeWidth={2.6} />
+                )}
+              </span>
+
+              <p
+                className={cn(
+                  "w-full truncate rounded-t-lg px-2 py-1.5 text-center text-[13px] font-extrabold tracking-[-0.01em] sm:text-sm",
+                  isMe
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground",
+                )}
+                title={person.name}
+              >
+                {person.name}
+              </p>
+
+              <div
+                className={cn(
+                  "relative flex w-full flex-col items-center justify-center rounded-b-lg pb-5 text-white",
+                  place.block,
+                  place.height,
+                  isMe && "ring-2 ring-primary ring-offset-2 ring-offset-card",
+                )}
+              >
+                <p className="text-2xl font-extrabold tabular-nums leading-none sm:text-3xl">
+                  {person.demos}
+                </p>
+                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] opacity-90">
+                  {person.demos === 1 ? "demo" : "demos"}
+                </p>
+                <p className="mt-1 text-[11px] tabular-nums opacity-80">
+                  {person.calls.toLocaleString()} calls
+                </p>
+
+                <span className="absolute bottom-1.5 text-[11px] font-bold opacity-70">
+                  {place.label}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default async function ScoreboardPage({
   searchParams,
 }: {
@@ -70,6 +187,9 @@ export default async function ScoreboardPage({
   // What it would take to move up one place, in the thing that is ranked.
   const gap = ahead && mine ? ahead.demos - mine.demos : 0;
   const topCalls = Math.max(1, ...people.map((p) => p.calls));
+  // Fourth onwards. The top three are on the podium and repeating them in the
+  // table below would undo the point of putting them up there.
+  const rest = people.slice(3);
 
   return (
     <PageShell title="Scoreboard" actions={<RangeTabs ranges={RANGES} active={range} />}>
@@ -139,20 +259,20 @@ export default async function ScoreboardPage({
           )}
         </div>
 
+        {people.length > 0 && <Podium people={people} meId={me?.id} />}
+
+        {rest.length > 0 && (
         <div className="overflow-hidden rounded-xl border bg-card">
           <div className="flex items-center gap-2 border-b px-4 py-3">
             <Trophy className="size-4 text-muted-foreground" strokeWidth={2.2} />
-            <p className="text-sm font-extrabold tracking-[-0.01em]">Everyone</p>
+            <p className="text-sm font-extrabold tracking-[-0.01em]">
+              Everyone else
+            </p>
             <p className="ml-auto text-[12px] text-muted-foreground">
               Ranked by demos, then calls
             </p>
           </div>
-          {people.length === 0 ? (
-            <p className="px-4 py-10 text-center text-[13px] text-muted-foreground">
-              No calls logged {range === "today" ? "today" : "in this range"} yet.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
+          <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b text-left">
@@ -170,7 +290,7 @@ export default async function ScoreboardPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {people.map((p, i) => {
+                  {rest.map((p, i) => {
                     const isMe = p.id === me?.id;
                     return (
                       <tr
@@ -181,16 +301,7 @@ export default async function ScoreboardPage({
                         )}
                       >
                         <td className="w-10 px-4 py-2.5 tabular-nums text-muted-foreground">
-                          {i === 0 ? (
-                            <span
-                              className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground"
-                              title="Leading"
-                            >
-                              1
-                            </span>
-                          ) : (
-                            i + 1
-                          )}
+                          {i + 4}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5 font-semibold">
                           {p.name}
@@ -230,9 +341,9 @@ export default async function ScoreboardPage({
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
+          </div>
         </div>
+        )}
       </div>
     </PageShell>
   );
