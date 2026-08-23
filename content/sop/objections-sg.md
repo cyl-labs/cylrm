@@ -126,7 +126,7 @@ If they are still unsure:
 
 _(let them answer)_
 
-> **You say** Worth 15 minutes to see how it'd sit alongside yours?
+> **You say** Do you have 15 minutes this week to take a look?
 
 ## Not the decision maker | Prospect: "I need to talk to my partner first."
 
