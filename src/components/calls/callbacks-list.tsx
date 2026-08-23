@@ -104,8 +104,12 @@ function CopyNumber({
 
 export function CallbacksList({
   leads,
+  showWho = false,
 }: {
   leads: CallbackLead[];
+  /** Whose callback it is. Only for admins: a caller's diary is entirely
+   *  their own, so stamping their name on every row is noise. */
+  showWho?: boolean;
 }) {
   const router = useRouter();
   // Rung and logged: dropped from the list at once, because the whole point of
@@ -215,6 +219,16 @@ export function CallbacksList({
                 : "No time was set on this callback"}
               {l.attempts > 0 &&
                 ` · ${l.attempts} ${l.attempts === 1 ? "try" : "tries"}`}
+              {/* The latest call on a callback row is the one that set it, so
+                  this is who promised the call rather than who rang last. */}
+              {showWho && l.lastCalledBy && (
+                <>
+                  {" · set by "}
+                  <span className="font-semibold text-foreground">
+                    {l.lastCalledBy}
+                  </span>
+                </>
+              )}
             </p>
 
             {l.lastNotes && (

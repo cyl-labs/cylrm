@@ -86,6 +86,15 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 - A lead's state is **derived from its most recent call**, never stored, so a mis-tapped outcome is fixed by logging again.
 - No telephony and no dialling: the number is a **copy-to-clipboard button**, the call is placed on a separate handset, the outcome logged after. `tel:` was tried and dropped — it dials from whichever device the browser is on. Adding Twilio would be a real build, not a config change.
 - **Logging a call ≠ correcting one.** A repeat dial is a new `call` row (`POST /api/calls`): it bumps the try count and the last-called time. Correcting a mis-tap overwrites the latest row (`PATCH`). The sheet's category menu and the board's card menu both put logging at the top level and correction one level in, because picking the outcome a lead already had used to be a no-op and a whole re-dial vanished.
+- Callbacks show **who set them**, but only to an admin: the latest call on a
+  callback row is the one that made the promise, so `lastCalledBy` is the
+  person who owes it. A caller's diary is entirely their own, so stamping their
+  own name on every row would be noise.
+- **Callback scoping is by list owner, not by who logged it.** A caller sees
+  every callback on the niches assigned to them, whoever set it, and does not
+  see one they set themselves on somebody else's niche. Those are the same
+  thing in practice, since a list has one owner and callers only work their
+  own, but they come apart the moment an admin logs a call on someone's list.
 - The Call CRM has five screens: **Callbacks** (`/callbacks`) is the diary — every lead whose latest outcome is `callback`, across all lists, overdue first. `countCallbacksDue` feeds a sidebar badge and is `cache()`d because the sidebar and `PageShell` both ask while rendering one page, the same reason `countUnreadReplies` is.
 - **Scoreboard** puts the top three on a podium: rendered 2, 1, 3 across so the
   winner is centre and tallest, which is the only arrangement that reads as a

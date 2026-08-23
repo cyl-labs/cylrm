@@ -56,7 +56,7 @@ export default async function CallbacksPage({
             . Times are Singapore time.
           </p>
         )}
-        <CallbacksList leads={leads} />
+        <CallbacksList leads={leads} showWho={me?.role === "admin"} />
       </div>
     </PageShell>
   );
