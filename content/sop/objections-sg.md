@@ -119,6 +119,15 @@ If they are still unsure:
 
 > **You say** Nice. How's your experience been with it so far?
 
+## Already sorted | Prospect: "I'm happy with what I've got" / "I don't want to replace my current system"
+
+
+> **You say** Yeah, most of our clients actually use ours as a backup. It only picks up what your current setup misses, so nothing changes about what you've already got.
+
+_(let them answer)_
+
+> **You say** Worth 15 minutes to see how it'd sit alongside yours?
+
 ## Not the decision maker | Prospect: "I need to talk to my partner first."
 
 
