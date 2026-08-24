@@ -160,7 +160,12 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   (en-US gives EDT for New York but GMT+1 for London, en-GB the reverse), and
   two rows in one table should not be labelled two different ways. Eastern
   stands in for the whole US, which is an approximation stated rather than a
-  number that looks exact.
+  number that looks exact. Its own outcome filter (`?outcome=`) sits on that
+  card rather than with the three at the top, because it narrows one table and
+  not the screen: filtering the tiles by outcome would make "60% pickups" mean
+  sixty per cent of the calls that were already pickups. It rebuilds the whole
+  query string like `CallFilters` does, and navigates with `scroll: false`
+  since the table is well down the page.
 - **Stats default to today.** The window is a day-kind window, so the range
   picker must be given the parsed `?day=` rather than the resolved window, or
   it shows a date where it should say Today.

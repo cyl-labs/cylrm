@@ -336,6 +336,7 @@ export async function getCallLog(
   w: StatsWindow,
   listId?: number,
   userId?: number,
+  outcome?: CallOutcome,
 ): Promise<CallLogRow[]> {
   const rows = (await db.execute(sql`
     select c.id, c.called_at, c.outcome, c.notes, c.callback_at,
@@ -349,6 +350,7 @@ export async function getCallLog(
     where ${since(w)}
       ${listId ? sql`and cl.id = ${listId}` : sql``}
       ${byUser(userId)}
+      ${outcome ? sql`and c.outcome = ${outcome}` : sql``}
     order by c.called_at desc, c.id desc
     limit ${CALL_LOG_LIMIT}
   `)) as Row[];

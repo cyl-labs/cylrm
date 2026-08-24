@@ -12,9 +12,11 @@ import {
   type StatsWindow,
 } from "@/lib/call-stats";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
+import type { CallOutcome } from "@/lib/calls";
 import { PageShell } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
 import { CallFilters } from "@/components/calls/call-filters";
+import { LogFilter } from "@/components/calls/log-filter";
 import { listTeam } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
@@ -67,9 +69,23 @@ export default async function CallStatsPage({
     list?: string;
     day?: string;
     person?: string;
+    outcome?: string;
   }>;
 }) {
-  const { range: raw, list, day: rawDay, person } = await searchParams;
+  const {
+    range: raw,
+    list,
+    day: rawDay,
+    person,
+    outcome: rawOutcome,
+  } = await searchParams;
+
+  // An outcome that is not one of ours falls back to all of them, like a
+  // stale niche or person does.
+  const outcome =
+    rawOutcome && rawOutcome in OUTCOME_LABELS
+      ? (rawOutcome as CallOutcome)
+      : undefined;
   // Passed to the picker as-is. Not derived from the window: "today" is a
   // range that happens to resolve to a single day, and reading the window
   // back made the control show a date where it should say Today.
@@ -109,7 +125,7 @@ export default async function CallStatsPage({
     getListStats(w, listId, personId),
     getCallsByDay(14, listId, personId),
     getPersonStats(w, listId, personId),
-    getCallLog(w, listId, personId),
+    getCallLog(w, listId, personId, outcome),
   ]);
 
   // Each call is shown in its niche's own zone, with the zone named, because
@@ -496,15 +512,26 @@ export default async function CallStatsPage({
             <p className="text-sm font-extrabold tracking-[-0.01em]">
               Every call
             </p>
-            <p className="ml-auto text-[12px] text-muted-foreground">
+            <p className="text-[12px] text-muted-foreground">
               {log.length === CALL_LOG_LIMIT
-                ? `Newest ${CALL_LOG_LIMIT}, oldest cut off. Narrow the range to see the rest.`
+                ? `Newest ${CALL_LOG_LIMIT}, oldest cut off`
                 : "Newest first"}
             </p>
+            <div className="ml-auto w-full sm:w-auto">
+              <LogFilter
+                outcome={outcome ?? "all"}
+                listId={listId ?? "all"}
+                personId={personId ?? "all"}
+                range={range}
+                day={day}
+              />
+            </div>
           </div>
           {log.length === 0 ? (
             <p className="px-4 py-10 text-center text-[13px] text-muted-foreground">
-              No calls logged in this range.
+              {outcome
+                ? `Nothing logged as ${OUTCOME_LABELS[outcome].toLowerCase()} in this range.`
+                : "No calls logged in this range."}
             </p>
           ) : (
             <div className="max-h-[32rem] overflow-auto">
