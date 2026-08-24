@@ -37,6 +37,31 @@ if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" true 2>/dev/null; then
   exit 1
 fi
 
+# Restarting the app does NOT drop a call in progress — the audio runs from the
+# browser straight to Telnyx and never passes through this server. What it does
+# break is the request that saves the outcome when they hang up, and whatever
+# page they are looking at. So this refuses rather than warns: a lost
+# disposition is a call that happened and cannot be proved.
+#
+# Asked of the database over the SSH connection we already have, rather than of
+# /api/presence, so no shell script needs a credential. Freshness window must
+# match PRESENCE_TTL_SECONDS in src/lib/users.ts.
+say "Checking whether anyone is on a call"
+LIVE="$(ssh "$HOST" "docker exec cylrm-db psql -U cylrm cylrm -tAc \"select string_agg(name || ' (' || extract(epoch from (now() - on_call_since))::int || 's)', ', ') from app_user where on_call_since is not null and presence_at > now() - interval '45 seconds'\"" 2>/dev/null || true)"
+if [[ -n "${LIVE//[[:space:]]/}" ]]; then
+  if [[ "${FORCE_DEPLOY:-}" == "1" ]]; then
+    echo "WARNING: on a call right now — $LIVE. FORCE_DEPLOY=1, shipping anyway."
+  else
+    echo "ERROR: someone is on a call right now — $LIVE"
+    echo "The call itself would survive a restart, but the outcome they log at"
+    echo "the end of it may not save. Wait for them to hang up and re-run."
+    echo "To ship regardless: FORCE_DEPLOY=1 ./scripts/deploy.sh"
+    exit 1
+  fi
+else
+  echo "nobody on a call"
+fi
+
 say "Building locally"
 npm run build
 

@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { listAccountNumbers } from "@/lib/telnyx";
 import { TeamManager } from "@/components/team/team-manager";
 import { TelnyxNumbers } from "@/components/team/telnyx-numbers";
+import { LiveCallers } from "@/components/team/live-callers";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,12 @@ export default async function TeamPage() {
   return (
     <PageShell title="Team">
       <div className="px-4 py-4 sm:px-6">
+        {/* Above the numbers panel because it is the thing you open this
+            screen to glance at before shipping, and it is one line when the
+            answer is no. */}
+        {me?.role === "admin" && (
+          <LiveCallers className="mb-5 rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]" />
+        )}
         {me?.role === "admin" && (
           <TelnyxNumbers
             numbers={numbers}

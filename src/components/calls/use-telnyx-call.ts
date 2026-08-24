@@ -138,6 +138,36 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
     };
   }, [enabled]);
 
+  // Tell the server whether this person is on a call, so an admin can see it
+  // before restarting the app under them.
+  //
+  // Sent on every state change and then every 15s while the line is up, rather
+  // than only on the transitions: a browser that crashes or is closed mid-call
+  // sends no "I hung up", so the reader has to be able to notice the silence.
+  // `PRESENCE_TTL_SECONDS` is three of these.
+  //
+  // Best-effort throughout — a failed heartbeat must never surface to someone
+  // mid-conversation, and the worst case is a status that goes stale on its
+  // own. Ringing counts as on a call: the disruptive moment starts when they
+  // press dial, not when the far end picks up.
+  React.useEffect(() => {
+    if (!enabled) return;
+    const onCall = state !== "idle";
+
+    const beat = () => {
+      fetch("/api/presence", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ onCall }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    beat();
+    const t = setInterval(beat, 15_000);
+    return () => clearInterval(t);
+  }, [enabled, state]);
+
   // The visible timer. Counts from the moment they answer, not from dialling,
   // so it is the length of the conversation rather than of the ringing.
   React.useEffect(() => {

@@ -480,7 +480,27 @@ export const appUser = pgTable("app_user", {
   telnyxCredentialExpiresAt: timestamp("telnyx_credential_expires_at", {
     withTimezone: true,
   }),
-});
+  /**
+   * When their current call started, or null when they are not on one.
+   *
+   * Only ever true of a browser call: a handset caller's line is their own
+   * phone and nothing here can see it, which is why the Team screen says
+   * "dials on a handset" for them rather than "not on a call" — the second
+   * would be a claim we cannot make.
+   */
+  onCallSince: timestamp("on_call_since", { withTimezone: true }),
+  /**
+   * Last heartbeat from an open dialler.
+   *
+   * Paired with `on_call_since` because that column alone lies: a browser that
+   * crashes or is closed mid-call never clears it, and the screen would show
+   * someone busy forever. A caller counts as live only while this is fresh, so
+   * a dead tab decays on its own within a heartbeat or two. Distinct from
+   * `last_seen_at`, which is stamped at sign-in and answers "has this password
+   * ever been used".
+   */
+  presenceAt: timestamp("presence_at", { withTimezone: true }),
+}, (t) => [index("app_user_presence_at_idx").on(t.presenceAt)]);
 
 export const call = pgTable(
   "call",

@@ -152,6 +152,74 @@ export async function touchLastSeen(id: number) {
     .where(eq(appUser.id, id));
 }
 
+/**
+ * How long a heartbeat counts for.
+ *
+ * Three missed beats at the 15s cadence the dialler sends. Long enough that a
+ * slow request or a backgrounded tab does not flicker someone to idle
+ * mid-conversation, short enough that a closed laptop stops claiming a call
+ * inside a minute. The deploy guard and the Team screen both read it, so a
+ * change here moves both together.
+ */
+export const PRESENCE_TTL_SECONDS = 45;
+
+export type Presence = {
+  userId: number;
+  name: string;
+  /** Null when they are not on a call, or when we stopped hearing from them. */
+  onCallSince: string | null;
+  seconds: number;
+};
+
+/**
+ * Who is on a call this second.
+ *
+ * Only ever browser calls — a handset caller's phone is invisible to us, and
+ * the screens say so rather than reporting them idle.
+ *
+ * Both halves are required: a stale heartbeat means the tab is gone, whatever
+ * `on_call_since` still says. Deliberately not `cache()`d, unlike the counts
+ * on the sidebar — this is the one query on the app whose whole value is that
+ * it is not a moment old.
+ */
+export async function getLiveCallers(): Promise<Presence[]> {
+  const rows = (await db.execute(sql`
+    select id, name, on_call_since,
+      extract(epoch from (now() - on_call_since))::int as seconds
+    from app_user
+    where on_call_since is not null
+      and presence_at > now() - make_interval(secs => ${PRESENCE_TTL_SECONDS})
+    order by on_call_since
+  `)) as {
+    id: number;
+    name: string;
+    on_call_since: string | null;
+    seconds: number | null;
+  }[];
+
+  return rows.map((r) => ({
+    userId: Number(r.id),
+    name: String(r.name),
+    onCallSince: r.on_call_since ? new Date(r.on_call_since).toISOString() : null,
+    seconds: Number(r.seconds ?? 0),
+  }));
+}
+
+/** The heartbeat. `onCall` false clears the call but still stamps the beat, so
+ *  an idle caller with a dialler open is known to be there. */
+export async function recordPresence(userId: number, onCall: boolean) {
+  await db.execute(sql`
+    update app_user
+    set presence_at = now(),
+        -- Left alone when they are already on a call, so the timer counts from
+        -- when it started rather than restarting on every heartbeat.
+        on_call_since = ${
+          onCall ? sql`coalesce(on_call_since, now())` : sql`null`
+        }
+    where id = ${userId}
+  `);
+}
+
 /** How many admins are left. The API refuses to demote or deactivate the last
  *  one — an app nobody can manage needs a database console to fix. */
 export async function countActiveAdmins(): Promise<number> {
