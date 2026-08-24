@@ -314,6 +314,11 @@ export type CallLogRow = {
   region: "sg" | "us" | "gb" | null;
   notes: string | null;
   callbackAt: string | null;
+  /** Telnyx's file for this call, when it was dialled from the browser and the
+   *  webhook has landed. Null for every handset call, every no-answer, and
+   *  everything logged before browser dialling existed — which is most rows. */
+  recordingId: string | null;
+  recordingMs: number | null;
 };
 
 /** Enough to read a day or a week without turning the page into a database
@@ -342,11 +347,24 @@ export async function getCallLog(
     select c.id, c.called_at, c.outcome, c.notes, c.callback_at,
       u.name as by_name,
       coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) as company,
-      l.phone, cl.name as list_name, cl.region
+      l.phone, cl.name as list_name, cl.region,
+      r.recording_id, r.duration_ms as recording_ms
     from call c
     join call_lead l on l.id = c.call_lead_id
     join call_list cl on cl.id = l.call_list_id
     left join app_user u on u.id = c.user_id
+    -- Per call, not per lead. The board can only ever reach the recording of a
+    -- lead's *latest* call, because that is the row it hangs off; this table
+    -- has a row per dial, so a business rung three times offers all three.
+    -- Latest file first within a session: one session can produce more than
+    -- one, the same lateral the board's query uses.
+    left join lateral (
+      select rr.recording_id, rr.duration_ms
+      from call_recording rr
+      where rr.call_session_id = c.telnyx_session_id
+      order by rr.started_at desc nulls last, rr.id desc
+      limit 1
+    ) r on true
     where ${since(w)}
       ${listId ? sql`and cl.id = ${listId}` : sql``}
       ${byUser(userId)}
@@ -367,5 +385,7 @@ export async function getCallLog(
     region: (r.region as "sg" | "us" | "gb" | null) ?? null,
     notes: (r.notes as string | null) ?? null,
     callbackAt: r.callback_at === null ? null : String(r.callback_at),
+    recordingId: (r.recording_id as string | null) ?? null,
+    recordingMs: r.recording_ms === null ? null : n(r.recording_ms),
   }));
 }

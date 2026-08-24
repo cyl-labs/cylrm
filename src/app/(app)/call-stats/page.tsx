@@ -17,6 +17,7 @@ import { PageShell } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
 import { CallFilters } from "@/components/calls/call-filters";
 import { LogFilter } from "@/components/calls/log-filter";
+import { LogRecording } from "@/components/calls/log-recording";
 import { listTeam } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
@@ -555,6 +556,19 @@ export default async function CallStatsPage({
                     <tr key={c.id} className="border-b align-top last:border-0">
                       <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-muted-foreground">
                         {callTime(c.calledAt, c.region)}
+                        {/* Under the time rather than in a column of its own:
+                            most calls have no audio — every handset call and
+                            every no-answer — and a column that is empty on
+                            most rows is a column of nothing, the same reason
+                            notes hang under the business. */}
+                        {c.recordingId && (
+                          <LogRecording
+                            recordingId={c.recordingId}
+                            recordingMs={c.recordingMs}
+                            company={c.company}
+                            callerName={c.by}
+                          />
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 font-semibold">
                         {c.by}

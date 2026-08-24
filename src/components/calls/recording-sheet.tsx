@@ -37,6 +37,7 @@ export function RecordingSheet({
   recordingMs,
   title,
   subtitle,
+  callerLabel = "You",
   open,
   onOpenChange,
 }: {
@@ -44,6 +45,15 @@ export function RecordingSheet({
   recordingMs: number | null;
   title: string;
   subtitle?: string | null;
+  /**
+   * What to call the near side of the conversation.
+   *
+   * "You" is right on the board, where a caller is reading their own call, and
+   * wrong on Stats, where an admin is reading somebody else's — so that screen
+   * passes the caller's name. Defaulted rather than required so the board is
+   * unchanged.
+   */
+  callerLabel?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -135,7 +145,7 @@ export function RecordingSheet({
                           : "text-muted-foreground",
                       )}
                     >
-                      {turn.speaker === "caller" ? "You" : "Prospect"}
+                      {turn.speaker === "caller" ? callerLabel : "Prospect"}
                     </p>
                     <p
                       className="mt-0.5 inline-block rounded-[3px] px-1.5 py-0.5 text-[13px] leading-relaxed"
