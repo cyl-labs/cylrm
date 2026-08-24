@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { listTeam } from "@/lib/users";
 import {
   getPersonStats,
-  todayInCallTz,
+  todayInStatsTz,
   type StatsWindow,
 } from "@/lib/call-stats";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ const RANGES = [
 ] as const;
 
 function windowFor(range: string): StatsWindow {
-  if (range === "today") return { kind: "day", date: todayInCallTz() };
+  if (range === "today") return { kind: "day", date: todayInStatsTz() };
   return { kind: "rolling", days: Number(range) };
 }
 

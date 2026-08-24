@@ -7,7 +7,7 @@ import {
   getOutcomeCounts,
   getCallLog,
   getPersonStats,
-  todayInCallTz,
+  todayInStatsTz,
   CALL_LOG_LIMIT,
   type StatsWindow,
 } from "@/lib/call-stats";
@@ -22,9 +22,9 @@ import { listTeam } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
-/** A Singapore date, N days back from today there. */
+/** An Eastern date, N days back from today there. */
 function dayBack(n: number) {
-  const today = todayInCallTz();
+  const today = todayInStatsTz();
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
@@ -34,7 +34,7 @@ function dayBack(n: number) {
  *  one is ever in force. */
 function windowFor(range: string, day: string | undefined): StatsWindow {
   if (day) return { kind: "day", date: day };
-  if (range === "today") return { kind: "day", date: todayInCallTz() };
+  if (range === "today") return { kind: "day", date: todayInStatsTz() };
   if (range === "yesterday") return { kind: "day", date: dayBack(1) };
   if (range === "all") return { kind: "all" };
   return { kind: "rolling", days: Number(range) };
@@ -210,7 +210,7 @@ export default async function CallStatsPage({
         {w.kind === "day" && (
           <p className="text-[13px] text-muted-foreground">
             Showing <span className="font-bold">{dayLabel(w.date)}</span> only,
-            Singapore time.{" "}
+            Eastern time.{" "}
             <Link
               href={`/call-stats?${new URLSearchParams({
                 ...(listId ? { list: String(listId) } : {}),

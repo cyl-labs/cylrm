@@ -46,15 +46,32 @@ export type ListStat = {
   won: number;
 };
 
-/** Calls are made in Singapore, so a "day" is a Singapore day. Bucketing by
- *  UTC put a 7am call on the previous day's bar. */
-const CALL_TZ = "Asia/Singapore";
+/**
+ * The zone a reporting "day" is measured in: Eastern.
+ *
+ * Bucketing by UTC put a 7am call on the previous day's bar, so this was
+ * always a real zone rather than the server's. It was Singapore until
+ * 2026-08-25 and is now Eastern, because that is where the floor's work is:
+ * every active caller bar the founders works US niches, and a shift that runs
+ * to 6pm New York was landing on two different Singapore days.
+ *
+ * Named apart from the `CALL_TZ` in `lib/calls.ts` on purpose — that one still
+ * says Singapore and counts "called today" on the dialler and the call lists.
+ * Two constants because they answer different questions, and a single one
+ * would have moved the callback diary too, which is booked and read in
+ * Singapore time via `parseCallbackAt`.
+ *
+ * Unlike Singapore's fixed +08:00, Eastern has daylight saving, so there is
+ * deliberately no offset constant to pair with this: every use goes through
+ * Postgres `at time zone` or `Intl`, both of which read the zone database.
+ */
+const STATS_TZ = "America/New_York";
 
 /**
  * What slice of time the numbers cover.
  *
  * `rolling` is the last N days up to this moment; `day` is one calendar day in
- * Singapore, which is what "how did we do today" means and what a rolling
+ * Eastern time, which is what "how did we do today" means and what a rolling
  * 24-hour window does not.
  */
 export type StatsWindow =
@@ -62,14 +79,14 @@ export type StatsWindow =
   | { kind: "rolling"; days: number }
   | { kind: "day"; date: string };
 
-/** Today in Singapore, as YYYY-MM-DD — the default for a day picker's max. */
-export const todayInCallTz = () =>
-  new Date().toLocaleDateString("en-CA", { timeZone: CALL_TZ });
+/** Today in Eastern, as YYYY-MM-DD — the default for a day picker's max. */
+export const todayInStatsTz = () =>
+  new Date().toLocaleDateString("en-CA", { timeZone: STATS_TZ });
 
 const since = (w: StatsWindow): SQL => {
   if (w.kind === "all") return sql`true`;
   if (w.kind === "day") {
-    return sql`(c.called_at at time zone ${CALL_TZ})::date = ${w.date}::date`;
+    return sql`(c.called_at at time zone ${STATS_TZ})::date = ${w.date}::date`;
   }
   return sql`c.called_at >= now() - ${`${w.days} days`}::interval`;
 };
@@ -276,14 +293,14 @@ export async function getCallsByDay(
       -- The cast is load-bearing: an untyped parameter here resolves as a
       -- date, and date minus date is an integer, so generate_series was
       -- handed an int where it wanted a date.
-      (now() at time zone ${CALL_TZ})::date - ${days - 1}::int,
-      (now() at time zone ${CALL_TZ})::date,
+      (now() at time zone ${STATS_TZ})::date - ${days - 1}::int,
+      (now() at time zone ${STATS_TZ})::date,
       '1 day'
     ) d
     -- The niche clause belongs in the join, not a WHERE: filtering after the
     -- LEFT JOIN would drop the empty days this series exists to keep.
     left join call c
-      on (c.called_at at time zone ${CALL_TZ})::date = d::date
+      on (c.called_at at time zone ${STATS_TZ})::date = d::date
       and (${listId ?? null}::int is null or exists (
         select 1 from call_lead l
         where l.id = c.call_lead_id and l.call_list_id = ${listId ?? null}

@@ -40,7 +40,7 @@ export function CallFilters({
   personId?: number | "all";
   /** Omitted on screens with no date range, like the board. */
   range?: string;
-  /** A single Singapore day, YYYY-MM-DD, when one is picked off the chart. It
+  /** A single Eastern day, YYYY-MM-DD, when one is picked off the chart. It
    *  replaces the range rather than narrowing it, so only one is ever set. */
   day?: string;
 }) {
