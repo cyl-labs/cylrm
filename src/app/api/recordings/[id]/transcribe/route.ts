@@ -21,7 +21,16 @@ import { recordingDownloadUrl } from "@/lib/telnyx";
  * Scoped like the playback route: the id must already be in `call_recording`
  * and the call must be on a list this person can see.
  */
-export async function POST(
+/**
+ * The transcript already written for this recording, or null.
+ *
+ * Never spends money and never calls Deepgram — that is POST's job, and the
+ * split is the point. Without this the sheet had no way to ask "is there one
+ * already", so it opened showing the button every time and a transcript
+ * written a minute ago looked like it had never been made. It was reading back
+ * from React state alone, which a refresh throws away.
+ */
+export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -29,9 +38,23 @@ export async function POST(
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const ownerId = callScope(me);
+  const rows = await findRecording(id, callScope(me));
+  if (rows.length === 0) {
+    return Response.json({ error: "Recording not found." }, { status: 404 });
+  }
 
-  const rows = (await db.execute(sql`
+  const row = rows[0];
+  return Response.json(
+    row.transcript_text === null
+      ? { text: null, turns: null }
+      : { text: row.transcript_text, turns: row.transcript_turns ?? [] },
+  );
+}
+
+/** Scoped exactly as playback is: the id must be in `call_recording`, and the
+ *  call it belongs to must be on a list this person can see. */
+async function findRecording(id: string, ownerId: number | undefined) {
+  return (await db.execute(sql`
     select r.recording_id, r.transcript_text, r.transcript_turns
     from call_recording r
     join call c on c.telnyx_session_id = r.call_session_id
@@ -45,6 +68,17 @@ export async function POST(
     transcript_text: string | null;
     transcript_turns: TranscriptTurn[] | null;
   }[];
+}
+
+export async function POST(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const me = await getCurrentUser();
+  if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const rows = await findRecording(id, callScope(me));
 
   if (rows.length === 0) {
     return Response.json({ error: "Recording not found." }, { status: 404 });

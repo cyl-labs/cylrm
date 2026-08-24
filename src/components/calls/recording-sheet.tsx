@@ -60,12 +60,48 @@ export function RecordingSheet({
   const [turns, setTurns] = React.useState<TranscriptTurn[] | null>(null);
   const [text, setText] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
+  // Whether the "is there one already" question has been answered yet. Without
+  // it the button flashes up for a moment on every open, inviting a click that
+  // would have been unnecessary.
+  const [loaded, setLoaded] = React.useState(false);
+  const [at, setAt] = React.useState(0);
+  const audioRef = React.useRef<HTMLAudioElement>(null);
 
   // A different call means a different transcript; without this, opening a
   // second lead shows the first one's words under the second one's audio.
-  React.useEffect(() => {
+  // Done during render rather than in an effect — React's own way of adjusting
+  // state when a prop changes, and it avoids painting the old call's words for
+  // a frame before an effect could clear them.
+  const [renderedId, setRenderedId] = React.useState(recordingId);
+  if (renderedId !== recordingId) {
+    setRenderedId(recordingId);
     setTurns(null);
     setText(null);
+    setLoaded(false);
+    setAt(0);
+  }
+
+  // Fetch whatever is already stored. This is why a transcript survives a
+  // refresh: it lives on the recording row, and until this existed the sheet
+  // only ever knew about one it had made itself this session.
+  React.useEffect(() => {
+    let stale = false;
+
+    fetch(`/api/recordings/${recordingId}/transcribe`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { text: string | null; turns: TranscriptTurn[] | null } | null) => {
+        if (stale) return;
+        if (data?.turns) {
+          setTurns(data.turns);
+          setText(data.text);
+        }
+        setLoaded(true);
+      })
+      .catch(() => !stale && setLoaded(true));
+
+    return () => {
+      stale = true;
+    };
   }, [recordingId]);
 
   async function getTranscript() {
@@ -83,6 +119,17 @@ export function RecordingSheet({
     const data = (await res.json()) as { text: string; turns: TranscriptTurn[] };
     setTurns(data.turns);
     setText(data.text);
+  }
+
+  /** Jump the audio to a turn and keep playing from there. The whole point of
+   *  reading a transcript is finding the moment worth hearing. */
+  function seek(seconds: number) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = seconds;
+    // Rejected when the browser wants a gesture first, which this is — but a
+    // failed play must not throw into the click handler.
+    audio.play().catch(() => {});
   }
 
   return (
@@ -103,15 +150,22 @@ export function RecordingSheet({
           {/* No `preload`: the browser would fetch the audio for every lead the
               moment a sheet mounts, which is a Telnyx request per glance. */}
           <audio
+            ref={audioRef}
             controls
             preload="none"
             src={`/api/recordings/${recordingId}`}
             className="w-full"
+            // Drives which turn is lit while it plays. `timeupdate` fires about
+            // four times a second, which is plenty for a highlight and cheap
+            // enough not to matter.
+            onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
           />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {turns === null ? (
+          {!loaded ? (
+            <p className="text-[13px] text-muted-foreground">Loading…</p>
+          ) : turns === null ? (
             <div className="space-y-3">
               <p className="text-[13px] text-muted-foreground">
                 A transcript is written the first time it is asked for, then
@@ -131,34 +185,58 @@ export function RecordingSheet({
             </p>
           ) : (
             <ol className="space-y-2.5">
-              {turns.map((turn, i) => (
-                <li key={i} className="flex gap-3">
-                  <span className="w-9 shrink-0 pt-1 text-[11px] tabular-nums text-muted-foreground">
-                    {mmss(turn.start)}
-                  </span>
-                  <div className="min-w-0">
-                    <p
-                      className={cn(
-                        "text-[11px] font-bold tracking-wide uppercase",
-                        turn.speaker === "caller"
-                          ? "text-primary"
-                          : "text-muted-foreground",
-                      )}
+              {turns.map((turn, i) => {
+                // The turn being spoken: this one has started and the next has
+                // not. The last turn runs to the end of the recording.
+                const next = turns[i + 1];
+                const playing =
+                  at >= turn.start && (!next || at < next.start) && at > 0;
+                return (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      onClick={() => seek(turn.start)}
+                      aria-label={`Play from ${mmss(turn.start)}`}
+                      className="flex w-full gap-3 rounded-md text-left transition-colors hover:bg-muted/60"
                     >
-                      {turn.speaker === "caller" ? callerLabel : "Prospect"}
-                    </p>
-                    <p
-                      className="mt-0.5 inline-block rounded-[3px] px-1.5 py-0.5 text-[13px] leading-relaxed"
-                      style={{
-                        background:
-                          turn.speaker === "caller" ? "#FDE7E1" : "#EDEDED",
-                      }}
-                    >
-                      {turn.text}
-                    </p>
-                  </div>
-                </li>
-              ))}
+                      <span
+                        className={cn(
+                          "w-9 shrink-0 pt-1 text-[11px] tabular-nums",
+                          playing
+                            ? "font-bold text-primary"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {mmss(turn.start)}
+                      </span>
+                      <div className="min-w-0">
+                        <p
+                          className={cn(
+                            "text-[11px] font-bold tracking-wide uppercase",
+                            turn.speaker === "caller"
+                              ? "text-primary"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {turn.speaker === "caller" ? callerLabel : "Prospect"}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-0.5 inline-block rounded-[3px] px-1.5 py-0.5 text-[13px] leading-relaxed",
+                            playing && "ring-2 ring-primary/40",
+                          )}
+                          style={{
+                            background:
+                              turn.speaker === "caller" ? "#FDE7E1" : "#EDEDED",
+                          }}
+                        >
+                          {turn.text}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
             </ol>
           )}
         </div>
