@@ -5,8 +5,10 @@ import {
   getCallsByDay,
   getListStats,
   getOutcomeCounts,
+  getCallLog,
   getPersonStats,
   todayInCallTz,
+  CALL_LOG_LIMIT,
   type StatsWindow,
 } from "@/lib/call-stats";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
@@ -68,8 +70,13 @@ export default async function CallStatsPage({
   }>;
 }) {
   const { range: raw, list, day: rawDay, person } = await searchParams;
+  // Passed to the picker as-is. Not derived from the window: "today" is a
+  // range that happens to resolve to a single day, and reading the window
+  // back made the control show a date where it should say Today.
   const day = isDay(rawDay) ? rawDay : undefined;
-  const range = raw && RANGE_KEYS.has(raw) ? raw : "30";
+  // Today by default. The question this screen gets asked most is "how is the
+  // floor doing right now", and a month of history answered a different one.
+  const range = raw && RANGE_KEYS.has(raw) ? raw : "today";
   const w = windowFor(range, day);
 
   const [allLists, team] = await Promise.all([getCallLists(), listTeam()]);
@@ -96,13 +103,46 @@ export default async function CallStatsPage({
     (l) => l.total - l.uncalled > 0 || l.id === listId,
   );
 
-  const [totals, outcomes, lists, byDay, people] = await Promise.all([
+  const [totals, outcomes, lists, byDay, people, log] = await Promise.all([
     getCallTotals(w, listId, personId),
     getOutcomeCounts(w, listId, personId),
     getListStats(w, listId, personId),
     getCallsByDay(14, listId, personId),
     getPersonStats(w, listId, personId),
+    getCallLog(w, listId, personId),
   ]);
+
+  // Each call is shown in its niche's own zone, with the zone named, because
+  // "04:04" on a US lead is unreadable otherwise and quietly wrong if you take
+  // it for local time. Eastern stands in for the US, which spans four zones:
+  // it is the common case and an approximation stated is better than a number
+  // that looks exact. Never the reader's zone, which would make the same call
+  // read differently to two people looking at one screen.
+  // Labelled here rather than by Intl, which names one zone and not the
+  // other: en-US gives EDT for New York but GMT+1 for London, en-GB the
+  // reverse. Two rows in one table should not be labelled two different ways.
+  const ZONES = {
+    sg: { tz: "Asia/Singapore", label: "SGT" },
+    us: { tz: "America/New_York", label: "ET" },
+    gb: { tz: "Europe/London", label: "UK" },
+  } as const;
+  const formatters = new Map<string, Intl.DateTimeFormat>();
+  const callTime = (iso: string, region: "sg" | "us" | "gb" | null) => {
+    const { tz, label } = ZONES[region ?? "sg"];
+    let f = formatters.get(tz);
+    if (!f) {
+      f = new Intl.DateTimeFormat("en-GB", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: tz,
+      });
+      formatters.set(tz, f);
+    }
+    return `${f.format(new Date(iso))} ${label}`;
+  };
 
   const tiles = [
     { label: "Calls logged", value: totals.calls, sub: "attempts, not leads" },
@@ -145,7 +185,7 @@ export default async function CallStatsPage({
           people={peopleOptions}
           personId={personId ?? "all"}
           range={range}
-          day={w.kind === "day" ? w.date : undefined}
+          day={day}
         />
       }
     >
@@ -447,6 +487,84 @@ export default async function CallStatsPage({
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* The tables above answer "how many". This one answers "which ones",
+            which is what you open when a number looks wrong. */}
+        <div className={cn(CARD, "overflow-hidden")}>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-3">
+            <p className="text-sm font-extrabold tracking-[-0.01em]">
+              Every call
+            </p>
+            <p className="ml-auto text-[12px] text-muted-foreground">
+              {log.length === CALL_LOG_LIMIT
+                ? `Newest ${CALL_LOG_LIMIT}, oldest cut off. Narrow the range to see the rest.`
+                : "Newest first"}
+            </p>
+          </div>
+          {log.length === 0 ? (
+            <p className="px-4 py-10 text-center text-[13px] text-muted-foreground">
+              No calls logged in this range.
+            </p>
+          ) : (
+            <div className="max-h-[32rem] overflow-auto">
+              <table className="w-full text-[13px]">
+                <thead className="sticky top-0 bg-card">
+                  <tr className="border-b text-left">
+                    {["When", "Who", "Business", "Niche", "Logged as"].map(
+                      (h) => (
+                        <th
+                          key={h}
+                          className="whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground"
+                        >
+                          {h}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {log.map((c) => (
+                    <tr key={c.id} className="border-b align-top last:border-0">
+                      <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-muted-foreground">
+                        {callTime(c.calledAt, c.region)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2.5 font-semibold">
+                        {c.by}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="font-semibold">{c.company}</span>
+                        <span className="block text-[12px] tabular-nums text-muted-foreground">
+                          {c.phone}
+                        </span>
+                        {/* Notes hang under the business rather than getting a
+                            column of their own: most calls have none, and an
+                            empty column on every row is a column of nothing. */}
+                        {c.notes && (
+                          <span className="mt-1 block max-w-md whitespace-pre-wrap text-[12px] text-muted-foreground">
+                            {c.notes}
+                          </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
+                        {c.listName}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2.5">
+                        <span className="font-semibold">
+                          {OUTCOME_LABELS[c.outcome]}
+                        </span>
+                        {c.outcome === "callback" && c.callbackAt && (
+                          <span className="block text-[12px] text-muted-foreground">
+                            for {callTime(c.callbackAt, c.region)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </PageShell>

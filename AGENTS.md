@@ -150,6 +150,20 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   the menu and dialogs render through a portal and never reach that anchor —
   and `preventDefault` on a dialog's clicks cancels the submit button's own
   default action, which made the rename form silently do nothing.
+- Stats carry an **Every call** table: one row per call with time, caller,
+  business, niche and outcome, honouring the same three filters. Capped at
+  `CALL_LOG_LIMIT` (300) newest-first, and the header says when the cap bit
+  rather than quietly showing part of a range. Times are rendered in **the
+  niche's own market** (`ET` / `UK` / `SGT`), never the reader's zone, since
+  the same call must not read differently to two people looking at one screen.
+  The zone label is written by hand: Intl names one zone and not the other
+  (en-US gives EDT for New York but GMT+1 for London, en-GB the reverse), and
+  two rows in one table should not be labelled two different ways. Eastern
+  stands in for the whole US, which is an approximation stated rather than a
+  number that looks exact.
+- **Stats default to today.** The window is a day-kind window, so the range
+  picker must be given the parsed `?day=` rather than the resolved window, or
+  it shows a date where it should say Today.
 - Stats also take `?person=<id>` to narrow to one employee, applied to every
   number on the page rather than just the "By person" table: "By list" then
   means that person's calls per niche, and `worked` means leads *they* have

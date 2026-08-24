@@ -301,3 +301,69 @@ export async function getCallsByDay(
     pickups: n(r.pickups),
   }));
 }
+
+export type CallLogRow = {
+  id: number;
+  calledAt: string;
+  outcome: CallOutcome;
+  by: string;
+  company: string;
+  phone: string;
+  listName: string;
+  /** The niche's market, which decides the zone its times are shown in. */
+  region: "sg" | "us" | "gb" | null;
+  notes: string | null;
+  callbackAt: string | null;
+};
+
+/** Enough to read a day or a week without turning the page into a database
+ *  dump. The screen says when it bites rather than quietly showing part of a
+ *  range, the same way the spreadsheet does. */
+export const CALL_LOG_LIMIT = 300;
+
+/**
+ * Every individual call, newest first.
+ *
+ * The tables above answer "how many"; this one answers "which ones". Filtering
+ * to one person turns it into that person's shift, which is the thing you
+ * actually read when a number looks wrong.
+ *
+ * The niche filter is written against `call_list` directly rather than through
+ * the shared `inList` helper: that one aliases `call_lead` as `l` inside a
+ * subquery, and this query already has an `l` of its own.
+ */
+export async function getCallLog(
+  w: StatsWindow,
+  listId?: number,
+  userId?: number,
+): Promise<CallLogRow[]> {
+  const rows = (await db.execute(sql`
+    select c.id, c.called_at, c.outcome, c.notes, c.callback_at,
+      u.name as by_name,
+      coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) as company,
+      l.phone, cl.name as list_name, cl.region
+    from call c
+    join call_lead l on l.id = c.call_lead_id
+    join call_list cl on cl.id = l.call_list_id
+    left join app_user u on u.id = c.user_id
+    where ${since(w)}
+      ${listId ? sql`and cl.id = ${listId}` : sql``}
+      ${byUser(userId)}
+    order by c.called_at desc, c.id desc
+    limit ${CALL_LOG_LIMIT}
+  `)) as Row[];
+
+  return rows.map((r) => ({
+    id: n(r.id),
+    calledAt: String(r.called_at),
+    outcome: r.outcome as CallOutcome,
+    // Null for anything logged before staff accounts existed.
+    by: (r.by_name as string | null) ?? "Not attributed",
+    company: String(r.company),
+    phone: String(r.phone),
+    listName: String(r.list_name),
+    region: (r.region as "sg" | "us" | "gb" | null) ?? null,
+    notes: (r.notes as string | null) ?? null,
+    callbackAt: r.callback_at === null ? null : String(r.callback_at),
+  }));
+}
