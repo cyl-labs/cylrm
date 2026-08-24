@@ -318,31 +318,33 @@ export function TeamManager({
                             <KeyRound data-icon="inline-start" />
                             Password
                           </Button>
-                          {(!m.isOwner || iAmOwner) && (
+                          {/* Demotion only. Promoting from here was a
+                              one-click handover of every account including
+                              your own, sitting in the row next to Rename, and
+                              the floor is staffed — nobody needs elevating.
+                              Demotion stays because it takes privilege away,
+                              and a new admin is still made deliberately, by
+                              adding one with the role set. */}
+                          {m.role === "admin" && (!m.isOwner || iAmOwner) && (
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-7"
                             disabled={busyId === m.id}
                             onClick={() => {
-                              const toAdmin = m.role !== "admin";
-                              // Both directions are quietly large: promoting
-                              // hands over every account including yours, and
-                              // demoting takes away screens someone may be
-                              // halfway through using.
+                              // Quietly large in this direction too: it takes
+                              // away screens someone may be halfway through.
                               if (
                                 !window.confirm(
-                                  toAdmin
-                                    ? `Make ${m.name} an admin?\n\nThey will be able to see Stats and Team, and change anyone's account, including yours.`
-                                    : `Make ${m.name} a caller?\n\nThey lose Stats and Team. Their calls, niches and numbers stay.`,
+                                  `Make ${m.name} a caller?\n\nThey lose Stats and Team. Their calls, niches and numbers stay.`,
                                 )
                               ) {
                                 return;
                               }
-                              patch(m, { role: toAdmin ? "admin" : "caller" });
+                              patch(m, { role: "caller" });
                             }}
                           >
-                            {m.role === "admin" ? "Make caller" : "Make admin"}
+                            Make caller
                           </Button>
                           )}
                           {(!m.isOwner || iAmOwner) && (

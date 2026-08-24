@@ -22,6 +22,10 @@ type TelnyxCall = {
   hangup: () => void;
   muteAudio: () => void;
   unmuteAudio: () => void;
+  /** Optional in the type because it is called on whatever the SDK hands
+   *  back: a version without it should cost a silent keypress, not a crash
+   *  in the middle of someone's call. */
+  dtmf?: (digit: string) => void;
   state?: string;
   telnyxIDs?: { telnyxSessionId?: string; telnyxCallControlId?: string };
 };
@@ -39,6 +43,9 @@ export type TelnyxLine = {
   dial: (to: string, from: string) => void;
   hangup: () => void;
   toggleMute: () => void;
+  /** A tone down the line, for the phone trees a business puts in front of
+   *  its owner. No-op when nothing is connected. */
+  sendDigit: (digit: string) => void;
   /** Clears the timer and the session id, ready for the next lead. */
   reset: () => void;
 };
@@ -179,6 +186,14 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
     setMuted(!muted);
   }, [muted]);
 
+  const sendDigit = React.useCallback((digit: string) => {
+    try {
+      callRef.current?.dtmf?.(digit);
+    } catch {
+      // A tone that does not go is a tone the caller presses again.
+    }
+  }, []);
+
   const reset = React.useCallback(() => {
     setSessionId(null);
     setSeconds(0);
@@ -194,6 +209,7 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
     dial,
     hangup,
     toggleMute,
+    sendDigit,
     reset,
   };
 }

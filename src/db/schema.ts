@@ -452,8 +452,10 @@ export const appUser = pgTable("app_user", {
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   /** Which market they work: `sg` | `us` | `gb`. Set by an admin rather than
    *  by them. Decides which script they see, via `sopRegionFor` — the UK is
-   *  its own market but reads the US documents. Null means show every region,
-   *  which is what an admin reviewing all of them wants. */
+   *  its own market but reads the *SG* documents, because what separates the
+   *  two scripts is WhatsApp rather than geography and UK businesses do run on
+   *  it. Null means show every region, which is what an admin reviewing all of
+   *  them wants. */
   callRegion: text("call_region").$type<"sg" | "us" | "gb">(),
   /** The founders' account. Another admin cannot demote it, switch it off or
    *  reset its password: being trusted with Stats and the team is a different

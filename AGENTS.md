@@ -95,7 +95,27 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   see one they set themselves on somebody else's niche. Those are the same
   thing in practice, since a list has one owner and callers only work their
   own, but they come apart the moment an admin logs a call on someone's list.
-- The Call CRM has five screens: **Callbacks** (`/callbacks`) is the diary — every lead whose latest outcome is `callback`, across all lists, overdue first. `countCallbacksDue` feeds a sidebar badge and is `cache()`d because the sidebar and `PageShell` both ask while rendering one page, the same reason `countUnreadReplies` is.
+- **Keypad** (`/keypad`) is a phone with no lead behind it: type a number, ring
+  it, hang up. Admin-only, and the reason is not danger but bookkeeping — it
+  writes **no `call` row**, so nothing it dials reaches Stats, the board, the
+  Scoreboard or a lead's state. That is the point: testing a line used to mean
+  importing a CSV of invented businesses, which then sat in the pipeline being
+  counted as work. A caller's numbers belong on a niche assigned to them, where
+  the outcome is logged, so they are turned away by the middleware rather than
+  merely not shown the link. Recording still happens (it is set on the outbound
+  voice profile and there is no per-call switch) and the screen says so. Digits
+  pressed during a call send DTMF instead of editing the number, which is how a
+  phone behaves and the only way through a switchboard. Numbers must carry a
+  country code — there is no list to read a bare national number against, which
+  is the collision `classifyPhone` documents at length.
+- **The phone rules live in `src/lib/phone.ts`**, not `lib/calls.ts`, since
+  2026-08-24: `classifyPhone`, `e164`, `dialCountry` and the `CallRegion` /
+  `DialCountry` types moved there so the keypad — a client component — could
+  use the same rules as the importer instead of a second copy. `lib/calls.ts`
+  re-exports all of them, so `from "@/lib/calls"` still works everywhere and
+  there is one place to change a rule. Same wall `components/calls/outcome.ts`
+  was built to get around: `lib/calls.ts` imports the Postgres client.
+- The Call CRM's other screens: **Callbacks** (`/callbacks`) is the diary — every lead whose latest outcome is `callback`, across all lists, overdue first. `countCallbacksDue` feeds a sidebar badge and is `cache()`d because the sidebar and `PageShell` both ask while rendering one page, the same reason `countUnreadReplies` is.
 - **Scoreboard** puts the top three on a podium: rendered 2, 1, 3 across so the
   winner is centre and tallest, which is the only arrangement that reads as a
   podium rather than a chart. Gold, silver and bronze are written out rather
@@ -109,7 +129,7 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   so nothing is white-on-a-tint. The table underneath still lists everyone,
   podium included, because the podium is the celebration and the table is
   where you go to read the actual numbers.
-- The other four: **Call lists** (the dialler), **Spreadsheet** (`/call-sheet`), **Pipeline** (`/call-pipeline`, `src/components/calls/call-board.tsx`) and **Stats** (`/call-stats`, `src/lib/call-stats.ts`). Board stages are derived from the latest call like everything else, so moving a card logs a call — `to_call` accepts no drops because no phone call makes a lead never-rung.
+- The rest: **Call lists** (the dialler), **Spreadsheet** (`/call-sheet`), **Pipeline** (`/call-pipeline`, `src/components/calls/call-board.tsx`) and **Stats** (`/call-stats`, `src/lib/call-stats.ts`). Board stages are derived from the latest call like everything else, so moving a card logs a call — `to_call` accepts no drops because no phone call makes a lead never-rung.
 - Call lists are grouped into **folders by market** on the call lists screen
   (`call_list.region`, `sg`/`us`/`gb`, null = Unfiled). Founders-only: a caller
   is handed their own niches, so grouping two cards under a heading is noise,
@@ -198,6 +218,7 @@ Employees sign in individually so every call has a name on it. The single shared
 - The session carries `userId`, and the middleware requires it rather than just `loggedIn` — a cookie issued before this feature passes the old test but says nothing about who holds it.
 - `/api/calls` stamps the session's user on POST. A **correction** (PATCH) deliberately leaves `user_id` alone: relabelling a mis-tap does not make someone else's dial yours.
 - `/team` is the management screen — admin-only for writes, enforced in the API rather than by hiding buttons. Deactivate rather than delete: the calls stay and so do the numbers. Two guards stop a lockout — the last active admin cannot be demoted or switched off, and nobody can switch themselves off. It is named Team, **not Accounts**: Accounts is the Gmail sending accounts on the email side.
+- **The row actions promote nobody** (2026-08-24). "Make admin" sat one click away in the row next to Rename and handed over every account including your own; the floor is staffed and nobody needs elevating. "Make caller" stayed, because it takes privilege away rather than granting it, and a new admin is still made deliberately by adding one with the role set. `PATCH /api/users/[id]` still accepts `role: "admin"` — the API was left alone, so this is a screen decision and reversible in one edit.
 - **Callers have no Stats either.** `/call-stats` is the floor's performance including everyone else's numbers, which is the admins' business. It is listed in `ADMIN_ONLY_CALL_PREFIXES` and kept separate from `EMAIL_PREFIXES` so the two reasons stay legible — one is a different product, the other is a permission — and `isAdminOnlyPath` covers both for the middleware. `linksFor` drops it from the caller's sidebar.
 - **Callers have no access to the Email CRM.** `EMAIL_PREFIXES` / `isEmailPath` in `src/lib/workspace.ts` is the single list of email screens: the middleware bounces a non-admin off them to `/calls`, the switcher hides the workspace (and renders a plain label rather than a menu of one), and the unread-replies badge is zeroed so nothing lights up pointing at a screen they cannot open. Hiding the nav is not the control — a bookmark walks straight past it. `/api` is outside the middleware matcher, so every email route calls `denyIfNotEmailUser()` from `src/lib/session.ts` right after its session check; the calling routes, `/api/users`, `/api/cron` and the public `/u` deliberately do not.
 - Per-person numbers are on `/call-stats` ("By person", `getPersonStats`) and visible to everyone, and the spreadsheet has a "Called by" column reading the *latest* call's caller.
@@ -370,13 +391,18 @@ countries can be rung at all — UK is deliberately absent.
 Env (all optional; unset means no dial button and every other calling screen
 behaves exactly as before): `TELNYX_API_KEY`, `TELNYX_CONNECTION_ID`,
 `TELNYX_PUBLIC_KEY` (Ed25519 webhook key, `GET /v2/public_key` — the webhook
-route refuses everything when it is unset), and `TELNYX_DID_SG` / `_US` / `_GB`
-in E.164. **No DIDs are set yet.** A lead whose country has no DID gets a
-disabled dial button saying so, never another country's number.
+route refuses everything when it is unset).
 
-The three DIDs already on the account are attached to the conference bridge and
-the email CTA, so they are not usable as cold-call caller ID: a prospect ringing
-back would land in a conference. Buy a number for calling before going live.
+**Caller ID is per person, not per market, and lives in the database rather
+than the environment.** `TELNYX_DID_SG` / `_US` / `_GB` are gone: a number is
+assigned to a caller on the Team screen (`app_user.telnyx_did`, picked from
+`call_number`, with `call_did` holding the per-market fallbacks that predate
+it), and `getDids` returns that one number under every country key. It started
+as a per-market layer a caller with no number fell back to, which meant the
+caller ID on a given call came from two places and neither was visible on the
+screen. Someone with no number gets a disabled dial button saying so, never
+somebody else's. As of 2026-08-24 four accounts have one; `dial_method`
+(`browser` | `handset`, not `dial_mode`) says who dials in the browser at all.
 
 A JWT's `exp` is exactly its parent credential's `expires_at`, so any token cache
 must expire at `min(cacheTtl, credentialExpiresAt)` — caching a token minted late

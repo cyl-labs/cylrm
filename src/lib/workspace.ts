@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Hash,
   Inbox,
   Kanban,
   MailOpen,
@@ -69,6 +70,7 @@ export const WORKSPACES: Workspace[] = [
       { href: "/call-pipeline", label: "Pipeline", icon: Kanban },
       { href: "/scoreboard", label: "Scoreboard", icon: Trophy },
       { href: "/call-stats", label: "Stats", icon: BarChart3 },
+      { href: "/keypad", label: "Keypad", icon: Hash },
       // Deliberately not "Accounts": that is the Gmail sending accounts on
       // the email side, and two screens with one name is how the wrong one
       // gets opened.
@@ -103,8 +105,12 @@ export const EMAIL_PREFIXES = [
  * Scoreboard instead, which shows the floor's numbers without showing the
  * floor's staffing. Kept separate from EMAIL_PREFIXES so the two reasons stay
  * legible: one is a different product, this is a permission.
+ *
+ * Keypad is here for a third reason again: it places calls that no `call` row
+ * records, so a caller working from it would be dialling off the books. Their
+ * numbers are on niches assigned to them, where the outcome is logged.
  */
-export const ADMIN_ONLY_CALL_PREFIXES = ["/call-stats", "/team"];
+export const ADMIN_ONLY_CALL_PREFIXES = ["/call-stats", "/team", "/keypad"];
 
 /** `/stats` must not swallow `/call-stats`, hence startsWith on a path that
  *  begins with a slash rather than a bare contains. */
@@ -141,6 +147,7 @@ const CALL_PREFIXES = [
   "/scoreboard",
   "/call-stats",
   "/team",
+  "/keypad",
 ];
 
 export function workspaceForPath(pathname: string): Workspace {
