@@ -429,8 +429,15 @@ On demand rather than on every dial, because it is billed per minute and these
 are read a handful of times a week to settle a commission. Unset
 `DEEPGRAM_API_KEY` means the button reports it and nothing else changes.
 `CALLER_CHANNEL` in `src/lib/deepgram.ts` assumes Telnyx puts the originating
-leg on channel 0 — **confirm on the first real call**; if the labels come out
-swapped that constant is the only thing to change.
+leg on channel 0. **Confirmed correct on 2026-08-24** against the first two
+real transcripts: the prospect answers "Hello?" and the caller opens with the
+qualifying question, which is the right way round. If it ever comes out swapped
+that constant is still the only thing to change.
+
+Transcripts are read back through the recording sheet, which loads whatever is
+already stored when it opens — a `GET` on the transcribe route that never
+reaches Deepgram, kept apart from the `POST` that does. Clicking a turn seeks
+the audio to it, and the turn being spoken is lit while it plays.
 
 Not built and not optional before volume dialling: a recorded-line announcement
 in the opener (recording is per-profile, so there is no per-call toggle and no
