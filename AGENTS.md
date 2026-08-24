@@ -378,7 +378,10 @@ else on the droplet's Telnyx account is affected:
   pre-existing "Forward Only" was left alone, and the other two connections are
   `elevenlabs` and `portal-conference-bridge`.
 - Outbound voice profile **`cylrm-dialler`** = `3028597272247010421`, recording
-  `all`, mp3, single channel, destinations `SG`/`US`.
+  `all`, mp3, **dual channel**, destinations `SG`/`US`. (It was created single
+  and changed to dual for speaker-labelled transcripts; this line said single
+  until 2026-08-24, which is worth knowing because it is the reason a recording
+  plays with the caller in one ear and the prospect in the other.)
 
 **Recording is configured on the outbound voice profile, not on the connection** —
 there is no recording field anywhere on a credential connection. This matters
