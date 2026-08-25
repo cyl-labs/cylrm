@@ -27,8 +27,8 @@ Short version:
 
 **The demo already exists.** You are not offering to build one.
 
-**If they ask the price:** it depends on their call volume and starts at $99 a
-month. Then take it back to the demo.
+**If they ask the price:** it depends on their call volume and starts as low as
+$79 a month. Then take it back to the demo.
 
 ## Opener sequence
 

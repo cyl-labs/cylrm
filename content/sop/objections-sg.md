@@ -76,7 +76,7 @@ _(let them answer)_
 ## Price | Prospect: "How much is it? / What does it cost?"
 
 
-> **You say** It depends on your call volume, but it starts at $99 a month. On the demo we can show you exactly where you'd land once we know how many calls you're getting.
+> **You say** It depends on your call volume, but it starts as low as $79 a month. On the demo we can show you exactly where you'd land once we know how many calls you're getting.
 
 _(let them answer)_
 
