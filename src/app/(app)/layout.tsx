@@ -2,6 +2,7 @@ import { LogOut } from "lucide-react";
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
+import { canUseKeypad } from "@/lib/users";
 import { NavLinks } from "@/components/nav-links";
 import { Toaster } from "@/components/ui/sonner";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -16,6 +17,7 @@ export default async function AppLayout({
   // the drawer that leads nowhere they are allowed to go.
   const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
   const callbacks = await countCallbacksDue(callScope(me));
+  const keypad = await canUseKeypad(me?.id, me?.role);
   return (
     <div className="flex min-h-svh">
       {/* Below `lg` this is a drawer instead — see `MobileNav`, whose trigger
@@ -27,7 +29,12 @@ export default async function AppLayout({
         {/* The switcher above already names the workspace you are in, so a
             "Workspace" label between it and its own screens said it twice. */}
         <div className="pt-3.5" />
-        <NavLinks role={me?.role} unreadReplies={unread} callbacksDue={callbacks} />
+        <NavLinks
+          role={me?.role}
+          keypad={keypad}
+          unreadReplies={unread}
+          callbacksDue={callbacks}
+        />
         <div className="mt-auto px-2.5 pb-3.5">
           {/* Who you are, above the way out. The floor shares machines, and
               logging a morning of calls under a colleague's name is only

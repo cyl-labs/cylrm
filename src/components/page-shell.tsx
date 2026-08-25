@@ -2,6 +2,7 @@ import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { MobileNav } from "@/components/mobile-nav";
+import { canUseKeypad } from "@/lib/users";
 
 export async function PageShell({
   title,
@@ -22,6 +23,7 @@ export async function PageShell({
       <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 gap-y-2 border-b bg-card px-4 py-2.5 sm:px-7">
         <MobileNav
         role={me?.role}
+        keypad={await canUseKeypad(me?.id, me?.role)}
         unreadReplies={unread}
         callbacksDue={callbacks}
       />

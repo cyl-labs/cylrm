@@ -96,13 +96,18 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   thing in practice, since a list has one owner and callers only work their
   own, but they come apart the moment an admin logs a call on someone's list.
 - **Keypad** (`/keypad`) is a phone with no lead behind it: type a number, ring
-  it, hang up. Admin-only, and the reason is not danger but bookkeeping — it
-  writes **no `call` row**, so nothing it dials reaches Stats, the board, the
-  Scoreboard or a lead's state. That is the point: testing a line used to mean
-  importing a CSV of invented businesses, which then sat in the pipeline being
-  counted as work. A caller's numbers belong on a niche assigned to them, where
-  the outcome is logged, so they are turned away by the middleware rather than
-  merely not shown the link. Recording still happens (it is set on the outbound
+  it, hang up. It writes **no `call` row**, so nothing it dials reaches Stats,
+  the board, the Scoreboard or a lead's state. That is the point: testing a
+  line used to mean importing a CSV of invented businesses, which then sat in
+  the pipeline being counted as work.
+  **Granted per person** via `app_user.keypad_access`, toggled on the Team
+  screen; admins have it by being admins and `canUseKeypad` never reads the
+  column for them, which is why their row says "Always" rather than offering a
+  switch. It was admin-only until 2026-08-25 — a rank was the wrong shape for
+  one permission that grants nothing else. Enforced by the page redirecting,
+  not the middleware, which only has the session cookie and so could not tell a
+  granted caller from an ungranted one without signing everybody out; the
+  sidebar link is the courtesy and a bookmark walks past it. Recording still happens (it is set on the outbound
   voice profile and there is no per-call switch) and the screen says so. Digits
   pressed during a call send DTMF instead of editing the number, which is how a
   phone behaves and the only way through a switchboard. Numbers must carry a

@@ -25,6 +25,8 @@ export type TeamMember = {
   dialMethod: "browser" | "handset";
   /** The founders' account: protected from other admins. */
   isOwner: boolean;
+  /** May open the Keypad. Admins always may, whatever this says. */
+  keypadAccess: boolean;
   /** Lifetime, across every list — what the Team screen shows next to a name
    *  so a dormant account is obvious without opening Stats. */
   calls: number;
@@ -51,6 +53,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       telnyxDid: appUser.telnyxDid,
       dialMethod: appUser.dialMethod,
       isOwner: appUser.isOwner,
+      keypadAccess: appUser.keypadAccess,
       // A join rather than a correlated subquery, because the subquery this
       // replaces was silently wrong. Drizzle renders an interpolated column
       // unqualified inside `.select()`, so `${appUser.id}` came out as a bare
@@ -102,6 +105,31 @@ export const callRegionOf = cache(
       .from(appUser)
       .where(eq(appUser.id, userId));
     return row?.region ?? null;
+  },
+);
+
+/**
+ * Whether this person may open the Keypad.
+ *
+ * Admins always may — the column is the grant to everyone else, and storing
+ * it for admins too would make revoking it look possible when it is not.
+ * Read live rather than off the session, like `callRegionOf`, so a grant made
+ * on the Team screen lands on their next page load rather than their next
+ * login. `cache()`d because the sidebar, the drawer and the page all ask while
+ * rendering one page.
+ */
+export const canUseKeypad = cache(
+  async (
+    userId: number | null | undefined,
+    role: "admin" | "caller" | undefined,
+  ): Promise<boolean> => {
+    if (role === "admin") return true;
+    if (!userId) return false;
+    const [row] = await db
+      .select({ granted: appUser.keypadAccess })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.granted ?? false;
   },
 );
 

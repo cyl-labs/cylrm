@@ -44,6 +44,7 @@ export async function PATCH(
     callRegion?: unknown;
     telnyxDid?: unknown;
     dialMethod?: unknown;
+    keypadAccess?: unknown;
   } | null;
   if (!body) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
@@ -115,6 +116,19 @@ export async function PATCH(
       );
     }
     values.dialMethod = body.dialMethod;
+  }
+
+  // One permission, not a rank: it opens the Keypad and nothing else. Stored
+  // for callers only in practice — an admin has it by being an admin, and
+  // `canUseKeypad` never reads the column for them.
+  if ("keypadAccess" in body) {
+    if (typeof body.keypadAccess !== "boolean") {
+      return Response.json(
+        { error: "Keypad access must be true or false." },
+        { status: 400 },
+      );
+    }
+    values.keypadAccess = body.keypadAccess;
   }
 
   // The number they ring from. Checked against their market, because a US

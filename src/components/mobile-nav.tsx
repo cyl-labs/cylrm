@@ -21,11 +21,14 @@ import {
  */
 export function MobileNav({
   role,
+  keypad = false,
   unreadReplies = 0,
   callbacksDue = 0,
 }: {
   /** Decides whether the drawer offers the Email CRM at all. */
   role: "admin" | "caller" | undefined;
+  /** Granted the Keypad. Admins always are. */
+  keypad?: boolean;
   unreadReplies?: number;
   callbacksDue?: number;
 }) {
@@ -67,6 +70,7 @@ export function MobileNav({
         <div onClick={() => setOpen(false)}>
           <NavLinks
             role={role}
+            keypad={keypad}
             unreadReplies={unreadReplies}
             callbacksDue={callbacksDue}
           />

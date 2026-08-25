@@ -1,0 +1,17 @@
+-- Who may open the Keypad, per person.
+--
+-- Apply BEFORE deploying the code that reads it.
+--
+-- The Keypad was admin-only, on the reasoning that it writes no `call` row and
+-- a caller working from it would be dialling off the books. That reasoning
+-- holds, but it is a reason to grant the screen deliberately rather than to
+-- withhold it from everyone: some callers need a line for a number that is not
+-- on a niche, and the screen already says in as many words that nothing it
+-- dials is counted.
+--
+-- A column rather than a role, because this is one permission and not a tier:
+-- a second tier would have to answer what else it grants, and the answer is
+-- nothing. Admins are not stored here — they have it by being admins, and
+-- writing that into the data would make revoking it look possible when it is
+-- not.
+alter table app_user add column if not exists keypad_access boolean not null default false;

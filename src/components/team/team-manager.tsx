@@ -117,7 +117,7 @@ export function TeamManager({
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b text-left">
-                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Calls", "Last dialled", ""].map(
+                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Keypad", "Calls", "Last dialled", ""].map(
                   (h, i) => (
                     <th
                       key={h || "actions"}
@@ -284,6 +284,33 @@ export function TeamManager({
                           {m.dialMethod === "handset"
                             ? "n/a"
                             : (m.telnyxDid ?? "Not assigned")}
+                        </span>
+                      )}
+                    </td>
+                    {/* An admin's row says "Always" rather than offering a
+                        switch: `canUseKeypad` never reads the column for them,
+                        so a toggle here would look like it did something. */}
+                    <td className="whitespace-nowrap px-4 py-2.5">
+                      {m.role === "admin" ? (
+                        <span className="text-muted-foreground">Always</span>
+                      ) : canManage ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-7",
+                            m.keypadAccess && "font-bold text-primary",
+                          )}
+                          disabled={busyId === m.id}
+                          onClick={() =>
+                            patch(m, { keypadAccess: !m.keypadAccess })
+                          }
+                        >
+                          {m.keypadAccess ? "Granted" : "Grant"}
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {m.keypadAccess ? "Granted" : "No"}
                         </span>
                       )}
                     </td>

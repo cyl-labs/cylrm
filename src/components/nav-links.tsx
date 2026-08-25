@@ -12,19 +12,22 @@ import { linksFor, workspaceForPath } from "@/lib/workspace";
  */
 export function NavLinks({
   role,
+  keypad = false,
   unreadReplies = 0,
   callbacksDue = 0,
 }: {
   /** Decides which of this workspace's screens are on offer — a caller's has
    *  no Stats. Hiding it is the courtesy; the middleware is the control. */
   role: "admin" | "caller" | undefined;
+  /** Granted the Keypad. Admins always are. */
+  keypad?: boolean;
   unreadReplies?: number;
   /** Callbacks whose time has passed — the calling side's version of unread. */
   callbacksDue?: number;
 }) {
   const pathname = usePathname();
   const workspace = workspaceForPath(pathname);
-  const links = linksFor(workspace, role);
+  const links = linksFor(workspace, role, keypad);
 
   return (
     <nav className="flex flex-col gap-0.5 px-2.5">

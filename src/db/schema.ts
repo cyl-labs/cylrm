@@ -461,6 +461,11 @@ export const appUser = pgTable("app_user", {
    *  reset its password: being trusted with Stats and the team is a different
    *  thing from being able to lock the business out of its own CRM. */
   isOwner: boolean("is_owner").notNull().default(false),
+  /** May open the Keypad, which dials a typed number and records no `call`
+   *  row. Granted per person rather than by role: admins have it by being
+   *  admins, and a caller gets it when there is a reason to ring numbers that
+   *  are not on a niche. One permission, not a tier. */
+  keypadAccess: boolean("keypad_access").notNull().default(false),
   /** `browser` | `handset`. Some callers dial from their own phone and always
    *  will; the browser dialler is for the people with no usable handset for
    *  international calls, not the way everyone must work. A handset caller is
