@@ -26,15 +26,28 @@ export default async function TeamPage() {
 
   // Fetched here rather than by each component, so reserving a number updates
   // the panel and the assign dropdowns together on one router.refresh().
-  const reservedRows =
+  // Every row, not just the reserved ones: a number can carry a label while
+  // staying in the pool, so filtering on `available = false` here would drop
+  // exactly those labels. "Absent means available" still holds — the reserved
+  // set is built from the flag below, never from a row existing.
+  const numberRows =
     me?.role === "admin"
       ? ((await db.execute(
-          sql`select phone_number from call_number where available = false`,
-        )) as { phone_number: string }[])
+          sql`select phone_number, available, label from call_number`,
+        )) as { phone_number: string; available: boolean; label: string | null }[])
       : [];
   const numbers =
     me?.role === "admin"
-      ? await listAccountNumbers(new Set(reservedRows.map((r) => r.phone_number)))
+      ? await listAccountNumbers(
+          new Set(
+            numberRows.filter((r) => !r.available).map((r) => r.phone_number),
+          ),
+          new Map(
+            numberRows
+              .filter((r) => r.label)
+              .map((r) => [r.phone_number, r.label as string]),
+          ),
+        )
       : [];
 
   return (

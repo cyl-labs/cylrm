@@ -92,20 +92,67 @@ export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     phoneNumber?: unknown;
     available?: unknown;
+    label?: unknown;
   } | null;
-  if (
-    !body ||
-    typeof body.phoneNumber !== "string" ||
-    typeof body.available !== "boolean"
-  ) {
+  if (!body || typeof body.phoneNumber !== "string") {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
   }
 
+  // Either field on its own, because they are independent: labelling a number
+  // must not quietly put it back in the pool, and reserving one must not wipe
+  // the note saying which client it answers for. `undefined` means "leave it",
+  // which is why `label` is read for presence rather than truthiness — null
+  // and "" are how a label gets cleared.
+  const setAvailable = typeof body.available === "boolean";
+  const hasLabel = "label" in body;
+  if (!setAvailable && !hasLabel) {
+    return Response.json(
+      { error: "Nothing to change." },
+      { status: 400 },
+    );
+  }
+
+  let label: string | null = null;
+  if (hasLabel) {
+    if (body.label !== null && typeof body.label !== "string") {
+      return Response.json({ error: "Invalid label." }, { status: 400 });
+    }
+    // Trimmed to nothing is cleared, not stored as an empty string: two ways to
+    // spell "no label" is one too many for everything downstream to test for.
+    const trimmed = (body.label ?? "").trim();
+    if (trimmed.length > 60) {
+      return Response.json(
+        { error: "Keep the label under 60 characters." },
+        { status: 400 },
+      );
+    }
+    label = trimmed === "" ? null : trimmed;
+  }
+
+  // A row may not exist yet — one is written only when a number leaves the
+  // pool, and a number being labelled has not left it. Created without values
+  // so that neither field is set by the act of creating it.
   await db.execute(sql`
-    insert into call_number (phone_number, available, updated_at)
-    values (${body.phoneNumber}, ${body.available}, now())
-    on conflict (phone_number) do update
-      set available = excluded.available, updated_at = now()
+    insert into call_number (phone_number) values (${body.phoneNumber})
+    on conflict (phone_number) do nothing
   `);
-  return Response.json({ phoneNumber: body.phoneNumber, available: body.available });
+  if (setAvailable) {
+    await db.execute(sql`
+      update call_number set available = ${body.available as boolean},
+        updated_at = now()
+      where phone_number = ${body.phoneNumber}
+    `);
+  }
+  if (hasLabel) {
+    await db.execute(sql`
+      update call_number set label = ${label}, updated_at = now()
+      where phone_number = ${body.phoneNumber}
+    `);
+  }
+
+  return Response.json({
+    phoneNumber: body.phoneNumber,
+    ...(setAvailable ? { available: body.available } : {}),
+    ...(hasLabel ? { label } : {}),
+  });
 }

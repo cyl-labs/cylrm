@@ -32,6 +32,7 @@ export function TelnyxNumbers({
     country: string | null;
     inbound: string | null;
     available: boolean;
+    label: string | null;
   }[];
   team: TeamMember[];
   className?: string;
@@ -41,7 +42,39 @@ export function TelnyxNumbers({
   // Server data wins whenever the page refreshes.
   React.useEffect(() => setNumbers(initial), [initial]);
 
+  // Which number's label is being typed, and what into. One at a time: this is
+  // a note on a row, not a form.
+  const [editing, setEditing] = React.useState<string | null>(null);
+  const [draft, setDraft] = React.useState("");
+
   const holder = (n: string) => team.find((t) => t.telnyxDid === n) ?? null;
+
+  async function saveLabel(phoneNumber: string, raw: string) {
+    const label = raw.trim() === "" ? null : raw.trim();
+    setEditing(null);
+    const before = numbers.find((n) => n.phoneNumber === phoneNumber)?.label ?? null;
+    if (label === before) return;
+
+    setNumbers((p) =>
+      p.map((n) => (n.phoneNumber === phoneNumber ? { ...n, label } : n)),
+    );
+    // Only `label` goes up. Sending `available` alongside it would make
+    // renaming a note capable of putting a client's line back in the pool.
+    const res = await fetch("/api/call-dids", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phoneNumber, label }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => ({}));
+      toast.error(data?.error ?? "Could not save the label.");
+      setNumbers((p) =>
+        p.map((n) =>
+          n.phoneNumber === phoneNumber ? { ...n, label: before } : n,
+        ),
+      );
+    }
+  }
 
   async function toggle(phoneNumber: string, available: boolean) {
     setNumbers((p) =>
@@ -75,8 +108,9 @@ export function TelnyxNumbers({
         </p>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
           Reserve the ones answering for a client and they stop appearing as
-          options below. Buy and release them in the Telnyx portal. Assigning
-          one here only
+          options below. Label one to record what it is for, like a demo line,
+          which is separate from whether anyone dials from it. Buy and release
+          them in the Telnyx portal. Assigning one here only
           sets what a prospect sees; it changes nothing about the number in
           Telnyx. But a prospect who rings back reaches whatever is already on
           the other end, so avoid the ones answering for a client.
@@ -107,6 +141,50 @@ export function TelnyxNumbers({
                   >
                     answers: {n.inbound}
                   </span>
+                )}
+
+                {/* Our own note, next to Telnyx's wiring badge because they
+                    answer neighbouring questions: that one says what picks up,
+                    this one says what the number is for. */}
+                {editing === n.phoneNumber ? (
+                  <input
+                    autoFocus
+                    value={draft}
+                    maxLength={60}
+                    placeholder="e.g. demo line, Acme"
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => saveLabel(n.phoneNumber, draft)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveLabel(n.phoneNumber, draft);
+                      // Escape has to clear the editor before blur fires, or
+                      // the blur handler saves the draft it just abandoned.
+                      if (e.key === "Escape") setEditing(null);
+                    }}
+                    className="h-6 w-44 rounded-md border bg-background px-1.5 text-[11px] font-semibold outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                ) : n.label ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraft(n.label ?? "");
+                      setEditing(n.phoneNumber);
+                    }}
+                    className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/15"
+                    title="Rename this label"
+                  >
+                    {n.label}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraft("");
+                      setEditing(n.phoneNumber);
+                    }}
+                    className="text-[11px] font-semibold text-muted-foreground/70 hover:text-foreground"
+                  >
+                    + Label
+                  </button>
                 )}
                 <span
                   className={cn(

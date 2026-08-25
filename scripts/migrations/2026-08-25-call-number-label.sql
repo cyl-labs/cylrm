@@ -1,0 +1,21 @@
+-- A note against a Telnyx number, written by us rather than by Telnyx.
+--
+-- Apply BEFORE deploying the code that reads it.
+--
+-- `call_number` already answered "may this number be used for cold calling",
+-- and the Team screen showed Telnyx's own `connection_name` beside it. Neither
+-- says what the number is *for*: "answers: portal-conference-bridge" tells you
+-- the wiring, not that the line is the demo number for a particular client.
+-- That is ours to record, so it lives here rather than being read off Telnyx.
+--
+-- Deliberately separate from who dials from it (`app_user.telnyx_did`): a
+-- number can be labelled and unassigned, assigned and unlabelled, or reserved
+-- for a client and labelled with which one. Folding the two together would
+-- mean inventing a user to hold a label.
+alter table call_number add column if not exists label text;
+
+-- Note the existing semantics this has to live with: a row is written only
+-- when a number is taken out of the pool, and an absent row means available.
+-- A label-only row therefore arrives with `available` at its default of true,
+-- which keeps that reading intact — the reserved set is built from
+-- `available = false`, never from the presence of a row.

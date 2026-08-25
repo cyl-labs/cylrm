@@ -206,6 +206,9 @@ export type AccountNumber = {
   /** What inbound calls to it already reach, so a client's line is visible. */
   inbound: string | null;
   available: boolean;
+  /** Our own note on what the number is for. Not from Telnyx — see
+   *  `call_number.label`. */
+  label: string | null;
 };
 
 /**
@@ -216,6 +219,7 @@ export type AccountNumber = {
  */
 export async function listAccountNumbers(
   reserved: Set<string>,
+  labels: Map<string, string> = new Map(),
 ): Promise<AccountNumber[]> {
   const apiKey = process.env.TELNYX_API_KEY;
   if (!apiKey) return [];
@@ -237,6 +241,7 @@ export async function listAccountNumbers(
       country: n.country_iso_alpha2 ?? null,
       inbound: n.connection_name ?? null,
       available: !reserved.has(n.phone_number),
+      label: labels.get(n.phone_number) ?? null,
     }));
   } catch {
     return [];

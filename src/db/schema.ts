@@ -550,6 +550,21 @@ export const call = pgTable(
 export const callNumber = pgTable("call_number", {
   phoneNumber: text("phone_number").primaryKey(),
   available: boolean("available").notNull().default(true),
+  /**
+   * What this number is for, in our words.
+   *
+   * Telnyx's own `connection_name` says what answers an inbound call, which is
+   * the wiring rather than the purpose: "portal-conference-bridge" does not
+   * tell you the line is a client's demo number. Kept apart from
+   * `app_user.telnyx_did` because a number can be labelled and unassigned, or
+   * reserved for a client nobody dials from — folding the two together would
+   * mean inventing a user to hold a label.
+   *
+   * A row written only to carry a label keeps `available` at its default of
+   * true, so the "absent means available" reading below still holds: the
+   * reserved set is built from `available = false`, never from a row existing.
+   */
+  label: text("label"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
