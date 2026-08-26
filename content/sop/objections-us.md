@@ -50,6 +50,16 @@ _(let them answer)_
 
 > **You say** Got it. Just out of curiosity, how many calls do you get during your busy season compared to when things are slow?
 
+_(let them answer)_
+
+> **You say** And out of those, how many would you say you're actually missing? When you're out on a job, already on the phone, after you've closed.
+
+_(let them answer)_
+
+**If they say they don't miss any, go to "I answer all of them anyway" below.**
+
+> **You say** Right, so the busiest part of your year is when you're losing the most of them. That's exactly what I'd show you on the demo. Do you have 15 minutes this week to take a look?
+
 ## Says they don't need it | Prospect: "I answer all of them anyway" / "I don't get after-hours calls"
 
 
@@ -103,6 +113,16 @@ If they are still unsure:
 
 
 > **You say** Nice. How's your experience been with it so far?
+
+_(let them answer)_
+
+**If they're unhappy with it, that is your opening — skip the price question and go straight to the demo ask below.**
+
+> **You say** Fair enough. And what are you paying for it, if you don't mind me asking?
+
+_(let them answer)_
+
+> **You say** Got it. Ours depends on your call volume and starts as low as $79 a month. Most of our clients run it alongside what they've already got, so it only picks up what theirs misses. Do you have 15 minutes this week to see the two side by side?
 
 ## Already sorted | Prospect: "I'm happy with what I've got" / "I don't want to replace my current system"
 
