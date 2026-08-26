@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { bridgeCalls, type AudioBridge } from "./audio-bridge";
 
 /**
  * One browser phone line, owned by the dialler.
@@ -19,6 +20,7 @@ import * as React from "react";
 export type CallState = "idle" | "connecting" | "ringing" | "active" | "ending";
 
 type TelnyxCall = {
+  id?: string;
   hangup: () => void;
   muteAudio: () => void;
   unmuteAudio: () => void;
@@ -28,7 +30,56 @@ type TelnyxCall = {
   dtmf?: (digit: string) => void;
   state?: string;
   telnyxIDs?: { telnyxSessionId?: string; telnyxCallControlId?: string };
+  /** Read only by the audio bridge, which needs the far end's audio and the
+   *  sender carrying ours. Both are on the SDK's public call interface. */
+  remoteStream?: MediaStream | null;
+  peer?: { instance?: RTCPeerConnection | null } | null;
 };
+
+/** The second call, when there is one. Null means there is one line up, or
+ *  none — the ordinary case everywhere except the keypad. */
+export type SecondLine = {
+  state: CallState;
+  /** Seconds since the second call was answered. */
+  seconds: number;
+};
+
+/**
+ * Which SDK state a call is in, in the four words a person needs. Unmapped
+ * states — `purge`, `held` and the rest — return null and change nothing,
+ * which is how the switch this replaced behaved.
+ */
+function phaseOf(state: string | undefined): CallState | null {
+  switch (state) {
+    case "new":
+    case "requesting":
+    case "trying":
+      return "connecting";
+    case "ringing":
+    case "early":
+      return "ringing";
+    case "active":
+      return "active";
+    case "hangup":
+    case "destroy":
+      return "idle";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Turn one leg's earpiece up or down.
+ *
+ * Volume rather than `muted`, because Chrome only pumps a remote WebRTC
+ * stream through Web Audio once it is attached to a playing media element —
+ * and the bridge taps exactly that stream a moment later. Turning the element
+ * off to keep the first call private would take the bridge's input with it.
+ */
+function setEar(audioId: string, volume: number) {
+  const el = document.getElementById(audioId);
+  if (el instanceof HTMLAudioElement) el.volume = volume;
+}
 
 export type TelnyxLine = {
   ready: boolean;
@@ -44,18 +95,59 @@ export type TelnyxLine = {
   hangup: () => void;
   toggleMute: () => void;
   /** A tone down the line, for the phone trees a business puts in front of
-   *  its owner. No-op when nothing is connected. */
+   *  its owner. Goes to the second call when there is one, that being the one
+   *  just dialled and so the one with a switchboard in front of it. No-op when
+   *  nothing is connected. */
   sendDigit: (digit: string) => void;
   /** Clears the timer and the session id, ready for the next lead. */
   reset: () => void;
+
+  /** The second call, or null when there is only one. */
+  second: SecondLine | null;
+  /** True once both calls can hear each other. */
+  merged: boolean;
+  /** Merge has been asked for and has not happened yet — either the bridge is
+   *  being built, or the second call is still ringing. */
+  merging: boolean;
+  /** Why the two calls could not be joined, or null. Cleared when the second
+   *  call ends, since the next attempt starts from scratch. */
+  mergeProblem: string | null;
+  /**
+   * Dial a second number alongside the call already up. The first call is put
+   * on a private hold — muted in both directions — until the two are merged,
+   * so a word with whoever answers is not overheard.
+   *
+   * Only available when the hook was given somewhere to play the second call's
+   * audio; the dialler has one line and passes nothing.
+   */
+  addCall: (to: string, from: string) => void;
+  /** Join the two calls. Safe to press while the second is still ringing: it
+   *  merges the moment they answer, which is what you want when the far end
+   *  starts talking as soon as it picks up. */
+  merge: () => void;
+  /** Hang up the second call only, leaving the first where it was. */
+  hangupSecond: () => void;
 };
 
-export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
+export function useTelnyxCall(
+  audioId: string,
+  enabled: boolean,
+  /** Where to play a second call's audio. Passing it is what makes
+   *  `addCall` available. */
+  secondAudioId?: string,
+): TelnyxLine {
   const clientRef = React.useRef<{
     newCall: (opts: Record<string, unknown>) => TelnyxCall;
     disconnect: () => void;
   } | null>(null);
   const callRef = React.useRef<TelnyxCall | null>(null);
+  const secondRef = React.useRef<TelnyxCall | null>(null);
+  // True from the moment a second call is asked for until it is gone. The SDK
+  // can report the call's first state from inside `newCall`, before there is
+  // anything to have assigned its return value to, and a notification arriving
+  // in that gap must not be mistaken for the first call.
+  const pendingSecondRef = React.useRef(false);
+  const bridgeRef = React.useRef<AudioBridge | null>(null);
 
   const [ready, setReady] = React.useState(false);
   const [problem, setProblem] = React.useState<string | null>(null);
@@ -63,6 +155,50 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
   const [seconds, setSeconds] = React.useState(0);
   const [muted, setMuted] = React.useState(false);
   const [sessionId, setSessionId] = React.useState<string | null>(null);
+  const [second, setSecond] = React.useState<SecondLine | null>(null);
+  const [merged, setMerged] = React.useState(false);
+  const [merging, setMerging] = React.useState(false);
+  const [mergeProblem, setMergeProblem] = React.useState<string | null>(null);
+
+  /**
+   * Unwind the second call and everything it turned on.
+   *
+   * One function because there are four ways out — the caller ends it, the far
+   * end does, the first call ends, or the tab closes — and every one of them
+   * has to hand the first call back its microphone and its earpiece. Missing
+   * that leaves someone talking to a prospect who cannot hear them.
+   */
+  const dropSecond = React.useCallback(() => {
+    bridgeRef.current?.close();
+    bridgeRef.current = null;
+    pendingSecondRef.current = false;
+    try {
+      secondRef.current?.hangup();
+    } catch {
+      // Already gone: this runs on the far end's hangup too.
+    }
+    secondRef.current = null;
+    setSecond(null);
+    setMerged(false);
+    setMerging(false);
+    setMergeProblem(null);
+    try {
+      callRef.current?.unmuteAudio();
+    } catch {
+      // The first call may have been what ended.
+    }
+    setMuted(false);
+    setEar(audioId, 1);
+  }, [audioId]);
+
+  // Reachable from inside the connection effect, which must keep `[enabled]`
+  // as its whole dependency list: anything else in there would tear down the
+  // SIP registration mid-shift. Same pattern the keypad uses for its key
+  // handler, and `useTouchDrag` for its callbacks.
+  const dropSecondRef = React.useRef(dropSecond);
+  React.useEffect(() => {
+    dropSecondRef.current = dropSecond;
+  });
 
   // Connect once, on mount. Never per lead: registering again for every number
   // would be a new SIP registration a few seconds apart all day.
@@ -92,6 +228,27 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
         client.on("telnyx.notification", (n: { type: string; call?: TelnyxCall }) => {
           if (n.type !== "callUpdate" || !n.call) return;
           const call = n.call;
+          const phase = phaseOf(call.state);
+
+          // Two calls can be up at once, and both report through this one
+          // handler. Asked the other way round — is this the first call? —
+          // because the second is the one whose identity is not yet known when
+          // its earliest updates arrive. Identity first and the SDK's id
+          // second: the notification carries the same Call object `newCall`
+          // returned, and the id is there as a belt to that brace.
+          const isFirst =
+            callRef.current !== null &&
+            (call === callRef.current ||
+              (Boolean(call.id) && call.id === callRef.current.id));
+
+          if (!isFirst && pendingSecondRef.current) {
+            secondRef.current = call;
+            if (!phase) return;
+            if (phase === "idle") dropSecondRef.current();
+            else setSecond((s) => (s ? { ...s, state: phase } : s));
+            return;
+          }
+
           callRef.current = call;
 
           // telnyxIDs is empty for the first moments of a call, so it is read
@@ -99,25 +256,14 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
           const id = call.telnyxIDs?.telnyxSessionId;
           if (id) setSessionId(id);
 
-          switch (call.state) {
-            case "new":
-            case "requesting":
-            case "trying":
-              setState("connecting");
-              break;
-            case "ringing":
-            case "early":
-              setState("ringing");
-              break;
-            case "active":
-              setState("active");
-              break;
-            case "hangup":
-            case "destroy":
-              setState("idle");
-              callRef.current = null;
-              setMuted(false);
-              break;
+          if (!phase) return;
+          setState(phase);
+          if (phase === "idle") {
+            // The first call is the call. Whoever was conferenced in was
+            // brought in to speak to this prospect, so they go too.
+            dropSecondRef.current();
+            callRef.current = null;
+            setMuted(false);
           }
         });
         client.connect();
@@ -130,6 +276,9 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
     return () => {
       cancelled = true;
       try {
+        bridgeRef.current?.close();
+        bridgeRef.current = null;
+        secondRef.current?.hangup();
         callRef.current?.hangup();
         clientRef.current?.disconnect();
       } catch {
@@ -181,6 +330,64 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
     return () => clearInterval(t);
   }, [state]);
 
+  // The second call's own timer, kept apart from the first one's: they are
+  // answered minutes apart and a conference is two conversations of different
+  // lengths, not one.
+  React.useEffect(() => {
+    if (second?.state !== "active") return;
+    const started = Date.now();
+    const t = setInterval(() => {
+      const n = Math.floor((Date.now() - started) / 1000);
+      setSecond((s) => (s ? { ...s, seconds: n } : s));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [second?.state]);
+
+  // Build the bridge once both calls are up.
+  //
+  // An effect rather than something `merge()` does, because merging is nearly
+  // always asked for while the second number is still ringing — you press it
+  // and then the demo line answers — and the answer has to be what triggers
+  // the wiring.
+  React.useEffect(() => {
+    if (!merging || merged) return;
+    if (state !== "active" || second?.state !== "active") return;
+    const first = callRef.current;
+    const other = secondRef.current;
+    if (!first || !other) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const bridge = await bridgeCalls(first, other);
+        if (cancelled) {
+          bridge.close();
+          return;
+        }
+        bridgeRef.current = bridge;
+        // The first call comes off its private hold. Its microphone is now
+        // upstream of the mix, so leaving it muted would silence both legs.
+        try {
+          first.unmuteAudio();
+        } catch {
+          // Nothing to unmute if it just ended; the effect will not have
+          // reached here in that case anyway.
+        }
+        setEar(audioId, 1);
+        setMuted(false);
+        setMerged(true);
+      } catch {
+        if (cancelled) return;
+        setMerging(false);
+        setMergeProblem("Could not join the two calls. Both are still up.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [merging, merged, state, second?.state, audioId]);
+
   const dial = React.useCallback(
     (to: string, from: string) => {
       if (!clientRef.current || !ready || callRef.current) return;
@@ -199,7 +406,49 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
     [ready, audioId],
   );
 
+  const addCall = React.useCallback(
+    (to: string, from: string) => {
+      const client = clientRef.current;
+      const first = callRef.current;
+      if (!client || !secondAudioId) return;
+      if (!first || secondRef.current) return;
+
+      // A private hold, done here rather than with SIP hold: the first call's
+      // microphone is switched off and its earpiece turned down, so whoever is
+      // being dialled can be spoken to without the prospect hearing it, and
+      // the prospect's line is not renegotiated for something this brief.
+      try {
+        first.muteAudio();
+      } catch {
+        // Worst case the prospect overhears; not worth failing the dial for.
+      }
+      setEar(audioId, 0);
+      setMuted(false);
+      setMergeProblem(null);
+      setSecond({ state: "connecting", seconds: 0 });
+
+      pendingSecondRef.current = true;
+      secondRef.current = client.newCall({
+        destinationNumber: to,
+        callerNumber: from,
+        remoteElement: secondAudioId,
+        audio: true,
+        video: false,
+      });
+    },
+    [audioId, secondAudioId],
+  );
+
+  const merge = React.useCallback(() => {
+    if (!secondRef.current || bridgeRef.current) return;
+    setMergeProblem(null);
+    setMerging(true);
+  }, []);
+
   const hangup = React.useCallback(() => {
+    // Before the first call, so the bridge hands both legs their own
+    // microphone back while there is still something to hand it to.
+    dropSecondRef.current();
     setState("ending");
     try {
       callRef.current?.hangup();
@@ -209,16 +458,25 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
   }, []);
 
   const toggleMute = React.useCallback(() => {
-    const call = callRef.current;
-    if (!call) return;
-    if (muted) call.unmuteAudio();
-    else call.muteAudio();
-    setMuted(!muted);
+    const next = !muted;
+    if (bridgeRef.current) {
+      // Merged, so there is one microphone feeding both legs and it is the
+      // bridge's, not either call's.
+      bridgeRef.current.setMuted(next);
+    } else {
+      // Otherwise mute whichever call is being spoken on, which is the second
+      // one while it exists: the first is already on its private hold.
+      const call = secondRef.current ?? callRef.current;
+      if (!call) return;
+      if (next) call.muteAudio();
+      else call.unmuteAudio();
+    }
+    setMuted(next);
   }, [muted]);
 
   const sendDigit = React.useCallback((digit: string) => {
     try {
-      callRef.current?.dtmf?.(digit);
+      (secondRef.current ?? callRef.current)?.dtmf?.(digit);
     } catch {
       // A tone that does not go is a tone the caller presses again.
     }
@@ -241,5 +499,12 @@ export function useTelnyxCall(audioId: string, enabled: boolean): TelnyxLine {
     toggleMute,
     sendDigit,
     reset,
+    second,
+    merged,
+    merging,
+    mergeProblem,
+    addCall,
+    merge,
+    hangupSecond: dropSecond,
   };
 }

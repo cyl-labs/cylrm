@@ -96,7 +96,9 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   thing in practice, since a list has one owner and callers only work their
   own, but they come apart the moment an admin logs a call on someone's list.
 - **Keypad** (`/keypad`) is a phone with no lead behind it: type a number, ring
-  it, hang up. It writes **no `call` row**, so nothing it dials reaches Stats,
+  it, hang up — and, since it is the only screen that can, add a second number
+  to a live call and merge the two (see the Telnyx section for how the bridge
+  works). It writes **no `call` row**, so nothing it dials reaches Stats,
   the board, the Scoreboard or a lead's state. That is the point: testing a
   line used to mean importing a CSV of invented businesses, which then sat in
   the pipeline being counted as work.
@@ -443,6 +445,45 @@ Transcripts are read back through the recording sheet, which loads whatever is
 already stored when it opens — a `GET` on the transcribe route that never
 reaches Deepgram, kept apart from the `POST` that does. Clicking a turn seeks
 the audio to it, and the turn being spoken is lit while it plays.
+
+**Conferencing a third party in is done in the browser, not by Telnyx.** The
+Keypad can dial a second number alongside a live call and join the two ("Add
+call" → "Merge calls"), which is how a prospect hears the AI demo line on the
+spot instead of being asked to ring it themselves after the call. Telnyx will
+conference legs server-side, but only for calls placed through a Call Control
+application: this app dials from a *credential* connection — the only kind a
+WebRTC softphone can register against — and `third_party_control_enabled` is
+false on `cylrm-dialler`, so those legs are not addressable by the commands
+that would build a conference. Going that way means a new Call Control app, a
+second webhook flow and the caller ID moving, so the bridge is instead in
+`src/components/calls/audio-bridge.ts`: one `getUserMedia` feeds both legs,
+each leg is *also* sent the other's incoming audio (and never its own), and
+`RTCRtpSender.replaceTrack` swaps what a live sender carries without touching
+the SDP, so neither far end sees anything happen.
+
+- **The tab is the bridge** — closing it drops both calls, and the screen says
+  so once there are two.
+- **Before the merge the first call is on a local hold**: microphone muted,
+  earpiece turned to zero. Not a SIP hold, because nothing should be
+  renegotiated for the ten seconds it takes to dial the second number. Volume
+  rather than `muted` on the audio element: Chrome only pumps a remote stream
+  into Web Audio while it is attached to a *playing* element, and the bridge
+  taps that same stream a moment later.
+- **Merge is pressable while the second call is still ringing** and fires on
+  answer. A voice agent starts talking the moment it picks up, so waiting for
+  the answer to press it loses the opening.
+- Recording is unchanged and still per-leg, so a merged call is two recordings,
+  and the caller's channel on each now carries the other party as well.
+- `useTelnyxCall` runs both calls on the one client and one SIP registration.
+  Both report through the same notification handler, told apart by asking
+  whether each update is the *first* call — the second has no identity yet when
+  its earliest updates arrive. Ending the first ends both, since whoever was
+  brought in was brought in to speak to that prospect.
+- The dialler passes no second audio element and so has one line: `addCall`
+  does nothing there. Putting this on real leads is UI work, not hook work.
+- **Live-verified only as far as two real calls can be placed from one browser**
+  — the layouts and the state machine are checked, the mixed audio itself needs
+  two handsets and a demo line to hear.
 
 Not built and not optional before volume dialling: a recorded-line announcement
 in the opener (recording is per-profile, so there is no per-call toggle and no

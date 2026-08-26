@@ -1,13 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { Delete, Mic, MicOff, PhoneCall, PhoneOff } from "lucide-react";
+import {
+  Delete,
+  Merge,
+  Mic,
+  MicOff,
+  PhoneCall,
+  PhoneOff,
+  UserPlus,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { classifyPhone, e164 } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { useTelnyxCall } from "./use-telnyx-call";
 
 const REMOTE_AUDIO_ID = "keypad-remote-audio";
+const SECOND_AUDIO_ID = "keypad-second-audio";
 
 /**
  * Where the outbound voice profile is allowed to send a call.
@@ -42,6 +52,62 @@ const KEYS: { digit: string; letters?: string }[] = [
   { digit: "#" },
 ];
 
+function mmss(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/**
+ * One of the calls in progress, when there are two of them.
+ *
+ * The big number is right for one call and wrong for two: what matters then is
+ * which of them is which, and whether the first can hear anything yet. So the
+ * display becomes a list, and the number moves down into it.
+ */
+function LineRow({
+  label,
+  status,
+  live,
+  onEnd,
+}: {
+  label: string;
+  status: string;
+  /** Held lines are dimmed, because "on hold" is the thing being said. */
+  live: boolean;
+  onEnd?: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-lg border bg-background px-2.5 py-2",
+        !live && "opacity-60",
+      )}
+    >
+      <span
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          live ? "bg-primary" : "bg-muted-foreground/40",
+        )}
+      />
+      <span className="min-w-0 flex-1 truncate text-left text-[14px] font-semibold tabular-nums">
+        {label}
+      </span>
+      <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+        {status}
+      </span>
+      {onEnd && (
+        <button
+          type="button"
+          aria-label={`Hang up ${label}`}
+          onClick={onEnd}
+          className="-mr-1 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 /**
  * A phone, with no lead behind it.
  *
@@ -69,35 +135,63 @@ export function Keypad({
   // Tones pressed during a call, kept apart from the number so pressing 2 to
   // reach a department does not rewrite what you dialled.
   const [tones, setTones] = React.useState("");
+  // Adding somebody: the pad goes back to entering a number, this time for a
+  // second call placed alongside the one already up.
+  const [adding, setAdding] = React.useState(false);
+  const [secondTyped, setSecondTyped] = React.useState("");
 
-  const line = useTelnyxCall(REMOTE_AUDIO_ID, Boolean(did));
+  const line = useTelnyxCall(REMOTE_AUDIO_ID, Boolean(did), SECOND_AUDIO_ID);
   const busy = line.state !== "idle";
+  const two = line.second !== null;
 
-  const kind = typed ? classifyPhone(typed) : "missing";
-  const target = e164(typed);
-  const ready = Boolean(did) && line.ready && !busy;
-  const canDial = ready && Boolean(target) && DIALLABLE.has(kind);
+  // One entry field, two possible numbers behind it. Everything that judges a
+  // number — the country, whether it is complete, whether outbound is switched
+  // on for it — then reads the same way for the first call and the second.
+  const entry = adding ? secondTyped : typed;
+  const setEntry = adding ? setSecondTyped : setTyped;
+  const kind = entry ? classifyPhone(entry) : "missing";
+  const target = e164(entry);
+  const diallable = Boolean(target) && DIALLABLE.has(kind);
+  const canDial = Boolean(did) && line.ready && !busy && diallable;
+  const canAdd = adding && line.state === "active" && !two && diallable;
 
   const press = React.useCallback(
     (key: string) => {
-      if (busy) {
+      if (busy && !adding) {
         // A connected call turns the pad into a tone pad, which is what a
         // phone does and the only way through a switchboard.
         line.sendDigit(key);
         setTones((t) => (t + key).slice(-20));
         return;
       }
-      setTyped((v) => (v + key).slice(0, 20));
+      setEntry((v) => (v + key).slice(0, 20));
     },
-    [busy, line],
+    [busy, adding, line, setEntry],
   );
 
-  // Plain function, not a useCallback: the React Compiler memoizes it, and
-  // wrapping it by hand made the compiler bail on the whole component.
+  // Plain functions, not useCallbacks: the React Compiler memoizes them, and
+  // wrapping them by hand made the compiler bail on the whole component.
   const call = () => {
     if (!canDial || !target || !did) return;
     setTones("");
     line.dial(target, did);
+  };
+
+  const startAdding = () => {
+    setAdding(true);
+    setSecondTyped("");
+    setTones("");
+  };
+
+  const cancelAdding = () => {
+    setAdding(false);
+    setSecondTyped("");
+  };
+
+  const callSecond = () => {
+    if (!canAdd || !target || !did) return;
+    setAdding(false);
+    line.addCall(target, did);
   };
 
   // The physical keyboard, because this screen exists to be used quickly and
@@ -116,17 +210,23 @@ export function Keypad({
     if (tag === "INPUT" || tag === "TEXTAREA" || (el as HTMLElement)?.isContentEditable) {
       return;
     }
+    const typing = adding || !busy;
     if (/^[0-9*#]$/.test(e.key)) {
       press(e.key);
-    } else if (e.key === "+" && !busy) {
-      setTyped((v) => (v + "+").slice(0, 20));
-    } else if (e.key === "Backspace" && !busy) {
+    } else if (e.key === "+" && typing) {
+      setEntry((v) => (v + "+").slice(0, 20));
+    } else if (e.key === "Backspace" && typing) {
       e.preventDefault();
-      setTyped((v) => v.slice(0, -1));
+      setEntry((v) => v.slice(0, -1));
     } else if (e.key === "Enter") {
-      call();
-    } else if (e.key === "Escape" && busy) {
-      line.hangup();
+      if (adding) callSecond();
+      else call();
+    } else if (e.key === "Escape") {
+      // Out of the second number first: escaping straight to a hangup while
+      // someone is halfway through typing one would end the call they were
+      // adding to.
+      if (adding) cancelAdding();
+      else if (busy) line.hangup();
     }
   };
 
@@ -143,7 +243,28 @@ export function Keypad({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const mmss = `${Math.floor(line.seconds / 60)}:${String(line.seconds % 60).padStart(2, "0")}`;
+  const elapsed = mmss(line.seconds);
+  const secondStatus = !line.second
+    ? ""
+    : line.second.state === "active"
+      ? mmss(line.second.seconds)
+      : line.second.state === "ringing"
+        ? "Ringing…"
+        : "Connecting…";
+
+  // Anything wrong with the number being typed, in the order it gets fixed.
+  // Split on the country code, because a number is typed a digit at a time:
+  // half of a US number is not a missing country code, and telling someone to
+  // add the +1 already on screen reads as a bug.
+  const numberProblem = !entry
+    ? null
+    : !target
+      ? entry.startsWith("+")
+        ? "Not a complete number yet."
+        : "Start with the country code, like +65 or +1."
+      : !DIALLABLE.has(kind)
+        ? `${COUNTRY[kind] ?? "That country"} is not switched on for outbound.`
+        : null;
 
   // What to say under the number. One line, and never more than one problem at
   // a time: the first thing in the way is the thing to fix.
@@ -151,36 +272,64 @@ export function Keypad({
     ? "No caller ID assigned to you yet — an admin sets one on Team."
     : line.problem
       ? line.problem
-      : busy
-        ? tones
-          ? `Tones sent: ${tones}`
-          : `Calling from ${did}`
-        : !typed
-          ? `Calling from ${did}`
-          : !target
-            ? // Split, because a number is typed a digit at a time: half of a
-              // US number is not a missing country code, and telling someone
-              // to add the +1 already on screen reads as a bug.
-              typed.startsWith("+")
-              ? "Not a complete number yet."
-              : "Start with the country code, like +65 or +1."
-            : DIALLABLE.has(kind)
-              ? `${COUNTRY[kind]} · calling from ${did}`
-              : `${COUNTRY[kind] ?? "That country"} is not switched on for outbound.`;
+      : line.mergeProblem
+        ? line.mergeProblem
+        : adding
+          ? (numberProblem ??
+            (entry
+              ? `${COUNTRY[kind]} · adding to this call`
+              : "Type the number to add."))
+          : two
+            ? line.merged
+              ? "Both calls can hear each other."
+              : line.merging
+                ? "Joining them the moment the second call answers…"
+                : "Merge to let them hear each other."
+            : busy
+              ? tones
+                ? `Tones sent: ${tones}`
+                : `Calling from ${did}`
+              : (numberProblem ??
+                (entry ? `${COUNTRY[kind]} · calling from ${did}` : `Calling from ${did}`));
 
   return (
     <div className="mx-auto w-full max-w-[340px]">
       <div className="rounded-[14px] border bg-card p-5 shadow-[0_1px_3px_rgba(41,47,76,0.05)]">
-        <div className="min-h-[64px] text-center">
-          <div
-            className={cn(
-              "truncate text-[30px] font-semibold tabular-nums tracking-tight",
-              !typed && "text-muted-foreground/40",
-            )}
-          >
-            {typed || "+"}
-          </div>
-          <p className="mt-1 min-h-[16px] text-[12px] text-muted-foreground">
+        <div className="min-h-[64px]">
+          {two ? (
+            <div className="space-y-1.5">
+              <LineRow
+                label={typed || "First call"}
+                status={line.merged ? elapsed : "On hold"}
+                live={line.merged}
+              />
+              <LineRow
+                label={secondTyped || "Second call"}
+                status={secondStatus}
+                live
+                onEnd={line.hangupSecond}
+              />
+            </div>
+          ) : (
+            <>
+              {/* The call being added to. Without it the screen is an idle
+                  keypad with a Cancel button, and the one thing a person needs
+                  to know here is that they are still connected to someone. */}
+              {adding && (
+                <LineRow label={typed || "First call"} status={elapsed} live />
+              )}
+              <div
+                className={cn(
+                  "truncate text-center font-semibold tabular-nums tracking-tight",
+                  adding ? "mt-2 text-[24px]" : "text-[30px]",
+                  !entry && "text-muted-foreground/40",
+                )}
+              >
+                {entry || "+"}
+              </div>
+            </>
+          )}
+          <p className="mt-1 min-h-[16px] text-center text-[12px] text-muted-foreground">
             {hint}
           </p>
         </div>
@@ -205,7 +354,42 @@ export function Keypad({
           ))}
         </div>
 
-        {busy ? (
+        {adding ? (
+          // Entering the second number. The same three controls as a first
+          // call, because it is a first call as far as the pad is concerned.
+          <>
+            <div className="mt-3 flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="h-12 w-12 p-0 text-[17px] font-semibold"
+                aria-label="Plus"
+                onClick={() => setSecondTyped((v) => (v + "+").slice(0, 20))}
+              >
+                +
+              </Button>
+              <Button className="h-12 flex-1" disabled={!canAdd} onClick={callSecond}>
+                <PhoneCall data-icon="inline-start" />
+                Call
+              </Button>
+              <Button
+                variant="outline"
+                className="h-12 w-12 p-0"
+                aria-label="Backspace"
+                disabled={!secondTyped}
+                onClick={() => setSecondTyped((v) => v.slice(0, -1))}
+              >
+                <Delete className="size-4" />
+              </Button>
+            </div>
+            <Button
+              variant="ghost"
+              className="mt-2 h-10 w-full text-muted-foreground"
+              onClick={cancelAdding}
+            >
+              Cancel
+            </Button>
+          </>
+        ) : two ? (
           <div className="mt-3 flex items-center gap-2">
             <Button
               variant="outline"
@@ -215,24 +399,71 @@ export function Keypad({
             >
               {line.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
             </Button>
-            <span className="flex h-12 flex-1 items-center justify-center rounded-xl border bg-muted/40 text-sm font-bold">
-              {line.state === "active" ? (
-                <span className="tabular-nums">{mmss}</span>
-              ) : (
-                <span className="text-muted-foreground">
-                  {line.state === "ringing" ? "Ringing…" : "Connecting…"}
-                </span>
-              )}
-            </span>
+            {line.merged ? (
+              <span className="flex h-12 flex-1 items-center justify-center rounded-xl border bg-muted/40 text-sm font-bold tabular-nums">
+                {elapsed}
+              </span>
+            ) : (
+              // Pressable while the second call is still ringing: the demo
+              // line starts talking the moment it answers, so waiting for the
+              // answer to press this loses the opening.
+              <Button
+                className="h-12 flex-1"
+                disabled={line.merging}
+                onClick={line.merge}
+              >
+                <Merge data-icon="inline-start" />
+                {line.merging ? "Merging…" : "Merge calls"}
+              </Button>
+            )}
             <Button
               variant="destructive"
               className="h-12 w-12 p-0"
-              aria-label="Hang up"
+              aria-label="Hang up both calls"
               onClick={line.hangup}
             >
               <PhoneOff className="size-4" />
             </Button>
           </div>
+        ) : busy ? (
+          <>
+            <div className="mt-3 flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="h-12 w-12 p-0"
+                aria-label={line.muted ? "Unmute" : "Mute"}
+                onClick={line.toggleMute}
+              >
+                {line.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+              </Button>
+              <span className="flex h-12 flex-1 items-center justify-center rounded-xl border bg-muted/40 text-sm font-bold">
+                {line.state === "active" ? (
+                  <span className="tabular-nums">{elapsed}</span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {line.state === "ringing" ? "Ringing…" : "Connecting…"}
+                  </span>
+                )}
+              </span>
+              <Button
+                variant="destructive"
+                className="h-12 w-12 p-0"
+                aria-label="Hang up"
+                onClick={line.hangup}
+              >
+                <PhoneOff className="size-4" />
+              </Button>
+            </div>
+            <Button
+              variant="outline"
+              className="mt-2 h-11 w-full"
+              disabled={line.state !== "active"}
+              onClick={startAdding}
+            >
+              <UserPlus data-icon="inline-start" />
+              Add call
+            </Button>
+          </>
         ) : (
           <div className="mt-3 flex items-center gap-2">
             <Button
@@ -267,9 +498,11 @@ export function Keypad({
       <p className="mt-3 text-center text-[12px] leading-relaxed text-muted-foreground">
         Nothing dialled here is logged: no lead, no outcome, and nothing in
         Stats or the pipeline. Calls are still recorded, as {callerName}.
+        {two && " A merged call is joined inside this tab — closing it ends both."}
       </p>
 
       <audio id={REMOTE_AUDIO_ID} autoPlay />
+      <audio id={SECOND_AUDIO_ID} autoPlay />
     </div>
   );
 }
