@@ -130,7 +130,7 @@ _(let them answer)_
 
 _(let them answer)_
 
-> **You say** Got it. Ours depends on your call volume and starts as low as $79 a month. Most of our clients run it alongside what they've already got, so it only picks up what theirs misses. Do you have 15 minutes this week to see the two side by side?
+> **You say** Got it. Ours depends on your call volume and starts as low as $79 a month, so it's more affordable than most services out there. Do you have 15 minutes this week to take a look?
 
 If they are unhappy with it, skip the price question — that is already your opening:
 
