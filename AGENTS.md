@@ -126,6 +126,21 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   pasting +1 907… onto a typed "+1" otherwise dials +1 1 907…. Bare digits do
   append, being the national half of a number whose code may have just been
   typed. Ignored while the pad is sending tones, like `+` and backspace are.
+  **`withCountryCode` puts a missing "+" back**, on every keystroke and every
+  paste, but only when the digits already *are* a whole international number —
+  when the plus is punctuation and nothing else. Where a country code would
+  have to be invented it leaves the digits alone, so "88834712" stays the
+  Singapore local number that already dials and does not become the nothing
+  that is "+88834712". That restraint is also what makes it safe to run while
+  someone types: rewriting a number the moment it parses would turn a
+  half-keyed 6588834712 into +6565888347 at the eighth digit and keep going.
+  The one behaviour change it brings: 1800 + seven digits is toll-free in both
+  Singapore and the US, `classifyPhone` gives the tie to Singapore, and
+  Singapore toll-free has no dialable form — so a pasted 18009256278 used to
+  sit there dead and now reads as US. Right for a keypad, which has no market
+  to read a number in and could ring neither before; the hint's country is the
+  check. Note toll-free lines generally refuse calls from outside their own
+  country, so a US 1-800 rung from a Singapore caller ID may still not connect.
 - **The phone rules live in `src/lib/phone.ts`**, not `lib/calls.ts`, since
   2026-08-24: `classifyPhone`, `e164`, `dialCountry` and the `CallRegion` /
   `DialCountry` types moved there so the keypad — a client component — could

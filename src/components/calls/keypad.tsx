@@ -69,6 +69,40 @@ function inTextField() {
 }
 
 /**
+ * The country code's plus, put back when it is missing.
+ *
+ * Numbers get written down without it constantly — "18009256278" off a
+ * website, a number read out over the phone — and on this screen there is no
+ * list to read a bare national number against, so what should dial fine sits
+ * there refusing to.
+ *
+ * Never added blindly, which would break more than it fixes: a Singapore local
+ * number is eight digits and dials as it stands, and "+88834712" is nothing at
+ * all. The rule is that the plus goes on only when the digits already *are* a
+ * whole international number — when putting it there adds punctuation and
+ * nothing else. Where a country code would have to be invented to make sense
+ * of the digits, they are left exactly as typed and the existing rules read
+ * them as they always have.
+ *
+ * That is also what keeps it safe to run on every keystroke. Rewriting a
+ * number the moment it parses would mangle one being typed: "65888347" is a
+ * complete Singapore local number eight digits in, so a rewrite would turn a
+ * half-typed 6588834712 into +6565888347 and then keep appending.
+ *
+ * The knock-on worth knowing: 1800 + seven digits is both a Singapore
+ * toll-free line and a US one, and `classifyPhone` calls that tie for
+ * Singapore, which has no dialable form. With the plus it reads as US and
+ * dials. That is the right call *here* — a keypad has no market to read a
+ * number in, and neither reading could ring before — but it means the hint's
+ * country is the thing to check before pressing Call.
+ */
+function withCountryCode(entry: string): string {
+  if (!entry || entry.startsWith("+")) return entry;
+  const international = `+${entry}`;
+  return e164(international) === international ? international : entry;
+}
+
+/**
  * A pasted number, reduced to what a keypad can hold.
  *
  * A number dialled here has almost always been copied from somewhere — a
@@ -201,7 +235,7 @@ export function Keypad({
         setTones((t) => (t + key).slice(-20));
         return;
       }
-      setEntry((v) => (v + key).slice(0, 20));
+      setEntry((v) => withCountryCode((v + key).slice(0, 20)));
     },
     [busy, adding, line, setEntry],
   );
@@ -282,7 +316,9 @@ export function Keypad({
       // pasting +1 907… onto a typed "+1" should not dial +1 1 907…. Bare
       // digits do append, since those are the national half of a number whose
       // country code may well have just been typed.
-      (pasted.startsWith("+") || !v ? pasted : v + pasted).slice(0, 20),
+      withCountryCode(
+        (pasted.startsWith("+") || !v ? pasted : v + pasted).slice(0, 20),
+      ),
     );
   };
 
