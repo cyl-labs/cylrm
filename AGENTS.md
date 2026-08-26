@@ -498,6 +498,15 @@ the SDP, so neither far end sees anything happen.
 - **Merge is pressable while the second call is still ringing** and fires on
   answer. A voice agent starts talking the moment it picks up, so waiting for
   the answer to press it loses the opening.
+- **The add step lists the lines worth a button**: numbers on the account that
+  carry a `call_number.label` and are on nobody's `app_user.telnyx_did`. A
+  label is what makes a number nameable — "pxn junk removal" is a demo line
+  somebody rings on purpose — and an assigned number is a caller's own caller
+  ID, so dialling it rings a colleague. They ring on the tap, no confirm: the
+  number was labelled by hand and the label already says everything there is to
+  check. `available` is deliberately not consulted; it governs the caller-ID
+  picker on Team, and a demo line taken *out* of that pool is exactly what
+  belongs here. Labels are typed on Team, so a new demo line needs no deploy.
 - Recording is unchanged and still per-leg, so a merged call is two recordings,
   and the caller's channel on each now carries the other party as well.
 - `useTelnyxCall` runs both calls on the one client and one SIP registration.

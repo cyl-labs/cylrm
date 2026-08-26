@@ -194,13 +194,23 @@ function LineRow({
  * there is no per-call switch — so a test call is recorded like any other, and
  * the screen says so rather than letting someone assume otherwise.
  */
+export type SavedLine = {
+  phoneNumber: string;
+  /** What it is for, in our words — "pxn junk removal". Set on Team. */
+  label: string;
+};
+
 export function Keypad({
   did,
   callerName,
+  lines,
 }: {
   /** The caller ID this person rings from, or null if they have none yet. */
   did: string | null;
   callerName: string;
+  /** Labelled numbers on the account that belong to nobody: demo lines and
+   *  client lines, offered by name when adding somebody to a call. */
+  lines: SavedLine[];
 }) {
   const [typed, setTyped] = React.useState("");
   // Tones pressed during a call, kept apart from the number so pressing 2 to
@@ -210,6 +220,10 @@ export function Keypad({
   // second call placed alongside the one already up.
   const [adding, setAdding] = React.useState(false);
   const [secondTyped, setSecondTyped] = React.useState("");
+  // What the second line is called once it is dialled — the number, or the
+  // label when it was picked off the list. Kept apart from the entry buffer so
+  // the row can read "pxn junk removal" rather than eleven digits.
+  const [secondName, setSecondName] = React.useState("");
 
   const line = useTelnyxCall(REMOTE_AUDIO_ID, Boolean(did), SECOND_AUDIO_ID);
   const busy = line.state !== "idle";
@@ -262,7 +276,19 @@ export function Keypad({
   const callSecond = () => {
     if (!canAdd || !target || !did) return;
     setAdding(false);
+    setSecondName(secondTyped);
     line.addCall(target, did);
+  };
+
+  // One tap on a line that has a name. The number is on the account and was
+  // labelled by hand, so there is nothing to check about it that the label
+  // does not already say — the pad below stays for everything else.
+  const callLine = (saved: SavedLine) => {
+    const to = e164(saved.phoneNumber);
+    if (!to || !did || line.state !== "active" || two) return;
+    setAdding(false);
+    setSecondName(saved.label);
+    line.addCall(to, did);
   };
 
   // The physical keyboard, because this screen exists to be used quickly and
@@ -402,7 +428,7 @@ export function Keypad({
                 live={line.merged}
               />
               <LineRow
-                label={secondTyped || "Second call"}
+                label={secondName || "Second call"}
                 status={secondStatus}
                 live
                 onEnd={line.hangupSecond}
@@ -431,6 +457,31 @@ export function Keypad({
             {hint}
           </p>
         </div>
+
+        {/* The lines somebody would actually add: the demo number, a client's
+            line. Above the pad because picking one by name is the common case
+            and typing eleven digits is the fallback, and they ring on the tap
+            — a labelled number needs no checking over. */}
+        {adding && lines.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            {lines.map((l) => (
+              <button
+                key={l.phoneNumber}
+                type="button"
+                onClick={() => callLine(l)}
+                className="flex w-full items-center gap-2 rounded-lg border bg-background px-2.5 py-2 text-left transition-colors hover:bg-muted active:bg-muted"
+              >
+                <PhoneCall className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+                  {l.label}
+                </span>
+                <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                  {l.phoneNumber}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-3 gap-2">
           {KEYS.map((k) => (

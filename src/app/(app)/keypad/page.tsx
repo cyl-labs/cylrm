@@ -35,12 +35,37 @@ export default async function KeypadPage() {
     sql`select telnyx_did from app_user where id = ${me?.id ?? -1}`,
   )) as { telnyx_did: string | null }[];
 
+  // The lines worth having a button for: numbers on the account that carry a
+  // label and belong to nobody. A label is what makes one nameable — "pxn junk
+  // removal" is a demo line somebody would ring on purpose, where a bare
+  // number is not worth a row. Assigned ones are excluded because a number
+  // handed to a caller is that person's caller ID, and dialling it rings a
+  // colleague rather than anything a prospect wants to hear.
+  //
+  // `available` is deliberately not consulted: it governs the caller-ID picker
+  // on Team, and a demo line taken out of that pool is exactly what belongs
+  // here.
+  const lines = (await db.execute(sql`
+    select trim(phone_number) as phone_number, trim(label) as label
+    from call_number
+    where coalesce(trim(label), '') <> ''
+      and trim(phone_number) not in (
+        select trim(telnyx_did) from app_user
+        where coalesce(trim(telnyx_did), '') <> ''
+      )
+    order by label
+  `)) as { phone_number: string; label: string }[];
+
   return (
     <PageShell title="Keypad">
       <div className="px-4 py-6 sm:px-6">
         <Keypad
           did={row?.telnyx_did?.trim() || null}
           callerName={me?.name ?? "you"}
+          lines={lines.map((l) => ({
+            phoneNumber: l.phone_number,
+            label: l.label,
+          }))}
         />
       </div>
     </PageShell>
