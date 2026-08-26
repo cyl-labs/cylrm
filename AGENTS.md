@@ -514,8 +514,18 @@ the SDP, so neither far end sees anything happen.
   whether each update is the *first* call — the second has no identity yet when
   its earliest updates arrive. Ending the first ends both, since whoever was
   brought in was brought in to speak to that prospect.
-- The dialler passes no second audio element and so has one line: `addCall`
-  does nothing there. Putting this on real leads is UI work, not hook work.
+- **The dialler has it too**, on a live lead call: the same "Add call", the
+  same list, the same merge. What the two screens share lives in
+  `components/calls/second-line.tsx` (`LinePair`, `MergeControls`,
+  `SavedLineList`) so the hold and the merge cannot drift into two behaviours a
+  caller has to learn twice. The lead's own row reads by company rather than by
+  number, which is the one thing the Keypad cannot do.
+  Two differences, both deliberate: there is **no number entry** on that card —
+  no pad to type into, so the labelled list is the whole feature and the button
+  is absent when nothing is labelled, rather than opening onto an empty list —
+  and `DialControls` is keyed on whether a call is up, so an open list cannot
+  survive into the next lead's call. Anything you want to be able to conference
+  from a lead call therefore needs a label on Team; that is the switch.
 - **Live-verified only as far as two real calls can be placed from one browser**
   — the layouts and the state machine are checked, the mixed audio itself needs
   two handsets and a demo line to hear.

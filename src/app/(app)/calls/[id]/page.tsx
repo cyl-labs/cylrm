@@ -5,6 +5,7 @@ import {
   CALL_QUEUE_LIMIT,
   getCallList,
   getCallQueue,
+  getSavedLines,
   type CallQueueFilter,
 } from "@/lib/calls";
 import { getDiallerSop } from "@/lib/sop";
@@ -193,6 +194,7 @@ export default async function CallListPage({
       <Dialler
             calBookingUrl={process.env.CAL_BOOKING_URL}
             canDialFromBrowser={dialMethod === "browser"}
+            lines={dialMethod === "browser" ? await getSavedLines() : []}
             script={sop.script}
             objections={sop.objections}
         leads={leads}

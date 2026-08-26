@@ -1,19 +1,18 @@
 "use client";
 
 import * as React from "react";
-import {
-  Delete,
-  Merge,
-  Mic,
-  MicOff,
-  PhoneCall,
-  PhoneOff,
-  UserPlus,
-  X,
-} from "lucide-react";
+import { Delete, Mic, MicOff, PhoneCall, PhoneOff, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { classifyPhone, e164 } from "@/lib/phone";
 import { cn } from "@/lib/utils";
+import {
+  LinePair,
+  LineRow,
+  MergeControls,
+  SavedLineList,
+  mmss,
+  type SavedLine,
+} from "./second-line";
 import { useTelnyxCall } from "./use-telnyx-call";
 
 const REMOTE_AUDIO_ID = "keypad-remote-audio";
@@ -51,10 +50,6 @@ const KEYS: { digit: string; letters?: string }[] = [
   { digit: "0" },
   { digit: "#" },
 ];
-
-function mmss(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
 
 /** Is the person typing into a real field? Then the keystroke is that field's,
  *  not the pad's. */
@@ -128,58 +123,6 @@ function pastedNumber(text: string): string {
 }
 
 /**
- * One of the calls in progress, when there are two of them.
- *
- * The big number is right for one call and wrong for two: what matters then is
- * which of them is which, and whether the first can hear anything yet. So the
- * display becomes a list, and the number moves down into it.
- */
-function LineRow({
-  label,
-  status,
-  live,
-  onEnd,
-}: {
-  label: string;
-  status: string;
-  /** Held lines are dimmed, because "on hold" is the thing being said. */
-  live: boolean;
-  onEnd?: () => void;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-lg border bg-background px-2.5 py-2",
-        !live && "opacity-60",
-      )}
-    >
-      <span
-        className={cn(
-          "size-1.5 shrink-0 rounded-full",
-          live ? "bg-primary" : "bg-muted-foreground/40",
-        )}
-      />
-      <span className="min-w-0 flex-1 truncate text-left text-[14px] font-semibold tabular-nums">
-        {label}
-      </span>
-      <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-        {status}
-      </span>
-      {onEnd && (
-        <button
-          type="button"
-          aria-label={`Hang up ${label}`}
-          onClick={onEnd}
-          className="-mr-1 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <X className="size-3.5" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-/**
  * A phone, with no lead behind it.
  *
  * Every other way to place a call in here starts from a `call_lead`, which is
@@ -194,12 +137,6 @@ function LineRow({
  * there is no per-call switch — so a test call is recorded like any other, and
  * the screen says so rather than letting someone assume otherwise.
  */
-export type SavedLine = {
-  phoneNumber: string;
-  /** What it is for, in our words — "pxn junk removal". Set on Team. */
-  label: string;
-};
-
 export function Keypad({
   did,
   callerName,
@@ -368,14 +305,6 @@ export function Keypad({
   }, []);
 
   const elapsed = mmss(line.seconds);
-  const secondStatus = !line.second
-    ? ""
-    : line.second.state === "active"
-      ? mmss(line.second.seconds)
-      : line.second.state === "ringing"
-        ? "Ringing…"
-        : "Connecting…";
-
   // Anything wrong with the number being typed, in the order it gets fixed.
   // Split on the country code, because a number is typed a digit at a time:
   // half of a US number is not a missing country code, and telling someone to
@@ -421,19 +350,11 @@ export function Keypad({
       <div className="rounded-[14px] border bg-card p-5 shadow-[0_1px_3px_rgba(41,47,76,0.05)]">
         <div className="min-h-[64px]">
           {two ? (
-            <div className="space-y-1.5">
-              <LineRow
-                label={typed || "First call"}
-                status={line.merged ? elapsed : "On hold"}
-                live={line.merged}
-              />
-              <LineRow
-                label={secondName || "Second call"}
-                status={secondStatus}
-                live
-                onEnd={line.hangupSecond}
-              />
-            </div>
+            <LinePair
+              line={line}
+              firstLabel={typed || "First call"}
+              secondLabel={secondName || "Second call"}
+            />
           ) : (
             <>
               {/* The call being added to. Without it the screen is an idle
@@ -463,23 +384,8 @@ export function Keypad({
             and typing eleven digits is the fallback, and they ring on the tap
             — a labelled number needs no checking over. */}
         {adding && lines.length > 0 && (
-          <div className="mt-3 space-y-1.5">
-            {lines.map((l) => (
-              <button
-                key={l.phoneNumber}
-                type="button"
-                onClick={() => callLine(l)}
-                className="flex w-full items-center gap-2 rounded-lg border bg-background px-2.5 py-2 text-left transition-colors hover:bg-muted active:bg-muted"
-              >
-                <PhoneCall className="size-3.5 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                  {l.label}
-                </span>
-                <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                  {l.phoneNumber}
-                </span>
-              </button>
-            ))}
+          <div className="mt-3">
+            <SavedLineList lines={lines} onPick={callLine} />
           </div>
         )}
 
@@ -539,40 +445,8 @@ export function Keypad({
             </Button>
           </>
         ) : two ? (
-          <div className="mt-3 flex items-center gap-2">
-            <Button
-              variant="outline"
-              className="h-12 w-12 p-0"
-              aria-label={line.muted ? "Unmute" : "Mute"}
-              onClick={line.toggleMute}
-            >
-              {line.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
-            </Button>
-            {line.merged ? (
-              <span className="flex h-12 flex-1 items-center justify-center rounded-xl border bg-muted/40 text-sm font-bold tabular-nums">
-                {elapsed}
-              </span>
-            ) : (
-              // Pressable while the second call is still ringing: the demo
-              // line starts talking the moment it answers, so waiting for the
-              // answer to press this loses the opening.
-              <Button
-                className="h-12 flex-1"
-                disabled={line.merging}
-                onClick={line.merge}
-              >
-                <Merge data-icon="inline-start" />
-                {line.merging ? "Merging…" : "Merge calls"}
-              </Button>
-            )}
-            <Button
-              variant="destructive"
-              className="h-12 w-12 p-0"
-              aria-label="Hang up both calls"
-              onClick={line.hangup}
-            >
-              <PhoneOff className="size-4" />
-            </Button>
+          <div className="mt-3">
+            <MergeControls line={line} />
           </div>
         ) : busy ? (
           <>

@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   SkipForward,
   Undo2,
+  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { CallOutcome, QueueLead } from "@/lib/calls";
@@ -26,6 +27,12 @@ import {
   useTelnyxCall,
   type TelnyxLine,
 } from "@/components/calls/use-telnyx-call";
+import {
+  LinePair,
+  MergeControls,
+  SavedLineList,
+  type SavedLine,
+} from "@/components/calls/second-line";
 import { ScriptPanel } from "@/components/sop/script-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
-import { dialableNumber } from "@/lib/phone";
+import { dialableNumber, e164 } from "@/lib/phone";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { callTzDate } from "@/lib/call-time";
 import { cn } from "@/lib/utils";
@@ -48,6 +55,7 @@ import { cn } from "@/lib/utils";
  * while the phone is at your ear.
  */
 const REMOTE_AUDIO_ID = "cylrm-remote-audio";
+const SECOND_AUDIO_ID = "cylrm-second-audio";
 
 const KEEP: CallOutcome[] = ["no_answer", "voicemail", "gatekeeper", "callback"];
 const CLOSE: CallOutcome[] = ["demo_booked", "not_interested", "bad_number"];
@@ -137,12 +145,22 @@ function DialControls({
   lead,
   line,
   enabled,
+  lines,
 }: {
   lead: QueueLead;
   line: TelnyxLine;
   /** False when this caller works from their own phone. */
   enabled: boolean;
+  /** Labelled numbers belonging to nobody — the demo line and its like. */
+  lines: SavedLine[];
 }) {
+  // Whether the list of lines is open, and what the one that was picked is
+  // called. Declared before the early returns below, which is where hooks have
+  // to go; the parent keys this component on whether a call is up, so neither
+  // survives into the next one.
+  const [adding, setAdding] = React.useState(false);
+  const [secondName, setSecondName] = React.useState("");
+
   // Nothing at all, not even the fallback line. Telling someone who always
   // dials from their own phone that there is "no caller ID yet" is an apology
   // for a missing setup, when they are already working exactly as intended.
@@ -179,33 +197,90 @@ function DialControls({
     );
   }
 
+  // Somebody else is on the call, or about to be. The lead's own row says
+  // "On hold" until the two are merged, which is the one thing that is not
+  // obvious from hearing nothing.
+  if (line.second) {
+    return (
+      <div className="mt-2 space-y-2">
+        <LinePair
+          line={line}
+          firstLabel={lead.company || lead.name || lead.phone}
+          secondLabel={secondName || "Second call"}
+        />
+        <MergeControls line={line} />
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-2 flex items-center gap-2">
-      <span className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border bg-muted/40 text-sm font-bold">
-        {line.state === "active" ? (
-          <span className="tabular-nums">{mmss}</span>
-        ) : (
-          <span className="text-muted-foreground">
-            {line.state === "ringing" ? "Ringing…" : "Connecting…"}
-          </span>
-        )}
-      </span>
-      <Button
-        variant="outline"
-        className="h-12 w-12 p-0"
-        aria-label={line.muted ? "Unmute" : "Mute"}
-        onClick={line.toggleMute}
-      >
-        {line.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
-      </Button>
-      <Button
-        variant="destructive"
-        className="h-12 w-12 p-0"
-        aria-label="Hang up"
-        onClick={line.hangup}
-      >
-        <PhoneOff className="size-4" />
-      </Button>
+    <div className="mt-2">
+      <div className="flex items-center gap-2">
+        <span className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border bg-muted/40 text-sm font-bold">
+          {line.state === "active" ? (
+            <span className="tabular-nums">{mmss}</span>
+          ) : (
+            <span className="text-muted-foreground">
+              {line.state === "ringing" ? "Ringing…" : "Connecting…"}
+            </span>
+          )}
+        </span>
+        <Button
+          variant="outline"
+          className="h-12 w-12 p-0"
+          aria-label={line.muted ? "Unmute" : "Mute"}
+          onClick={line.toggleMute}
+        >
+          {line.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+        </Button>
+        <Button
+          variant="destructive"
+          className="h-12 w-12 p-0"
+          aria-label="Hang up"
+          onClick={line.hangup}
+        >
+          <PhoneOff className="size-4" />
+        </Button>
+      </div>
+
+      {/* Only once they have answered: there is nobody to hear the demo while
+          it is still ringing. Absent entirely when no number is labelled,
+          rather than a button that opens onto nothing — there is no pad on
+          this card to type one into, so the list is the whole feature. */}
+      {lines.length > 0 && line.state === "active" && (
+        <div className="mt-2 space-y-2">
+          {adding ? (
+            <>
+              <SavedLineList
+                lines={lines}
+                onPick={(picked) => {
+                  const to = e164(picked.phoneNumber);
+                  if (!to || !lead.dialFrom) return;
+                  setAdding(false);
+                  setSecondName(picked.label);
+                  line.addCall(to, lead.dialFrom);
+                }}
+              />
+              <Button
+                variant="ghost"
+                className="h-10 w-full text-muted-foreground"
+                onClick={() => setAdding(false)}
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              className="h-11 w-full"
+              onClick={() => setAdding(true)}
+            >
+              <UserPlus data-icon="inline-start" />
+              Add call
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -521,6 +596,7 @@ export function Dialler({
   objections,
   calBookingUrl,
   canDialFromBrowser = false,
+  lines = [],
   truncated = false,
   readOnly = false,
 }: {
@@ -538,6 +614,11 @@ export function Dialler({
    *  choice rather than a missing setup: they get no dial button and, more
    *  to the point, no line explaining its absence. */
   canDialFromBrowser?: boolean;
+  /** Labelled numbers on the account that belong to nobody: the demo line and
+   *  its like, offered by name when adding somebody to a live call. Empty
+   *  means no "Add call" button, there being nothing on this card to type a
+   *  number into. */
+  lines?: SavedLine[];
   /** More leads match this view than were loaded — said out loud, because a
    *  tab labelled "All" showing part of a list is a lie. */
   truncated?: boolean;
@@ -561,7 +642,11 @@ export function Dialler({
   const [scriptOpen, setScriptOpen] = React.useState(false);
   // One line for the whole session, held here so changing lead or refreshing
   // after an outcome cannot drop a call in progress.
-  const line = useTelnyxCall(REMOTE_AUDIO_ID, canDialFromBrowser);
+  const line = useTelnyxCall(
+    REMOTE_AUDIO_ID,
+    canDialFromBrowser,
+    SECOND_AUDIO_ID,
+  );
 
   const remaining = React.useMemo(
     () => leads.filter((l) => !done.has(l.id) && !skipped.includes(l.id)),
@@ -698,10 +783,15 @@ export function Dialler({
         {/* Keys are prefixed because this and CallForm below are siblings:
             keying both on the bare lead id gave one parent two children with
             the same key, which React is entitled to conflate. */}
+        {/* Keyed on whether a call is up, so the "Add call" list cannot be
+            left open from the last one. It holds no call state of its own —
+            the line lives in the parent — so remounting costs nothing. */}
         <DialControls
+          key={line.state === "idle" ? "idle" : "on-call"}
           lead={current}
           line={line}
           enabled={canDialFromBrowser}
+          lines={lines}
         />
         <CopyNumber
           key={`number-${current.id}`}
@@ -841,6 +931,7 @@ export function Dialler({
       {/* The far end's audio has to land somewhere. One element for the whole
           dialler, never inside the lead card, which remounts per number. */}
       <audio id={REMOTE_AUDIO_ID} autoPlay />
+      <audio id={SECOND_AUDIO_ID} autoPlay />
       <ScriptDrawer
         open={scriptOpen}
         onOpenChange={setScriptOpen}

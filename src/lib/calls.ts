@@ -701,3 +701,37 @@ export type SopRegion = "sg" | "us";
 
 export const sopRegionFor = (region: CallRegion | null): SopRegion | null =>
   region === "sg" || region === "gb" ? "sg" : region === "us" ? "us" : null;
+
+/**
+ * The lines worth a button when adding somebody to a call.
+ *
+ * Two conditions, and both are load-bearing. A `label` is what makes a number
+ * nameable — "pxn junk removal" is a demo line somebody rings on purpose,
+ * where a bare number is not worth a row — and it is typed on Team, so a new
+ * line needs no deploy. Being on nobody's `telnyx_did` is the other: a number
+ * assigned to a caller is that person's caller ID, and dialling it rings a
+ * colleague rather than anything a prospect wants to hear.
+ *
+ * `available` is deliberately not consulted. It governs the caller-ID picker
+ * on Team, and a demo line taken *out* of that pool is exactly what belongs
+ * here — filtering on it would hide the number the moment it was correctly
+ * marked reserved.
+ *
+ * `cache()`d because the dialler and the Keypad both ask while rendering one
+ * page, the same reason `countUnreadReplies` is.
+ */
+export const getSavedLines = cache(async function getSavedLines(): Promise<
+  { phoneNumber: string; label: string }[]
+> {
+  const rows = (await db.execute(sql`
+    select trim(phone_number) as phone_number, trim(label) as label
+    from call_number
+    where coalesce(trim(label), '') <> ''
+      and trim(phone_number) not in (
+        select trim(telnyx_did) from app_user
+        where coalesce(trim(telnyx_did), '') <> ''
+      )
+    order by label
+  `)) as { phone_number: string; label: string }[];
+  return rows.map((r) => ({ phoneNumber: r.phone_number, label: r.label }));
+});
