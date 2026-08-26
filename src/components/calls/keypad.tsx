@@ -56,6 +56,43 @@ function mmss(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+/** Is the person typing into a real field? Then the keystroke is that field's,
+ *  not the pad's. */
+function inTextField() {
+  const el = document.activeElement;
+  const tag = el?.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    Boolean((el as HTMLElement | null)?.isContentEditable)
+  );
+}
+
+/**
+ * A pasted number, reduced to what a keypad can hold.
+ *
+ * A number dialled here has almost always been copied from somewhere — a
+ * listing, a WhatsApp message, the spreadsheet — and it arrives wearing
+ * whatever punctuation that page used: "(907) 659-2550", "+65 8123 4567",
+ * "(+65) 8883 4712". `classifyPhone` would see through all of it, but the
+ * display would not, and neither would the twenty-character cap.
+ *
+ * A leading "00" becomes the "+" it stands for. That is how most of the world
+ * writes an international prefix, and it is unambiguous: no number that needs
+ * keeping starts with two zeroes.
+ */
+function pastedNumber(text: string): string {
+  const trimmed = text.trim();
+  const keys = trimmed.replace(/[^\d*#]/g, "");
+  if (!keys) return "";
+  // Any plus ahead of the first digit is this number's country code marker,
+  // not just one at the very front: "(+65) 8883 4712" is how a good half of
+  // the listings write it.
+  if (/^\D*\+/.test(trimmed)) return `+${keys}`;
+  if (keys.startsWith("00")) return `+${keys.slice(2)}`;
+  return keys;
+}
+
 /**
  * One of the calls in progress, when there are two of them.
  *
@@ -205,11 +242,7 @@ export function Keypad({
   // next. The ref is reassigned each render, so it always sees fresh state.
   const onKeyRef = React.useRef<(e: KeyboardEvent) => void>(() => {});
   const handleKey = (e: KeyboardEvent) => {
-    const el = document.activeElement;
-    const tag = el?.tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA" || (el as HTMLElement)?.isContentEditable) {
-      return;
-    }
+    if (inTextField()) return;
     const typing = adding || !busy;
     if (/^[0-9*#]$/.test(e.key)) {
       press(e.key);
@@ -230,17 +263,46 @@ export function Keypad({
     }
   };
 
+  // Ctrl/Cmd-V, which needs a handler of its own because the number on this
+  // screen is text on a card and not an input: there is nothing for the
+  // browser to paste into. Held in a ref for the same reason the key handler
+  // is.
+  //
+  // Ignored while the pad is sending tones, like `+` and backspace are — a
+  // paste in the middle of a call is not fifteen DTMF digits down the line.
+  const onPasteRef = React.useRef<(e: ClipboardEvent) => void>(() => {});
+  const handlePaste = (e: ClipboardEvent) => {
+    if (inTextField() || !(adding || !busy)) return;
+    const pasted = pastedNumber(e.clipboardData?.getData("text") ?? "");
+    if (!pasted) return;
+    e.preventDefault();
+    setEntry((v) =>
+      // A number carrying its own country code is a whole number, so it
+      // replaces whatever was there rather than landing on the end of it —
+      // pasting +1 907… onto a typed "+1" should not dial +1 1 907…. Bare
+      // digits do append, since those are the national half of a number whose
+      // country code may well have just been typed.
+      (pasted.startsWith("+") || !v ? pasted : v + pasted).slice(0, 20),
+    );
+  };
+
   // No dependency array: this runs after every render, which is the point —
-  // the ref always holds a handler that can see the current state. Writing it
+  // the refs always hold handlers that can see the current state. Writing them
   // during render instead is what `react-hooks/refs` forbids.
   React.useEffect(() => {
     onKeyRef.current = handleKey;
+    onPasteRef.current = handlePaste;
   });
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => onKeyRef.current(e);
+    const onPaste = (e: ClipboardEvent) => onPasteRef.current(e);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("paste", onPaste);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("paste", onPaste);
+    };
   }, []);
 
   const elapsed = mmss(line.seconds);

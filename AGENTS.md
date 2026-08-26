@@ -115,6 +115,17 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   phone behaves and the only way through a switchboard. Numbers must carry a
   country code — there is no list to read a bare national number against, which
   is the collision `classifyPhone` documents at length.
+  **Ctrl/Cmd-V pastes a number in**, handled on `window` because the number on
+  this screen is text on a card and not an input, so there is nothing for the
+  browser to paste into. `pastedNumber` strips it to keys — listings write
+  "(907) 659-2550" and "(+65) 8883 4712", and while `classifyPhone` sees
+  through the punctuation the twenty-character cap does not. A plus anywhere
+  before the first digit counts as the country code marker, and a leading "00"
+  becomes the "+" it stands for. A pasted number carrying its own country code
+  *replaces* what was typed rather than appending, since it is a whole number:
+  pasting +1 907… onto a typed "+1" otherwise dials +1 1 907…. Bare digits do
+  append, being the national half of a number whose code may have just been
+  typed. Ignored while the pad is sending tones, like `+` and backspace are.
 - **The phone rules live in `src/lib/phone.ts`**, not `lib/calls.ts`, since
   2026-08-24: `classifyPhone`, `e164`, `dialCountry` and the `CallRegion` /
   `DialCountry` types moved there so the keypad — a client component — could
