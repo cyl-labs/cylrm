@@ -81,6 +81,23 @@ function setEar(audioId: string, volume: number) {
   if (el instanceof HTMLAudioElement) el.volume = volume;
 }
 
+/**
+ * Is this update about that call?
+ *
+ * Object identity first, the SDK's id second as a belt to that brace — the
+ * notification usually carries the very object `newCall` returned, but the id
+ * still matches after a ref has been cleared, which is exactly when a stray
+ * update is most dangerous.
+ */
+function sameCall(
+  call: TelnyxCall,
+  known: TelnyxCall | null,
+  knownId: string | null,
+): boolean {
+  if (known !== null && call === known) return true;
+  return Boolean(call.id) && call.id === knownId;
+}
+
 export type TelnyxLine = {
   ready: boolean;
   /** Why there is no dial button, or null when there is one. */
@@ -142,11 +159,23 @@ export function useTelnyxCall(
   } | null>(null);
   const callRef = React.useRef<TelnyxCall | null>(null);
   const secondRef = React.useRef<TelnyxCall | null>(null);
+  // The SDK's ids for the two lines, kept alongside the call objects because
+  // identity alone is not enough: the object arrives before it has an id, and
+  // the id outlives the moment the ref is cleared.
+  const firstIdRef = React.useRef<string | null>(null);
+  const secondIdRef = React.useRef<string | null>(null);
   // True from the moment a second call is asked for until it is gone. The SDK
   // can report the call's first state from inside `newCall`, before there is
   // anything to have assigned its return value to, and a notification arriving
   // in that gap must not be mistaken for the first call.
   const pendingSecondRef = React.useRef(false);
+  // The second call we have just hung up ourselves. It goes on reporting for a
+  // moment after `hangup()` returns, and those updates belong to no live line.
+  // Acting on them is what made pressing × on the added line end the *first*
+  // call in the UI while the prospect stayed connected and audible.
+  const retiredRef = React.useRef<{ call: TelnyxCall | null; id: string | null }>(
+    { call: null, id: null },
+  );
   const bridgeRef = React.useRef<AudioBridge | null>(null);
 
   const [ready, setReady] = React.useState(false);
@@ -172,12 +201,18 @@ export function useTelnyxCall(
     bridgeRef.current?.close();
     bridgeRef.current = null;
     pendingSecondRef.current = false;
+    // Remembered before the hangup, not after: the updates it provokes are the
+    // ones that must be recognised as this call's and ignored.
+    if (secondRef.current || secondIdRef.current) {
+      retiredRef.current = { call: secondRef.current, id: secondIdRef.current };
+    }
     try {
       secondRef.current?.hangup();
     } catch {
       // Already gone: this runs on the far end's hangup too.
     }
     secondRef.current = null;
+    secondIdRef.current = null;
     setSecond(null);
     setMerged(false);
     setMerging(false);
@@ -222,7 +257,11 @@ export function useTelnyxCall(
 
         const client = new TelnyxRTC({ login_token: token });
         client.on("telnyx.ready", () => !cancelled && setReady(true));
-        client.on("telnyx.error", () => {
+        client.on("telnyx.error", (e: unknown) => {
+          // Logged as well as shown: the message on screen is the same four
+          // words whatever went wrong, which is right for a caller mid-shift
+          // and useless for working out what Telnyx actually objected to.
+          console.error("[telnyx] client error", e);
           if (!cancelled) setProblem("Telnyx refused the connection.");
         });
         client.on("telnyx.notification", (n: { type: string; call?: TelnyxCall }) => {
@@ -230,18 +269,28 @@ export function useTelnyxCall(
           const call = n.call;
           const phase = phaseOf(call.state);
 
-          // Two calls can be up at once, and both report through this one
-          // handler. Asked the other way round — is this the first call? —
-          // because the second is the one whose identity is not yet known when
-          // its earliest updates arrive. Identity first and the SDK's id
-          // second: the notification carries the same Call object `newCall`
-          // returned, and the id is there as a belt to that brace.
-          const isFirst =
-            callRef.current !== null &&
-            (call === callRef.current ||
-              (Boolean(call.id) && call.id === callRef.current.id));
+          // A line we have already hung up ourselves. Its remaining updates
+          // describe nothing that is still on the phone, so they are dropped
+          // before anything can be inferred from them.
+          if (sameCall(call, retiredRef.current.call, retiredRef.current.id)) {
+            return;
+          }
 
-          if (!isFirst && pendingSecondRef.current) {
+          // Two calls can be up at once and both report through this one
+          // handler, so each is identified positively. "Not the second" is not
+          // the same as "the first": a second call reporting its own hangup is
+          // neither, and treating it as the first handed the live call's
+          // identity to a dead one — the screen went idle and stayed silent
+          // about a prospect who was still connected.
+          const isFirst = sameCall(call, callRef.current, firstIdRef.current);
+          const isSecond = sameCall(call, secondRef.current, secondIdRef.current);
+          // The gap `pendingSecondRef` exists for: the second call's earliest
+          // updates can arrive from inside `newCall`, before its return value
+          // has been assigned and before it has an id to be recognised by.
+          const isNewSecond = !isFirst && !isSecond && pendingSecondRef.current;
+
+          if (isSecond || isNewSecond) {
+            if (call.id) secondIdRef.current = call.id;
             secondRef.current = call;
             if (!phase) return;
             if (phase === "idle") dropSecondRef.current();
@@ -249,7 +298,16 @@ export function useTelnyxCall(
             return;
           }
 
+          // A brand new first call, for the same reason as `isNewSecond`:
+          // `dial` has not yet had anywhere to put what `newCall` returned.
+          const isNewFirst = callRef.current === null && !pendingSecondRef.current;
+          // Anything else belongs to no line this hook is holding. Ignoring it
+          // is the whole point: an unattributable update must never be able to
+          // take over the first line, which is what ends a live call.
+          if (!isFirst && !isNewFirst) return;
+
           callRef.current = call;
+          if (call.id) firstIdRef.current = call.id;
 
           // telnyxIDs is empty for the first moments of a call, so it is read
           // on every update and the last non-empty value kept.
@@ -263,6 +321,7 @@ export function useTelnyxCall(
             // brought in to speak to this prospect, so they go too.
             dropSecondRef.current();
             callRef.current = null;
+            firstIdRef.current = null;
             setMuted(false);
           }
         });
@@ -449,9 +508,17 @@ export function useTelnyxCall(
     // Before the first call, so the bridge hands both legs their own
     // microphone back while there is still something to hand it to.
     dropSecondRef.current();
+    // Nothing to hang up: say so rather than sitting in "ending" waiting for a
+    // notification that no call is going to send. This is the shape the old
+    // orphaning bug presented as — a screen stuck mid-hangup, or back at idle,
+    // over a line that was still open.
+    if (!callRef.current) {
+      setState("idle");
+      return;
+    }
     setState("ending");
     try {
-      callRef.current?.hangup();
+      callRef.current.hangup();
     } catch {
       setState("idle");
     }
