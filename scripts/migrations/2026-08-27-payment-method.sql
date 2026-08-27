@@ -1,0 +1,17 @@
+-- How each person prefers to be paid.
+--
+-- Apply before deploying the code that reads it.
+--
+-- Free text rather than a set of options, because it holds whatever that
+-- person actually needs said: a PayNow number, a bank and account, a Wise or
+-- PayPal link. Any list of methods would be wrong within a month, and the only
+-- reader is a human about to send money.
+--
+-- On `app_user` beside the other per-person settings — market, caller ID, dial
+-- method — rather than on `payout`: it is a standing preference, not a fact
+-- about one payment. A payout row already snapshots the amounts; what it
+-- deliberately does not snapshot is this, because "where did I send it" is
+-- answered by the payment record on the paying side, not by us.
+--
+-- Safe to re-run.
+alter table app_user add column if not exists payment_method text;

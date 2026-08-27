@@ -300,9 +300,41 @@ showed up**.
   the Postgres detail, including `constraint_name` and code `23505`, hangs off
   `err.cause`. Matching a constraint name against the outer message silently
   never fires and turns an actionable 409 into an unexplained 500.
-- A no-show never gets a `payout_id`, so nothing would ever take it off the
-  confirm list; it drops off after `NO_SHOW_CORRECTION_DAYS` (14) instead, which
-  is long enough to fix a mis-tap.
+- **A booking has three answers, not two** (`call_demo_attendance.status`:
+  `showed_up` | `no_show` | `invalid`, was a `showed_up` boolean until
+  `2026-08-27-demo-attendance-status.sql`). `invalid` is not a gentler
+  no-show — a no-show says a real booking was missed, which is a fact about the
+  prospect; `invalid` says the row is not a question at all: a duplicate, a
+  test, or one logged against the wrong lead. Conflating them left rows on the
+  worklist that read as somebody's near miss.
+- **Only bookings that could pay somebody are listed.** `getDemosToConfirm`
+  inner-joins `app_user` on `role = 'caller'`, so a demo the founders booked
+  themselves never appears — no answer to it can move any commission, and the
+  UI was rendering "Showed up · $30" beside bookings that pay nothing. Three of
+  the first six rows on the live screen were the founders' own.
+- Neither a no-show nor an invalid booking is ever claimed by a payout, so
+  nothing would take either off the confirm list; both drop off after
+  `NO_SHOW_CORRECTION_DAYS` (14), long enough to fix a mis-tap.
+- **The confirm list shows unanswered rows only**; answered-but-unpaid ones fold
+  behind a count that opens for corrections. A worklist that still shows what
+  you have dealt with is one you cannot tell you have finished — and nothing is
+  hidden that matters, since a showed-up demo is already money on the "Owed
+  now" table.
+- Each row carries **the lead's current outcome** when it has moved on ("now
+  Trial"). This list and the pipeline board disagree by design — the board
+  carries leads whose *latest* call is a booking, this carries every booking
+  ever made — and without the chip the difference reads as a bug. Following the
+  board would underpay: a lead now at Trial certainly attended, and Lost covers
+  both "no-showed twice" and "showed up and we failed to close".
+- **`app_user.payment_method`** (`2026-08-27-payment-method.sql`) is free text —
+  a PayNow number, a bank and account, a Wise or PayPal link — because any list
+  of methods would be wrong within a month and the only reader is a human about
+  to send money. Set on Team ("Paid by"), shown on Payroll and in the payout
+  dialog, which is the moment somebody opens their banking app. Rendered as a
+  link only through `websiteHref` (`src/lib/website.ts`), which returns http(s)
+  and nothing else: this is text somebody typed, and `javascript:` in an href
+  runs on click. It is deliberately **not** snapshotted onto `payout` — where
+  the money went is answered by the bank, not by us.
 - Only `role = 'caller'` appears — founders are the ones paying, the same reason
   the Scoreboard excludes them. A **deactivated** caller stays listed while
   still owed: switching someone off is not a way to stop owing them.

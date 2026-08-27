@@ -467,6 +467,12 @@ export const appUser = pgTable("app_user", {
    *  admins, and a caller gets it when there is a reason to ring numbers that
    *  are not on a niche. One permission, not a tier. */
   keypadAccess: boolean("keypad_access").notNull().default(false),
+  /** How this person prefers to be paid — a PayNow number, a bank and account,
+   *  a Wise or PayPal link. Free text rather than a set of options, because any
+   *  list of methods would be wrong within a month and the only reader is a
+   *  human about to send money. Shown on Payroll when recording a payout, and
+   *  rendered as a link when the value parses as an http(s) URL. */
+  paymentMethod: text("payment_method"),
   /** `browser` | `handset`. Some callers dial from their own phone and always
    *  will; the browser dialler is for the people with no usable handset for
    *  international calls, not the way everyone must work. A handset caller is
@@ -789,7 +795,19 @@ export const callDemoAttendance = pgTable(
     callLeadId: integer("call_lead_id")
       .notNull()
       .references(() => callLead.id, { onDelete: "cascade" }),
-    showedUp: boolean("showed_up").notNull(),
+    /**
+     * `showed_up` | `no_show` | `invalid`.
+     *
+     * Three answers, not two. A boolean could say the meeting happened or that
+     * it did not, and had no way to say the question does not apply — which it
+     * often does not: a founder booking a demo themselves is not a caller
+     * earning a fee, and neither is a duplicate or a booking logged against
+     * the wrong lead. Those were being answered "no-show", which is a
+     * different and worse claim: it says a real booking was missed.
+     */
+    status: text("status")
+      .notNull()
+      .$type<"showed_up" | "no_show" | "invalid">(),
     markedAt: timestamp("marked_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -814,9 +832,9 @@ export const callDemoAttendance = pgTable(
     // about money.
     uniqueIndex("call_demo_attendance_one_show_per_lead_idx")
       .on(t.callLeadId)
-      .where(sql`showed_up`),
+      .where(sql`status = 'showed_up'`),
     index("call_demo_attendance_unpaid_idx")
       .on(t.payoutId)
-      .where(sql`showed_up and payout_id is null`),
+      .where(sql`status = 'showed_up' and payout_id is null`),
   ],
 );

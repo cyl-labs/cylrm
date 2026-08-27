@@ -45,7 +45,7 @@ export default async function PayrollPage() {
   ]);
 
   const owedTotal = rows.reduce((sum, r) => sum + r.totalCents, 0);
-  const unanswered = demos.filter((d) => d.showedUp === null).length;
+  const unanswered = demos.filter((d) => d.status === null).length;
   const weeks = byWeek(history);
 
   // Dates are formatted here and handed down as text. The two components

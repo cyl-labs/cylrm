@@ -117,7 +117,7 @@ export function TeamManager({
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b text-left">
-                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Keypad", "Calls", "Last dialled", ""].map(
+                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Paid by", "Keypad", "Calls", "Last dialled", ""].map(
                   (h, i) => (
                     <th
                       key={h || "actions"}
@@ -290,6 +290,24 @@ export function TeamManager({
                     {/* An admin's row says "Always" rather than offering a
                         switch: `canUseKeypad` never reads the column for them,
                         so a toggle here would look like it did something. */}
+                    {/* How they prefer to be paid. Free text rather than a
+                        set of options: it holds a PayNow number, a bank and
+                        account, or a Wise link, and any list would be wrong
+                        within a month. Read on Payroll when recording a
+                        payout, which is the moment somebody needs it. */}
+                    <td className="px-4 py-2.5">
+                      {canManage ? (
+                        <PaymentMethodCell
+                          value={m.paymentMethod}
+                          busy={busyId === m.id}
+                          onSave={(v) => patch(m, { paymentMethod: v })}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {m.paymentMethod || "—"}
+                        </span>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       {m.role === "admin" ? (
                         <span className="text-muted-foreground">Always</span>
@@ -697,5 +715,60 @@ function ResetPasswordDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The payment method cell: a text box that saves on blur or Enter.
+ *
+ * Kept as its own component so each row holds its own draft — one piece of
+ * state in the parent would make every row share a value, and typing in one
+ * would fill in the rest.
+ *
+ * Saves only when the value actually changed, so tabbing through the table
+ * does not fire a PATCH per row.
+ */
+function PaymentMethodCell({
+  value,
+  busy,
+  onSave,
+}: {
+  value: string | null;
+  busy: boolean;
+  onSave: (value: string | null) => void;
+}) {
+  const [draft, setDraft] = React.useState(value ?? "");
+  // Server data wins whenever the row refreshes — the same re-sync
+  // `telnyx-numbers.tsx` does from its props, but adjusted during render
+  // rather than in an effect. React handles a setState in the render phase by
+  // restarting this component before anything commits, where the effect
+  // version renders once with the stale value and then again with the fresh
+  // one. It is also the pattern the lint rule those other call sites trip is
+  // pointing at.
+  const [synced, setSynced] = React.useState(value);
+  if (value !== synced) {
+    setSynced(value);
+    setDraft(value ?? "");
+  }
+
+  const commit = () => {
+    const next = draft.trim();
+    if (next === (value ?? "")) return;
+    onSave(next || null);
+  };
+
+  return (
+    <Input
+      value={draft}
+      disabled={busy}
+      placeholder="PayNow, bank, link…"
+      className="h-8 w-44 text-[13px]"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") setDraft(value ?? "");
+      }}
+    />
   );
 }

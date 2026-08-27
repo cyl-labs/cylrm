@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, X } from "lucide-react";
+import { Ban, Check, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { MEETING_CENTS, formatMoney } from "@/lib/payroll-rates";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import type { CallOutcome } from "@/lib/calls";
+import type { DemoStatus } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
 
 export type DemoView = {
@@ -17,7 +18,7 @@ export type DemoView = {
   callerName: string | null;
   bookedLabel: string;
   notes: string | null;
-  showedUp: boolean | null;
+  status: DemoStatus | null;
   currentOutcome: CallOutcome;
 };
 
@@ -43,13 +44,13 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
   const [busy, setBusy] = React.useState<number | null>(null);
   const [showAnswered, setShowAnswered] = React.useState(false);
 
-  async function mark(callId: number, showedUp: boolean) {
+  async function mark(callId: number, status: DemoStatus) {
     setBusy(callId);
     try {
       const res = await fetch("/api/payroll/attendance", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ callId, showedUp }),
+        body: JSON.stringify({ callId, status }),
       });
       const data = (await res.json().catch(() => null)) as {
         error?: string;
@@ -74,8 +75,8 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
   //
   // Neither is lost by folding: a showed-up demo is already money on the
   // "Owed now" table above, which is where an amount belongs.
-  const unanswered = demos.filter((d) => d.showedUp === null);
-  const answered = demos.filter((d) => d.showedUp !== null);
+  const unanswered = demos.filter((d) => d.status === null);
+  const answered = demos.filter((d) => d.status !== null);
 
   if (demos.length === 0) {
     return (
@@ -121,43 +122,60 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
         )}
       </div>
 
-      {d.showedUp !== null && (
+      {d.status !== null && (
         <span
           className={cn(
             "rounded-full px-2.5 py-1 text-[11px] font-bold",
-            d.showedUp
+            d.status === "showed_up"
               ? "bg-primary/12 text-primary"
               : "bg-muted text-muted-foreground",
           )}
         >
-          {d.showedUp
+          {d.status === "showed_up"
             ? `Showed up · ${formatMoney(MEETING_CENTS)}`
-            : "No-show"}
+            : d.status === "no_show"
+              ? "No-show"
+              : "Not valid"}
         </span>
       )}
 
-      {/* Both buttons stay after an answer, so a mis-tap is corrected by
-          pressing the other one — the same shape the dialler uses, where
-          logging and correcting are distinct actions. The current answer
-          is the filled button. */}
-      <div className="flex shrink-0 gap-1.5">
+      {/* All three stay after an answer, so a mis-tap is corrected by pressing
+          another — the same shape the dialler uses, where logging and
+          correcting are distinct actions. The current answer is the filled
+          button.
+
+          "Not valid" is deliberately its own answer and not a gentler
+          no-show: a no-show says a real booking was missed, which is a fact
+          about the prospect, while this says the row is not a question — a
+          duplicate, a test, or a booking logged against the wrong lead. */}
+      <div className="flex shrink-0 flex-wrap gap-1.5">
         <Button
           size="sm"
-          variant={d.showedUp === true ? "default" : "outline"}
+          variant={d.status === "showed_up" ? "default" : "outline"}
           disabled={busy === d.callId}
-          onClick={() => mark(d.callId, true)}
+          onClick={() => mark(d.callId, "showed_up")}
         >
           <Check className="size-3.5" strokeWidth={2.5} />
           Showed up
         </Button>
         <Button
           size="sm"
-          variant={d.showedUp === false ? "secondary" : "outline"}
+          variant={d.status === "no_show" ? "secondary" : "outline"}
           disabled={busy === d.callId}
-          onClick={() => mark(d.callId, false)}
+          onClick={() => mark(d.callId, "no_show")}
         >
           <X className="size-3.5" strokeWidth={2.5} />
           No-show
+        </Button>
+        <Button
+          size="sm"
+          variant={d.status === "invalid" ? "secondary" : "ghost"}
+          disabled={busy === d.callId}
+          onClick={() => mark(d.callId, "invalid")}
+          title="Not a real booking — a duplicate, a test, or logged against the wrong lead"
+        >
+          <Ban className="size-3.5" strokeWidth={2.5} />
+          Not valid
         </Button>
       </div>
     </li>

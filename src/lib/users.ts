@@ -27,6 +27,9 @@ export type TeamMember = {
   isOwner: boolean;
   /** May open the Keypad. Admins always may, whatever this says. */
   keypadAccess: boolean;
+  /** How they prefer to be paid — free text, possibly a link. Set on Team,
+   *  read on Payroll at the moment a payout is recorded. */
+  paymentMethod: string | null;
   /** Lifetime, across every list — what the Team screen shows next to a name
    *  so a dormant account is obvious without opening Stats. */
   calls: number;
@@ -54,6 +57,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       dialMethod: appUser.dialMethod,
       isOwner: appUser.isOwner,
       keypadAccess: appUser.keypadAccess,
+      paymentMethod: appUser.paymentMethod,
       // A join rather than a correlated subquery, because the subquery this
       // replaces was silently wrong. Drizzle renders an interpolated column
       // unqualified inside `.select()`, so `${appUser.id}` came out as a bare

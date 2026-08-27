@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
+import type { DemoStatus } from "@/lib/payroll";
 
 /**
  * Record whether a booked meeting actually happened.
@@ -27,20 +28,24 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as {
     callId?: unknown;
-    showedUp?: unknown;
+    status?: unknown;
   } | null;
 
   const callId = Number(body?.callId);
   if (!Number.isInteger(callId)) {
     return Response.json({ error: "Invalid meeting." }, { status: 400 });
   }
-  if (typeof body?.showedUp !== "boolean") {
+  if (
+    body?.status !== "showed_up" &&
+    body?.status !== "no_show" &&
+    body?.status !== "invalid"
+  ) {
     return Response.json(
       { error: "Say whether they showed up." },
       { status: 400 },
     );
   }
-  const showedUp = body.showedUp;
+  const status: DemoStatus = body.status;
 
   // The lead id is denormalised onto the attendance row so the one-fee-per-
   // business index can exist, so it is read from the call rather than trusted
@@ -77,12 +82,12 @@ export async function POST(request: Request) {
   // `/api/call-leads/[id]` checks the duplicate-phone index rather than
   // catching it: a pre-check can name the other booking, where a constraint
   // violation can only say that there was one.
-  if (showedUp) {
+  if (status === "showed_up") {
     const [clash] = (await db.execute(sql`
       select a.call_id
       from call_demo_attendance a
       where a.call_lead_id = ${target.call_lead_id}
-        and a.showed_up
+        and a.status = 'showed_up'
         and a.call_id <> ${callId}
     `)) as Record<string, unknown>[];
     if (clash) {
@@ -99,10 +104,10 @@ export async function POST(request: Request) {
   try {
     await db.execute(sql`
       insert into call_demo_attendance
-        (call_id, call_lead_id, showed_up, marked_by_user_id)
-      values (${callId}, ${target.call_lead_id}, ${showedUp}, ${me.id})
+        (call_id, call_lead_id, status, marked_by_user_id)
+      values (${callId}, ${target.call_lead_id}, ${status}, ${me.id})
       on conflict (call_id) do update
-        set showed_up = excluded.showed_up,
+        set status = excluded.status,
             marked_by_user_id = excluded.marked_by_user_id,
             marked_at = now()
     `);

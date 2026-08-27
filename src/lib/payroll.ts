@@ -90,6 +90,8 @@ export type PayrollRow = {
   meetings: number;
   meetingCommissionCents: number;
   totalCents: number;
+  /** How they prefer to be paid. Free text; may be a link. */
+  paymentMethod: string | null;
 };
 
 /**
@@ -120,7 +122,7 @@ export type PayrollRow = {
  */
 export async function getPayrollRows(): Promise<PayrollRow[]> {
   const rows = (await db.execute(sql`
-    select u.id, u.name, u.active,
+    select u.id, u.name, u.active, u.payment_method,
       coalesce(p.paid_at, u.created_at) as period_start,
       p.paid_at as last_paid_at,
       (
@@ -134,7 +136,7 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
         from call_demo_attendance a
         join "call" ac on ac.id = a.call_id
         where ac.user_id = u.id
-          and a.showed_up
+          and a.status = 'showed_up'
           and a.payout_id is null
       ) as meetings
     from app_user u
@@ -166,6 +168,7 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
       meetings,
       meetingCommissionCents: commission,
       totalCents: bonus + commission,
+      paymentMethod: (r.payment_method as string | null) ?? null,
     };
   });
 }
@@ -177,6 +180,17 @@ export async function getPayroll(): Promise<PayrollRow[]> {
   return rows.filter((r) => r.active || r.totalCents > 0);
 }
 
+/**
+ * The three answers a booked demo can get.
+ *
+ * `invalid` is not a softer no-show. A no-show says a real booking was missed,
+ * which is a fact about the prospect and belongs in the record; `invalid` says
+ * the question does not apply to this row at all — a duplicate, a test, or a
+ * booking logged against the wrong lead. Conflating them put rows on the
+ * worklist that looked like somebody's near miss.
+ */
+export type DemoStatus = "showed_up" | "no_show" | "invalid";
+
 export type DemoToConfirm = {
   callId: number;
   leadId: number;
@@ -187,7 +201,7 @@ export type DemoToConfirm = {
   bookedAt: string;
   notes: string | null;
   /** Null when nobody has answered yet. */
-  showedUp: boolean | null;
+  status: DemoStatus | null;
   /**
    * Where the lead sits now — its latest call's outcome, the same thing the
    * pipeline board derives a column from.
@@ -204,12 +218,12 @@ export type DemoToConfirm = {
 };
 
 /**
- * How long a no-show stays on the list after it has been answered.
+ * How long an answer that earns nothing stays on the list.
  *
- * A no-show earns nothing, so no payout ever claims it and nothing would
- * otherwise take it off a list that is meant to be a worklist — a year in,
- * "Meetings to confirm" would be mostly an archive of meetings nobody is
- * waiting on. It stays a fortnight so a mis-tap is still fixable, which is
+ * Neither a no-show nor an invalid booking is ever claimed by a payout, so
+ * nothing would otherwise take either off a list meant to be worked — a year
+ * in, "Meetings to confirm" would be mostly an archive of meetings nobody is
+ * waiting on. They stay a fortnight so a mis-tap is still fixable, which is
  * about the span the SOP's two rebooking attempts play out over.
  */
 const NO_SHOW_CORRECTION_DAYS = 14;
@@ -217,13 +231,20 @@ const NO_SHOW_CORRECTION_DAYS = 14;
 /**
  * Booked demos still awaiting an answer, plus answered ones still in play.
  *
- * Three states belong here and each leaves for a different reason:
+ * States belong here and each leaves for a different reason:
  *  - unanswered: always listed, however old. This is the one that costs
  *    somebody money if it is forgotten.
  *  - showed up, unpaid: listed until a payout claims it, after which the API
  *    refuses to change it anyway — that money has gone out.
- *  - no-show: listed for `NO_SHOW_CORRECTION_DAYS`, then gone. Nothing else
- *    would ever remove it.
+ *  - no-show and invalid: listed for `NO_SHOW_CORRECTION_DAYS`, then gone.
+ *    Neither earns anything, so no payout would ever remove them.
+ *
+ * **Only bookings that could pay somebody appear.** A demo logged by a founder
+ * or by nobody at all can never move a commission — `getPayrollRows` counts
+ * `role = 'caller'` and nothing else — so asking whether it showed up is a
+ * question with no consequence, and the answer was being rendered "Showed up ·
+ * $30" beside a booking that pays nothing. Three of the first six rows on this
+ * screen were the founders' own bookings.
  *
  * Ordered oldest first. This is a worklist, and the meeting that happened three
  * weeks ago is the one at risk of never being asked about.
@@ -234,12 +255,15 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
       l.id as lead_id, l.company, l.name as lead_name,
       cl.name as list_name,
       u.name as caller_name,
-      a.showed_up,
+      a.status,
       latest.outcome as current_outcome
     from "call" c
     join call_lead l on l.id = c.call_lead_id
     join call_list cl on cl.id = l.call_list_id
-    left join app_user u on u.id = c.user_id
+    -- An inner join, unlike everywhere else this table is read: a booking with
+    -- no user, or one whose user is not a caller, can never pay anybody, and a
+    -- payroll worklist has no business asking a question with no consequence.
+    join app_user u on u.id = c.user_id and u.role = 'caller'
     left join call_demo_attendance a on a.call_id = c.id
     -- Where the lead stands now. The same "most recent call wins" rule the
     -- board and the spreadsheet derive a lead's state from, so the chip on a
@@ -253,9 +277,9 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
     where c.outcome = 'demo_booked'
       and (
         a.id is null
-        or (a.showed_up and a.payout_id is null)
+        or (a.status = 'showed_up' and a.payout_id is null)
         or (
-          not a.showed_up
+          a.status in ('no_show', 'invalid')
           and a.marked_at > now() - make_interval(days => ${NO_SHOW_CORRECTION_DAYS})
         )
       )
@@ -275,7 +299,7 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
     callerName: (r.caller_name as string | null) ?? null,
     bookedAt: new Date(r.called_at as string).toISOString(),
     notes: (r.notes as string | null) ?? null,
-    showedUp: r.showed_up === null ? null : Boolean(r.showed_up),
+    status: (r.status as DemoStatus | null) ?? null,
     currentOutcome: r.current_outcome as CallOutcome,
   }));
 }

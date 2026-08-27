@@ -16,6 +16,7 @@ import {
   formatMoney,
   pickupsTowardNext,
 } from "@/lib/payroll-rates";
+import { websiteHref } from "@/lib/website";
 import { cn } from "@/lib/utils";
 
 /**
@@ -34,7 +35,33 @@ export type PayrollRowView = {
   meetings: number;
   meetingCommissionCents: number;
   totalCents: number;
+  /** How they prefer to be paid. Free text, and may be a link. */
+  paymentMethod: string | null;
 };
+
+/**
+ * The payment method, as a link when it is one.
+ *
+ * Through `websiteHref`, which only ever returns http(s) — the same guard the
+ * spreadsheet's website column uses, and load-bearing for the same reason:
+ * this is free text somebody typed, and `javascript:` in an href runs when
+ * it is clicked. Anything that is not a URL stays plain text, which is the
+ * common case: a PayNow number or a bank and account.
+ */
+function PaymentMethod({ value }: { value: string }) {
+  const href = websiteHref(value);
+  if (!href) return <span>{value}</span>;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-primary underline-offset-2 hover:underline"
+    >
+      {value}
+    </a>
+  );
+}
 
 export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
   const router = useRouter();
@@ -208,6 +235,20 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                   {stranded === 1 ? "pickup" : "pickups"} that have not reached
                   the next {formatMoney(PICKUP_BONUS_CENTS)} — progress toward a bonus is not
                   carried over. Their count restarts at zero.
+                </p>
+              )}
+              {/* Where to send it, next to how much — this is the moment
+                  somebody is about to open their banking app. */}
+              {confirming.paymentMethod ? (
+                <p className="text-[12px]">
+                  <span className="text-muted-foreground">Pay via </span>
+                  <span className="font-semibold">
+                    <PaymentMethod value={confirming.paymentMethod} />
+                  </span>
+                </p>
+              ) : (
+                <p className="text-[12px] text-muted-foreground">
+                  No payment method on file — add one on the Team screen.
                 </p>
               )}
               <p className="text-[12px] text-muted-foreground">

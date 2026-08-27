@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         from call_demo_attendance a
         join "call" ac on ac.id = a.call_id
         where ac.user_id = ${userId}
-          and a.showed_up
+          and a.status = 'showed_up'
           and a.payout_id is null
         for update of a
       `)) as Record<string, unknown>[];

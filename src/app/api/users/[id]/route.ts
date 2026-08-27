@@ -42,6 +42,7 @@ export async function PATCH(
     role?: unknown;
     active?: unknown;
     callRegion?: unknown;
+    paymentMethod?: unknown;
     telnyxDid?: unknown;
     dialMethod?: unknown;
     keypadAccess?: unknown;
@@ -106,6 +107,27 @@ export async function PATCH(
       );
     }
     values.callRegion = region as "sg" | "us" | "gb" | null;
+  }
+
+  // How they prefer to be paid. Free text — a PayNow number, a bank and
+  // account, a Wise or PayPal link — because any fixed list of methods would be
+  // wrong within a month. Blanked to null rather than stored as "" so "not set"
+  // is one value and not two.
+  if ("paymentMethod" in body) {
+    if (body.paymentMethod !== null && typeof body.paymentMethod !== "string") {
+      return Response.json(
+        { error: "Invalid payment method." },
+        { status: 400 },
+      );
+    }
+    const method = (body.paymentMethod ?? "").trim();
+    if (method.length > 500) {
+      return Response.json(
+        { error: "That payment method is too long." },
+        { status: 400 },
+      );
+    }
+    values.paymentMethod = method || null;
   }
 
   if ("dialMethod" in body) {
