@@ -77,7 +77,19 @@ const STATS_TZ = "America/New_York";
 export type StatsWindow =
   | { kind: "all" }
   | { kind: "rolling"; days: number }
-  | { kind: "day"; date: string };
+  | { kind: "day"; date: string }
+  /** Two calendar dates in Eastern, inclusive of both ends — the range someone
+   *  types when they want a competition week or a named month rather than the
+   *  last N days counted backwards from this moment. Dates are carried as
+   *  YYYY-MM-DD strings the whole way and never turned into a `Date`: parsing
+   *  one gives UTC midnight, which reads as the previous day in Eastern. */
+  | { kind: "between"; from: string; to: string };
+
+/** A YYYY-MM-DD calendar date, and nothing else. Guards the query — these
+ *  reach Postgres as `::date`, where a malformed string is an error rather
+ *  than an empty result. */
+export const isStatsDate = (v: unknown): v is string =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** Today in Eastern, as YYYY-MM-DD — the default for a day picker's max. */
 export const todayInStatsTz = () =>
@@ -87,6 +99,13 @@ const since = (w: StatsWindow): SQL => {
   if (w.kind === "all") return sql`true`;
   if (w.kind === "day") {
     return sql`(c.called_at at time zone ${STATS_TZ})::date = ${w.date}::date`;
+  }
+  if (w.kind === "between") {
+    // Both ends inclusive: someone picking 1st to 31st means the whole month,
+    // and a range that quietly dropped its last day would under-report the
+    // final shift of every competition.
+    return sql`(c.called_at at time zone ${STATS_TZ})::date
+      between ${w.from}::date and ${w.to}::date`;
   }
   return sql`c.called_at >= now() - ${`${w.days} days`}::interval`;
 };

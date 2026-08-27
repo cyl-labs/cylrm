@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { listTeam } from "@/lib/users";
 import {
   getPersonStats,
+  isStatsDate,
   todayInStatsTz,
   type StatsWindow,
 } from "@/lib/call-stats";
@@ -166,14 +167,29 @@ function Podium({
 export default async function ScoreboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
-  const { range: raw } = await searchParams;
+  const { range: raw, from, to } = await searchParams;
   const range = RANGES.some((r) => r.key === raw) ? raw! : "today";
 
+  // Both ends or neither. A half-typed range in a shared link would otherwise
+  // resolve to something plausible that nobody chose, and these get pasted
+  // into Discord — the board is a thing people send each other.
+  const custom =
+    isStatsDate(from) && isStatsDate(to)
+      ? from <= to
+        ? { from, to }
+        : { from: to, to: from }
+      : null;
+
+  const today = todayInStatsTz();
   const me = await getCurrentUser();
   const [all, team] = await Promise.all([
-    getPersonStats(windowFor(range)),
+    getPersonStats(
+      custom
+        ? { kind: "between", from: custom.from, to: custom.to }
+        : windowFor(range),
+    ),
     listTeam(),
   ]);
 
@@ -196,7 +212,17 @@ export default async function ScoreboardPage({
   const topCalls = Math.max(1, ...people.map((p) => p.calls));
 
   return (
-    <PageShell title="Scoreboard" actions={<RangeTabs ranges={RANGES} active={range} />}>
+    <PageShell
+      title="Scoreboard"
+      actions={
+        <RangeTabs
+          ranges={RANGES}
+          active={range}
+          custom={custom}
+          today={today}
+        />
+      }
+    >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-5 sm:px-6">
         {/* Your own row first and large. Everything below is context for it. */}
         <div className="rounded-xl border bg-card p-4 sm:p-5">
@@ -258,7 +284,8 @@ export default async function ScoreboardPage({
           )}
           {(mine?.calls ?? 0) === 0 && (
             <p className="mt-2 text-[13px] text-muted-foreground">
-              Nothing logged yet {range === "today" ? "today" : "in this range"}.
+              Nothing logged yet{" "}
+              {!custom && range === "today" ? "today" : "in this range"}.
             </p>
           )}
         </div>

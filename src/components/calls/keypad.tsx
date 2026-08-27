@@ -13,6 +13,7 @@ import {
   mmss,
   type SavedLine,
 } from "./second-line";
+import { PHONE_KEYS } from "./tone-pad";
 import { useTelnyxCall } from "./use-telnyx-call";
 
 const REMOTE_AUDIO_ID = "keypad-remote-audio";
@@ -34,22 +35,6 @@ const COUNTRY: Record<string, string> = {
   gb: "United Kingdom",
 };
 
-/** The letters a phone has always had under its digits. Nothing reads them —
- *  they are what makes a keypad recognisable as one at a glance. */
-const KEYS: { digit: string; letters?: string }[] = [
-  { digit: "1" },
-  { digit: "2", letters: "ABC" },
-  { digit: "3", letters: "DEF" },
-  { digit: "4", letters: "GHI" },
-  { digit: "5", letters: "JKL" },
-  { digit: "6", letters: "MNO" },
-  { digit: "7", letters: "PQRS" },
-  { digit: "8", letters: "TUV" },
-  { digit: "9", letters: "WXYZ" },
-  { digit: "*" },
-  { digit: "0" },
-  { digit: "#" },
-];
 
 /** Is the person typing into a real field? Then the keystroke is that field's,
  *  not the pad's. */
@@ -390,7 +375,7 @@ export function Keypad({
         )}
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          {KEYS.map((k) => (
+          {PHONE_KEYS.map((k) => (
             <button
               key={k.digit}
               type="button"

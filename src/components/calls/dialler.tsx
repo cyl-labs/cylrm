@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Globe,
   CalendarPlus,
+  Grid3x3,
   Mic,
   MicOff,
   MessageSquareWarning,
@@ -33,6 +34,7 @@ import {
   SavedLineList,
   type SavedLine,
 } from "@/components/calls/second-line";
+import { TonePad } from "@/components/calls/tone-pad";
 import { ScriptPanel } from "@/components/sop/script-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -160,6 +162,8 @@ function DialControls({
   // survives into the next one.
   const [adding, setAdding] = React.useState(false);
   const [secondName, setSecondName] = React.useState("");
+  // The tone pad, for the switchboards that answer instead of a person.
+  const [padOpen, setPadOpen] = React.useState(false);
 
   // Nothing at all, not even the fallback line. Telling someone who always
   // dials from their own phone that there is "no caller ID yet" is an apology
@@ -243,11 +247,32 @@ function DialControls({
         </Button>
       </div>
 
+      {/* The switchboard case. Only once they have answered — a menu cannot be
+          answered while the phone is still ringing — and above "Add call"
+          because it is needed in the first ten seconds of a call, before
+          anyone has decided whether to show a demo. */}
+      {line.state === "active" && (
+        <div className="mt-2">
+          {padOpen ? (
+            <TonePad line={line} onClose={() => setPadOpen(false)} />
+          ) : (
+            <Button
+              variant="outline"
+              className="h-11 w-full"
+              onClick={() => setPadOpen(true)}
+            >
+              <Grid3x3 data-icon="inline-start" />
+              Keypad
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Only once they have answered: there is nobody to hear the demo while
           it is still ringing. Absent entirely when no number is labelled,
           rather than a button that opens onto nothing — there is no pad on
           this card to type one into, so the list is the whole feature. */}
-      {lines.length > 0 && line.state === "active" && (
+      {lines.length > 0 && line.state === "active" && !padOpen && (
         <div className="mt-2 space-y-2">
           {adding ? (
             <>
