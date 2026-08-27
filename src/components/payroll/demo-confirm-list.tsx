@@ -6,6 +6,8 @@ import { Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { MEETING_CENTS, formatMoney } from "@/lib/payroll-rates";
+import { OUTCOME_LABELS } from "@/components/calls/outcome";
+import type { CallOutcome } from "@/lib/calls";
 import { cn } from "@/lib/utils";
 
 export type DemoView = {
@@ -16,6 +18,7 @@ export type DemoView = {
   bookedLabel: string;
   notes: string | null;
   showedUp: boolean | null;
+  currentOutcome: CallOutcome;
 };
 
 /**
@@ -78,6 +81,23 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
             <p className="truncate text-[11px] text-muted-foreground">
               {d.callerName ?? "Not attributed"} &middot; {d.listName} &middot;{" "}
               booked {d.bookedLabel}
+              {/* Where the lead has got to since. Shown only when it has moved
+                  on, because "now Demo booked" on a booking is noise — and
+                  shown at all because this list and the pipeline board
+                  disagree on purpose: the board carries leads whose *latest*
+                  call is a booking, this carries every booking ever made. A
+                  lead since moved to Trial left that column weeks ago and is
+                  still owed an answer here. Without this the row looks like a
+                  bug rather than a question. */}
+              {d.currentOutcome !== "demo_booked" && (
+                <>
+                  {" "}
+                  &middot; now{" "}
+                  <span className="font-semibold text-foreground/70">
+                    {OUTCOME_LABELS[d.currentOutcome]}
+                  </span>
+                </>
+              )}
             </p>
             {d.notes && (
               <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground/80">

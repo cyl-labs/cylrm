@@ -107,9 +107,16 @@ export default async function PayrollPage() {
               <p className="text-sm font-extrabold tracking-[-0.01em]">
                 Meetings to confirm
               </p>
+              {/* Says why this is longer than the board's Demo booked column.
+                  The board shows leads whose *latest* call is a booking; this
+                  shows every booking ever made, because a lead that has since
+                  moved to Trial or Lost was still a meeting somebody booked
+                  and may still be owed for. */}
               <p className="mt-0.5 text-[11px] text-muted-foreground/75">
-                Booked demos. Nothing earns the $30 until it is marked as
-                having shown up.
+                Every demo ever booked, not just the ones still sitting in the
+                pipeline&rsquo;s Demo booked column — a lead that has moved on
+                since was still a meeting, and still earns the $30 if they
+                turned up. Nothing earns it until it is marked.
               </p>
             </div>
             {unanswered > 0 && (

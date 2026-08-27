@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import type { CallOutcome } from "@/lib/calls";
 import { PICKUP, STATS_TZ, todayInStatsTz } from "@/lib/call-stats";
 import {
   MEETING_CENTS,
@@ -187,6 +188,19 @@ export type DemoToConfirm = {
   notes: string | null;
   /** Null when nobody has answered yet. */
   showedUp: boolean | null;
+  /**
+   * Where the lead sits now — its latest call's outcome, the same thing the
+   * pipeline board derives a column from.
+   *
+   * Shown because this list and the board disagree on purpose and the
+   * disagreement looked like a bug: the board carries the leads whose *latest*
+   * call is `demo_booked`, while this carries every booking ever logged. A
+   * lead booked three weeks ago and since moved to Trial has long left that
+   * column and is still owed an answer here — in fact Trial is the one answer
+   * that is not in doubt, since you do not reach it without the meeting having
+   * happened.
+   */
+  currentOutcome: CallOutcome;
 };
 
 /**
@@ -220,12 +234,22 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
       l.id as lead_id, l.company, l.name as lead_name,
       cl.name as list_name,
       u.name as caller_name,
-      a.showed_up
+      a.showed_up,
+      latest.outcome as current_outcome
     from "call" c
     join call_lead l on l.id = c.call_lead_id
     join call_list cl on cl.id = l.call_list_id
     left join app_user u on u.id = c.user_id
     left join call_demo_attendance a on a.call_id = c.id
+    -- Where the lead stands now. The same "most recent call wins" rule the
+    -- board and the spreadsheet derive a lead's state from, so the chip on a
+    -- row and the column it sits in on the board cannot say different things.
+    join lateral (
+      select x.outcome from "call" x
+      where x.call_lead_id = l.id
+      order by x.called_at desc, x.id desc
+      limit 1
+    ) latest on true
     where c.outcome = 'demo_booked'
       and (
         a.id is null
@@ -252,6 +276,7 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
     bookedAt: new Date(r.called_at as string).toISOString(),
     notes: (r.notes as string | null) ?? null,
     showedUp: r.showed_up === null ? null : Boolean(r.showed_up),
+    currentOutcome: r.current_outcome as CallOutcome,
   }));
 }
 
