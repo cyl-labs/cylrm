@@ -268,10 +268,15 @@ showed up**.
   on had better be the one they can see on Stats. Exporting it is the only
   change Payroll made to that file.
 - **Nothing in the CRM recorded that a meeting happened**, so `call_demo_attendance`
-  does. `demo_booked` means they agreed to a slot and `trial`/`won` mean they
-  bought in; the SOP pays on attendance ("whether they buy is not your problem"),
-  so a prospect who turned up and declined earns the fee and never reaches
-  trial. Deliberately **not** an outcome enum value: that would be a new `call`
+  does, and a founder marks it by hand. `demo_booked` means they agreed to a
+  slot and `trial`/`won` mean they bought in; the SOP pays on attendance
+  ("whether they buy is not your problem"), so the pipeline cannot stand in for
+  it in **either** direction. A prospect who turned up and declined earns the
+  fee and never reaches `trial` — and some close immediately without a trial at
+  all, so `trial` is skipped by the best outcomes as well as the worst. Neither
+  end of the pipeline is a proxy for "did they turn up", which is why this is a
+  human judgement rather than anything derived.
+  Deliberately **not** an outcome enum value: that would be a new `call`
   row landing in whoever logged it in the Stats call counts, and would put an
   earned fee at the mercy of a founder later moving the lead to Lost.
 - **Commission owed is `payout_id is null`, never a date comparison.** An
