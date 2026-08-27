@@ -12,6 +12,7 @@ import {
   Table2,
   Trophy,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -75,6 +76,7 @@ export const WORKSPACES: Workspace[] = [
       // the email side, and two screens with one name is how the wrong one
       // gets opened.
       { href: "/team", label: "Team", icon: ShieldCheck },
+      { href: "/payroll", label: "Payroll", icon: Wallet },
     ],
   },
 ];
@@ -100,17 +102,18 @@ export const EMAIL_PREFIXES = [
 /**
  * Call CRM screens a caller may not open either.
  *
- * Stats is the whole operation's performance and Team is who has a login and
- * what they are paid to do; both are the admins' business. Callers get the
- * Scoreboard instead, which shows the floor's numbers without showing the
- * floor's staffing. Kept separate from EMAIL_PREFIXES so the two reasons stay
- * legible: one is a different product, this is a permission.
+ * Stats is the whole operation's performance, Team is who has a login and what
+ * they are paid to do, and Payroll is what everyone is owed; all three are the
+ * admins' business. Callers get the Scoreboard instead, which shows the floor's
+ * numbers without showing the floor's staffing or its wages. Kept separate from
+ * EMAIL_PREFIXES so the two reasons stay legible: one is a different product,
+ * this is a permission.
  *
  * The Keypad was on this list until 2026-08-25. It is not a rank but a single
  * permission — `app_user.keypad_access`, granted per person — so it lives in
  * `KEYPAD_PREFIX` below instead. Admins keep it by being admins.
  */
-export const ADMIN_ONLY_CALL_PREFIXES = ["/call-stats", "/team"];
+export const ADMIN_ONLY_CALL_PREFIXES = ["/call-stats", "/team", "/payroll"];
 
 /**
  * The Keypad, which is granted per person rather than by role.
@@ -177,6 +180,7 @@ const CALL_PREFIXES = [
   "/scoreboard",
   "/call-stats",
   "/team",
+  "/payroll",
   "/keypad",
 ];
 

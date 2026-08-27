@@ -12,8 +12,12 @@ const n = (v: unknown) => Number(v ?? 0);
  * spoken to, and counting it as a pickup would flatter the pickup rate exactly
  * where the data is worst. Voicemail and no answer are not pickups either;
  * gatekeeper is — a receptionist is a person, and getting past one is the job.
+ *
+ * Exported for Payroll, which pays a bonus per 50 of them. Two definitions of
+ * a pickup would be two different numbers on two screens, and the one people
+ * are paid on had better be the one they can see on Stats.
  */
-const PICKUP = sql`('gatekeeper','callback','not_interested','demo_booked','trial','won','lost')`;
+export const PICKUP = sql`('gatekeeper','callback','not_interested','demo_booked','trial','won','lost')`;
 
 export type CallTotals = {
   /** Calls logged in the range — attempts, not leads. */
@@ -65,7 +69,7 @@ export type ListStat = {
  * deliberately no offset constant to pair with this: every use goes through
  * Postgres `at time zone` or `Intl`, both of which read the zone database.
  */
-const STATS_TZ = "America/New_York";
+export const STATS_TZ = "America/New_York";
 
 /**
  * What slice of time the numbers cover.

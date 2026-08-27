@@ -241,6 +241,67 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 - Aggregates in `getCallLists` count `l.id`, not `*`: a list whose leads are all cross-list duplicates joins to nothing, and `count(*)` scores the LEFT JOIN's phantom NULL row as an uncalled lead — that read "-1 of 0 worked" before it was fixed.
 - Each lead carries the company's `website`, surfaced as a link on the spreadsheet (its own editable column, with the open-in-a-tab icon stopping the click before it reaches the cell) and as a button under the number on the dial card. The data was always there — the importer keeps every raw CSV column, and `website` was in `source_fields` on 599 of 679 leads — so `2026-08-13-call-lead-website.sql` promotes it to a column and backfills it. Parsing lives in `src/lib/website.ts`, off the database because both callers are client components: a bare domain gets `https://` prepended rather than being dropped, and anything that will not parse as http(s) returns null so no button is offered. That last part is not tidiness — the value came off a scraped page, and `javascript:` in an href runs on click. `source_url` / `provenance_url` are deliberately not aliases: they point at the directory listing the scraper used, not the company.
 
+## Payroll (Call CRM)
+
+`/payroll` works out what each caller is owed and records what has been handed
+over. Admin-only (`ADMIN_ONLY_CALL_PREFIXES`), manual throughout: no processor,
+no auto-payment, and **nothing resets on a timer**. Queries in
+`src/lib/payroll.ts`, rates in `src/lib/payroll-rates.ts`, screen under
+`src/app/(app)/payroll/`, routes at `/api/payroll/payouts` and
+`/api/payroll/attendance`. Schema in `2026-08-27-payroll.sql`.
+
+Two things are paid: **$20 per whole 50 pickups**, and **$30 per meeting that
+showed up**.
+
+- **The pickup counter runs from the last payout, not from a Monday.** The
+  requirement was that it reset only when someone presses the button, and a
+  counter that resets only on payout is necessarily counting since the payout.
+  It matches the calendar week in practice because payment goes out on Fridays,
+  and it will diverge from Stats and the Scoreboard whenever a payout is early
+  or late. It also keeps the reporting timezone out of a payment calculation:
+  the window is two timestamps compared, not calendar days bucketed.
+- **Pressing paid discards partial progress.** 130 pickups pays $40 and the
+  remaining 30 are gone — no rollover, as specified. The confirm dialog says
+  the number out loud rather than letting it vanish unremarked.
+- **`PICKUP` is imported from `call-stats.ts`, not restated.** Two definitions
+  of a pickup would be two numbers on two screens, and the one people are paid
+  on had better be the one they can see on Stats. Exporting it is the only
+  change Payroll made to that file.
+- **Nothing in the CRM recorded that a meeting happened**, so `call_demo_attendance`
+  does. `demo_booked` means they agreed to a slot and `trial`/`won` mean they
+  bought in; the SOP pays on attendance ("whether they buy is not your problem"),
+  so a prospect who turned up and declined earns the fee and never reaches
+  trial. Deliberately **not** an outcome enum value: that would be a new `call`
+  row landing in whoever logged it in the Stats call counts, and would put an
+  earned fee at the mercy of a founder later moving the lead to Lost.
+- **Commission owed is `payout_id is null`, never a date comparison.** An
+  attendance confirmed late — a fortnight-old meeting marked showed-up after
+  that period was already paid — falls straight through a date window and is
+  never paid. Pinned by payout id it stays owed however old it is. This is the
+  single most important line in the feature; do not "optimise" it into a
+  `marked_at > last_paid_at`.
+- **Payout rows are snapshots, including the rates.** A call edited or a lead
+  deleted afterwards must not move a number in the history, and raising a rate
+  must not rewrite the apparent basis of past payments. `week_start` is stored
+  rather than derived so grouping by week cannot shift if the reporting zone
+  moves again.
+- The API **recomputes everything server-side**; the browser sends a user id and
+  nothing else. It refuses a payout when nothing is owed, which is also what
+  makes a double-clicked button harmless.
+- One business earns the fee once, enforced by a partial unique index
+  (`call_lead_id where showed_up`) as well as a pre-check — the pre-check can
+  name the other booking, the index cannot be raced past.
+- **Drizzle wraps driver errors**: `err.message` is only `"Failed query: …"` and
+  the Postgres detail, including `constraint_name` and code `23505`, hangs off
+  `err.cause`. Matching a constraint name against the outer message silently
+  never fires and turns an actionable 409 into an unexplained 500.
+- A no-show never gets a `payout_id`, so nothing would ever take it off the
+  confirm list; it drops off after `NO_SHOW_CORRECTION_DAYS` (14) instead, which
+  is long enough to fix a mis-tap.
+- Only `role = 'caller'` appears — founders are the ones paying, the same reason
+  the Scoreboard excludes them. A **deactivated** caller stays listed while
+  still owed: switching someone off is not a way to stop owing them.
+
 ## Staff accounts (Call CRM)
 
 Employees sign in individually so every call has a name on it. The single shared `APP_PASSWORD` login is **gone**; that variable now only seeds the first admin.

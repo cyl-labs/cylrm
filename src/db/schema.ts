@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -699,4 +700,123 @@ export const callRecording = pgTable(
     transcribedAt: timestamp("transcribed_at", { withTimezone: true }),
   },
   (t) => [index("call_recording_session_idx").on(t.callSessionId)],
+);
+
+/**
+ * A payment handed to a caller, and the basis it was worked out on.
+ *
+ * Every amount is integer cents. Nothing else in this schema stores money, so
+ * there is no house style to follow — but a float has no place in a payment
+ * record, and a `numeric` would come back from the driver as a string for no
+ * gain at these magnitudes.
+ *
+ * The columns from `pickups` down are a **snapshot**, not a cache. A call
+ * edited or a lead deleted after the fact must not be able to change what this
+ * row says was paid, or the history stops being evidence of anything. The
+ * three rate columns are there for the same reason: raising a rate later would
+ * otherwise silently rewrite the apparent basis of every past payout.
+ */
+export const payout = pgTable(
+  "payout",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    paidAt: timestamp("paid_at", { withTimezone: true }).notNull().defaultNow(),
+    /** The previous payout's `paidAt`, or the account's `createdAt` for the
+     *  first one. Together with `periodEnd` these tile the whole of someone's
+     *  employment without gaps or overlaps, which is what stops a day's work
+     *  falling between two payouts and going unpaid. */
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    /** Monday (Eastern) of the week `paidAt` falls in, as YYYY-MM-DD. Stored
+     *  rather than derived on read so grouping the history by week cannot
+     *  shift underneath old rows if the reporting zone moves again — it has
+     *  moved once already, from Singapore to New York. */
+    weekStart: date("week_start").notNull(),
+    pickups: integer("pickups").notNull(),
+    pickupBonusCents: integer("pickup_bonus_cents").notNull(),
+    meetings: integer("meetings").notNull(),
+    meetingCommissionCents: integer("meeting_commission_cents").notNull(),
+    totalCents: integer("total_cents").notNull(),
+    pickupsPerBonus: integer("pickups_per_bonus").notNull(),
+    pickupBonusRateCents: integer("pickup_bonus_rate_cents").notNull(),
+    meetingRateCents: integer("meeting_rate_cents").notNull(),
+    note: text("note"),
+    /** Which admin pressed the button. */
+    createdByUserId: integer("created_by_user_id").references(() => appUser.id),
+  },
+  // Both descending, matching the migration: every read of this table is
+  // newest-first.
+  (t) => [
+    index("payout_user_idx").on(t.userId, t.paidAt.desc()),
+    index("payout_week_idx").on(t.weekStart.desc()),
+  ],
+);
+
+/**
+ * Whether a booked meeting actually happened.
+ *
+ * Payroll's own record, because nothing else in the app could answer it: the
+ * `call_outcome` enum distinguishes `demo_booked` from `trial`/`won`, but that
+ * is "they agreed to a slot" versus "they bought in", and the fee is paid on
+ * neither. It is paid on attendance — the SOP says so in as many words — so a
+ * prospect who turned up and then declined earns it and never reaches trial.
+ *
+ * Kept out of the outcome enum on purpose. Marking attendance there would mean
+ * a new `call` row, which would land in whoever logged it in the Stats call
+ * counts, and would put a caller's earned fee at the mercy of a founder later
+ * moving the lead to Lost.
+ *
+ * Prefixed `call_` because "demo" is overloaded: the email side counts demos
+ * too, on the `deal` pipeline and in the A/B variant stats, and the two systems
+ * share no data by design.
+ */
+export const callDemoAttendance = pgTable(
+  "call_demo_attendance",
+  {
+    id: serial("id").primaryKey(),
+    /** The `demo_booked` call this answers. Per call rather than per lead: a
+     *  no-show is rung back and booked again — the SOP allows two — and each
+     *  booking is its own question with its own answer. */
+    callId: integer("call_id")
+      .notNull()
+      .unique()
+      .references(() => call.id, { onDelete: "cascade" }),
+    /** Denormalised off the call so the one-fee-per-business guard below can
+     *  be an index rather than a promise the UI makes. */
+    callLeadId: integer("call_lead_id")
+      .notNull()
+      .references(() => callLead.id, { onDelete: "cascade" }),
+    showedUp: boolean("showed_up").notNull(),
+    markedAt: timestamp("marked_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    markedByUserId: integer("marked_by_user_id").references(() => appUser.id),
+    /** Set when a payout claims this attendance; null means still owed.
+     *
+     *  Owed is deliberately a state and not a date range. Comparing a
+     *  meeting's date against the caller's last payout would silently drop any
+     *  attendance confirmed late — mark a fortnight-old meeting as showed-up
+     *  after that period has been paid, and the caller would never see the
+     *  money. Pinned by payout id instead, an unpaid attendance stays owed
+     *  however old it is. It is also the audit trail: which meetings a given
+     *  payout covered is one query. */
+    payoutId: integer("payout_id").references(() => payout.id),
+  },
+  // Declared here and not only in the migration: `drizzle-kit push` drops any
+  // index it cannot see in this file, which is how `call_user_id_idx` went
+  // missing once already.
+  (t) => [
+    // One business earns the fee once, however many times it was booked and
+    // rebooked. An index rather than a check in the route, because this one is
+    // about money.
+    uniqueIndex("call_demo_attendance_one_show_per_lead_idx")
+      .on(t.callLeadId)
+      .where(sql`showed_up`),
+    index("call_demo_attendance_unpaid_idx")
+      .on(t.payoutId)
+      .where(sql`showed_up and payout_id is null`),
+  ],
 );
