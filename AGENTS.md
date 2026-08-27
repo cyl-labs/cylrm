@@ -250,8 +250,12 @@ no auto-payment, and **nothing resets on a timer**. Queries in
 `src/app/(app)/payroll/`, routes at `/api/payroll/payouts` and
 `/api/payroll/attendance`. Schema in `2026-08-27-payroll.sql`.
 
-Two things are paid: **$20 per whole 50 pickups**, and **$30 per meeting that
-showed up**.
+Two things are paid: **$10 per whole 50 pickups** (was $20 until 2026-08-28),
+and **$30 per meeting that showed up**. Both live in `src/lib/payroll-rates.ts`
+and are snapshotted onto every `payout` row, so changing one moves what accrues
+from then on and rewrites nothing already recorded. The Payroll screen reads the
+constants rather than spelling the figures out, so a rate change cannot leave a
+sentence claiming a rate nobody is paid.
 
 - **The pickup counter runs from the last payout, not from a Monday.** The
   requirement was that it reset only when someone presses the button, and a

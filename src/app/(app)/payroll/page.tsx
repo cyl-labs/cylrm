@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { PageShell } from "@/components/page-shell";
 import { getCurrentUser } from "@/lib/session";
 import {
+  MEETING_CENTS,
+  PICKUPS_PER_BONUS,
+  PICKUP_BONUS_CENTS,
   byWeek,
   formatMoney,
   formatPayDay,
@@ -68,10 +71,16 @@ export default async function PayrollPage() {
     <PageShell title="Payroll">
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
         <p className="text-[13px] text-muted-foreground">
+          {/* Read off the constants rather than written out, so the sentence
+              cannot go on claiming a rate nobody is paid any more. */}
           Pickups counted since each person was last paid, at{" "}
-          <span className="font-semibold text-foreground">$20 per 50</span>.
-          Meetings that showed up at{" "}
-          <span className="font-semibold text-foreground">$30 each</span>,
+          <span className="font-semibold text-foreground">
+            {formatMoney(PICKUP_BONUS_CENTS)} per {PICKUPS_PER_BONUS}
+          </span>
+          . Meetings that showed up at{" "}
+          <span className="font-semibold text-foreground">
+            {formatMoney(MEETING_CENTS)} each
+          </span>,
           however long ago they were booked. Nothing here pays anybody — press
           the button once the money has actually gone out.
         </p>

@@ -15,8 +15,10 @@
  */
 
 export const PICKUPS_PER_BONUS = 50;
-/** $20 for every whole 50 pickups. */
-export const PICKUP_BONUS_CENTS = 2_000;
+/** Paid for every whole 50 pickups. Was $20 until 2026-08-28. Changing it
+ *  changes what accrues from now on and nothing already recorded: every payout
+ *  row carries the rates that were in force when it was written. */
+export const PICKUP_BONUS_CENTS = 1_000;
 /** $30 per meeting the prospect turned up to. */
 export const MEETING_CENTS = 3_000;
 
@@ -34,7 +36,7 @@ export const pickupBonusCents = (pickups: number) =>
   Math.floor(pickups / PICKUPS_PER_BONUS) * PICKUP_BONUS_CENTS;
 
 /**
- * Pickups counted but not yet worth another $20.
+ * Pickups counted but not yet worth another bonus.
  *
  * Marking paid discards these, which is what "no rollover of partial progress"
  * means. The confirmation says the number out loud rather than letting a

@@ -106,7 +106,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
     );
   }
 
-  // The pickups not yet worth another $20. Marking paid discards them, so the
+  // The pickups not yet worth another bonus. Marking paid discards them, so the
   // confirmation names the number rather than letting them vanish unremarked.
   const stranded = confirming ? pickupsTowardNext(confirming.pickups) : 0;
 
