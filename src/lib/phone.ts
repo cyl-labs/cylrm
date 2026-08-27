@@ -8,23 +8,78 @@
  */
 
 /**
- * The number as it should land on the clipboard.
+ * The number as it should land on the clipboard: the way somebody standing in
+ * that country would key it in.
  *
- * Scraped Singapore numbers arrive as "+65 6836 1030", "(+65) 8883 4712",
- * "+6569087475" and "6836 1030" — all the same line. Dialling from a Singapore
- * handset the country code is noise at best and a misdial at worst, so it is
- * stripped and the digits handed over bare, ready to paste into a keypad.
+ * Scraped numbers arrive as "+65 6836 1030", "(+65) 8883 4712", "+6569087475"
+ * and "6836 1030" — all the same line. Dialling from a handset in that market
+ * the country code is noise at best and a misdial at worst, so it goes, and
+ * whatever trunk prefix the country actually uses goes back on.
  *
- * Anything that is not a ten-digit number starting 65 is left alone bar its
- * punctuation: an eight-digit local number already is what you dial, and a
- * foreign number would be broken by having two digits cut off the front.
+ * That last part is what this got wrong for two years. It stripped every
+ * non-digit — including the leading "+" — and then only ever put Singapore
+ * back together. A UK number came out of it as "441322331407": no plus, so not
+ * international, and no trunk zero, so not national either. It dials from
+ * nowhere at all, and every UK lead on the app was uncopyable because of it.
+ * Singapore worked and the United States worked by luck, "1" being the NANP
+ * trunk prefix as well as its country code.
+ *
+ * When the country cannot be established the number is handed back in E.164
+ * *with* its plus, which dials from anywhere — rather than as bare digits,
+ * which dial from nowhere.
+ *
+ * `region` is only consulted for a number written without a country code, the
+ * same contract `classifyPhone` documents at length: an explicit "+" always
+ * wins, being the one part of the string that is not a guess.
  *
  * No database import here — the boards and the grid are client components.
  */
-export function dialableNumber(raw: string): string {
+export function dialableNumber(
+  raw: string,
+  region?: CallRegion | null,
+): string {
   const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10 && digits.startsWith("65")) return digits.slice(2);
-  return digits;
+  if (!digits) return raw.trim();
+
+  switch (classifyPhone(raw, region)) {
+    case "sg":
+    case "sg_tollfree":
+      // 6588834712 → 88834712. An eight-digit local number is already what a
+      // Singaporean dials, so it is left alone.
+      return digits.length === 10 && digits.startsWith("65")
+        ? digits.slice(2)
+        : digits;
+
+    case "gb": {
+      // 441322331407 → 01322331407. The trunk zero is not decoration: a UK
+      // number without it is not a UK number. Freephone is the same shape —
+      // 448009949011 → 08009949011 — and 0800 is also the only form some
+      // freephone lines will accept at all.
+      const national = gbNational(digits);
+      return national ? `0${national}` : digits;
+    }
+
+    case "us":
+      // 19075550123 already dials anywhere in the NANP, 1 being the trunk
+      // prefix as well as the country code. A bare ten-digit number dials too,
+      // so the eleven-digit form is kept as the one that works from both
+      // inside and outside the area code.
+      return digits.length === 10 ? `1${digits}` : digits;
+
+    default:
+      // Some other country, or nothing we can read.
+      //
+      // A number that came with a country code keeps it: E.164 with its plus
+      // dials from anywhere, and stripping that plus was the whole bug above.
+      // One written without a country code is handed back untouched, because
+      // there is nothing here to say what country it belongs to and putting a
+      // "+" on the front of a national number invents one — "(907) 659-2550"
+      // would become "+9076592550", a number in no country at all. Same
+      // restraint `withCountryCode` shows on the keypad, and for the same
+      // reason: a plus is only ever punctuation when the digits already are a
+      // whole international number.
+      return /^[^\d]*\+/.test(raw) ? `+${digits}` : digits;
+  }
 }
 
 /**
