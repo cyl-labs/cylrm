@@ -187,21 +187,40 @@ export default async function PayrollPage() {
                           </td>
                           <td className="whitespace-nowrap px-4 py-2.5 font-semibold">
                             {p.name}
+                            {/* A reset moved the counter and paid nothing.
+                                Said on the row rather than left to be inferred
+                                from a $0 total, because "84 pickups, $0" in a
+                                table headed "what was actually paid" reads as
+                                a bug unless something says otherwise. */}
+                            {p.kind === "reset" && (
+                              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-muted-foreground">
+                                Counter reset
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                             {p.pickups.toLocaleString()}
+                            {p.kind === "reset" && (
+                              <span className="ml-1 text-[11px]">cleared</span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums">
-                            {formatMoney(p.pickupBonusCents)}
+                            {p.kind === "reset" ? "—" : formatMoney(p.pickupBonusCents)}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
-                            {p.meetings}
+                            {p.kind === "reset" ? "—" : p.meetings}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums">
-                            {formatMoney(p.meetingCommissionCents)}
+                            {p.kind === "reset" ? "—" : formatMoney(p.meetingCommissionCents)}
                           </td>
                           <td className="px-4 py-2.5 text-right font-bold tabular-nums">
-                            {formatMoney(p.totalCents)}
+                            {p.kind === "reset" ? (
+                              <span className="font-medium text-muted-foreground">
+                                no payment
+                              </span>
+                            ) : (
+                              formatMoney(p.totalCents)
+                            )}
                           </td>
                         </tr>
                       ))}

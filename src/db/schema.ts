@@ -730,6 +730,17 @@ export const payout = pgTable(
       .notNull()
       .references(() => appUser.id),
     paidAt: timestamp("paid_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * `payment` | `reset`.
+     *
+     * A counter starts at the last payout, so zeroing one meant recording a
+     * payment — fine when money moved, a lie when it did not, and a lie in
+     * this table is expensive because its whole job is to be the record nobody
+     * has to take on trust. A `reset` row moves the boundary and claims no
+     * money: `totalCents` is 0, and the pickup count it cleared is still
+     * snapshotted, which is what makes it auditable and undoable.
+     */
+    kind: text("kind").notNull().default("payment").$type<"payment" | "reset">(),
     /** The previous payout's `paidAt`, or the account's `createdAt` for the
      *  first one. Together with `periodEnd` these tile the whole of someone's
      *  employment without gaps or overlaps, which is what stops a day's work

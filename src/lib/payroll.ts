@@ -308,6 +308,8 @@ export type PayoutRecord = {
   id: number;
   userId: number;
   name: string;
+  /** `payment` when money moved, `reset` when only the counter did. */
+  kind: "payment" | "reset";
   paidAt: string;
   weekStart: string;
   periodStart: string;
@@ -328,7 +330,7 @@ export type PayoutRecord = {
  */
 export async function getPayoutHistory(limit = 200): Promise<PayoutRecord[]> {
   const rows = (await db.execute(sql`
-    select p.id, p.user_id, u.name, p.paid_at, p.week_start,
+    select p.id, p.user_id, u.name, p.kind, p.paid_at, p.week_start,
       p.period_start, p.period_end,
       p.pickups, p.pickup_bonus_cents,
       p.meetings, p.meeting_commission_cents, p.total_cents
@@ -342,6 +344,7 @@ export async function getPayoutHistory(limit = 200): Promise<PayoutRecord[]> {
     id: n(r.id),
     userId: n(r.user_id),
     name: String(r.name),
+    kind: (r.kind as "payment" | "reset") ?? "payment",
     paidAt: new Date(r.paid_at as string).toISOString(),
     // Already a YYYY-MM-DD calendar date; never turned into a `Date`, which
     // would resolve at UTC midnight and render as the day before out west.
