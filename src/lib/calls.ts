@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { dncBlockReason } from "@/lib/dnc";
 import { getCurrentUser } from "@/lib/session";
 import { dialCountry, e164 } from "@/lib/phone";
+import { listAccountNumbers } from "@/lib/telnyx";
 import type { CallRegion, DialCountry } from "@/lib/phone";
 
 /**
@@ -734,4 +735,94 @@ export const getSavedLines = cache(async function getSavedLines(): Promise<
     order by label
   `)) as { phone_number: string; label: string }[];
   return rows.map((r) => ({ phoneNumber: r.phone_number, label: r.label }));
+});
+
+/**
+ * What the Keypad can offer somebody to dial without typing it.
+ *
+ * Two groups, gated separately because they answer different needs — see
+ * `components/calls/number-book.tsx` for what each is for:
+ *
+ * - `labelled`, only for the founders' accounts. The same set the mid-call
+ *   "Add call" list uses, deliberately: a line worth conferencing in is a line
+ *   worth ringing on its own, and two lists that disagree are two lists to
+ *   learn.
+ * - `plain`, only for someone whose market is every market. These come from
+ *   Telnyx rather than `call_number`, which holds a row only for a number that
+ *   has been labelled or reserved — "absent means available" — so the numbers
+ *   nobody has touched exist nowhere else. Best effort: no API key or an
+ *   unreachable Telnyx means an empty group and a pad that behaves exactly as
+ *   it did before, never an error on a screen someone is trying to ring from.
+ *
+ * A number assigned to a colleague is kept in the plain group rather than
+ * filtered out of it, unlike `getSavedLines`. That exclusion is right for a
+ * *destination* offered mid-call — you would be ringing a colleague instead of
+ * a prospect — and wrong here, where checking one of your own numbers answers
+ * is the point, and where filtering them could empty the list entirely. Whose
+ * it is shows on the row instead.
+ */
+export const getKeypadLines = cache(async function getKeypadLines(opts: {
+  labelled: boolean;
+  plain: boolean;
+}): Promise<
+  {
+    phoneNumber: string;
+    label: string | null;
+    holder: string | null;
+    country: string | null;
+  }[]
+> {
+  const labelled = opts.labelled ? await getSavedLines() : [];
+
+  if (!opts.plain) {
+    return labelled.map((l) => ({ ...l, holder: null, country: null }));
+  }
+
+  const noteRows = (await db.execute(sql`
+    select trim(phone_number) as phone_number, trim(coalesce(label, '')) as label
+    from call_number
+  `)) as { phone_number: string; label: string }[];
+  const labels = new Map(
+    noteRows.filter((r) => r.label).map((r) => [r.phone_number, r.label]),
+  );
+
+  const holderRows = (await db.execute(sql`
+    select trim(telnyx_did) as did, name
+    from app_user
+    where coalesce(trim(telnyx_did), '') <> ''
+  `)) as { did: string; name: string }[];
+  const holders = new Map(holderRows.map((r) => [r.did, r.name]));
+
+  // The empty set is the reserved one, which only decides `available`, and
+  // nothing here reads it: a number taken out of the caller-ID pool is still a
+  // number you may want to ring. Same reasoning as `getSavedLines`.
+  const account = await listAccountNumbers(new Set(), labels);
+
+  const plain = account
+    .filter((a) => !a.label)
+    .map((a) => ({
+      phoneNumber: a.phoneNumber,
+      label: null,
+      holder: holders.get(a.phoneNumber) ?? null,
+      country: a.country,
+    }))
+    // By country then number, so the market being looked for is a block rather
+    // than something to hunt down the list for.
+    .sort(
+      (a, b) =>
+        (a.country ?? "").localeCompare(b.country ?? "") ||
+        a.phoneNumber.localeCompare(b.phoneNumber),
+    );
+
+  return [
+    ...labelled.map((l) => ({
+      ...l,
+      holder: null,
+      // Read off the number rather than asked of Telnyx: these are already
+      // known by name, and a country chip on a row that says "pxn junk
+      // removal" is answering a question nobody asked.
+      country: null,
+    })),
+    ...plain,
+  ];
 });

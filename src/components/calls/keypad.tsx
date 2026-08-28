@@ -1,10 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { Delete, Mic, MicOff, PhoneCall, PhoneOff, UserPlus } from "lucide-react";
+import {
+  BookUser,
+  Delete,
+  Mic,
+  MicOff,
+  PhoneCall,
+  PhoneOff,
+  UserPlus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { classifyPhone, e164 } from "@/lib/phone";
 import { cn } from "@/lib/utils";
+import { NumberBook, type KeypadLine } from "./number-book";
 import {
   LinePair,
   LineRow,
@@ -146,6 +155,7 @@ export function Keypad({
   did,
   callerName,
   lines,
+  book,
 }: {
   /** The caller ID this person rings from, or null if they have none yet. */
   did: string | null;
@@ -153,8 +163,19 @@ export function Keypad({
   /** Labelled numbers on the account that belong to nobody: demo lines and
    *  client lines, offered by name when adding somebody to a call. */
   lines: SavedLine[];
+  /** What this person can put into the pad without typing it: the labelled
+   *  lines if they are a founder, their own account's plain numbers if they
+   *  work every market. Empty for a caller with one market, who has one number
+   *  and nothing to choose between — they get the pad exactly as it was. */
+  book: KeypadLine[];
 }) {
   const [typed, setTyped] = React.useState("");
+  // The book of numbers, and what was last taken out of it. The pick is kept
+  // as a whole line rather than a flag so the hint can say what was chosen —
+  // and compared against what is in the pad, which is what makes it fall away
+  // by itself the moment a digit is typed or deleted.
+  const [bookOpen, setBookOpen] = React.useState(false);
+  const [picked, setPicked] = React.useState<KeypadLine | null>(null);
   // Tones pressed during a call, kept apart from the number so pressing 2 to
   // reach a department does not rewrite what you dialled.
   const [tones, setTones] = React.useState("");
@@ -181,6 +202,11 @@ export function Keypad({
   const diallable = Boolean(target) && DIALLABLE.has(kind);
   const canDial = Boolean(did) && line.ready && !busy && diallable;
   const canAdd = adding && line.state === "active" && !two && diallable;
+
+  // The pick only counts while the pad still holds exactly what it put there.
+  // Typing a digit, a backspace or a paste makes it somebody else's number
+  // again, and no setter has to remember to say so.
+  const chosen = picked && picked.phoneNumber === typed ? picked : null;
 
   // What each line is carrying, kept up to date while it is up so that the row
   // can still be written a beat after it has gone.
@@ -277,12 +303,26 @@ export function Keypad({
     line.reset();
     firstLeg.current = {
       phone: target,
-      label: null,
+      // The label rides along to the history for the same reason the second
+      // leg's does: "pxn junk removal" says what was rung, eleven digits do
+      // not. Only when the pad still holds the number that carried it.
+      label: chosen?.label ?? null,
       addedToCall: false,
       sessionId: null,
       seconds: 0,
     };
     line.dial(target, did);
+  };
+
+  // Taken out of the book: it goes into the pad rather than ringing, which is
+  // the opposite of the mid-call list. There, a hand-labelled line is picked
+  // with a prospect waiting; here it may be a bare number off an account list,
+  // and seeing it in the display before pressing Call is the point of choosing
+  // one in advance.
+  const pickFromBook = (l: KeypadLine) => {
+    setTyped(l.phoneNumber);
+    setPicked(l);
+    setBookOpen(false);
   };
 
   const startAdding = () => {
@@ -445,7 +485,14 @@ export function Keypad({
                 ? `Tones sent: ${tones}`
                 : `Calling from ${did}`
               : (numberProblem ??
-                (entry ? `${COUNTRY[kind]} · calling from ${did}` : `Calling from ${did}`));
+                (chosen?.label
+                  ? // A line taken out of the book by name. Its name is worth
+                    // more here than its country, which is the one thing about
+                    // it nobody was choosing on.
+                    `${chosen.label} · calling from ${did}`
+                  : entry
+                    ? `${COUNTRY[kind]} · calling from ${did}`
+                    : `Calling from ${did}`));
 
   return (
     <div className="mx-auto w-full max-w-[340px]">
@@ -488,6 +535,26 @@ export function Keypad({
         {adding && lines.length > 0 && (
           <div className="mt-3">
             <SavedLineList lines={lines} onPick={callLine} />
+          </div>
+        )}
+
+        {/* The book, for a first call. In the same place as the list above so
+            that "the numbers I can pick" is one region of this screen rather
+            than two, and behind a toggle because the pad is what the screen is
+            for — a list that pushed it down the page every time would be the
+            wrong way round. Absent entirely for a caller with one market and
+            one number, who has nothing to choose. */}
+        {!busy && !adding && book.length > 0 && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setBookOpen((o) => !o)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed py-1.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-muted"
+            >
+              <BookUser className="size-3.5" />
+              {bookOpen ? "Hide numbers" : "Pick a number"}
+            </button>
+            {bookOpen && <NumberBook lines={book} onPick={pickFromBook} />}
           </div>
         )}
 

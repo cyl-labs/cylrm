@@ -5,7 +5,7 @@ import { Keypad } from "@/components/calls/keypad";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { canUseKeypad } from "@/lib/users";
-import { getSavedLines } from "@/lib/calls";
+import { getKeypadLines, getSavedLines } from "@/lib/calls";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +32,20 @@ export default async function KeypadPage() {
   // Read straight rather than through `getDids`, which maps one number across
   // every country for the lead-shaped callers. Here there is no lead and so no
   // country to key on: it is simply the number this person rings from.
+  //
+  // The other two columns decide what the pad can offer to dial: the labelled
+  // lines are the founders' to ring, and the plain account numbers belong to
+  // whoever works every market rather than one. Read here rather than off the
+  // session for the reason `callRegionOf` is — a change made on Team should
+  // land on the next page load, not the next login.
   const [row] = (await db.execute(
-    sql`select telnyx_did from app_user where id = ${me?.id ?? -1}`,
-  )) as { telnyx_did: string | null }[];
+    sql`select telnyx_did, is_owner, call_region
+        from app_user where id = ${me?.id ?? -1}`,
+  )) as {
+    telnyx_did: string | null;
+    is_owner: boolean;
+    call_region: string | null;
+  }[];
 
   return (
     <PageShell title="Keypad">
@@ -43,6 +54,12 @@ export default async function KeypadPage() {
           did={row?.telnyx_did?.trim() || null}
           callerName={me?.name ?? "you"}
           lines={await getSavedLines()}
+          book={await getKeypadLines({
+            labelled: row?.is_owner === true,
+            // Null is "every market", which is the whole condition: a caller
+            // handed one market has one number and nothing to choose between.
+            plain: row ? row.call_region === null : false,
+          })}
         />
       </div>
     </PageShell>

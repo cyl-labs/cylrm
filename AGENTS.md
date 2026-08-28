@@ -135,6 +135,27 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   phone behaves and the only way through a switchboard. Numbers must carry a
   country code — there is no list to read a bare national number against, which
   is the collision `classifyPhone` documents at length.
+  **"Pick a number" is the book** (`components/calls/number-book.tsx`, fed by
+  `getKeypadLines`): numbers that can be put into the pad without typing them.
+  Two groups, gated apart. The **labelled lines** — a demo number, a client's
+  voice agent — are offered to `app_user.is_owner` accounts, because ringing
+  one is how you check it answers and the alternative was reading eleven digits
+  off Team; they are the same set the mid-call "Add call" list uses, so the two
+  cannot disagree. The **plain account numbers** are offered to anyone whose
+  `call_region` is null, i.e. works every market: a caller assigned to one
+  market has one number and nothing to choose between, which is why they see no
+  book at all. Those come from the Telnyx API rather than `call_number` — that
+  table holds a row only for a number that has been labelled or reserved, so
+  the untouched ones exist nowhere else — and it is best effort: no key or an
+  unreachable Telnyx means an empty group, never an error on a screen someone
+  is ringing from. A number assigned to a colleague stays in the list, unlike
+  `getSavedLines`, and says whose it is: filtering them could empty the list
+  entirely, which is the complaint this answers. A pick **fills the pad rather
+  than dialling**, the opposite of the mid-call list, because that one is a
+  hand-labelled line chosen with a prospect waiting and this one may be a bare
+  number off an account list. The label rides into the `keypad_call` row and
+  into the hint, and falls away by itself the moment the pad no longer holds
+  exactly what was picked.
   **Ctrl/Cmd-V pastes a number in**, handled on `window` because the number on
   this screen is text on a card and not an input, so there is nothing for the
   browser to paste into. `pastedNumber` strips it to keys — listings write
