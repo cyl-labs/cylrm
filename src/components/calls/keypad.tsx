@@ -108,6 +108,24 @@ function pastedNumber(text: string): string {
 }
 
 /**
+ * One leg of a keypad call, as it will be filed.
+ *
+ * Held in a ref and refreshed while the line is up, because the row is written
+ * when the call *ends* — the duration and Telnyx's session id are only known
+ * then — and by that moment the hook has already cleared the line's state.
+ */
+type Leg = {
+  /** E.164, as dialled. */
+  phone: string;
+  /** The saved line's name when it was picked off the list, else null. */
+  label: string | null;
+  /** This is the second leg: a line added to a call already up. */
+  addedToCall: boolean;
+  sessionId: string | null;
+  seconds: number;
+};
+
+/**
  * A phone, with no lead behind it.
  *
  * Every other way to place a call in here starts from a `call_lead`, which is
@@ -116,11 +134,13 @@ function pastedNumber(text: string): string {
  * importing a CSV of invented businesses first, and those leads then sat in
  * the pipeline and the stats being counted as work.
  *
- * So nothing here is written down. No `call` row, which means no outcome, no
- * lead state, and nothing reaching Stats, the board or the Scoreboard. The
- * recording still happens — that is set on the outbound voice profile and
- * there is no per-call switch — so a test call is recorded like any other, and
- * the screen says so rather than letting someone assume otherwise.
+ * So there is still no `call` row, and so no outcome, no lead state, and
+ * nothing in the Stats tiles, the board, the Scoreboard or anybody's pickup
+ * count. What there is, since 2026-08-28, is a `keypad_call` row per leg: the
+ * numbers were never the reason to keep no record at all, and without one
+ * nothing could say who rang a number last Tuesday, or reach the recording
+ * Telnyx had already saved of it. They surface in one place — the "Every call"
+ * table on Stats, marked Keypad — and the screen says so.
  */
 export function Keypad({
   did,
@@ -162,6 +182,76 @@ export function Keypad({
   const canDial = Boolean(did) && line.ready && !busy && diallable;
   const canAdd = adding && line.state === "active" && !two && diallable;
 
+  // What each line is carrying, kept up to date while it is up so that the row
+  // can still be written a beat after it has gone.
+  const firstLeg = React.useRef<Leg | null>(null);
+  const secondLeg = React.useRef<Leg | null>(null);
+
+  // File a leg and forget it. Best-effort, like the presence heartbeat: a
+  // history row that fails to save is worth nothing next to interrupting
+  // somebody mid-conversation, and `keepalive` is what lets the request
+  // outlive a tab closed straight after the hangup.
+  const flushLeg = (ref: React.RefObject<Leg | null>) => {
+    const leg = ref.current;
+    if (!leg) return;
+    // Cleared first: every path here can run more than once — a re-render, a
+    // second notification, an unmount after the state change — and this is
+    // what makes all of them harmless.
+    ref.current = null;
+    fetch("/api/keypad-calls", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        phone: leg.phone,
+        label: leg.label,
+        fromDid: did,
+        telnyxSessionId: leg.sessionId,
+        durationSeconds: leg.seconds,
+        addedToCall: leg.addedToCall,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  };
+
+  // Reachable from effects that must not list it as a dependency — the unmount
+  // flush below has to run on unmount and nothing else. Same ref pattern as the
+  // key handler further down.
+  const flushRef = React.useRef(flushLeg);
+
+  // No dependency array on purpose: this refreshes the snapshots on every
+  // render, which is what makes the ref hold the last live state of a line
+  // rather than whatever it was dialled with.
+  React.useEffect(() => {
+    flushRef.current = flushLeg;
+    if (line.state !== "idle" && firstLeg.current) {
+      firstLeg.current.sessionId = line.sessionId;
+      firstLeg.current.seconds = line.seconds;
+    }
+    if (line.second && secondLeg.current) {
+      secondLeg.current.sessionId = line.secondSessionId;
+      secondLeg.current.seconds = line.second.seconds;
+    }
+  });
+
+  // A line that has ended. Declared after the effect above so it runs second
+  // in the same commit, reading the snapshot that one has just left alone.
+  React.useEffect(() => {
+    if (!busy) flushRef.current(firstLeg);
+  }, [busy]);
+  React.useEffect(() => {
+    if (!two) flushRef.current(secondLeg);
+  }, [two]);
+
+  // Closing the tab or navigating away ends the call — the hook hangs up on
+  // unmount — so anything still live is filed on the way out.
+  React.useEffect(
+    () => () => {
+      flushRef.current(secondLeg);
+      flushRef.current(firstLeg);
+    },
+    [],
+  );
+
   const press = React.useCallback(
     (key: string) => {
       if (busy && !adding) {
@@ -181,6 +271,17 @@ export function Keypad({
   const call = () => {
     if (!canDial || !target || !did) return;
     setTones("");
+    // The hook's timer keeps its last value once a call ends, so a no-answer
+    // straight after a two-minute call would otherwise be filed as two
+    // minutes. `reset` is what the dialler calls between leads, for this.
+    line.reset();
+    firstLeg.current = {
+      phone: target,
+      label: null,
+      addedToCall: false,
+      sessionId: null,
+      seconds: 0,
+    };
     line.dial(target, did);
   };
 
@@ -199,6 +300,13 @@ export function Keypad({
     if (!canAdd || !target || !did) return;
     setAdding(false);
     setSecondName(secondTyped);
+    secondLeg.current = {
+      phone: target,
+      label: null,
+      addedToCall: true,
+      sessionId: null,
+      seconds: 0,
+    };
     line.addCall(target, did);
   };
 
@@ -210,6 +318,15 @@ export function Keypad({
     if (!to || !did || line.state !== "active" || two) return;
     setAdding(false);
     setSecondName(saved.label);
+    secondLeg.current = {
+      phone: to,
+      // The label is the whole point of these: "pxn junk removal" says what
+      // was rung in a way eleven digits in a history never will.
+      label: saved.label,
+      addedToCall: true,
+      sessionId: null,
+      seconds: 0,
+    };
     line.addCall(to, did);
   };
 
@@ -504,8 +621,9 @@ export function Keypad({
       </div>
 
       <p className="mt-3 text-center text-[12px] leading-relaxed text-muted-foreground">
-        Nothing dialled here is logged: no lead, no outcome, and nothing in
-        Stats or the pipeline. Calls are still recorded, as {callerName}.
+        Numbers dialled here show in the call history on Stats, and calls are
+        recorded as {callerName}. There is no lead and no outcome, so nothing
+        from this screen reaches the figures or the pipeline.
         {two && " A merged call is joined inside this tab — closing it ends both."}
       </p>
 

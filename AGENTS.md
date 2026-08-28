@@ -98,10 +98,30 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 - **Keypad** (`/keypad`) is a phone with no lead behind it: type a number, ring
   it, hang up — and, since it is the only screen that can, add a second number
   to a live call and merge the two (see the Telnyx section for how the bridge
-  works). It writes **no `call` row**, so nothing it dials reaches Stats,
-  the board, the Scoreboard or a lead's state. That is the point: testing a
-  line used to mean importing a CSV of invented businesses, which then sat in
-  the pipeline being counted as work.
+  works). It writes **no `call` row**, so nothing it dials reaches the Stats
+  tiles, the board, the Scoreboard, a lead's state or a payout. That is the
+  point: testing a line used to mean importing a CSV of invented businesses,
+  which then sat in the pipeline being counted as work.
+  It does, since 2026-08-28, write a **`keypad_call`** row per leg
+  (`2026-08-28-keypad-call.sql`, `POST /api/keypad-calls`, guarded by
+  `canUseKeypad` rather than the session alone). The numbers were never the
+  reason to keep no record at all: nothing could say who rang a number last
+  Tuesday, and the recording Telnyx had already saved was unreachable because
+  nothing pointed at its session. That table has no foreign key into
+  `call_lead` and nothing joins it to `call` — the same structural split the
+  two CRMs have — and exactly one thing reads it: `getCallLog`, which unions it
+  into the Stats "Every call" table with the rows marked Keypad, their niche a
+  dash, and their time read in the market of the number dialled. Two things
+  follow and are meant to: a niche filter drops them (they are in no niche),
+  and so does an outcome filter (they have no outcome) — the filter's own
+  "Keypad" entry is how you ask for them. A conference is two legs and so two
+  rows, the second flagged `added_to_call`; the second leg's session id comes
+  from `useTelnyxCall`'s `secondSessionId`, which exists for this. The rows are
+  written when a leg **ends**, from a snapshot ref refreshed while it is up —
+  the hook clears a line's state the moment it goes — and posted `keepalive` so
+  a tab closed on the hangup still files it. `line.reset()` is called before
+  each dial: the hook's timer keeps its last value, so a no-answer after a
+  two-minute call would otherwise be filed as two minutes.
   **Granted per person** via `app_user.keypad_access`, toggled on the Team
   screen; admins have it by being admins and `canUseKeypad` never reads the
   column for them, which is why their row says "Always" rather than offering a
@@ -205,8 +225,10 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   default action, which made the rename form silently do nothing.
 - Stats carry an **Every call** table: one row per call with time, caller,
   business, niche and outcome, honouring the same three filters. Capped at
-  `CALL_LOG_LIMIT` (300) newest-first, and the header says when the cap bit
-  rather than quietly showing part of a range. Times are rendered in **the
+  `CALL_LOG_LIMIT` (300) newest-first — a cap on the **combined** set, since
+  keypad dials are unioned in here and nowhere else (see the Keypad bullet) —
+  and the header says when the cap bit rather than quietly showing part of a
+  range. Times are rendered in **the
   niche's own market** (`ET` / `UK` / `SGT`), never the reader's zone, since
   the same call must not read differently to two people looking at one screen.
   The zone label is written by hand: Intl names one zone and not the other

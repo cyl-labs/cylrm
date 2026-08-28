@@ -108,6 +108,12 @@ export type TelnyxLine = {
   muted: boolean;
   /** Telnyx's id for the last call, for the disposition to record. */
   sessionId: string | null;
+  /** The same for the second line, when there is one. Kept apart because the
+   *  two legs are separate calls to Telnyx with a recording each — the Keypad
+   *  writes a row per leg and would otherwise file both under one session.
+   *  Cleared when a new second call is dialled, not when one ends, so it can
+   *  still be read after the line has gone. */
+  secondSessionId: string | null;
   dial: (to: string, from: string) => void;
   hangup: () => void;
   toggleMute: () => void;
@@ -184,6 +190,9 @@ export function useTelnyxCall(
   const [seconds, setSeconds] = React.useState(0);
   const [muted, setMuted] = React.useState(false);
   const [sessionId, setSessionId] = React.useState<string | null>(null);
+  const [secondSessionId, setSecondSessionId] = React.useState<string | null>(
+    null,
+  );
   const [second, setSecond] = React.useState<SecondLine | null>(null);
   const [merged, setMerged] = React.useState(false);
   const [merging, setMerging] = React.useState(false);
@@ -292,6 +301,11 @@ export function useTelnyxCall(
           if (isSecond || isNewSecond) {
             if (call.id) secondIdRef.current = call.id;
             secondRef.current = call;
+            // Read on every update and the last non-empty value kept, for the
+            // reason the first line's is: telnyxIDs is empty for the first
+            // moments of a call.
+            const sid = call.telnyxIDs?.telnyxSessionId;
+            if (sid) setSecondSessionId(sid);
             if (!phase) return;
             if (phase === "idle") dropSecondRef.current();
             else setSecond((s) => (s ? { ...s, state: phase } : s));
@@ -484,6 +498,7 @@ export function useTelnyxCall(
       setEar(audioId, 0);
       setMuted(false);
       setMergeProblem(null);
+      setSecondSessionId(null);
       setSecond({ state: "connecting", seconds: 0 });
 
       pendingSecondRef.current = true;
@@ -561,6 +576,7 @@ export function useTelnyxCall(
     seconds,
     muted,
     sessionId,
+    secondSessionId,
     dial,
     hangup,
     toggleMute,

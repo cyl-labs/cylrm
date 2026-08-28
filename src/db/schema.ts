@@ -583,6 +583,61 @@ export const callNumber = pgTable("call_number", {
 });
 
 /**
+ * A number dialled from the Keypad — a call with no lead behind it.
+ *
+ * Its own table, and deliberately not a `call` row: `call` hangs off a
+ * `call_lead`, and every aggregate in the app — the Stats tiles, the board, the
+ * Scoreboard, a caller's pickup count on Payroll — counts rows in it. Test
+ * dials and one-off numbers have no business in any of those, which is why the
+ * Keypad wrote nothing at all until 2026-08-28.
+ *
+ * What that cost was the *record* rather than the numbers: nothing could answer
+ * "who rang that number on Tuesday", and a recording Telnyx had already saved
+ * was unreachable because nothing pointed at its session. So the calls are
+ * written down here, where there is no foreign key into `call_lead` and no join
+ * to `call`, and read back by exactly one thing: the "Every call" table on
+ * Stats, which unions them in marked as Keypad.
+ */
+export const keypadCall = pgTable(
+  "keypad_call",
+  {
+    id: serial("id").primaryKey(),
+    /** Not nullable, unlike `call.user_id`: that one carries the calls made
+     *  before staff logins existed, and this table starts long after them. */
+    userId: integer("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    /** As dialled, in E.164 — the Keypad refuses to ring anything else. The
+     *  country is read back off the number, there being no list here to carry
+     *  a market. */
+    phone: text("phone").notNull(),
+    /** The saved line's name when the number was picked off the list rather
+     *  than typed. Null for a typed number. */
+    label: text("label"),
+    /** The caller ID presented, as it was at the time. */
+    fromDid: text("from_did"),
+    /** Joins to `call_recording.call_session_id`, exactly as `call` does. */
+    telnyxSessionId: text("telnyx_session_id"),
+    /** The browser's timer, answer to hangup. Zero for a call nobody picked
+     *  up, which has no recording to take a duration from. */
+    durationSeconds: integer("duration_seconds"),
+    /** The second leg of a keypad conference — a line added to a call already
+     *  up. Both legs are their own call with their own recording, so both get
+     *  a row; without this the pair reads as two unrelated dials. */
+    addedToCall: boolean("added_to_call").notNull().default(false),
+    calledAt: timestamp("called_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  // Declared here as well as in the migration: `drizzle-kit push` drops any
+  // index it cannot see in this file.
+  (t) => [
+    index("keypad_call_called_at_idx").on(t.calledAt.desc()),
+    index("keypad_call_user_idx").on(t.userId),
+  ],
+);
+
+/**
  * Caller ID per market, managed from the Team screen.
  *
  * Was an environment variable, which made changing a phone number an SSH

@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import type { CallOutcome } from "@/lib/calls";
+import type { LogFilterValue } from "@/lib/call-stats";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import {
   Select,
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/select";
 
 /**
- * Narrow the call log to one outcome.
+ * Narrow the call log to one outcome, or to the keypad.
  *
  * Separate from the three filters at the top of the page because it narrows
  * one table rather than the screen: filtering the tiles by outcome would make
@@ -30,7 +31,7 @@ export function LogFilter({
   range,
   day,
 }: {
-  outcome: CallOutcome | "all";
+  outcome: LogFilterValue | "all";
   listId: number | "all";
   personId: number | "all";
   range?: string;
@@ -68,6 +69,10 @@ export function LogFilter({
             {OUTCOME_LABELS[o]}
           </SelectItem>
         ))}
+        {/* Last, and after the outcomes rather than among them: it is not one.
+            A keypad dial has no outcome at all, which is exactly why it needs
+            an entry of its own to be picked out by. */}
+        <SelectItem value="keypad">Keypad</SelectItem>
       </SelectContent>
     </Select>
   );

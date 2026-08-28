@@ -10,9 +10,9 @@ import {
   todayInStatsTz,
   CALL_LOG_LIMIT,
   type StatsWindow,
+  type LogFilterValue,
 } from "@/lib/call-stats";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
-import type { CallOutcome } from "@/lib/calls";
 import { PageShell } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
 import { CallFilters } from "@/components/calls/call-filters";
@@ -82,11 +82,14 @@ export default async function CallStatsPage({
   } = await searchParams;
 
   // An outcome that is not one of ours falls back to all of them, like a
-  // stale niche or person does.
-  const outcome =
-    rawOutcome && rawOutcome in OUTCOME_LABELS
-      ? (rawOutcome as CallOutcome)
-      : undefined;
+  // stale niche or person does. "keypad" is not an outcome — it asks for the
+  // rows that have none — and is honoured for the same reason.
+  const outcome: LogFilterValue | undefined =
+    rawOutcome === "keypad"
+      ? "keypad"
+      : rawOutcome && rawOutcome in OUTCOME_LABELS
+        ? (rawOutcome as LogFilterValue)
+        : undefined;
   // Passed to the picker as-is. Not derived from the window: "today" is a
   // range that happens to resolve to a single day, and reading the window
   // back made the control show a date where it should say Today.
@@ -517,6 +520,10 @@ export default async function CallStatsPage({
               {log.length === CALL_LOG_LIMIT
                 ? `Newest ${CALL_LOG_LIMIT}, oldest cut off`
                 : "Newest first"}
+              {/* Said once here rather than on every keypad row. The rows are
+                  marked, and what a reader needs is why a call in this table
+                  is in none of the numbers above it. */}
+              {!listId && " · keypad dials included, counted nowhere else"}
             </p>
             <div className="ml-auto w-full sm:w-auto">
               <LogFilter
@@ -530,9 +537,13 @@ export default async function CallStatsPage({
           </div>
           {log.length === 0 ? (
             <p className="px-4 py-10 text-center text-[13px] text-muted-foreground">
-              {outcome
-                ? `Nothing logged as ${OUTCOME_LABELS[outcome].toLowerCase()} in this range.`
-                : "No calls logged in this range."}
+              {outcome === "keypad"
+                ? listId
+                  ? "Keypad calls belong to no niche, so none show while one is selected."
+                  : "Nothing dialled from the keypad in this range."
+                : outcome
+                  ? `Nothing logged as ${OUTCOME_LABELS[outcome].toLowerCase()} in this range.`
+                  : "No calls logged in this range."}
             </p>
           ) : (
             <div className="max-h-[32rem] overflow-auto">
@@ -553,7 +564,11 @@ export default async function CallStatsPage({
                 </thead>
                 <tbody>
                   {log.map((c) => (
-                    <tr key={c.id} className="border-b align-top last:border-0">
+                    // Ids are unique within a table and this list spans two.
+                    <tr
+                      key={`${c.source}-${c.id}`}
+                      className="border-b align-top last:border-0"
+                    >
                       <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-muted-foreground">
                         {callTime(c.calledAt, c.region)}
                         {/* Under the time rather than in a column of its own:
@@ -575,9 +590,18 @@ export default async function CallStatsPage({
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="font-semibold">{c.company}</span>
-                        <span className="block text-[12px] tabular-nums text-muted-foreground">
-                          {c.phone}
-                        </span>
+                        {/* A keypad row whose business column is already the
+                            number would otherwise print it twice. */}
+                        {c.company !== c.phone && (
+                          <span className="block text-[12px] tabular-nums text-muted-foreground">
+                            {c.phone}
+                          </span>
+                        )}
+                        {c.addedToCall && (
+                          <span className="block text-[12px] text-muted-foreground">
+                            Added to a call
+                          </span>
+                        )}
                         {/* Notes hang under the business rather than getting a
                             column of their own: most calls have none, and an
                             empty column on every row is a column of nothing. */}
@@ -588,11 +612,20 @@ export default async function CallStatsPage({
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
-                        {c.listName}
+                        {c.listName ?? "—"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5">
-                        <span className="font-semibold">
-                          {OUTCOME_LABELS[c.outcome]}
+                        {/* A keypad call has no outcome to log — there is no
+                            lead for one to be about — so the cell says which
+                            kind of call it was instead, in the muted weight
+                            the "—" above uses for the same absence. */}
+                        <span
+                          className={cn(
+                            "font-semibold",
+                            !c.outcome && "font-medium text-muted-foreground",
+                          )}
+                        >
+                          {c.outcome ? OUTCOME_LABELS[c.outcome] : "Keypad"}
                         </span>
                         {c.outcome === "callback" && c.callbackAt && (
                           <span className="block text-[12px] text-muted-foreground">

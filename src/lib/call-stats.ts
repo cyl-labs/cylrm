@@ -1,6 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import type { CallOutcome } from "@/lib/calls";
+import { classifyPhone } from "@/lib/phone";
 
 type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
@@ -344,16 +345,24 @@ export async function getCallsByDay(
 
 export type CallLogRow = {
   id: number;
+  /** Which table the row came from. Ids are only unique within one, so this is
+   *  half of any key — and it is what the table renders differently. */
+  source: "call" | "keypad";
   calledAt: string;
-  outcome: CallOutcome;
+  /** Null for a keypad call: there is no lead for it to be an outcome about. */
+  outcome: CallOutcome | null;
   by: string;
   company: string;
   phone: string;
-  listName: string;
-  /** The niche's market, which decides the zone its times are shown in. */
+  /** Null for a keypad call, which belongs to no niche. */
+  listName: string | null;
+  /** The niche's market, which decides the zone its times are shown in. For a
+   *  keypad call there is no niche, so it is read off the number itself. */
   region: "sg" | "us" | "gb" | null;
   notes: string | null;
   callbackAt: string | null;
+  /** Keypad only: this leg was added to a call already up. */
+  addedToCall: boolean;
   /** Telnyx's file for this call, when it was dialled from the browser and the
    *  webhook has landed. Null for every handset call, every no-answer, and
    *  everything logged before browser dialling existed — which is most rows. */
@@ -367,24 +376,78 @@ export type CallLogRow = {
 export const CALL_LOG_LIMIT = 300;
 
 /**
- * Every individual call, newest first.
+ * What the log can be narrowed to: one outcome, or the keypad.
+ *
+ * "keypad" is not an outcome and never becomes one — it says which table the
+ * row came from. It sits in the same control because that is the question
+ * being asked of this table ("show me only the…"), and because a keypad call
+ * having no outcome is precisely why it needs its own entry rather than
+ * hiding under one.
+ */
+export type LogFilterValue = CallOutcome | "keypad";
+
+/** The recording for a call session, newest first within it. One session can
+ *  produce more than one file, and both `call` and `keypad_call` reach them
+ *  the same way — the webhook stores recordings against the session id with no
+ *  idea which of the two placed the call. */
+const recordingFor = sql`
+  left join lateral (
+    select rr.recording_id, rr.duration_ms
+    from call_recording rr
+    where rr.call_session_id = c.telnyx_session_id
+    order by rr.started_at desc nulls last, rr.id desc
+    limit 1
+  ) r on true
+`;
+
+/**
+ * Every individual call, newest first — keypad dials included.
  *
  * The tables above answer "how many"; this one answers "which ones". Filtering
  * to one person turns it into that person's shift, which is the thing you
  * actually read when a number looks wrong.
  *
+ * This is the **only** query in the app that reads `keypad_call`, and the
+ * union is deliberately confined to it: a keypad dial has no lead and no
+ * outcome, so it cannot be a pickup, cannot belong to a niche, and must not
+ * move a tile, a chart, the Scoreboard or a payout. It is here because "who
+ * rang that number, and can I hear it" is a question about the record rather
+ * than about the numbers.
+ *
+ * Two consequences fall straight out of that and are intended: filtering by
+ * niche drops keypad rows entirely, because they are in no niche; and
+ * filtering by outcome drops them too, except for the "keypad" value that asks
+ * for exactly those.
+ *
  * The niche filter is written against `call_list` directly rather than through
  * the shared `inList` helper: that one aliases `call_lead` as `l` inside a
- * subquery, and this query already has an `l` of its own.
+ * subquery, and this query already has an `l` of its own. `keypad_call` is
+ * aliased `c` for the opposite reason — `since` and `byUser` are written
+ * against that alias, and reusing it is what lets one window and one person
+ * filter serve both halves.
  */
 export async function getCallLog(
   w: StatsWindow,
   listId?: number,
   userId?: number,
-  outcome?: CallOutcome,
+  filter?: LogFilterValue,
 ): Promise<CallLogRow[]> {
-  const rows = (await db.execute(sql`
-    select c.id, c.called_at, c.outcome, c.notes, c.callback_at,
+  const wantCalls = filter !== "keypad";
+  // A niche filter is a filter on something keypad rows do not have. Excluding
+  // them is not a technicality: leaving them in would put calls that belong to
+  // no list under a heading naming one.
+  const wantKeypad = !listId && (filter === undefined || filter === "keypad");
+  // Keypad calls, narrowed to a niche they cannot be in. Neither half has
+  // anything to contribute, and there is no query to run — the screen says why
+  // rather than showing an empty table under a filter that reads as broken.
+  if (!wantCalls && !wantKeypad) return [];
+
+  // `c.outcome` is the `call_outcome` enum and the keypad half has no outcome
+  // at all, so it is cast to text on both sides — Postgres will not union an
+  // enum with a null literal, and the mapping back is one cast either way.
+  const calls = sql`
+    select 'call' as source, c.id, c.called_at, c.outcome::text as outcome,
+      c.notes, c.callback_at, false as added_to_call,
       u.name as by_name,
       coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) as company,
       l.phone, cl.name as list_name, cl.region,
@@ -396,36 +459,79 @@ export async function getCallLog(
     -- Per call, not per lead. The board can only ever reach the recording of a
     -- lead's *latest* call, because that is the row it hangs off; this table
     -- has a row per dial, so a business rung three times offers all three.
-    -- Latest file first within a session: one session can produce more than
-    -- one, the same lateral the board's query uses.
-    left join lateral (
-      select rr.recording_id, rr.duration_ms
-      from call_recording rr
-      where rr.call_session_id = c.telnyx_session_id
-      order by rr.started_at desc nulls last, rr.id desc
-      limit 1
-    ) r on true
+    ${recordingFor}
     where ${since(w)}
       ${listId ? sql`and cl.id = ${listId}` : sql``}
       ${byUser(userId)}
-      ${outcome ? sql`and c.outcome = ${outcome}` : sql``}
-    order by c.called_at desc, c.id desc
+      ${filter && filter !== "keypad" ? sql`and c.outcome = ${filter}` : sql``}
+  `;
+
+  const keypad = sql`
+    select 'keypad' as source, c.id, c.called_at, null::text as outcome,
+      null::text as notes, null::timestamptz as callback_at, c.added_to_call,
+      u.name as by_name,
+      -- The saved line's name when there was one, and the number otherwise:
+      -- the business column has to say something, and "pxn junk removal" says
+      -- more than eleven digits repeated from the line below it.
+      coalesce(nullif(c.label, ''), c.phone) as company,
+      c.phone, null::text as list_name, null::text as region,
+      r.recording_id, r.duration_ms as recording_ms
+    from keypad_call c
+    join app_user u on u.id = c.user_id
+    ${recordingFor}
+    where ${since(w)} ${byUser(userId)}
+  `;
+
+  // The limit belongs to the combined set, not to each half: 300 of each would
+  // be 600 rows on a screen whose header promises 300.
+  const body =
+    wantCalls && wantKeypad
+      ? sql`${calls} union all ${keypad}`
+      : wantCalls
+        ? calls
+        : keypad;
+
+  const rows = (await db.execute(sql`
+    select * from (${body}) t
+    order by called_at desc, source, id desc
     limit ${CALL_LOG_LIMIT}
   `)) as Row[];
 
-  return rows.map((r) => ({
-    id: n(r.id),
-    calledAt: String(r.called_at),
-    outcome: r.outcome as CallOutcome,
-    // Null for anything logged before staff accounts existed.
-    by: (r.by_name as string | null) ?? "Not attributed",
-    company: String(r.company),
-    phone: String(r.phone),
-    listName: String(r.list_name),
-    region: (r.region as "sg" | "us" | "gb" | null) ?? null,
-    notes: (r.notes as string | null) ?? null,
-    callbackAt: r.callback_at === null ? null : String(r.callback_at),
-    recordingId: (r.recording_id as string | null) ?? null,
-    recordingMs: r.recording_ms === null ? null : n(r.recording_ms),
-  }));
+  return rows.map((r) => {
+    const source = r.source === "keypad" ? "keypad" : "call";
+    const phone = String(r.phone);
+    return {
+      id: n(r.id),
+      source: source as "call" | "keypad",
+      calledAt: String(r.called_at),
+      outcome: r.outcome === null ? null : (r.outcome as CallOutcome),
+      // Null for anything logged before staff accounts existed. Never for a
+      // keypad row — that table's user is not nullable.
+      by: (r.by_name as string | null) ?? "Not attributed",
+      company: String(r.company),
+      phone,
+      listName: r.list_name === null ? null : String(r.list_name),
+      // A keypad call has no niche to take a market from, so the number
+      // answers for it: the times in this table are read in the market being
+      // rung, and a US number dialled at 21:00 in Singapore is a 09:00 call.
+      region:
+        source === "keypad"
+          ? keypadRegion(phone)
+          : ((r.region as "sg" | "us" | "gb" | null) ?? null),
+      notes: (r.notes as string | null) ?? null,
+      callbackAt: r.callback_at === null ? null : String(r.callback_at),
+      addedToCall: r.added_to_call === true,
+      recordingId: (r.recording_id as string | null) ?? null,
+      recordingMs: r.recording_ms === null ? null : n(r.recording_ms),
+    };
+  });
+}
+
+/** Which market a keypad number belongs to, for the zone its time is shown in.
+ *  `classifyPhone` also returns `sg_tollfree`, `foreign` and the rest; none of
+ *  those name a zone this table renders, so they fall to null and read in
+ *  Singapore time like every other unplaceable row. */
+function keypadRegion(phone: string): "sg" | "us" | "gb" | null {
+  const kind = classifyPhone(phone);
+  return kind === "sg" || kind === "us" || kind === "gb" ? kind : null;
 }
