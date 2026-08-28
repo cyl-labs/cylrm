@@ -597,6 +597,13 @@ caller ID on a given call came from two places and neither was visible on the
 screen. Someone with no number gets a disabled dial button saying so, never
 somebody else's. As of 2026-08-24 four accounts have one; `dial_method`
 (`browser` | `handset`, not `dial_mode`) says who dials in the browser at all.
+The dropdown offers **that person's market's numbers**, since a US number
+ringing Singapore leads is worse than sharing a Singapore one — except for
+someone with **no market**, who is offered every free number, because no market
+means every market. Until 2026-08-28 they were offered nothing at all, which
+left the founders' account — the one account deliberately tied to no market —
+looking as though the business owned a single number: the API never had that
+restriction (`region && !did.startsWith(prefix)`), only the dropdown did.
 
 A JWT's `exp` is exactly its parent credential's `expires_at`, so any token cache
 must expire at `min(cacheTtl, credentialExpiresAt)` — caching a token minted late

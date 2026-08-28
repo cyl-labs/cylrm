@@ -43,7 +43,10 @@ const fmt = (iso: string | null) =>
 const NO_DID = "__market__";
 
 /** Only that person's market. A US number ringing Singapore leads is worse
- *  than sharing a Singapore one, and the API refuses it anyway. */
+ *  than sharing a Singapore one, and the API refuses it anyway.
+ *
+ *  Someone with *no* market is the exception, not a person to refuse — see
+ *  `numbersFor`. */
 const PREFIX: Record<string, string> = { sg: "+65", us: "+1", gb: "+44" };
 const MARKET_LABEL: Record<string, string> = { sg: "Singapore", us: "US", gb: "UK" };
 
@@ -63,8 +66,18 @@ export function TeamManager({
   const numbers = accountNumbers
     .filter((n) => n.available)
     .map((n) => n.phoneNumber);
+  /**
+   * The numbers this person may be given, which is their market's.
+   *
+   * No market means *every* market, so it means every number — the same
+   * reading the Keypad's book of numbers uses. It returned nothing at all
+   * until 2026-08-28, which left the founders' own account, the one account
+   * deliberately tied to no market, with a dropdown holding "Not assigned" and
+   * the number it already had. Nothing said why, because from here it looks
+   * identical to owning one number.
+   */
   const numbersFor = (region: string | null) =>
-    region ? numbers.filter((n) => n.startsWith(PREFIX[region] ?? "+")) : [];
+    region ? numbers.filter((n) => n.startsWith(PREFIX[region] ?? "+")) : numbers;
   const [adding, setAdding] = React.useState(false);
   /** The person whose password is being reset, if any. */
   const [resetting, setResetting] = React.useState<TeamMember | null>(null);
@@ -258,9 +271,12 @@ export function TeamManager({
                               placeholder={
                                 m.dialMethod === "handset"
                                   ? "Own phone"
-                                  : !m.callRegion
-                                    ? "Set a market first"
-                                    : `No ${MARKET_LABEL[m.callRegion]} numbers`
+                                  : m.callRegion
+                                    ? `No ${MARKET_LABEL[m.callRegion]} numbers`
+                                    : // Every market, so this is only ever
+                                      // reached when the account itself has
+                                      // no free number left to give.
+                                      "No numbers free"
                               }
                             />
                           </SelectTrigger>
