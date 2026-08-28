@@ -297,28 +297,54 @@ export async function getPersonStats(
 
 export type DayStat = { day: string; calls: number; pickups: number };
 
+/** A YYYY-MM month, and nothing else. Guards the query the way `isStatsDate`
+ *  does — the value is concatenated into a `::date` below. */
+export const isStatsMonth = (v: unknown): v is string =>
+  typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
+
+/** The month we are in, in Eastern — the calendar's default. */
+export const monthInStatsTz = () => todayInStatsTz().slice(0, 7);
+
+/** The month a window sits in, which is the one worth opening the calendar on:
+ *  a day or a date range names its own, and a rolling window or all-time is
+ *  read from where the work is now. `between` follows its later end, that
+ *  being the end someone is usually looking at. */
+export function monthOf(w: StatsWindow): string {
+  if (w.kind === "day") return w.date.slice(0, 7);
+  if (w.kind === "between") return w.to.slice(0, 7);
+  return monthInStatsTz();
+}
+
 /**
- * Calls per day, most recent last.
+ * Calls per day for one calendar month, in Eastern.
+ *
+ * A month rather than the fortnight this used to return: the fortnight was
+ * always the last fourteen days whatever the range above it said, so a screen
+ * filtered to a day in June answered with a chart of the days around today.
+ * A month is a shape people already navigate — the picker pages through them —
+ * and it is what the range in force can be shown *inside*.
  *
  * Days with no calls are filled in rather than skipped — a gap in a run of
  * dates reads as a quiet day, whereas a missing row silently closes it up and
- * makes the week look busier than it was.
+ * makes the week look busier than it was. In a calendar it is also the grid:
+ * a missing day would shift every one after it into the wrong column.
  */
-export async function getCallsByDay(
-  days: number,
+export async function getCallsByMonth(
+  month: string,
   listId?: number,
   userId?: number,
 ): Promise<DayStat[]> {
+  const first = `${month}-01`;
   const rows = (await db.execute(sql`
     select d::date as day,
       count(c.id) as calls,
       count(c.id) filter (where c.outcome in ${PICKUP}) as pickups
     from generate_series(
-      -- The cast is load-bearing: an untyped parameter here resolves as a
-      -- date, and date minus date is an integer, so generate_series was
-      -- handed an int where it wanted a date.
-      (now() at time zone ${STATS_TZ})::date - ${days - 1}::int,
-      (now() at time zone ${STATS_TZ})::date,
+      -- Both ends cast: an untyped parameter here resolves as text, and
+      -- generate_series has no overload for it. The end is the last day of
+      -- the month, worked out by Postgres rather than by counting 28s.
+      ${first}::date,
+      (${first}::date + interval '1 month' - interval '1 day')::date,
       '1 day'
     ) d
     -- The niche clause belongs in the join, not a WHERE: filtering after the
@@ -335,7 +361,7 @@ export async function getCallsByDay(
   `)) as Row[];
 
   return rows.map((r) => ({
-    // Already a Singapore calendar date; formatting it through a Date would
+    // Already an Eastern calendar date; formatting it through a Date would
     // shift it back into UTC and undo the point of the query.
     day: String(r.day).slice(0, 10),
     calls: n(r.calls),

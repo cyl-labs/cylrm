@@ -265,6 +265,19 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 - **Stats default to today.** The window is a day-kind window, so the range
   picker must be given the parsed `?day=` rather than the resolved window, or
   it shows a date where it should say Today.
+- The chart is a **month calendar** (`components/calls/call-calendar.tsx`,
+  `getCallsByMonth`), not the fourteen-bar chart it replaced: that one was
+  always the last fortnight whatever the range said, so a screen filtered to a
+  day in June answered with the days around today, and nothing older than two
+  weeks could be reached at all. The month shown follows the window
+  (`monthOf`) unless `?month=` is set by the arrows, and the filter controls
+  deliberately **do not** carry `?month=` through — the inverse of the `?list=`
+  trap they exist for, since changing the range should move the calendar to
+  that range's month. Days outside the range are faded rather than days inside
+  being outlined: a 30-day range covers nearly every cell, so marking what was
+  in drew a box round the whole month. Tapping a day sets `?day=`; tapping the
+  day already showing clears back to `range=30`, so the calendar is its own way
+  out. Weeks start Monday, matching `payout.week_start`.
 - Stats also take `?person=<id>` to narrow to one employee, applied to every
   number on the page rather than just the "By person" table: "By list" then
   means that person's calls per niche, and `worked` means leads *they* have

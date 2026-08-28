@@ -9,8 +9,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/** Four, not six. Yesterday and any other recent day are one tap on the
- *  fortnight chart, which is a better day picker than a list of days. */
+/** Four, not six. Yesterday and any other day are one tap on the calendar,
+ *  which is a better day picker than a list of days — and, unlike the
+ *  fortnight chart it replaced, it reaches back past a fortnight. */
 const RANGES = [
   { value: "today", label: "Today" },
   { value: "7", label: "Last 7 days" },

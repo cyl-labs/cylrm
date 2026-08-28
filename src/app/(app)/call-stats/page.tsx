@@ -2,16 +2,20 @@ import { getCallLists } from "@/lib/calls";
 import Link from "next/link";
 import {
   getCallTotals,
-  getCallsByDay,
+  getCallsByMonth,
   getListStats,
   getOutcomeCounts,
   getCallLog,
   getPersonStats,
   todayInStatsTz,
+  monthInStatsTz,
+  monthOf,
+  isStatsMonth,
   CALL_LOG_LIMIT,
   type StatsWindow,
   type LogFilterValue,
 } from "@/lib/call-stats";
+import { CallCalendar } from "@/components/calls/call-calendar";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { PageShell } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
@@ -71,6 +75,7 @@ export default async function CallStatsPage({
     day?: string;
     person?: string;
     outcome?: string;
+    month?: string;
   }>;
 }) {
   const {
@@ -79,6 +84,7 @@ export default async function CallStatsPage({
     day: rawDay,
     person,
     outcome: rawOutcome,
+    month: rawMonth,
   } = await searchParams;
 
   // An outcome that is not one of ours falls back to all of them, like a
@@ -98,6 +104,24 @@ export default async function CallStatsPage({
   // floor doing right now", and a month of history answered a different one.
   const range = raw && RANGE_KEYS.has(raw) ? raw : "today";
   const w = windowFor(range, day);
+
+  // The calendar's own month. It follows the window unless the arrows have
+  // been used, and the filter controls deliberately do NOT carry `?month=`
+  // through — the inverse of the `?list=` trap they exist for. Changing the
+  // range should move the calendar to the range's month; only paging months
+  // pins one.
+  const month = isStatsMonth(rawMonth) ? rawMonth : monthOf(w);
+  // The days the numbers above cover, for the calendar to outline. A rolling
+  // window is a clock rather than a set of dates, so it is drawn as the N
+  // calendar days ending today, which is what "last 7 days" means to a reader.
+  const covered: { from?: string; to?: string } =
+    w.kind === "day"
+      ? { from: w.date, to: w.date }
+      : w.kind === "between"
+        ? { from: w.from, to: w.to }
+        : w.kind === "rolling"
+          ? { from: dayBack(w.days - 1), to: todayInStatsTz() }
+          : {};
 
   const [allLists, team] = await Promise.all([getCallLists(), listTeam()]);
 
@@ -123,11 +147,11 @@ export default async function CallStatsPage({
     (l) => l.total - l.uncalled > 0 || l.id === listId,
   );
 
-  const [totals, outcomes, lists, byDay, people, log] = await Promise.all([
+  const [totals, outcomes, lists, monthDays, people, log] = await Promise.all([
     getCallTotals(w, listId, personId),
     getOutcomeCounts(w, listId, personId),
     getListStats(w, listId, personId),
-    getCallsByDay(14, listId, personId),
+    getCallsByMonth(month, listId, personId),
     getPersonStats(w, listId, personId),
     getCallLog(w, listId, personId, outcome),
   ]);
@@ -192,7 +216,6 @@ export default async function CallStatsPage({
     },
   ];
 
-  const busiest = Math.max(...byDay.map((d) => d.calls), 1);
   const outcomeTotal = outcomes.reduce((sum, o) => sum + o.calls, 0);
 
   return (
@@ -299,72 +322,26 @@ export default async function CallStatsPage({
           </div>
 
           <div className={CARD}>
-            <div className="border-b border-border/60 px-5 py-3.5">
-              <p className="text-sm font-extrabold tracking-[-0.01em]">
-                Last 14 days
-              </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground/75">
-                Always the last fortnight, whatever the range above says. Tap a
-                day to see just that day.
-              </p>
-            </div>
-            <div className="flex items-end gap-1 px-5 py-4">
-              {byDay.map((d) => {
-                const picked = w.kind === "day" && w.date === d.day;
-                return (
-                  // A link, not a button: the chart is rendered on the server
-                  // and picking a day is just another URL.
-                  <Link
-                    key={d.day}
-                    href={`/call-stats?${new URLSearchParams({
-                      ...(listId ? { list: String(listId) } : {}),
-                      // Clicking the day already showing clears back to the
-                      // fortnight, so the chart is its own way out.
-                      ...(picked ? { range: "30" } : { day: d.day }),
-                    })}`}
-                    scroll={false}
-                    title={`${d.day}: ${d.calls} calls, ${d.pickups} pickups`}
-                    className={cn(
-                      "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-md py-1 transition-colors hover:bg-muted",
-                      picked && "bg-primary/10 hover:bg-primary/10",
-                    )}
-                  >
-                    <span className="text-[10px] tabular-nums text-muted-foreground">
-                      {d.calls || ""}
-                    </span>
-                    {/* No track behind the bar: a full-height grey box on a
-                        day with no calls reads as a day with some. */}
-                    <div
-                      className="flex w-full flex-col justify-end border-b"
-                      style={{ height: 64 }}
-                    >
-                      <div
-                        className="flex w-full flex-col justify-end rounded-sm bg-primary/25"
-                        style={{ height: `${(d.calls / busiest) * 100}%` }}
-                      >
-                        <div
-                          className="w-full rounded-sm bg-primary"
-                          style={{
-                            height: `${d.calls === 0 ? 0 : (d.pickups / d.calls) * 100}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <span
-                      className={cn(
-                        "text-[10px] tabular-nums text-muted-foreground/70",
-                        picked && "font-bold text-primary",
-                      )}
-                    >
-                      {d.day.slice(8)}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-            <p className="px-5 pb-4 text-[11px] text-muted-foreground/75">
-              Solid is pickups, pale is the rest of the calls.
-            </p>
+            <CallCalendar
+              month={month}
+              days={monthDays}
+              // Everything the rest of the screen is filtered by, so paging a
+              // month or tapping a day keeps the niche, the person and the
+              // outcome that made the numbers worth reading. `month` is
+              // deliberately absent: the calendar sets it, and a day tapped
+              // inside it lands in that month anyway.
+              params={{
+                ...(listId ? { list: String(listId) } : {}),
+                ...(personId ? { person: String(personId) } : {}),
+                ...(outcome ? { outcome } : {}),
+                ...(day ? { day } : { range }),
+              }}
+              selectedDay={w.kind === "day" ? w.date : undefined}
+              from={covered.from}
+              to={covered.to}
+              today={todayInStatsTz()}
+              maxMonth={monthInStatsTz()}
+            />
           </div>
         </div>
 
