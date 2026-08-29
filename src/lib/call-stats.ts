@@ -1,7 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import type { CallOutcome } from "@/lib/calls";
-import { classifyPhone } from "@/lib/phone";
+import { STATS_TZ } from "@/lib/stats-zones";
 
 type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
@@ -52,25 +52,29 @@ export type ListStat = {
 };
 
 /**
- * The zone a reporting "day" is measured in: Eastern.
+ * The zones live in `lib/stats-zones.ts` and are re-exported here.
  *
- * Bucketing by UTC put a 7am call on the previous day's bar, so this was
- * always a real zone rather than the server's. It was Singapore until
- * 2026-08-25 and is now Eastern, because that is where the floor's work is:
- * every active caller bar the founders works US niches, and a shift that runs
- * to 6pm New York was landing on two different Singapore days.
+ * They are a lookup table and three string helpers with no database in them,
+ * and the timezone picker is a client component: importing them from this
+ * module pulls the Postgres client into the browser bundle, the same wall
+ * `components/calls/outcome.ts` was built to get around. Re-exported rather
+ * than moved outright so every existing `from "@/lib/call-stats"` keeps
+ * working — Payroll's `STATS_TZ` among them.
  *
- * Named apart from the `CALL_TZ` in `lib/calls.ts` on purpose — that one still
- * says Singapore and counts "called today" on the dialler and the call lists.
- * Two constants because they answer different questions, and a single one
- * would have moved the callback diary too, which is booked and read in
- * Singapore time via `parseCallbackAt`.
- *
- * Unlike Singapore's fixed +08:00, Eastern has daylight saving, so there is
- * deliberately no offset constant to pair with this: every use goes through
- * Postgres `at time zone` or `Intl`, both of which read the zone database.
+ * `STATS_TZ` is named apart from the `CALL_TZ` in `lib/calls.ts` on purpose —
+ * that one still says Singapore and counts "called today" on the dialler and
+ * the call lists. Two constants because they answer different questions, and a
+ * single one would have moved the callback diary too, which is booked and read
+ * in Singapore time via `parseCallbackAt`.
  */
-export const STATS_TZ = "America/New_York";
+export {
+  STATS_TZ,
+  STATS_ZONES,
+  DEFAULT_STATS_REGION,
+  isStatsRegion,
+  statsZone,
+} from "@/lib/stats-zones";
+export type { StatsRegion } from "@/lib/stats-zones";
 
 /**
  * What slice of time the numbers cover.
@@ -79,16 +83,29 @@ export const STATS_TZ = "America/New_York";
  * Eastern time, which is what "how did we do today" means and what a rolling
  * 24-hour window does not.
  */
-export type StatsWindow =
+export type StatsWindow = (
   | { kind: "all" }
   | { kind: "rolling"; days: number }
   | { kind: "day"; date: string }
-  /** Two calendar dates in Eastern, inclusive of both ends — the range someone
-   *  types when they want a competition week or a named month rather than the
-   *  last N days counted backwards from this moment. Dates are carried as
-   *  YYYY-MM-DD strings the whole way and never turned into a `Date`: parsing
-   *  one gives UTC midnight, which reads as the previous day in Eastern. */
-  | { kind: "between"; from: string; to: string };
+  /** Two calendar dates in the reporting zone, inclusive of both ends — the
+   *  range someone types when they want a competition week or a named month
+   *  rather than the last N days counted backwards from this moment. Dates are
+   *  carried as YYYY-MM-DD strings the whole way and never turned into a
+   *  `Date`: parsing one gives UTC midnight, which reads as the previous day
+   *  in every zone west of it. */
+  | { kind: "between"; from: string; to: string }
+) & {
+  /**
+   * The zone a "day" in this window is measured in. Absent means Eastern.
+   *
+   * Carried on the window rather than passed alongside it to every query,
+   * because it is part of what the window *means*: "27 August" is a different
+   * eight hours in Singapore than in New York, and a window that travelled
+   * without its zone would be read in whichever one each function assumed.
+   * Every existing call site keeps working — absent is the old constant.
+   */
+  tz?: string;
+};
 
 /** A YYYY-MM-DD calendar date, and nothing else. Guards the query — these
  *  reach Postgres as `::date`, where a malformed string is an error rather
@@ -96,22 +113,28 @@ export type StatsWindow =
 export const isStatsDate = (v: unknown): v is string =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-/** Today in Eastern, as YYYY-MM-DD — the default for a day picker's max. */
-export const todayInStatsTz = () =>
-  new Date().toLocaleDateString("en-CA", { timeZone: STATS_TZ });
+/** Today in the reporting zone, as YYYY-MM-DD — the default for a day picker's
+ *  max, and what "today" resolves to. */
+export const todayInStatsTz = (tz: string = STATS_TZ) =>
+  new Date().toLocaleDateString("en-CA", { timeZone: tz });
 
 const since = (w: StatsWindow): SQL => {
+  // Eastern unless the window says otherwise, which is what every window said
+  // before the zone picker existed.
+  const tz = w.tz ?? STATS_TZ;
   if (w.kind === "all") return sql`true`;
   if (w.kind === "day") {
-    return sql`(c.called_at at time zone ${STATS_TZ})::date = ${w.date}::date`;
+    return sql`(c.called_at at time zone ${tz})::date = ${w.date}::date`;
   }
   if (w.kind === "between") {
     // Both ends inclusive: someone picking 1st to 31st means the whole month,
     // and a range that quietly dropped its last day would under-report the
     // final shift of every competition.
-    return sql`(c.called_at at time zone ${STATS_TZ})::date
+    return sql`(c.called_at at time zone ${tz})::date
       between ${w.from}::date and ${w.to}::date`;
   }
+  // A rolling window is a clock, not a set of dates: N days back from this
+  // moment is the same instant everywhere, so it has no zone to read.
   return sql`c.called_at >= now() - ${`${w.days} days`}::interval`;
 };
 
@@ -302,8 +325,9 @@ export type DayStat = { day: string; calls: number; pickups: number };
 export const isStatsMonth = (v: unknown): v is string =>
   typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
 
-/** The month we are in, in Eastern — the calendar's default. */
-export const monthInStatsTz = () => todayInStatsTz().slice(0, 7);
+/** The month we are in, in the reporting zone — the calendar's default. */
+export const monthInStatsTz = (tz: string = STATS_TZ) =>
+  todayInStatsTz(tz).slice(0, 7);
 
 /** The month a window sits in, which is the one worth opening the calendar on:
  *  a day or a date range names its own, and a rolling window or all-time is
@@ -312,7 +336,7 @@ export const monthInStatsTz = () => todayInStatsTz().slice(0, 7);
 export function monthOf(w: StatsWindow): string {
   if (w.kind === "day") return w.date.slice(0, 7);
   if (w.kind === "between") return w.to.slice(0, 7);
-  return monthInStatsTz();
+  return monthInStatsTz(w.tz);
 }
 
 /**
@@ -333,6 +357,9 @@ export async function getCallsByMonth(
   month: string,
   listId?: number,
   userId?: number,
+  /** The zone the days are cut in — the same one the window uses, or the
+   *  grid says one thing and the tiles above it another. */
+  tz: string = STATS_TZ,
 ): Promise<DayStat[]> {
   const first = `${month}-01`;
   const rows = (await db.execute(sql`
@@ -350,7 +377,7 @@ export async function getCallsByMonth(
     -- The niche clause belongs in the join, not a WHERE: filtering after the
     -- LEFT JOIN would drop the empty days this series exists to keep.
     left join call c
-      on (c.called_at at time zone ${STATS_TZ})::date = d::date
+      on (c.called_at at time zone ${tz})::date = d::date
       and (${listId ?? null}::int is null or exists (
         select 1 from call_lead l
         where l.id = c.call_lead_id and l.call_list_id = ${listId ?? null}
@@ -382,9 +409,6 @@ export type CallLogRow = {
   phone: string;
   /** Null for a keypad call, which belongs to no niche. */
   listName: string | null;
-  /** The niche's market, which decides the zone its times are shown in. For a
-   *  keypad call there is no niche, so it is read off the number itself. */
-  region: "sg" | "us" | "gb" | null;
   notes: string | null;
   callbackAt: string | null;
   /** Keypad only: this leg was added to a call already up. */
@@ -476,7 +500,10 @@ export async function getCallLog(
       c.notes, c.callback_at, false as added_to_call,
       u.name as by_name,
       coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) as company,
-      l.phone, cl.name as list_name, cl.region,
+      -- No cl.region here since 2026-08-29: every row in this table is now
+      -- rendered in the zone the screen is set to, so a per-niche market has
+      -- nothing left to decide.
+      l.phone, cl.name as list_name,
       r.recording_id, r.duration_ms as recording_ms
     from call c
     join call_lead l on l.id = c.call_lead_id
@@ -500,7 +527,7 @@ export async function getCallLog(
       -- the business column has to say something, and "pxn junk removal" says
       -- more than eleven digits repeated from the line below it.
       coalesce(nullif(c.label, ''), c.phone) as company,
-      c.phone, null::text as list_name, null::text as region,
+      c.phone, null::text as list_name,
       r.recording_id, r.duration_ms as recording_ms
     from keypad_call c
     join app_user u on u.id = c.user_id
@@ -525,7 +552,6 @@ export async function getCallLog(
 
   return rows.map((r) => {
     const source = r.source === "keypad" ? "keypad" : "call";
-    const phone = String(r.phone);
     return {
       id: n(r.id),
       source: source as "call" | "keypad",
@@ -535,15 +561,8 @@ export async function getCallLog(
       // keypad row — that table's user is not nullable.
       by: (r.by_name as string | null) ?? "Not attributed",
       company: String(r.company),
-      phone,
+      phone: String(r.phone),
       listName: r.list_name === null ? null : String(r.list_name),
-      // A keypad call has no niche to take a market from, so the number
-      // answers for it: the times in this table are read in the market being
-      // rung, and a US number dialled at 21:00 in Singapore is a 09:00 call.
-      region:
-        source === "keypad"
-          ? keypadRegion(phone)
-          : ((r.region as "sg" | "us" | "gb" | null) ?? null),
       notes: (r.notes as string | null) ?? null,
       callbackAt: r.callback_at === null ? null : String(r.callback_at),
       addedToCall: r.added_to_call === true,
@@ -551,13 +570,4 @@ export async function getCallLog(
       recordingMs: r.recording_ms === null ? null : n(r.recording_ms),
     };
   });
-}
-
-/** Which market a keypad number belongs to, for the zone its time is shown in.
- *  `classifyPhone` also returns `sg_tollfree`, `foreign` and the rest; none of
- *  those name a zone this table renders, so they fall to null and read in
- *  Singapore time like every other unplaceable row. */
-function keypadRegion(phone: string): "sg" | "us" | "gb" | null {
-  const kind = classifyPhone(phone);
-  return kind === "sg" || kind === "us" || kind === "gb" ? kind : null;
 }

@@ -1,0 +1,29 @@
+-- Which market's clock a person reads the calling numbers in.
+--
+-- Apply BEFORE deploying the code that reads it: Stats and the Scoreboard
+-- select this column, so deploying first turns both screens into a 500.
+--
+--   docker exec -i cylrm-db psql -U cylrm -d cylrm < this-file.sql
+--
+-- The reporting zone was one constant, `STATS_TZ`, and it has already moved
+-- once — Singapore to New York, when the floor's work became US niches. That
+-- move was right for the people running the floor and wrong for the founders
+-- reading it from Singapore, who had no way to ask "what did we do today" in
+-- the day they were actually in.
+--
+-- So it becomes a preference: `sg` | `us` | `gb`, the same three-letter
+-- vocabulary as `call_region` and `call_list.region`, rather than an IANA name.
+-- Three known markets is the whole set the app can label — a free-text zone
+-- would render "GMT+1" against "EDT" in one table, which is the reason the
+-- Stats log writes its zone names by hand.
+--
+-- Null means Eastern, which is what every screen did before this, so an
+-- account that never touches the picker sees exactly what it saw yesterday.
+--
+-- Deliberately NOT read by Payroll. What somebody is owed must not depend on
+-- which clock the person paying them happens to be reading: the pickup counter
+-- is two timestamps compared, and `payout.week_start` is stored rather than
+-- derived precisely so a zone change cannot move it.
+--
+-- Safe to re-run.
+alter table app_user add column if not exists stats_region text;

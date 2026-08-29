@@ -249,14 +249,13 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   `CALL_LOG_LIMIT` (300) newest-first — a cap on the **combined** set, since
   keypad dials are unioned in here and nowhere else (see the Keypad bullet) —
   and the header says when the cap bit rather than quietly showing part of a
-  range. Times are rendered in **the
-  niche's own market** (`ET` / `UK` / `SGT`), never the reader's zone, since
-  the same call must not read differently to two people looking at one screen.
-  The zone label is written by hand: Intl names one zone and not the other
-  (en-US gives EDT for New York but GMT+1 for London, en-GB the reverse), and
-  two rows in one table should not be labelled two different ways. Eastern
-  stands in for the whole US, which is an approximation stated rather than a
-  number that looks exact. Its own outcome filter (`?outcome=`) sits on that
+  range. Times are rendered in **the zone the screen is set to**, named once on
+  the column heading ("When (SGT)") — never the reader's browser zone, which
+  would render one string on the server and another on hydration. Until
+  2026-08-29 each row was shown in its own niche's market instead, labelled per
+  row; the timezone picker answers that better, one clock chosen at the top of
+  the screen so the page agrees with itself and a link carries the zone it was
+  read in. Its own outcome filter (`?outcome=`) sits on that
   card rather than with the three at the top, because it narrows one table and
   not the screen: filtering the tiles by outcome would make "60% pickups" mean
   sixty per cent of the calls that were already pickups. It rebuilds the whole
@@ -265,6 +264,32 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 - **Stats default to today.** The window is a day-kind window, so the range
   picker must be given the parsed `?day=` rather than the resolved window, or
   it shows a date where it should say Today.
+- **The reporting zone is a picker, not a constant** (2026-08-29). Stats and
+  the Scoreboard both carry it; it decides which day a call counts as, what the
+  calendar's cells hold, what "Today" resolves to, and the times in the call
+  log. Three markets — `sg` / `us` / `gb`, the same vocabulary as everywhere
+  else — because the labels are hand-written (Intl names one zone and not the
+  other) and three known clocks is the whole set the app can label. Resolution
+  order is `?tz=` → `app_user.stats_region` → Eastern, so a link shows what its
+  sender was looking at, an account opens the way it was left, and an account
+  that never touches the picker sees exactly what it saw before. The picker
+  writes both at once (`PATCH /api/me`, best effort — a preference that fails
+  to save costs the next page load and nothing else).
+  The zone rides on **`StatsWindow.tz`** rather than being passed beside it:
+  "27 August" is a different eight hours in Singapore than in New York, so a
+  window travelling without its zone would be read in whichever one each
+  function assumed. Absent means Eastern, which is why every existing call site
+  kept working. A `rolling` window has no zone to read — N days back from this
+  moment is the same instant everywhere.
+  `STATS_ZONES` and friends live in **`lib/stats-zones.ts`**, not
+  `lib/call-stats.ts`, since the picker is a client component and that module
+  imports the Postgres client — the same wall `components/calls/outcome.ts` and
+  `lib/phone.ts` were built to get around. `call-stats.ts` re-exports them, so
+  `from "@/lib/call-stats"` still works on the server.
+  **Payroll never reads it.** What someone is owed must not depend on which
+  clock the person paying them is reading: the pickup counter is two timestamps
+  compared, and `payout.week_start` is stored rather than derived precisely so
+  a zone change cannot move it. `payWeekStart` stays on `STATS_TZ`.
 - The chart is a **month calendar** (`components/calls/call-calendar.tsx`,
   `getCallsByMonth`), not the fourteen-bar chart it replaced: that one was
   always the last fortnight whatever the range said, so a screen filtered to a
@@ -273,9 +298,12 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   (`monthOf`) unless `?month=` is set by the arrows, and the filter controls
   deliberately **do not** carry `?month=` through — the inverse of the `?list=`
   trap they exist for, since changing the range should move the calendar to
-  that range's month. Days outside the range are faded rather than days inside
-  being outlined: a 30-day range covers nearly every cell, so marking what was
-  in drew a box round the whole month. Tapping a day sets `?day=`; tapping the
+  that range's month. Days in the range carry a faint border and nothing more:
+  fading everything outside it was tried for a day and reverted, because the
+  default range is *today* and thirty of a month's thirty-one days came out
+  dimmed at once — the calendar read as unreadable rather than as out of range.
+  The tint has a floor as well as a cap for the same reason: a day with one
+  call has to look like a day with calls. Tapping a day sets `?day=`; tapping the
   day already showing clears back to `range=30`, so the calendar is its own way
   out. Weeks start Monday, matching `payout.week_start`.
 - Stats also take `?person=<id>` to narrow to one employee, applied to every

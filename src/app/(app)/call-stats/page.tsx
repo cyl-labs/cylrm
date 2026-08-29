@@ -11,11 +11,16 @@ import {
   monthInStatsTz,
   monthOf,
   isStatsMonth,
+  statsZone,
   CALL_LOG_LIMIT,
   type StatsWindow,
   type LogFilterValue,
 } from "@/lib/call-stats";
+import { DEFAULT_STATS_REGION, isStatsRegion } from "@/lib/stats-zones";
 import { CallCalendar } from "@/components/calls/call-calendar";
+import { TimezonePicker } from "@/components/calls/timezone-picker";
+import { getCurrentUser } from "@/lib/session";
+import { statsRegionOf } from "@/lib/users";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { PageShell } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
@@ -26,22 +31,27 @@ import { listTeam } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
-/** An Eastern date, N days back from today there. */
-function dayBack(n: number) {
-  const today = todayInStatsTz();
+/** A date in the reporting zone, N days back from today there. */
+function dayBack(n: number, tz: string) {
+  const today = todayInStatsTz(tz);
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
 }
 
 /** `?range=` for a rolling window or a named day, `?day=` for any other. Only
- *  one is ever in force. */
-function windowFor(range: string, day: string | undefined): StatsWindow {
-  if (day) return { kind: "day", date: day };
-  if (range === "today") return { kind: "day", date: todayInStatsTz() };
-  if (range === "yesterday") return { kind: "day", date: dayBack(1) };
-  if (range === "all") return { kind: "all" };
-  return { kind: "rolling", days: Number(range) };
+ *  one is ever in force. The zone rides along on the window, so every query
+ *  below cuts its days the same way this screen labels them. */
+function windowFor(
+  range: string,
+  day: string | undefined,
+  tz: string,
+): StatsWindow {
+  if (day) return { kind: "day", date: day, tz };
+  if (range === "today") return { kind: "day", date: todayInStatsTz(tz), tz };
+  if (range === "yesterday") return { kind: "day", date: dayBack(1, tz), tz };
+  if (range === "all") return { kind: "all", tz };
+  return { kind: "rolling", days: Number(range), tz };
 }
 
 // "yesterday" and "90" are gone from the picker but still honoured: a
@@ -76,6 +86,7 @@ export default async function CallStatsPage({
     person?: string;
     outcome?: string;
     month?: string;
+    tz?: string;
   }>;
 }) {
   const {
@@ -85,7 +96,18 @@ export default async function CallStatsPage({
     person,
     outcome: rawOutcome,
     month: rawMonth,
+    tz: rawTz,
   } = await searchParams;
+
+  // Which clock this screen is read in: the URL first, then whatever this
+  // person last chose, then Eastern. The URL wins because it is somebody
+  // saying which zone they mean for *this* look — including a link they were
+  // sent, which should show what the sender was looking at.
+  const me = await getCurrentUser();
+  const region = isStatsRegion(rawTz)
+    ? rawTz
+    : ((await statsRegionOf(me?.id)) ?? DEFAULT_STATS_REGION);
+  const zone = statsZone(region);
 
   // An outcome that is not one of ours falls back to all of them, like a
   // stale niche or person does. "keypad" is not an outcome — it asks for the
@@ -103,7 +125,7 @@ export default async function CallStatsPage({
   // Today by default. The question this screen gets asked most is "how is the
   // floor doing right now", and a month of history answered a different one.
   const range = raw && RANGE_KEYS.has(raw) ? raw : "today";
-  const w = windowFor(range, day);
+  const w = windowFor(range, day, zone.tz);
 
   // The calendar's own month. It follows the window unless the arrows have
   // been used, and the filter controls deliberately do NOT carry `?month=`
@@ -120,7 +142,7 @@ export default async function CallStatsPage({
       : w.kind === "between"
         ? { from: w.from, to: w.to }
         : w.kind === "rolling"
-          ? { from: dayBack(w.days - 1), to: todayInStatsTz() }
+          ? { from: dayBack(w.days - 1, zone.tz), to: todayInStatsTz(zone.tz) }
           : {};
 
   const [allLists, team] = await Promise.all([getCallLists(), listTeam()]);
@@ -151,42 +173,28 @@ export default async function CallStatsPage({
     getCallTotals(w, listId, personId),
     getOutcomeCounts(w, listId, personId),
     getListStats(w, listId, personId),
-    getCallsByMonth(month, listId, personId),
+    getCallsByMonth(month, listId, personId, zone.tz),
     getPersonStats(w, listId, personId),
     getCallLog(w, listId, personId, outcome),
   ]);
 
-  // Each call is shown in its niche's own zone, with the zone named, because
-  // "04:04" on a US lead is unreadable otherwise and quietly wrong if you take
-  // it for local time. Eastern stands in for the US, which spans four zones:
-  // it is the common case and an approximation stated is better than a number
-  // that looks exact. Never the reader's zone, which would make the same call
-  // read differently to two people looking at one screen.
-  // Labelled here rather than by Intl, which names one zone and not the
-  // other: en-US gives EDT for New York but GMT+1 for London, en-GB the
-  // reverse. Two rows in one table should not be labelled two different ways.
-  const ZONES = {
-    sg: { tz: "Asia/Singapore", label: "SGT" },
-    us: { tz: "America/New_York", label: "ET" },
-    gb: { tz: "Europe/London", label: "UK" },
-  } as const;
-  const formatters = new Map<string, Intl.DateTimeFormat>();
-  const callTime = (iso: string, region: "sg" | "us" | "gb" | null) => {
-    const { tz, label } = ZONES[region ?? "sg"];
-    let f = formatters.get(tz);
-    if (!f) {
-      f = new Intl.DateTimeFormat("en-GB", {
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-        timeZone: tz,
-      });
-      formatters.set(tz, f);
-    }
-    return `${f.format(new Date(iso))} ${label}`;
-  };
+  // Every row in the screen's own zone, and never the reader's browser zone,
+  // which would render one string on the server and another on hydration.
+  //
+  // Until 2026-08-29 each row was shown in its niche's market instead, on the
+  // reasoning that "04:04" on a US lead is unreadable if you take it for local
+  // time. The timezone picker answers that better: one zone, chosen and named
+  // at the top of the screen, so the whole page agrees with itself and a link
+  // carries the zone it was read in. The column heading says which.
+  const timeFormat = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: zone.tz,
+  });
+  const callTime = (iso: string) => timeFormat.format(new Date(iso));
 
   const tiles = [
     { label: "Calls logged", value: totals.calls, sub: "attempts, not leads" },
@@ -222,24 +230,32 @@ export default async function CallStatsPage({
     <PageShell
       title="Call stats"
       actions={
-        <CallFilters
-          lists={nicheOptions.map((l) => ({ id: l.id, name: l.name }))}
-          listId={listId ?? "all"}
-          people={peopleOptions}
-          personId={personId ?? "all"}
-          range={range}
-          day={day}
-        />
+        <>
+          <CallFilters
+            lists={nicheOptions.map((l) => ({ id: l.id, name: l.name }))}
+            listId={listId ?? "all"}
+            people={peopleOptions}
+            personId={personId ?? "all"}
+            range={range}
+            day={day}
+            tz={region}
+          />
+          {/* Last of the four: it is the one you set once and leave, where
+              the niche, the person and the range are what a reader moves
+              through while looking at something. */}
+          <TimezonePicker region={region} />
+        </>
       }
     >
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
         {w.kind === "day" && (
           <p className="text-[13px] text-muted-foreground">
-            Showing <span className="font-bold">{dayLabel(w.date)}</span> only,
-            Eastern time.{" "}
+            Showing <span className="font-bold">{dayLabel(w.date)}</span> only,{" "}
+            {zone.name} time.{" "}
             <Link
               href={`/call-stats?${new URLSearchParams({
                 ...(listId ? { list: String(listId) } : {}),
+                ...(region !== DEFAULT_STATS_REGION ? { tz: region } : {}),
                 range: "30",
               })}`}
               className="font-semibold text-primary hover:underline"
@@ -334,13 +350,14 @@ export default async function CallStatsPage({
                 ...(listId ? { list: String(listId) } : {}),
                 ...(personId ? { person: String(personId) } : {}),
                 ...(outcome ? { outcome } : {}),
+                ...(region !== DEFAULT_STATS_REGION ? { tz: region } : {}),
                 ...(day ? { day } : { range }),
               }}
               selectedDay={w.kind === "day" ? w.date : undefined}
               from={covered.from}
               to={covered.to}
-              today={todayInStatsTz()}
-              maxMonth={monthInStatsTz()}
+              today={todayInStatsTz(zone.tz)}
+              maxMonth={monthInStatsTz(zone.tz)}
             />
           </div>
         </div>
@@ -509,6 +526,7 @@ export default async function CallStatsPage({
                 personId={personId ?? "all"}
                 range={range}
                 day={day}
+                tz={region}
               />
             </div>
           </div>
@@ -527,7 +545,9 @@ export default async function CallStatsPage({
               <table className="w-full text-[13px]">
                 <thead className="sticky top-0 bg-card">
                   <tr className="border-b text-left">
-                    {["When", "Who", "Business", "Niche", "Logged as"].map(
+                    {/* The zone is on the heading rather than repeated on
+                        every row: one screen, one clock, said once. */}
+                    {[`When (${zone.label})`, "Who", "Business", "Niche", "Logged as"].map(
                       (h) => (
                         <th
                           key={h}
@@ -547,7 +567,7 @@ export default async function CallStatsPage({
                       className="border-b align-top last:border-0"
                     >
                       <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-muted-foreground">
-                        {callTime(c.calledAt, c.region)}
+                        {callTime(c.calledAt)}
                         {/* Under the time rather than in a column of its own:
                             most calls have no audio — every handset call and
                             every no-answer — and a column that is empty on
@@ -606,7 +626,7 @@ export default async function CallStatsPage({
                         </span>
                         {c.outcome === "callback" && c.callbackAt && (
                           <span className="block text-[12px] text-muted-foreground">
-                            for {callTime(c.callbackAt, c.region)}
+                            for {callTime(c.callbackAt)}
                           </span>
                         )}
                       </td>

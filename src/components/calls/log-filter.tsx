@@ -30,12 +30,16 @@ export function LogFilter({
   personId,
   range,
   day,
+  tz,
 }: {
   outcome: LogFilterValue | "all";
   listId: number | "all";
   personId: number | "all";
   range?: string;
   day?: string;
+  /** The clock the screen is read in, carried through like everything else
+   *  here: narrowing to one outcome must not move the times. */
+  tz?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,6 +48,7 @@ export function LogFilter({
     const params = new URLSearchParams();
     if (listId !== "all") params.set("list", String(listId));
     if (personId !== "all") params.set("person", String(personId));
+    if (tz) params.set("tz", tz);
     if (day) params.set("day", day);
     else if (range) params.set("range", range);
     if (next !== "all") params.set("outcome", next);

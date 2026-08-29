@@ -6,9 +6,13 @@ import { listTeam } from "@/lib/users";
 import {
   getPersonStats,
   isStatsDate,
+  statsZone,
   todayInStatsTz,
   type StatsWindow,
 } from "@/lib/call-stats";
+import { DEFAULT_STATS_REGION, isStatsRegion } from "@/lib/stats-zones";
+import { TimezonePicker } from "@/components/calls/timezone-picker";
+import { statsRegionOf } from "@/lib/users";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -19,9 +23,13 @@ const RANGES = [
   { key: "30", label: "30 days" },
 ] as const;
 
-function windowFor(range: string): StatsWindow {
-  if (range === "today") return { kind: "day", date: todayInStatsTz() };
-  return { kind: "rolling", days: Number(range) };
+/** The zone rides on the window, so "today" is the day the reader is in
+ *  rather than always New York's. A rolling window has no zone to read — N
+ *  days back from this moment is the same instant everywhere — but it carries
+ *  one anyway, since nothing else has to know which kind it was handed. */
+function windowFor(range: string, tz: string): StatsWindow {
+  if (range === "today") return { kind: "day", date: todayInStatsTz(tz), tz };
+  return { kind: "rolling", days: Number(range), tz };
 }
 
 const pct = (num: number, den: number) =>
@@ -167,9 +175,14 @@ function Podium({
 export default async function ScoreboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    range?: string;
+    from?: string;
+    to?: string;
+    tz?: string;
+  }>;
 }) {
-  const { range: raw, from, to } = await searchParams;
+  const { range: raw, from, to, tz: rawTz } = await searchParams;
   const range = RANGES.some((r) => r.key === raw) ? raw! : "today";
 
   // Both ends or neither. A half-typed range in a shared link would otherwise
@@ -182,13 +195,21 @@ export default async function ScoreboardPage({
         : { from: to, to: from }
       : null;
 
-  const today = todayInStatsTz();
   const me = await getCurrentUser();
+  // Which clock this board is read in: the URL first — the board gets pasted
+  // into Discord, and a link should show what the sender was looking at — then
+  // whatever this person last chose on either screen, then Eastern.
+  const region = isStatsRegion(rawTz)
+    ? rawTz
+    : ((await statsRegionOf(me?.id)) ?? DEFAULT_STATS_REGION);
+  const zone = statsZone(region);
+
+  const today = todayInStatsTz(zone.tz);
   const [all, team] = await Promise.all([
     getPersonStats(
       custom
-        ? { kind: "between", from: custom.from, to: custom.to }
-        : windowFor(range),
+        ? { kind: "between", from: custom.from, to: custom.to, tz: zone.tz }
+        : windowFor(range, zone.tz),
     ),
     listTeam(),
   ]);
@@ -215,12 +236,16 @@ export default async function ScoreboardPage({
     <PageShell
       title="Scoreboard"
       actions={
-        <RangeTabs
-          ranges={RANGES}
-          active={range}
-          custom={custom}
-          today={today}
-        />
+        <>
+          <RangeTabs
+            ranges={RANGES}
+            active={range}
+            custom={custom}
+            today={today}
+            zoneName={zone.name}
+          />
+          <TimezonePicker region={region} />
+        </>
       }
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-5 sm:px-6">

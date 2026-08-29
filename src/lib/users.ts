@@ -113,6 +113,29 @@ export const callRegionOf = cache(
 );
 
 /**
+ * Which clock this person reads the calling numbers in.
+ *
+ * Null means Eastern — `DEFAULT_STATS_REGION` — which is what both Stats and
+ * the Scoreboard measured in before the picker existed, so an account that
+ * never touches it sees no change. Read live and `cache()`d for the same
+ * reasons `callRegionOf` is; a `?tz=` in the URL beats it, that being someone
+ * saying which zone they mean for this look at the screen.
+ *
+ * Kept apart from `callRegion`, which is the market they *work*: a founder in
+ * Singapore reading a US floor's numbers has every market and one clock.
+ */
+export const statsRegionOf = cache(
+  async (userId: number | null | undefined): Promise<CallRegion | null> => {
+    if (!userId) return null;
+    const [row] = await db
+      .select({ region: appUser.statsRegion })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.region ?? null;
+  },
+);
+
+/**
  * Whether this person may open the Keypad.
  *
  * Admins always may — the column is the grant to everyone else, and storing

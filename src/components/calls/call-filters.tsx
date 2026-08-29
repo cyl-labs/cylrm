@@ -33,6 +33,7 @@ export function CallFilters({
   personId = "all",
   range,
   day,
+  tz,
 }: {
   lists: { id: number; name: string }[];
   listId: number | "all";
@@ -41,9 +42,14 @@ export function CallFilters({
   personId?: number | "all";
   /** Omitted on screens with no date range, like the board. */
   range?: string;
-  /** A single Eastern day, YYYY-MM-DD, when one is picked off the chart. It
-   *  replaces the range rather than narrowing it, so only one is ever set. */
+  /** A single day in the reporting zone, YYYY-MM-DD, when one is picked off
+   *  the calendar. It replaces the range rather than narrowing it, so only one
+   *  is ever set. */
   day?: string;
+  /** The clock the screen is being read in. Carried through every change for
+   *  the same reason the niche and the person are — a filter that dropped it
+   *  would quietly move every number back to Eastern. */
+  tz?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -63,6 +69,8 @@ export function CallFilters({
     // numbers back to the whole floor.
     const person = next.person ?? String(personId);
     if (person !== "all") params.set("person", person);
+
+    if (tz) params.set("tz", tz);
 
     // A day and a range are the same question answered two ways, so setting
     // one clears the other.

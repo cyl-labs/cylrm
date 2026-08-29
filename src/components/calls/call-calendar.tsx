@@ -68,9 +68,10 @@ export function CallCalendar({
   /** The day the numbers above are showing, when they are showing one. */
   selectedDay?: string;
   /** The days the range in force covers, inclusive, or undefined for all time.
-   *  The days *outside* it are faded rather than the days inside being
-   *  outlined: a 30-day range covers nearly every cell, so marking what is in
-   *  drew a box round the whole month and said nothing. */
+   *  Marked with a faint border and nothing more. Fading everything outside it
+   *  was tried and was a mistake: the default range is *today*, so thirty of
+   *  the month's thirty-one days were dimmed at once and the whole calendar
+   *  read as unreadable rather than as out of range. */
   from?: string;
   to?: string;
   /** Today in the reporting zone, marked so a month reads as a month rather
@@ -166,12 +167,13 @@ export function CallCalendar({
           ))}
           {days.map((d) => {
             const picked = selectedDay === d.day;
-            // All-time covers everything, so nothing is faded.
-            const outside = from && to ? d.day < from || d.day > to : false;
-            // Capped well short of solid: the number sits on this, and pale
-            // enough to take dark text is the same rule the Scoreboard's
-            // podium follows.
-            const tint = d.calls === 0 ? 0 : 0.08 + 0.27 * (d.calls / busiest);
+            // All-time covers every day, so every day is in it.
+            const inRange = from && to ? d.day >= from && d.day <= to : true;
+            // Floored well above nothing and capped well short of solid: a day
+            // with one call has to be visibly a day with calls, and the count
+            // sits on top of this, so it stays pale enough to take dark text —
+            // the same rule the Scoreboard's podium follows.
+            const tint = d.calls === 0 ? 0 : 0.14 + 0.26 * (d.calls / busiest);
             return (
               <Link
                 key={d.day}
@@ -188,11 +190,9 @@ export function CallCalendar({
                   "relative flex aspect-square flex-col rounded-md border p-1 transition-colors",
                   picked
                     ? "border-primary ring-1 ring-primary"
-                    : "border-transparent hover:border-border",
-                  // Still a link, still tappable: a day outside the range is
-                  // one you might want to look at, which is the whole reason
-                  // this is a calendar and not a picture of the range.
-                  outside && !picked && "opacity-40",
+                    : inRange
+                      ? "border-primary/30"
+                      : "border-transparent hover:border-border",
                 )}
               >
                 <span
@@ -206,7 +206,9 @@ export function CallCalendar({
                       "text-[10px] leading-none tabular-nums",
                       d.day === today
                         ? "font-extrabold text-primary"
-                        : "text-muted-foreground/70",
+                        : // Not /70: this sits on a tint, and a muted colour
+                          // faded again disappears into it.
+                          "text-muted-foreground",
                     )}
                   >
                     {Number(d.day.slice(8))}
@@ -232,7 +234,7 @@ export function CallCalendar({
         </div>
         <p className="mt-3 text-[11px] text-muted-foreground/75">
           Shading is how busy the day was; the bar under it is the share that
-          were pickups. Faded days are outside the range above.
+          were pickups. Outlined days are the ones the range above covers.
         </p>
       </div>
     </>

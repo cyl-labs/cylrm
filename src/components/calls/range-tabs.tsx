@@ -62,15 +62,20 @@ export function RangeTabs({
   active,
   custom,
   today,
+  zoneName = "Eastern",
 }: {
   ranges: readonly { key: string; label: string }[];
   active: string;
   /** The custom range in force, or null. Passing `today` is what turns the
    *  Custom tab on at all — a screen without one keeps the plain presets. */
   custom?: CustomRange | null;
-  /** Today in the stats timezone, YYYY-MM-DD. Caps both inputs: a leaderboard
-   *  running to next week is a range with nothing in the tail of it. */
+  /** Today in the reporting timezone, YYYY-MM-DD. Caps both inputs: a
+   *  leaderboard running to next week is a range with nothing in the tail of
+   *  it. */
   today?: string;
+  /** The clock those dates are cut in, for the dialog to name. Defaults to
+   *  Eastern, which is what it said when there was only the one. */
+  zoneName?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -198,8 +203,8 @@ export function RangeTabs({
             </div>
 
             <p className="text-[12px] text-muted-foreground">
-              Both days included. Times are Eastern, like the rest of the
-              calling numbers.
+              Both days included, cut in {zoneName} time like the rest of this
+              screen.
             </p>
 
             <DialogFooter>

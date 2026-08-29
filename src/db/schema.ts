@@ -458,6 +458,15 @@ export const appUser = pgTable("app_user", {
    *  it. Null means show every region, which is what an admin reviewing all of
    *  them wants. */
   callRegion: text("call_region").$type<"sg" | "us" | "gb">(),
+  /** Which market's clock they read the calling numbers in: `sg` | `us` | `gb`.
+   *  Chosen on Stats or the Scoreboard and remembered, because "how did we do
+   *  today" is a different question in Singapore than in New York and the
+   *  reporting zone was a constant until 2026-08-29. Null means Eastern, which
+   *  is what both screens did before. Separate from `callRegion` on purpose: a
+   *  founder in Singapore reading a US floor's numbers works every market and
+   *  reads one clock, and neither answer should move the other. Payroll never
+   *  reads it — see the migration. */
+  statsRegion: text("stats_region").$type<"sg" | "us" | "gb">(),
   /** The founders' account. Another admin cannot demote it, switch it off or
    *  reset its password: being trusted with Stats and the team is a different
    *  thing from being able to lock the business out of its own CRM. */
