@@ -84,6 +84,14 @@ export async function subscribeToPush(
     });
     if (!res.ok) return "failed";
 
+    // Prove it works now rather than days from now. Without this, the first
+    // evidence that the chain holds — permission, service worker, push
+    // service — arrives when a meeting happens to fall due, and if it is
+    // silently broken nobody finds out until a demo has been missed.
+    // Best effort: the subscription is saved either way, and a test that
+    // fails to send is not a reason to tell somebody they are not subscribed.
+    void fetch("/api/push/test", { method: "POST" }).catch(() => {});
+
     return "subscribed";
   } catch {
     return "failed";

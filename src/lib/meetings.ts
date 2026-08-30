@@ -603,12 +603,18 @@ export async function sendMeetingReminders(
     const due = dueOffsets(startAt, now);
     if (due.length === 0) continue;
 
-    // Whose meeting it is. An unassigned niche or an unlinked booking falls to
-    // the admins rather than to nobody — those are exactly the ones that would
-    // otherwise be forgotten.
+    // Whose meeting it is, and who to tell if that fails.
+    //
+    // The owner of the niche first: the chase call is their job. Everything
+    // else falls to the admins — an unassigned niche, an unlinked booking, or
+    // an owner who has simply never turned reminders on. That last case is the
+    // one worth spelling out: a caller who never pressed the button would
+    // otherwise mean a booked meeting nobody is reminded about at all, which
+    // is the exact failure this feature exists to prevent. Better a founder
+    // hears about it than no one does.
     const ownerId = m.owner_id === null ? null : n(m.owner_id);
     const targets =
-      ownerId !== null && byId.has(ownerId) ? [ownerId] : ownerId === null ? admins : [];
+      ownerId !== null && byId.has(ownerId) ? [ownerId] : admins;
 
     if (targets.length === 0) {
       result.unreachable += 1;

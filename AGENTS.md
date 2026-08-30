@@ -488,11 +488,21 @@ from the same `/api/cron/meetings` tick. Schema in
   window opens rather than burned — which is also how it was accidentally
   verified: a test run outside the window sent nothing and claimed nothing,
   then sent correctly once the clock was moved inside it.
-- **A meeting is reminded to whoever owns the niche**; an unassigned or
-  unlinked one falls to the admins rather than to nobody, those being exactly
-  the ones that would otherwise be forgotten. `unreachable` is counted and
-  reported, so "no reminders went out" cannot be confused with "nothing was
-  due".
+- **A meeting is reminded to whoever owns the niche, and to the admins when
+  that fails** — an unassigned niche, an unlinked booking, or an owner who has
+  simply never turned reminders on. That last case is the one that matters: a
+  caller who never pressed the button would otherwise mean a booked meeting
+  nobody is reminded about at all, which is the exact failure the feature
+  exists to prevent. It was live for one deploy without this, and the only
+  meeting on the board belonged to a caller with no subscription while the only
+  subscriber was a founder — so the one real reminder would have gone nowhere.
+  `unreachable` is still counted for the case where nobody at all is
+  subscribed, so "no reminders went out" cannot be read as "nothing was due".
+- **Subscribing sends a test notification immediately** (`/api/push/test`,
+  fired by `subscribeToPush`). Without it the first evidence the chain works —
+  permission, service worker, push service — arrives days later when a meeting
+  falls due, and if it is silently broken nobody learns that until a demo has
+  been missed. Best effort, and to the subscriber only.
 - **A 404 or 410 deletes the subscription**; anything else is left alone. Those
   two are definitive — browser uninstalled, permission revoked, profile wiped —
   and everything else is probably a push service having a bad minute, which is
