@@ -2,6 +2,7 @@ import { PageShell } from "@/components/page-shell";
 import { MeetingsList } from "@/components/calls/meetings-list";
 import { PushToggle } from "@/components/calls/push-toggle";
 import { RefreshMeetings } from "@/components/calls/refresh-meetings";
+import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { callRegionOf, statsRegionOf } from "@/lib/users";
@@ -51,6 +52,9 @@ export default async function MeetingsPage() {
         </>
       }
     >
+      {/* Asked before the list is any use to anybody: the screen only works
+          for someone who has been told to look at it. */}
+      <PushGate vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 sm:px-6">
         {meetings.length > 0 && (
           <p className="text-[13px] text-muted-foreground">

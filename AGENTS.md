@@ -438,6 +438,25 @@ from the same `/api/cron/meetings` tick. Schema in
   ones whose domains went to spam in July, and a reminder that silently fails
   to arrive is worse than none, because people stop trusting it. Telegram was
   ruled out separately: it means asking everyone to install an app.
+- **Asked on the first visit, by `PushGate`** — a dialog with no close cross
+  that ignores Escape and outside clicks, because a button in a header is a
+  button people never press. **It is deliberately not a hard lock, and must not
+  be made one.** No browser lets a site force a permission grant, and a refusal
+  is permanent from our side: once a browser records `denied` it answers every
+  later request itself, so a caller who mis-clicks Block on the browser's own
+  prompt would be shut out of the screen they need to do their job, forever,
+  over one mis-click. The way past is therefore always present ("Skip for
+  now"), and it is remembered in `sessionStorage` rather than for good — so it
+  asks again next time instead of taking one dismissal as a decision.
+  Persistent rather than inescapable is the strongest thing that is also safe.
+  It stays out of the way where it would be a dead end: never shown when
+  permission is already `denied`, nor on an iPhone in an ordinary tab.
+- **The browser's own answer beats any flag we store**, so the gate checks
+  `pushManager.getSubscription()` before deciding to open.
+- The gate and the header toggle both go through **`lib/push-client.ts`**; a
+  second copy of "how do we subscribe" is how the two end up doing subtly
+  different things to one subscription. The toggle re-reads on window focus,
+  since the gate can subscribe from underneath it.
 - **Per browser, not per person.** A push subscription *is* a browser, so the
   button says "this browser": a caller on a laptop and a phone turns it on
   twice, and `pushToUser` sends to every endpoint they have registered.

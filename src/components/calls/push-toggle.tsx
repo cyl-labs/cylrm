@@ -4,18 +4,28 @@ import * as React from "react";
 import { Bell, BellOff, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  currentSubscription,
+  pushPermission,
+  pushSupport,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/lib/push-client";
 
 /**
- * Turn browser reminders on for this browser.
+ * Turn browser reminders on or off for this browser.
  *
- * Per browser rather than per person, because that is what a push subscription
- * is: a caller on a laptop and a phone turns it on twice, and turning it off on
- * one leaves the other working. The button says "this browser" for that reason.
+ * Per browser rather than per person, because that is what a push
+ * subscription is: a caller on a laptop and a phone turns it on twice, and
+ * turning it off on one leaves the other working. The label says so.
  *
- * Renders nothing at all when push is unsupported or unconfigured. An offer
- * that cannot be accepted is worse than no offer — on an iPhone that has not
- * been added to the Home Screen there is no `PushManager` at all, and the
- * honest answer there is a one-line explanation rather than a dead button.
+ * The first-run prompt in `PushGate` is what actually gets people subscribed;
+ * this is how they change their mind afterwards. Both go through
+ * `lib/push-client.ts` so they cannot drift into doing different things to the
+ * same subscription.
+ *
+ * Renders nothing where push is unsupported: an offer that cannot be accepted
+ * is worse than no offer.
  */
 export function PushToggle({ vapidKey }: { vapidKey?: string }) {
   const [state, setState] = React.useState<
@@ -23,69 +33,40 @@ export function PushToggle({ vapidKey }: { vapidKey?: string }) {
   >("loading");
   const [busy, setBusy] = React.useState(false);
 
-  React.useEffect(() => {
+  const sync = React.useCallback(() => {
     if (!vapidKey) return setState("unsupported");
-    if (typeof window === "undefined") return;
 
-    const supported =
-      "serviceWorker" in navigator &&
-      "PushManager" in window &&
-      "Notification" in window;
+    const support = pushSupport();
+    if (support !== "ok") return setState(support);
+    if (pushPermission() === "denied") return setState("denied");
 
-    if (!supported) {
-      // iOS supports push only from a Home Screen install, and reports it by
-      // simply not having PushManager in a normal Safari tab. Worth telling
-      // apart from "your browser cannot do this at all", because there is
-      // something the person can actually do about it.
-      const iOS =
-        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      return setState(iOS ? "ios-needs-install" : "unsupported");
-    }
-
-    if (Notification.permission === "denied") return setState("denied");
-
-    navigator.serviceWorker
-      .getRegistration()
-      .then((reg) => reg?.pushManager.getSubscription())
+    currentSubscription()
       .then((sub) => setState(sub ? "on" : "off"))
       .catch(() => setState("off"));
   }, [vapidKey]);
 
+  React.useEffect(() => {
+    sync();
+    // The gate can subscribe from underneath this component, so re-read the
+    // browser's answer when the tab is focused again rather than showing
+    // "Remind me" next to reminders that are already on.
+    window.addEventListener("focus", sync);
+    return () => window.removeEventListener("focus", sync);
+  }, [sync]);
+
   async function enable() {
-    if (!vapidKey) return;
+    if (!vapidKey || busy) return;
     setBusy(true);
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setState(permission === "denied" ? "denied" : "off");
-        return;
+      const outcome = await subscribeToPush(vapidKey);
+      if (outcome === "subscribed") {
+        setState("on");
+        toast.success("Reminders on for this browser.");
+      } else if (outcome === "denied") {
+        setState("denied");
+      } else {
+        toast.error("Could not turn reminders on.");
       }
-
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      // A worker registered a moment ago is not yet active, and subscribing
-      // through an inactive registration throws.
-      await navigator.serviceWorker.ready;
-
-      const sub = await reg.pushManager.subscribe({
-        // Required by every browser: a push that only the intended site can
-        // send, rather than anyone who learns the endpoint.
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      });
-
-      const res = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub.toJSON()),
-      });
-      if (!res.ok) throw new Error("save failed");
-
-      setState("on");
-      toast.success("Reminders on for this browser.");
-    } catch {
-      toast.error("Could not turn reminders on.");
-      setState("off");
     } finally {
       setBusy(false);
     }
@@ -94,20 +75,12 @@ export function PushToggle({ vapidKey }: { vapidKey?: string }) {
   async function disable() {
     setBusy(true);
     try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      const sub = await reg?.pushManager.getSubscription();
-      if (sub) {
-        await fetch("/api/push/subscribe", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        });
-        await sub.unsubscribe();
+      if (await unsubscribeFromPush()) {
+        setState("off");
+        toast.success("Reminders off for this browser.");
+      } else {
+        toast.error("Could not turn reminders off.");
       }
-      setState("off");
-      toast.success("Reminders off for this browser.");
-    } catch {
-      toast.error("Could not turn reminders off.");
     } finally {
       setBusy(false);
     }
@@ -155,24 +128,4 @@ export function PushToggle({ vapidKey }: { vapidKey?: string }) {
       {on ? "Reminders on" : "Remind me on this browser"}
     </button>
   );
-}
-
-/**
- * The VAPID public key, as the subscribe call wants it.
- *
- * It is distributed URL-safe base64 and `atob` only reads the standard
- * alphabet, so the two substitutions and the padding are all required — get
- * this wrong and `subscribe` fails with an opaque InvalidCharacterError.
- */
-function urlBase64ToUint8Array(base64: string): BufferSource {
-  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-  const normalised = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(normalised);
-  // Built on an explicit ArrayBuffer rather than `Uint8Array.from`, whose type
-  // is `Uint8Array<ArrayBufferLike>` — that admits a SharedArrayBuffer, which
-  // `applicationServerKey` will not take.
-  const buffer = new ArrayBuffer(raw.length);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < raw.length; i += 1) view[i] = raw.charCodeAt(i);
-  return view;
 }
