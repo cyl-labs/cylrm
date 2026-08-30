@@ -587,6 +587,15 @@ business hours where they actually are. Measured on the live data: 51% Eastern,
   *them* (`CALLABLE_NOW`). Off by default, since it hides work. The tab links
   carry it through, or switching tabs would silently reset it — the same trap
   `?list=` documented on the stats filters.
+- **The screen must say what the toggle did.** It shipped without that and read
+  as broken: the four summary tiles are list-wide by design and do not move, so
+  the only thing that changed was the button and a small "N left" badge — and
+  on a list where every lead happens to be callable (both UK niches, at 2pm
+  London) *nothing* changed, which is indistinguishable from a bug.
+  `countQueueCallableNow` supplies the other half of the fraction. It shares
+  `queueWhere` with `getCallQueue` rather than restating the tab's filter,
+  because a count that disagrees with the queue under it is worse than no
+  count.
 - **Not a split of the lists, deliberately.** A list is a niche and it is also
   the unit of ownership, so splitting "Movers" into five would break both and
   have to be redone on every import. Timezone is a property of a lead, so it is

@@ -4,6 +4,7 @@ import { ChevronLeft, Clock, Table2 } from "lucide-react";
 import {
   CALL_QUEUE_LIMIT,
   getCallList,
+  countQueueCallableNow,
   getCallQueue,
   getSavedLines,
   type CallQueueFilter,
@@ -61,9 +62,13 @@ export default async function CallListPage({
   const dialMethod = await dialMethodOf(me?.id);
   const sopRegion =
     sopRegionFor(await callRegionOf(me?.id)) ?? sopRegionFor(list.region);
-  const [leads, sop] = await Promise.all([
+  const [leads, sop, openNowCount] = await Promise.all([
     getCallQueue(listId, filter, callableNow),
     getDiallerSop(sopRegion),
+    // Both halves of the fraction. Without it the toggle changes one small
+    // badge and nothing else — the tiles above are list-wide by design — so on
+    // a list where everything happens to be callable it looks broken.
+    countQueueCallableNow(listId, filter),
   ]);
 
   // What the Queue tab holds: never rung, rung and not reached, and callbacks
@@ -206,6 +211,36 @@ export default async function CallListPage({
               <span className="hidden sm:inline">Spreadsheet</span>
             </Link>
           </div>
+
+          {/* What the toggle actually did. The tiles above count the whole
+              niche and do not move, so without this the button is the only
+              thing on the screen that changes — and on a list where every lead
+              is already callable, nothing changes at all and it reads as
+              broken. */}
+          {/* On: always worth saying, since a short queue needs explaining.
+              Off: only when some are actually asleep — telling somebody that
+              all 194 of their leads are callable is noise. */}
+          {(callableNow || openNowCount < leads.length) && (
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              {callableNow ? (
+                <>
+                  Showing the{" "}
+                  <span className="font-bold text-foreground">
+                    {openNowCount}
+                  </span>{" "}
+                  it&rsquo;s business hours for. The rest are asleep — switch to{" "}
+                  <span className="font-semibold">Any time</span> to see them.
+                </>
+              ) : (
+                <>
+                  <span className="font-bold text-foreground">
+                    {openNowCount}
+                  </span>{" "}
+                  of these can be rung right now, where they are.
+                </>
+              )}
+            </p>
+          )}
         </div>
       </div>
 

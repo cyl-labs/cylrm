@@ -620,6 +620,58 @@ export async function getCallBoard(
  * that time has passed. Then leads never tried, then everything else oldest
  * attempt first, so nobody gets rung twice while others sit untouched.
  */
+/**
+ * Which leads a dialling tab holds.
+ *
+ * Extracted so `countQueueCallableNow` counts exactly the rows `getCallQueue`
+ * would return. Two copies of this drifting apart would put a number on the
+ * screen that the queue underneath it disagrees with, which is worse than no
+ * number at all.
+ */
+function queueWhere(filter: CallQueueFilter) {
+  return filter === "queue"
+    ? // A callback booked for Tuesday is not Monday's work. It leaves the
+      // queue when it is logged and comes back when its time passes, which
+      // is the whole point of asking for a time.
+      sql`and (
+        lc.outcome is null
+        or (lc.outcome not in ${TERMINAL} and lc.outcome <> 'callback')
+        or (lc.outcome = 'callback' and ${CALLBACK_DUE})
+      )`
+    : filter === "callbacks"
+      ? sql`and lc.outcome = 'callback'`
+      : filter === "closed"
+        ? sql`and lc.outcome in ${TERMINAL}`
+        : sql``;
+}
+
+/**
+ * How many of this tab's leads could be rung right now.
+ *
+ * The screen needs both halves of the fraction to say anything useful. Without
+ * it, turning "Open now" on changes a small badge and nothing else — the four
+ * summary tiles are list-wide by design — so the button looks broken even when
+ * it has just hidden a third of the queue. Worse, on a list where everything
+ * happens to be callable (both UK niches, at 2pm London) literally nothing
+ * moves, and there is no way to tell that from a bug.
+ */
+export async function countQueueCallableNow(
+  callListId: number,
+  filter: CallQueueFilter = "queue",
+): Promise<number> {
+  const [row] = (await db.execute(sql`
+    select count(l.id) as n
+    from call_lead l
+    ${latestCall}
+    ${leadZone}
+    where l.call_list_id = ${callListId}
+      and l.duplicate_of_lead_id is null
+      ${queueWhere(filter)}
+      and ${CALLABLE_NOW}
+  `)) as Row[];
+  return n(row?.n);
+}
+
 /** Ceiling on one dialling view. Every lead below the current card is listed,
  *  so this bounds the page as well as the query; the screen says when it
  *  bites rather than calling a partial list "All". */
@@ -639,21 +691,7 @@ export async function getCallQueue(
    */
   callableNow = false,
 ): Promise<QueueLead[]> {
-  const where =
-    filter === "queue"
-      ? // A callback booked for Tuesday is not Monday's work. It leaves the
-        // queue when it is logged and comes back when its time passes, which
-        // is the whole point of asking for a time.
-        sql`and (
-          lc.outcome is null
-          or (lc.outcome not in ${TERMINAL} and lc.outcome <> 'callback')
-          or (lc.outcome = 'callback' and ${CALLBACK_DUE})
-        )`
-      : filter === "callbacks"
-        ? sql`and lc.outcome = 'callback'`
-        : filter === "closed"
-          ? sql`and lc.outcome in ${TERMINAL}`
-          : sql``;
+  const where = queueWhere(filter);
 
   const rows = (await db.execute(sql`
     select ${leadColumns}
