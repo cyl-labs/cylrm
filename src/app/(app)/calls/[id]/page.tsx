@@ -4,7 +4,7 @@ import { ChevronLeft, Clock, Table2 } from "lucide-react";
 import {
   CALL_QUEUE_LIMIT,
   getCallList,
-  countQueueCallableNow,
+  countQueueSplit,
   getCallQueue,
   getSavedLines,
   type CallQueueFilter,
@@ -62,13 +62,13 @@ export default async function CallListPage({
   const dialMethod = await dialMethodOf(me?.id);
   const sopRegion =
     sopRegionFor(await callRegionOf(me?.id)) ?? sopRegionFor(list.region);
-  const [leads, sop, openNowCount] = await Promise.all([
+  const [leads, sop, split] = await Promise.all([
     getCallQueue(listId, filter, callableNow),
     getDiallerSop(sopRegion),
-    // Both halves of the fraction. Without it the toggle changes one small
-    // badge and nothing else — the tiles above are list-wide by design — so on
-    // a list where everything happens to be callable it looks broken.
-    countQueueCallableNow(listId, filter),
+    // Both halves. The tiles above are list-wide by design and never move, so
+    // without these the toggle changes one small badge and reads as broken —
+    // and one number alone reads as "135 are being shown" when 194 are.
+    countQueueSplit(listId, filter),
   ]);
 
   // What the Queue tab holds: never rung, rung and not reached, and callbacks
@@ -194,9 +194,11 @@ export default async function CallListPage({
               )}
             >
               <Clock className="size-4" strokeWidth={1.9} />
-              <span className="hidden sm:inline">
-                {callableNow ? "Open now" : "Any time"}
-              </span>
+              {/* Always the same word, lit when it is on — a filter chip says
+                  what it filters to. Labelling it "Any time" when off named
+                  the current state instead, and was read as the filter being
+                  already applied. */}
+              <span className="hidden sm:inline">Open now</span>
             </Link>
             {/* Straight to this niche's tab on the Spreadsheet screen, rather
                 than to the whole workbook with the right tab to be found.
@@ -217,26 +219,35 @@ export default async function CallListPage({
               thing on the screen that changes — and on a list where every lead
               is already callable, nothing changes at all and it reads as
               broken. */}
-          {/* On: always worth saying, since a short queue needs explaining.
-              Off: only when some are actually asleep — telling somebody that
-              all 194 of their leads are callable is noise. */}
-          {(callableNow || openNowCount < leads.length) && (
+          {/* Both numbers, always. One alone ("135 can be rung right now")
+              sitting above a queue of 194 was read as 135 being shown. */}
+          {split.callableNow < split.total && (
             <p className="mt-2 text-[13px] text-muted-foreground">
               {callableNow ? (
                 <>
                   Showing the{" "}
                   <span className="font-bold text-foreground">
-                    {openNowCount}
+                    {split.callableNow}
                   </span>{" "}
-                  it&rsquo;s business hours for. The rest are asleep — switch to{" "}
-                  <span className="font-semibold">Any time</span> to see them.
+                  {split.callableNow === 1 ? "lead" : "leads"}{" "}
+                  it&rsquo;s business hours for.{" "}
+                  {split.total - split.callableNow} more{" "}
+                  {split.total - split.callableNow === 1 ? "is" : "are"} asleep
+                  where they are.
                 </>
               ) : (
                 <>
+                  Showing all{" "}
                   <span className="font-bold text-foreground">
-                    {openNowCount}
+                    {split.total}
+                  </span>
+                  .{" "}
+                  <span className="font-bold text-foreground">
+                    {split.callableNow}
                   </span>{" "}
-                  of these can be rung right now, where they are.
+                  {split.callableNow === 1 ? "is" : "are"} open right now —
+                  tap <span className="font-semibold">Open now</span> to work
+                  just those.
                 </>
               )}
             </p>

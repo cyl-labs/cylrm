@@ -592,10 +592,16 @@ business hours where they actually are. Measured on the live data: 51% Eastern,
   the only thing that changed was the button and a small "N left" badge — and
   on a list where every lead happens to be callable (both UK niches, at 2pm
   London) *nothing* changed, which is indistinguishable from a bug.
-  `countQueueCallableNow` supplies the other half of the fraction. It shares
+  `countQueueSplit` returns both halves in one query, and the line prints
+  **both**: showing only the callable number ("135 can be rung right now") over
+  a queue of 194 was then read as 135 being what was shown. It shares
   `queueWhere` with `getCallQueue` rather than restating the tab's filter,
   because a count that disagrees with the queue under it is worse than no
   count.
+- **The toggle is labelled by what it filters to, not by the current state.**
+  It read "Any time" when off, which names the state and was taken to mean the
+  filter was already applied. It now always says "Open now" and lights up when
+  active, like any filter chip.
 - **Not a split of the lists, deliberately.** A list is a niche and it is also
   the unit of ownership, so splitting "Movers" into five would break both and
   have to be redone on every import. Timezone is a property of a lead, so it is

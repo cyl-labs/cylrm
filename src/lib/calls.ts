@@ -646,30 +646,37 @@ function queueWhere(filter: CallQueueFilter) {
 }
 
 /**
- * How many of this tab's leads could be rung right now.
+ * How big this tab is, and how much of it can be rung right now.
  *
- * The screen needs both halves of the fraction to say anything useful. Without
- * it, turning "Open now" on changes a small badge and nothing else — the four
- * summary tiles are list-wide by design — so the button looks broken even when
- * it has just hidden a third of the queue. Worse, on a list where everything
- * happens to be callable (both UK niches, at 2pm London) literally nothing
- * moves, and there is no way to tell that from a bug.
+ * Both halves in one query, because the screen has to show both. Turning the
+ * filter on shipped changing nothing but the button and a small badge — the
+ * four summary tiles are list-wide by design — so it read as broken, and on a
+ * list where every lead happens to be callable (both UK niches, at 2pm London)
+ * literally nothing moved.
+ *
+ * Giving only the callable half was the second mistake: "135 of these can be
+ * rung right now" above a queue of 194 reads as though 135 are being shown.
+ * Both numbers, always, removes the ambiguity.
+ *
+ * Shares `queueWhere` with `getCallQueue` rather than restating the tab's
+ * filter: a count that disagrees with the queue printed under it is worse than
+ * no count.
  */
-export async function countQueueCallableNow(
+export async function countQueueSplit(
   callListId: number,
   filter: CallQueueFilter = "queue",
-): Promise<number> {
+): Promise<{ total: number; callableNow: number }> {
   const [row] = (await db.execute(sql`
-    select count(l.id) as n
+    select count(l.id) as total,
+      count(l.id) filter (where ${CALLABLE_NOW}) as callable_now
     from call_lead l
     ${latestCall}
     ${leadZone}
     where l.call_list_id = ${callListId}
       and l.duplicate_of_lead_id is null
       ${queueWhere(filter)}
-      and ${CALLABLE_NOW}
   `)) as Row[];
-  return n(row?.n);
+  return { total: n(row?.total), callableNow: n(row?.callable_now) };
 }
 
 /** Ceiling on one dialling view. Every lead below the current card is listed,
