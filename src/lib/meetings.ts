@@ -6,6 +6,7 @@ import { dialCountry } from "@/lib/phone";
 import { callScope, type CurrentUser } from "@/lib/session";
 import { callRegionOf, statsRegionOf } from "@/lib/users";
 import { statsZone } from "@/lib/stats-zones";
+import { pushConfigured, pushToUser } from "@/lib/push";
 import {
   bookingPhoneKey,
   calConfigured,
@@ -431,6 +432,114 @@ export async function countMeetingsToChaseFor(
     (await statsRegionOf(me?.id)) ?? (await callRegionOf(me?.id)),
   );
   return countMeetingsToChase(callScope(me), zone.tz);
+}
+
+/* ------------------------------------------------------------------ *
+ * Reminders
+ * ------------------------------------------------------------------ */
+
+/** Not before this hour in the person's own clock. A reminder that arrives at
+ *  4am is a reminder somebody turns off. */
+const REMINDER_FROM_HOUR = 8;
+/** Nor after it. By this point the day is over and it will keep till morning,
+ *  when there is still time to make the call. */
+const REMINDER_UNTIL_HOUR = 19;
+
+export type ReminderResult = {
+  skipped?: "unconfigured";
+  /** People with a subscription who were considered this tick. */
+  considered: number;
+  sent: number;
+  /** Notifications that went to a browser. More than `sent` when somebody has
+   *  registered a laptop and a phone. */
+  deliveries: number;
+};
+
+/** Their local date as YYYY-MM-DD and the hour on their clock. Both come off
+ *  `Intl` rather than arithmetic so daylight saving is the zone database's
+ *  problem — Eastern and London both have it, and this is the kind of code
+ *  that would otherwise be an hour wrong twice a year. */
+function localNow(tz: string, now: Date) {
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "numeric",
+      // h23 rather than hour12:false, which renders midnight as 24 in some
+      // locales and would put the gate an hour out one day in a thousand.
+      hourCycle: "h23",
+    }).format(now),
+  );
+  return { date, hour };
+}
+
+/**
+ * Nudge anyone who has meetings to confirm and has not been told today.
+ *
+ * Runs on the same five-minute tick as the sync, which is why the day's send
+ * is claimed by an insert into `meeting_push_log` rather than decided by a
+ * check: two overlapping ticks can both pass a check and both send, but only
+ * one can win a unique index. The row is written *before* the push goes out,
+ * so the failure mode is a missed reminder rather than 288 of them.
+ */
+export async function sendMeetingReminders(
+  now: Date = new Date(),
+): Promise<ReminderResult> {
+  const empty = { considered: 0, sent: 0, deliveries: 0 };
+  if (!pushConfigured()) return { ...empty, skipped: "unconfigured" };
+
+  const people = (await db.execute(sql`
+    select distinct u.id, u.role, u.stats_region, u.call_region
+    from app_user u
+    join push_subscription ps on ps.user_id = u.id
+    where u.active
+  `)) as Row[];
+
+  const result = { ...empty, considered: people.length };
+
+  for (const p of people) {
+    const id = n(p.id);
+    const zone = statsZone(p.stats_region ?? p.call_region);
+    const { date, hour } = localNow(zone.tz, now);
+    if (hour < REMINDER_FROM_HOUR || hour >= REMINDER_UNTIL_HOUR) continue;
+
+    // An admin's scope is everybody's meetings, a caller's is their own — the
+    // same rule the screen uses, so the number in the notification is the
+    // number they will see when they open it.
+    const owner = p.role === "admin" ? undefined : id;
+    const due = await countMeetingsToChase(owner, zone.tz);
+    if (due === 0) continue;
+
+    const claimed = (await db.execute(sql`
+      insert into meeting_push_log (user_id, sent_on, meetings)
+      values (${id}, ${date}, ${due})
+      on conflict (user_id, sent_on) do nothing
+      returning id
+    `)) as Row[];
+    if (claimed.length === 0) continue;
+
+    const deliveries = await pushToUser(id, {
+      title: due === 1 ? "1 meeting to confirm" : `${due} meetings to confirm`,
+      body:
+        due === 1
+          ? "Ring them to confirm they are still coming."
+          : "Ring them to confirm they are still coming.",
+      url: "/meetings",
+      // One tag, so a second day's reminder replaces an unread first rather
+      // than stacking up behind it.
+      tag: "cylrm-meetings",
+    });
+
+    result.sent += 1;
+    result.deliveries += deliveries;
+  }
+
+  return result;
 }
 
 /** One meeting, scoped exactly as the list is: a caller asking for a meeting

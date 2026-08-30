@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { syncMeetings } from "@/lib/meetings";
+import { sendMeetingReminders, syncMeetings } from "@/lib/meetings";
 
 /**
  * Pull the booked meetings off Cal.com.
@@ -16,5 +16,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const result = await syncMeetings();
-  return NextResponse.json({ ok: true, job: "meetings", ...result });
+  // After the sync, never before: a meeting cancelled ten minutes ago should
+  // not be in the count somebody is pushed about.
+  const reminders = await sendMeetingReminders();
+  return NextResponse.json({ ok: true, job: "meetings", ...result, reminders });
 }

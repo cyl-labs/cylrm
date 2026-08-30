@@ -1,5 +1,6 @@
 import { PageShell } from "@/components/page-shell";
 import { MeetingsList } from "@/components/calls/meetings-list";
+import { PushToggle } from "@/components/calls/push-toggle";
 import { getMeetings } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { callRegionOf, statsRegionOf } from "@/lib/users";
@@ -36,7 +37,12 @@ export default async function MeetingsPage() {
   const cancelled = meetings.filter((m) => m.status === "cancelled").length;
 
   return (
-    <PageShell title="Meetings">
+    <PageShell
+      title="Meetings"
+      // Per browser, not per person — see PushToggle. It renders nothing at
+      // all where push cannot work, rather than offering a dead button.
+      actions={<PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />}
+    >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 sm:px-6">
         {meetings.length > 0 && (
           <p className="text-[13px] text-muted-foreground">

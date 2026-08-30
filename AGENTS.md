@@ -410,6 +410,66 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   ordering the call-outcome enum and `app_user` migrations needed and for a
   worse reason: those broke one feature, this locks everybody out.
 
+### Browser push reminders
+
+A meeting reminder has to reach somebody who has not opened the CRM yet today.
+`src/lib/push.ts` + `public/sw.js` + `components/calls/push-toggle.tsx`, sent
+from the same `/api/cron/meetings` tick. Schema in
+`2026-08-30-push-subscription.sql`.
+
+- **Push, not email, and the deciding reason is deliverability.** On a desktop
+  it installs nothing and costs one "Allow"; there is no address to collect,
+  `app_user` having no email column; and there is no spam folder. That last one
+  settled it — the only mailboxes this app can send from are the cold-outreach
+  ones whose domains went to spam in July, and a reminder that silently fails
+  to arrive is worse than none, because people stop trusting it. Telegram was
+  ruled out separately: it means asking everyone to install an app.
+- **Per browser, not per person.** A push subscription *is* a browser, so the
+  button says "this browser": a caller on a laptop and a phone turns it on
+  twice, and `pushToUser` sends to every endpoint they have registered.
+  `endpoint` is the unique key and the route upserts on it, re-pointing the row
+  at whoever is signed in now — the floor shares machines, and a stale row
+  would send one caller's reminders to another.
+- **One nudge per person per day, claimed by an insert.** The tick runs every
+  five minutes, so `meeting_push_log` has a unique index on
+  `(user_id, sent_on)` and the day's send is *claimed* by an insert rather than
+  decided by a check — two overlapping ticks can both pass a check but only one
+  can win an index. The row is written **before** the push goes out, so the
+  failure mode is a missed reminder rather than 288 of them.
+- **`sent_on` is their local date and the send window is their local clock**
+  (08:00–19:00, `REMINDER_FROM_HOUR`/`_UNTIL_HOUR`). A reminder is about
+  somebody's working day and a caller in Singapore is not on the same one as a
+  caller in New York. Both come off `Intl` rather than arithmetic, so daylight
+  saving stays the zone database's problem — Eastern and London both have it,
+  and this is exactly the code that is otherwise an hour wrong twice a year.
+- **A 404 or 410 deletes the subscription**; anything else is left alone. Those
+  two are definitive — browser uninstalled, permission revoked, profile wiped —
+  and everything else is probably a push service having a bad minute, which is
+  no reason to throw away somebody's registration. Verified against a local
+  sink returning each.
+- **The service worker caches nothing and intercepts no requests.** Offline
+  support is a different feature with different failure modes, and a caching
+  service worker that goes wrong serves people a stale CRM. `notificationclick`
+  focuses an existing tab rather than opening a second one, because a caller
+  mid-call has a live browser call in one of them.
+- **The toggle renders nothing where push cannot work**, rather than offering a
+  dead button. iOS is told apart from genuinely-unsupported and gets the one
+  thing it can act on — Add to Home Screen — since Safari exposes no
+  `PushManager` in a normal tab.
+- `urlBase64ToUint8Array` must build on an explicit `ArrayBuffer`:
+  `Uint8Array.from` types as `Uint8Array<ArrayBufferLike>`, which admits a
+  `SharedArrayBuffer` and is rejected by `applicationServerKey`.
+- Env: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
+  Unset means no button and no sends, and nothing else changes. Generate with
+  `node -e "console.log(require('web-push').generateVAPIDKeys())"` — **the pair
+  is an identity, so rotating it invalidates every existing subscription** and
+  everyone has to press the button again.
+- Testing without a browser: `web-push` always uses TLS to the endpoint, so a
+  local sink has to be HTTPS with a self-signed cert and the app started with
+  `NODE_TLS_REJECT_UNAUTHORIZED=0`. Headless Chromium also hard-codes
+  `Notification.permission` to `denied`, so the normal button state only
+  renders if the getter is stubbed.
+
 ## Payroll (Call CRM)
 
 `/payroll` works out what each caller is owed and records what has been handed

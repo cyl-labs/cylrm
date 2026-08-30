@@ -1039,3 +1039,70 @@ export const callMeetingFollowup = pgTable(
     ),
   ],
 );
+
+/**
+ * A browser signed up for push notifications.
+ *
+ * Push rather than email for the meeting reminders: on a desktop it costs the
+ * person one "Allow" and installs nothing, there is no address to collect
+ * (`app_user` has none), and there is no spam folder to disappear into — which
+ * is the deciding factor, since the only mailboxes this app can send from are
+ * the cold-outreach ones whose domains are burned. A reminder that silently
+ * fails to arrive is worse than none, because people stop trusting it.
+ */
+export const pushSubscription = pgTable(
+  "push_subscription",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    /** The push service's URL for this browser, and the identity of the
+     *  subscription: one person on a laptop and a phone has two rows, and
+     *  re-subscribing in the same browser hands back the same endpoint — which
+     *  is why the route upserts on it rather than accumulating duplicates. */
+    endpoint: text("endpoint").notNull().unique(),
+    /** The browser's keys, used to encrypt each payload so the push service
+     *  relaying it cannot read what it carries. */
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Last successful send. A dead subscription is deleted on the 404/410 the
+     *  push service answers with, so this is for looking at, not for logic. */
+    lastOkAt: timestamp("last_ok_at", { withTimezone: true }),
+  },
+  (t) => [index("push_subscription_user_idx").on(t.userId)],
+);
+
+/**
+ * One nudge per person per day.
+ *
+ * The tick that sends these runs every five minutes, so with no record of what
+ * has gone out a caller would be pushed 288 times a day — the same lesson
+ * `send_issue.signature` taught. The unique index is the mechanism rather than
+ * a check in the route, because two overlapping ticks cannot both win an
+ * insert but can both pass a check.
+ *
+ * `sentOn` is *their* local date. A reminder is about somebody's working day,
+ * and a caller in Singapore and one in New York are not on the same one.
+ */
+export const meetingPushLog = pgTable(
+  "meeting_push_log",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    sentOn: date("sent_on").notNull(),
+    meetings: integer("meetings").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("meeting_push_log_once_per_day_idx").on(t.userId, t.sentOn),
+  ],
+);
