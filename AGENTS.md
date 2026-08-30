@@ -463,18 +463,36 @@ from the same `/api/cron/meetings` tick. Schema in
   `endpoint` is the unique key and the route upserts on it, re-pointing the row
   at whoever is signed in now — the floor shares machines, and a stale row
   would send one caller's reminders to another.
-- **One nudge per person per day, claimed by an insert.** The tick runs every
-  five minutes, so `meeting_push_log` has a unique index on
-  `(user_id, sent_on)` and the day's send is *claimed* by an insert rather than
-  decided by a check — two overlapping ticks can both pass a check but only one
-  can win an index. The row is written **before** the push goes out, so the
-  failure mode is a missed reminder rather than 288 of them.
-- **`sent_on` is their local date and the send window is their local clock**
-  (08:00–19:00, `REMINDER_FROM_HOUR`/`_UNTIL_HOUR`). A reminder is about
-  somebody's working day and a caller in Singapore is not on the same one as a
-  caller in New York. Both come off `Intl` rather than arithmetic, so daylight
-  saving stays the zone database's problem — Eastern and London both have it,
-  and this is exactly the code that is otherwise an hour wrong twice a year.
+- **Reminders are per meeting at fixed offsets, not a daily digest.** Four
+  hours and twenty-four hours before it starts (`REMINDER_OFFSETS`), matching
+  what the SOP asks for — the day before, or on the day. It shipped as a
+  once-a-day digest per person and that was wrong: it only fired on days with
+  something owed, so it was not as noisy as it sounds, but the timing hung off
+  the *reader's* day rather than the meeting, which leaves a hole. A demo
+  booked at 4pm for 10am tomorrow has already missed today's digest, and
+  tomorrow's may not go out until after the meeting — that one gets no
+  reminder at all.
+- **Every offset already past is claimed, but only one notification is sent.**
+  A demo booked two hours before it starts has *both* offsets behind it;
+  claiming only the urgent one would leave the day-before reminder to fire on
+  the next tick, as a second notification about a meeting that has by then
+  happened.
+- **The claim is an insert into `meeting_reminder_sent`, keyed on
+  `(meeting_id, kind, for_start_at)`.** The tick runs every five minutes and
+  two overlapping ones can both pass a check but only one can win an index.
+  `for_start_at` is in the key for the same reason the follow-up carries it: a
+  reschedule must re-arm the reminders, and a row pinned to the old time no
+  longer matches.
+- **Quiet hours (08:00–19:00, the recipient's own clock) skip without
+  claiming.** A reminder falling due at 3am is left for the tick after the
+  window opens rather than burned — which is also how it was accidentally
+  verified: a test run outside the window sent nothing and claimed nothing,
+  then sent correctly once the clock was moved inside it.
+- **A meeting is reminded to whoever owns the niche**; an unassigned or
+  unlinked one falls to the admins rather than to nobody, those being exactly
+  the ones that would otherwise be forgotten. `unreachable` is counted and
+  reported, so "no reminders went out" cannot be confused with "nothing was
+  due".
 - **A 404 or 410 deletes the subscription**; anything else is left alone. Those
   two are definitive — browser uninstalled, permission revoked, profile wiped —
   and everything else is probably a push service having a bad minute, which is

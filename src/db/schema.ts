@@ -1078,31 +1078,55 @@ export const pushSubscription = pgTable(
 );
 
 /**
- * One nudge per person per day.
+ * A reminder that has gone out for one meeting.
  *
- * The tick that sends these runs every five minutes, so with no record of what
- * has gone out a caller would be pushed 288 times a day — the same lesson
- * `send_issue.signature` taught. The unique index is the mechanism rather than
- * a check in the route, because two overlapping ticks cannot both win an
- * insert but can both pass a check.
+ * Replaced a per-person-per-day digest. That one only fired on days with
+ * something owed, so it was not as noisy as it sounds, but its timing hung off
+ * the reader's day rather than off the meeting — and that leaves a hole. A demo
+ * booked at 4pm for 10am tomorrow has already missed today's digest, and
+ * tomorrow's may not go out until after the meeting. It would get no reminder
+ * at all.
  *
- * `sentOn` is *their* local date. A reminder is about somebody's working day,
- * and a caller in Singapore and one in New York are not on the same one.
+ * Each meeting now carries its own reminders, at fixed offsets before it.
  */
-export const meetingPushLog = pgTable(
-  "meeting_push_log",
+export const meetingReminderSent = pgTable(
+  "meeting_reminder_sent",
   {
     id: serial("id").primaryKey(),
-    userId: integer("user_id")
+    meetingId: integer("meeting_id")
       .notNull()
-      .references(() => appUser.id, { onDelete: "cascade" }),
-    sentOn: date("sent_on").notNull(),
-    meetings: integer("meetings").notNull(),
+      .references(() => callMeeting.id, { onDelete: "cascade" }),
+    /** Which offset: `day_before` | `same_day`. Text rather than an enum so a
+     *  third needs no migration — and an enum that both drops and adds values
+     *  is the one thing `drizzle-kit push` cannot do without a TTY. */
+    kind: text("kind").notNull().$type<"day_before" | "same_day">(),
+    /**
+     * The meeting time this was sent for.
+     *
+     * Part of the unique key, for the same reason the follow-up carries it: a
+     * prospect who moves the meeting must be reminded about the new slot, and
+     * a row pinned to the old time no longer matches, so the reminders re-arm
+     * by themselves. Without it, rescheduling would silently cost every
+     * reminder for that meeting.
+     */
+    forStartAt: timestamp("for_start_at", { withTimezone: true }).notNull(),
+    /** Who it reached. Null when the reminder was claimed but nothing could be
+     *  delivered — nobody subscribed, or every endpoint was dead. */
+    userId: integer("user_id").references(() => appUser.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
-    uniqueIndex("meeting_push_log_once_per_day_idx").on(t.userId, t.sentOn),
+    // The claim is an insert rather than a check: the tick runs every five
+    // minutes and two overlapping ones can both pass a check, but only one can
+    // win an index.
+    uniqueIndex("meeting_reminder_sent_once_idx").on(
+      t.meetingId,
+      t.kind,
+      t.forStartAt,
+    ),
   ],
 );

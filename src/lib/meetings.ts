@@ -457,102 +457,198 @@ export async function countMeetingsToChaseFor(
 /** Not before this hour in the person's own clock. A reminder that arrives at
  *  4am is a reminder somebody turns off. */
 const REMINDER_FROM_HOUR = 8;
-/** Nor after it. By this point the day is over and it will keep till morning,
- *  when there is still time to make the call. */
+/** Nor after it. */
 const REMINDER_UNTIL_HOUR = 19;
+
+/**
+ * When each meeting is reminded about, as hours before it starts.
+ *
+ * Two, matching what the SOP asks for: ring them the day before, or on the
+ * day. `same_day` is four hours out rather than one, because the point is to
+ * catch a prospect who has forgotten while there is still time for them to
+ * rearrange their morning.
+ *
+ * Ordered most urgent first — `dueOffsets` relies on it.
+ */
+const REMINDER_OFFSETS = [
+  { kind: "same_day" as const, hoursBefore: 4 },
+  { kind: "day_before" as const, hoursBefore: 24 },
+];
 
 export type ReminderResult = {
   skipped?: "unconfigured";
-  /** People with a subscription who were considered this tick. */
+  /** Unconfirmed meetings still ahead that were examined this tick. */
   considered: number;
+  /** Meetings that had a reminder fall due and got one. */
   sent: number;
-  /** Notifications that went to a browser. More than `sent` when somebody has
+  /** Notifications that reached a browser. More than `sent` when somebody has
    *  registered a laptop and a phone. */
   deliveries: number;
+  /** Due, but nobody to tell: the niche is unassigned or its owner has no
+   *  browser registered. Reported rather than silent, because "no reminders
+   *  went out today" otherwise looks identical to "nothing was due". */
+  unreachable: number;
 };
 
 /** Their local date as YYYY-MM-DD and the hour on their clock. Both come off
  *  `Intl` rather than arithmetic so daylight saving is the zone database's
  *  problem — Eastern and London both have it, and this is the kind of code
  *  that would otherwise be an hour wrong twice a year. */
-function localNow(tz: string, now: Date) {
-  const date = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-  const hour = Number(
+function localHour(tz: string, now: Date): number {
+  return Number(
     new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       hour: "numeric",
       // h23 rather than hour12:false, which renders midnight as 24 in some
-      // locales and would put the gate an hour out one day in a thousand.
+      // locales and would put the gate an hour out.
       hourCycle: "h23",
     }).format(now),
   );
-  return { date, hour };
+}
+
+/** How the meeting time reads to the person being told about it. */
+function whenPhrase(startAt: Date, tz: string, now: Date): string {
+  const day = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(startAt);
+
+  const today = day(now);
+  const tomorrow = day(new Date(now.getTime() + 24 * 3600_000));
+  const on = day(startAt);
+  if (on === today) return `today at ${time}`;
+  if (on === tomorrow) return `tomorrow at ${time}`;
+  return `${new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(startAt)} at ${time}`;
 }
 
 /**
- * Nudge anyone who has meetings to confirm and has not been told today.
+ * Which offsets have come due for a meeting, most urgent first.
  *
- * Runs on the same five-minute tick as the sync, which is why the day's send
- * is claimed by an insert into `meeting_push_log` rather than decided by a
- * check: two overlapping ticks can both pass a check and both send, but only
- * one can win a unique index. The row is written *before* the push goes out,
- * so the failure mode is a missed reminder rather than 288 of them.
+ * All of them are returned, not just the nearest, because every one that has
+ * passed must be claimed: a demo booked two hours before it starts has *both*
+ * offsets already behind it, and claiming only the urgent one would leave the
+ * day-before reminder to fire on the next tick — a second notification about a
+ * meeting that has by then already happened.
+ */
+function dueOffsets(startAt: Date, now: Date) {
+  return REMINDER_OFFSETS.filter(
+    (o) => now.getTime() >= startAt.getTime() - o.hoursBefore * 3600_000,
+  );
+}
+
+/**
+ * Remind about each meeting at fixed points before it.
+ *
+ * Runs on the same five-minute tick as the sync. A reminder is *claimed* by an
+ * insert into `meeting_reminder_sent` rather than decided by a check, because
+ * two overlapping ticks can both pass a check but only one can win a unique
+ * index. The row is written before the push goes out, so a failure costs one
+ * missed reminder rather than a loop of them.
+ *
+ * Quiet hours are honoured and deliberately do *not* claim: a reminder falling
+ * due at 3am is left for the tick after the window opens, rather than burned.
  */
 export async function sendMeetingReminders(
   now: Date = new Date(),
 ): Promise<ReminderResult> {
-  const empty = { considered: 0, sent: 0, deliveries: 0 };
+  const empty = { considered: 0, sent: 0, deliveries: 0, unreachable: 0 };
   if (!pushConfigured()) return { ...empty, skipped: "unconfigured" };
 
-  const people = (await db.execute(sql`
+  // Everybody who could be told anything, fetched once.
+  const subscribers = (await db.execute(sql`
     select distinct u.id, u.role, u.stats_region, u.call_region
     from app_user u
     join push_subscription ps on ps.user_id = u.id
     where u.active
   `)) as Row[];
+  if (subscribers.length === 0) return empty;
 
-  const result = { ...empty, considered: people.length };
+  const byId = new Map(subscribers.map((u) => [n(u.id), u]));
+  const admins = subscribers.filter((u) => u.role === "admin").map((u) => n(u.id));
 
-  for (const p of people) {
-    const id = n(p.id);
-    const zone = statsZone(p.stats_region ?? p.call_region);
-    const { date, hour } = localNow(zone.tz, now);
-    if (hour < REMINDER_FROM_HOUR || hour >= REMINDER_UNTIL_HOUR) continue;
+  // Unconfirmed meetings still ahead of us. A confirmed one needs no nudge,
+  // and `latestFollowup` is pinned to the current start_at, so a rescheduled
+  // meeting counts as unconfirmed again — which is the intent.
+  const meetings = (await db.execute(sql`
+    select m.id, m.start_at,
+      coalesce(l.company, l.name, m.attendee_name) as who,
+      cl.assigned_user_id as owner_id
+    from call_meeting m
+    left join call_lead l on l.id = m.call_lead_id
+    left join call_list cl on cl.id = l.call_list_id
+    ${latestFollowup}
+    where m.status = 'accepted'
+      and m.start_at > now()
+      and f.id is null
+  `)) as Row[];
 
-    // An admin's scope is everybody's meetings, a caller's is their own — the
-    // same rule the screen uses, so the number in the notification is the
-    // number they will see when they open it.
-    const owner = p.role === "admin" ? undefined : id;
-    const due = await countMeetingsToChase(owner, zone.tz);
-    if (due === 0) continue;
+  const result = { ...empty, considered: meetings.length };
 
-    const claimed = (await db.execute(sql`
-      insert into meeting_push_log (user_id, sent_on, meetings)
-      values (${id}, ${date}, ${due})
-      on conflict (user_id, sent_on) do nothing
-      returning id
-    `)) as Row[];
-    if (claimed.length === 0) continue;
+  for (const m of meetings) {
+    const id = n(m.id);
+    const startAt = new Date(m.start_at as string);
+    const due = dueOffsets(startAt, now);
+    if (due.length === 0) continue;
 
-    const deliveries = await pushToUser(id, {
-      title: due === 1 ? "1 meeting to confirm" : `${due} meetings to confirm`,
-      body:
-        due === 1
-          ? "Ring them to confirm they are still coming."
-          : "Ring them to confirm they are still coming.",
-      url: "/meetings",
-      // One tag, so a second day's reminder replaces an unread first rather
-      // than stacking up behind it.
-      tag: "cylrm-meetings",
-    });
+    // Whose meeting it is. An unassigned niche or an unlinked booking falls to
+    // the admins rather than to nobody — those are exactly the ones that would
+    // otherwise be forgotten.
+    const ownerId = m.owner_id === null ? null : n(m.owner_id);
+    const targets =
+      ownerId !== null && byId.has(ownerId) ? [ownerId] : ownerId === null ? admins : [];
 
-    result.sent += 1;
-    result.deliveries += deliveries;
+    if (targets.length === 0) {
+      result.unreachable += 1;
+      continue;
+    }
+
+    for (const userId of targets) {
+      const who = byId.get(userId)!;
+      const zone = statsZone(who.stats_region ?? who.call_region);
+      const hour = localHour(zone.tz, now);
+      // Left unclaimed on purpose: a reminder that comes due at 3am should go
+      // out when the window opens, not be silently consumed.
+      if (hour < REMINDER_FROM_HOUR || hour >= REMINDER_UNTIL_HOUR) continue;
+
+      // Claim every offset that has passed, so an older one cannot fire later
+      // as a second notification about the same meeting.
+      let claimedAny = false;
+      for (const offset of due) {
+        const claimed = (await db.execute(sql`
+          insert into meeting_reminder_sent (meeting_id, kind, for_start_at, user_id)
+          values (${id}, ${offset.kind}, ${m.start_at as string}, ${userId})
+          on conflict (meeting_id, kind, for_start_at) do nothing
+          returning id
+        `)) as Row[];
+        if (claimed.length > 0) claimedAny = true;
+      }
+      if (!claimedAny) continue;
+
+      const deliveries = await pushToUser(userId, {
+        title: `${(m.who as string | null) ?? "A meeting"} — ${whenPhrase(startAt, zone.tz, now)}`,
+        body: "Ring them to confirm they are still coming.",
+        url: "/meetings",
+        // Tagged per meeting, so two different meetings stack as two
+        // notifications while a repeat about one replaces itself.
+        tag: `cylrm-meeting-${id}`,
+      });
+
+      result.sent += 1;
+      result.deliveries += deliveries;
+    }
   }
 
   return result;
