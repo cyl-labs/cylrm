@@ -30,6 +30,10 @@ async function run() {
   // but a handful of ticks. It is capped per tick because every check is paid
   // for by the number.
   await tick("dnc");
+  // Cal.com is the calendar of record for booked demos and nothing pushed
+  // that back to us. Two API calls a tick, and it is what puts a meeting on
+  // the Meetings diary and takes a cancelled one off it.
+  await tick("meetings");
 }
 
 run();

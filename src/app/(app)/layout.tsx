@@ -1,6 +1,7 @@
 import { LogOut } from "lucide-react";
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
+import { countMeetingsToChaseFor } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { canUseKeypad } from "@/lib/users";
 import { NavLinks } from "@/components/nav-links";
@@ -17,6 +18,7 @@ export default async function AppLayout({
   // the drawer that leads nowhere they are allowed to go.
   const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
   const callbacks = await countCallbacksDue(callScope(me));
+  const meetings = await countMeetingsToChaseFor(me);
   const keypad = await canUseKeypad(me?.id, me?.role);
   return (
     <div className="flex min-h-svh">
@@ -34,6 +36,7 @@ export default async function AppLayout({
           keypad={keypad}
           unreadReplies={unread}
           callbacksDue={callbacks}
+          meetingsToChase={meetings}
         />
         <div className="mt-auto px-2.5 pb-3.5">
           {/* Who you are, above the way out. The floor shares machines, and

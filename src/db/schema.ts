@@ -913,3 +913,129 @@ export const callDemoAttendance = pgTable(
       .where(sql`status = 'showed_up' and payout_id is null`),
   ],
 );
+
+/**
+ * A meeting on the calendar, read back off Cal.com.
+ *
+ * The one fact the calling side never held. A booking was a `call` row with
+ * outcome `demo_booked` and the slot itself lived on Cal.com, reaching us only
+ * as free text in the notes — so nothing could say when a meeting was, and
+ * nothing could therefore count down to one.
+ *
+ * Nothing in here is typed by a caller. `/api/cron/meetings` polls the Cal.com
+ * API and matches each booking to a lead on the phone number the dialler has
+ * been stamping into every booking's notes since the "Book it on Cal.com"
+ * button shipped — which means it works on bookings already made, with no
+ * change to how anyone books.
+ *
+ * A poll rather than a webhook on purpose: a webhook needs a public endpoint,
+ * signature verification and a backfill for every booking already on the
+ * calendar, and buys latency that a meeting a day away has no use for.
+ * Polling sees reschedules and cancellations with none of that.
+ */
+export const callMeeting = pgTable(
+  "call_meeting",
+  {
+    id: serial("id").primaryKey(),
+    /** Cal.com's stable handle, and the upsert key: a tick that runs every
+     *  five minutes sees the same booking a thousand times and must keep one
+     *  row for it. */
+    calBookingUid: text("cal_booking_uid").notNull().unique(),
+    calBookingId: integer("cal_booking_id"),
+    /**
+     * Nullable, and deliberately.
+     *
+     * A booking whose notes were edited on the Cal.com page, or one made
+     * straight off the public link by a founder, matches no lead. It still
+     * gets a row, because a meeting nobody can see is the exact failure this
+     * table exists to fix — the screen lists it as unlinked rather than
+     * dropping it.
+     */
+    callLeadId: integer("call_lead_id").references(() => callLead.id, {
+      onDelete: "set null",
+    }),
+    /** The `demo_booked` call this booking belongs to: the lead's latest one
+     *  at or before the booking was created. */
+    callId: integer("call_id").references(() => call.id, {
+      onDelete: "set null",
+    }),
+    /** `phone` | `email`, or null when nothing matched. Kept because a match
+     *  rate quietly falling to zero is otherwise indistinguishable from a
+     *  fortnight with no bookings in it. */
+    matchedBy: text("matched_by").$type<"phone" | "email">(),
+    /** A true instant from the API, never a wall clock somebody typed. The
+     *  `datetime-local` trap that put every callback eight hours out has no
+     *  way to happen here: there is no zone left to guess. */
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }),
+    /** Mirrored from Cal.com: `accepted` | `cancelled` | `pending` |
+     *  `rejected`. Cancellations arrive on their own, which is the whole
+     *  reason this is polled rather than filled in once. */
+    status: text("status").notNull().default("accepted"),
+    title: text("title"),
+    attendeeName: text("attendee_name"),
+    attendeeEmail: text("attendee_email"),
+    /** The prospect's own zone, which Cal.com knows and the SOP currently
+     *  makes the caller work out by hand. */
+    attendeeTz: text("attendee_tz"),
+    meetingUrl: text("meeting_url"),
+    syncedAt: timestamp("synced_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  // Declared here as well as in the migration: `drizzle-kit push` drops any
+  // index it cannot see in this file.
+  (t) => [
+    index("call_meeting_start_idx")
+      .on(t.startAt)
+      .where(sql`status = 'accepted'`),
+    index("call_meeting_lead_idx").on(t.callLeadId),
+  ],
+);
+
+/**
+ * A chase call made before a meeting.
+ *
+ * Kept out of the `call_outcome` enum for the same reason
+ * `call_demo_attendance` is: logging a chase as another `demo_booked` call
+ * would put the lead on payroll's confirm list twice for one meeting, and the
+ * partial unique index on `showed_up` would then refuse the answer to the
+ * duplicate. It would also re-date the lead's state, since every board and
+ * every list derives that from the latest call.
+ */
+export const callMeetingFollowup = pgTable(
+  "call_meeting_followup",
+  {
+    id: serial("id").primaryKey(),
+    meetingId: integer("meeting_id")
+      .notNull()
+      .references(() => callMeeting.id, { onDelete: "cascade" }),
+    userId: integer("user_id").references(() => appUser.id),
+    result: text("result")
+      .notNull()
+      .$type<"confirmed" | "no_answer" | "rescheduled" | "cancelled">(),
+    notes: text("notes"),
+    /**
+     * The meeting time this chase was made against.
+     *
+     * Load-bearing rather than decorative. A prospect who moves the meeting
+     * has to be chased again for the new slot, and comparing this against the
+     * booking's current `startAt` is what re-arms the row by itself the moment
+     * Cal.com reports the reschedule. Without it, a meeting confirmed once
+     * would stay confirmed however far it moved.
+     */
+    forStartAt: timestamp("for_start_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("call_meeting_followup_meeting_idx").on(
+      t.meetingId,
+      t.createdAt.desc(),
+    ),
+  ],
+);

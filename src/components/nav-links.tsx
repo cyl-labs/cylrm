@@ -15,6 +15,7 @@ export function NavLinks({
   keypad = false,
   unreadReplies = 0,
   callbacksDue = 0,
+  meetingsToChase = 0,
 }: {
   /** Decides which of this workspace's screens are on offer — a caller's has
    *  no Stats. Hiding it is the courtesy; the middleware is the control. */
@@ -24,6 +25,8 @@ export function NavLinks({
   unreadReplies?: number;
   /** Callbacks whose time has passed — the calling side's version of unread. */
   callbacksDue?: number;
+  /** Meetings today or tomorrow that nobody has rung to confirm. */
+  meetingsToChase?: number;
 }) {
   const pathname = usePathname();
   const workspace = workspaceForPath(pathname);
@@ -53,6 +56,11 @@ export function NavLinks({
             {href === "/callbacks" && callbacksDue > 0 && (
               <span className="ml-auto min-w-5 rounded-full bg-destructive px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-white">
                 {callbacksDue > 99 ? "99+" : callbacksDue}
+              </span>
+            )}
+            {href === "/meetings" && meetingsToChase > 0 && (
+              <span className="ml-auto min-w-5 rounded-full bg-destructive px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-white">
+                {meetingsToChase > 99 ? "99+" : meetingsToChase}
               </span>
             )}
           </Link>

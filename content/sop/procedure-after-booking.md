@@ -64,11 +64,18 @@ Say the time back to them once more before you hang up, in their zone.
 
 > **You say** Done. See you [day] at [time] your time.
 
+## Leave the notes box alone
+
+The Cal.com page opens with the business name and their phone number already
+in the notes. **Do not delete it.** That line is how the CRM works out which
+lead the booking belongs to, and a booking it cannot place shows up on nobody's
+Meetings screen. Add to it if you like; do not clear it.
+
 ## Then log it as Demo booked
 
-Log the call as **Demo booked** and put the email and the agreed time in the
-notes, so whoever picks the lead up next can see what was agreed without asking
-you.
+Log the call as **Demo booked** and put the email and anything worth knowing in
+the notes, so whoever picks the lead up next can see what was agreed without
+asking you. The time itself is read off Cal.com, so that part is not on you.
 
 ## What happens automatically
 
@@ -76,16 +83,51 @@ Cal.com sends the calendar invite with the Google Meet link within a minute of
 booking, and a reminder the day before. The booking email comes through to us
 at the same time, so nothing depends on you remembering.
 
+The meeting also appears on your **Meetings** screen in the CRM within a few
+minutes, with the time already on it. You never type it in anywhere.
+
 ## Tell us anyway
 
 Once it is logged, let us know. The email reaches us either way, but a word
 from you is what gets the meeting looked at the same day rather than whenever
 somebody checks the inbox.
 
-## Between the booking and the meeting
+## Open Meetings every day
 
-Nothing. You do not run the demo and you are not expected to chase them. Your
-part of the job finished when the time was agreed and logged.
+Make it the first thing you do, the same as Callbacks. **Meetings** lists every
+demo you have booked, soonest first, in your time and in theirs.
+
+The number beside Meetings in the sidebar is how many are waiting on you.
+Anything the screen has marked in red is a meeting **today or tomorrow that
+nobody has confirmed yet** — that is your list, and you work it before you
+start dialling. When the number is gone you are done.
+
+You do not have to remember which meetings are coming up, and you should not
+try to. Open the screen.
+
+## Ring them the day before, or on the day
+
+Every meeting gets a confirmation call. This is the cheapest thing you will do
+all day: a booked demo nobody rang is the one that quietly does not turn up,
+and a meeting that does not happen pays you nothing.
+
+> **You say** Hi [name], it's [your name] from Cyllabs — just confirming we're still on for [day] at [time] your time?
+
+Say the day and the time back to them in **their** zone; the screen shows it,
+so there is nothing to work out. If they cannot make it, move it there and
+then rather than letting it become a no-show.
+
+Then log it on the meeting itself — **Log the follow-up** on that row:
+
+- **Confirmed** — they said yes. The row goes quiet.
+- **No answer** — you tried and got nobody. Try again later in the day.
+- **Moved to another time** — rebook it on Cal.com. The new time comes back on
+  its own and the meeting reappears to be confirmed again.
+- **They cancelled** — done, and tell us.
+
+A confirmation call is not a dial in your numbers and it is not an extra
+outcome on the lead. It does not change what you are paid; it protects the
+meeting you have already earned.
 
 ## If they do not show up
 

@@ -325,6 +325,85 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
 - Aggregates in `getCallLists` count `l.id`, not `*`: a list whose leads are all cross-list duplicates joins to nothing, and `count(*)` scores the LEFT JOIN's phantom NULL row as an uncalled lead — that read "-1 of 0 worked" before it was fixed.
 - Each lead carries the company's `website`, surfaced as a link on the spreadsheet (its own editable column, with the open-in-a-tab icon stopping the click before it reaches the cell) and as a button under the number on the dial card. The data was always there — the importer keeps every raw CSV column, and `website` was in `source_fields` on 599 of 679 leads — so `2026-08-13-call-lead-website.sql` promotes it to a column and backfills it. Parsing lives in `src/lib/website.ts`, off the database because both callers are client components: a bare domain gets `https://` prepended rather than being dropped, and anything that will not parse as http(s) returns null so no button is offered. That last part is not tidiness — the value came off a scraped page, and `javascript:` in an href runs on click. `source_url` / `provenance_url` are deliberately not aliases: they point at the directory listing the scraper used, not the company.
 
+## Meetings and confirmation calls (Call CRM)
+
+`/meetings` is the diary of booked demos, built to be read exactly as
+`/callbacks` is — opened at the start of a shift and worked top to bottom.
+Queries in `src/lib/meetings.ts`, the Cal.com client in `src/lib/cal.ts`,
+screen under `src/app/(app)/meetings/`, sync at `/api/cron/meetings`, chase
+logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql`.
+
+- **The meeting time comes from Cal.com and nobody types it.** The CRM knew a
+  demo had been booked (`demo_booked`) and never knew *when*: the slot lives on
+  Cal.com and the agreed time only ever reached us as free text in the notes,
+  so nothing could count down to a meeting. `/api/cron/meetings` polls
+  `GET /v2/bookings` on the worker's existing five-minute tick and upserts on
+  the booking's `uid`.
+- **Bookings are matched to leads on the phone number already in the notes.**
+  The dial card has prefilled the Cal.com booking with `Company (+1520…)` since
+  the button shipped — for a human reading the calendar, not for this — so the
+  number is sitting on every booking a caller has ever made, in E.164, which is
+  `phone_key` with its plus. That is why this needed no change to how anyone
+  books and works on bookings already made: three of the four real
+  `voice-agent-demo` bookings matched on the first run, the fourth being a
+  founder's "testing" booking with no number in it. Attendee email is the
+  fallback; `matched_by` records which fired, because a match rate quietly
+  falling to zero is otherwise indistinguishable from a quiet fortnight.
+  **The consequence: the notes prefill is load-bearing.** A caller who clears
+  that box unlinks the booking, which is why the SOP now says not to.
+- **An unmatched booking still gets a row** and is listed, as unlinked, to
+  admins. A meeting nobody can see is the exact failure this feature exists to
+  fix, so dropping the ones we cannot place would be the worst possible answer.
+  Callers do not see them: `ownedBy` filters on the lead's list owner and an
+  unlinked booking is in no niche.
+- **The event type filter is required and fails closed.** That Cal.com account
+  carries the voice agent's own bookings and several clients' event types (11
+  in all), and syncing everything on it would be both noise and other people's
+  business. `calEventFilter()` derives the slug from `CAL_BOOKING_URL` — the
+  link the dial card already uses — so nothing new has to be configured;
+  `CAL_EVENT_TYPE_ID` overrides it. Neither set means nothing syncs.
+- **`upcoming` and `cancelled` are pulled, never `past`.** A cancellation is
+  the single most important thing this sync can report, and a booking that
+  merely stopped being returned would sit on the screen looking real until its
+  time passed. `past` is excluded because it would re-upsert the hundred most
+  recent finished meetings on every one of the day's 288 ticks; a one-off
+  backfill of history is that array plus one word.
+- **A chase is `call_meeting_followup`, not a `call` row.** Logging one as
+  another `demo_booked` call would put the lead on payroll's confirm list a
+  second time for one meeting — where the partial unique index on `showed_up`
+  would then refuse the duplicate an answer — and would re-date the lead's
+  state, which every board derives from the latest call. Same reasoning that
+  keeps `call_demo_attendance` out of the outcome enum. **The consequence to
+  know: a confirmation call does not count toward pickups or appear in the
+  Stats call counts.** That is defensible while the fee is paid on attendance
+  and a chase protects a meeting already earned, but it is the thing to revisit
+  if chasing ever becomes a large part of the day.
+- **`for_start_at` re-arms the chase after a reschedule.** A follow-up is
+  recorded against the meeting time it was made *for*, and the screen compares
+  that to the booking's current `start_at` — so a prospect moving the meeting
+  brings the row back by itself. It is written by a `select … from call_meeting`
+  inside the insert rather than sent from the browser, and that is not
+  tidiness: a timestamp round-tripped through JavaScript carries milliseconds
+  where the column carries microseconds, the equality never matches, and every
+  meeting sits there asking to be confirmed however many times it has been.
+  Caught in testing; do not "simplify" it back to a value from the client.
+- **Chase window is calendar days in the reader's own clock**, not a flat 24
+  hours: `(start_at at time zone tz)::date <= (now() at time zone tz)::date + 1`.
+  The rule is "the day before or the day itself", and an hours-based window
+  leaves a 5pm meeting tomorrow unflagged all of this morning — precisely when
+  there is time to make the call. The parameter needs an explicit `::int`, or
+  Postgres cannot tell days from an interval and fails with "operator is not
+  unique: date + unknown". The zone resolves `stats_region` → `call_region` →
+  Eastern, the same order Stats uses so the two screens cannot disagree about
+  what day something is on.
+- Times render in that one zone with the prospect's own alongside it when it
+  differs — `attendees[].timeZone` comes free on the booking, and the SOP used
+  to make a caller work it out by hand.
+- Unset `CAL_API_KEY` means an empty screen and nothing else changes, in the
+  same spirit as `lib/notify.ts`: the sync reports why it did nothing rather
+  than throwing, so a cron tick never fails on a feature that is not switched
+  on. Safe to deploy before the migration is applied.
+
 ## Payroll (Call CRM)
 
 `/payroll` works out what each caller is owed and records what has been handed

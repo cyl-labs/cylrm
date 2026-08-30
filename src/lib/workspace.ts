@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  CalendarClock,
   Hash,
   Inbox,
   Kanban,
@@ -66,6 +67,9 @@ export const WORKSPACES: Workspace[] = [
     links: [
       { href: "/calls", label: "Call lists", icon: PhoneCall },
       { href: "/callbacks", label: "Callbacks", icon: PhoneForwarded },
+      // Next to Callbacks because it is read the same way — a diary opened at
+      // the start of a shift and worked top to bottom.
+      { href: "/meetings", label: "Meetings", icon: CalendarClock },
       { href: "/sop", label: "Scripts", icon: ScrollText },
       { href: "/call-sheet", label: "Spreadsheet", icon: Table2 },
       { href: "/call-pipeline", label: "Pipeline", icon: Kanban },
@@ -174,6 +178,7 @@ export function workspacesFor(role: "admin" | "caller" | undefined) {
 const CALL_PREFIXES = [
   "/calls",
   "/callbacks",
+  "/meetings",
   "/sop",
   "/call-sheet",
   "/call-pipeline",
