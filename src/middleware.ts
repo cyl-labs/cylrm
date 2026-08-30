@@ -46,5 +46,14 @@ export const config = {
   // link for, and the browser asks for it while signed out, on the login page
   // above all. Left in the matcher it redirects to /login and the browser is
   // handed HTML where it expected an image.
-  matcher: ["/((?!api|u/|_next/static|_next/image|favicon.ico|icon.png).*)"],
+  //
+  // `sw.js` is the same failure one step worse. The browser re-fetches a
+  // service worker to check for updates on its own schedule, not as part of
+  // any page load, so that request can easily carry a session that has since
+  // expired — and a script fetch answered with the login page's HTML does not
+  // merely fail, it can unregister the worker and silently end somebody's
+  // reminders. It is a static file with nothing private in it.
+  matcher: [
+    "/((?!api|u/|_next/static|_next/image|favicon.ico|icon.png|sw.js).*)",
+  ],
 };
