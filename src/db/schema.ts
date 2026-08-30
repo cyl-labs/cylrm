@@ -1130,3 +1130,39 @@ export const meetingReminderSent = pgTable(
     ),
   ],
 );
+/**
+ * The daily "x callbacks due today" digest, once per person per day.
+ *
+ * A digest rather than one notification per callback, which is the opposite of
+ * the choice made for meetings and deliberately so: a demo is rare and
+ * individually valuable, callbacks run at a dozen a day, and a caller who gets
+ * a dozen notifications turns notifications off — which would cost them the
+ * meeting reminders as well, and those are the expensive ones to miss.
+ *
+ * It exists at all because a callback lives nowhere but in this database.
+ * Nothing else invites the prospect or reminds anyone it was promised, so a
+ * diary nobody opens is a promise quietly broken.
+ */
+export const callbackReminderSent = pgTable(
+  "callback_reminder_sent",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    /** Their local date. This is about somebody's working day, and a caller in
+     *  Singapore is not on the same one as a caller in New York. */
+    sentOn: date("sent_on").notNull(),
+    /** What the digest claimed, kept so "you said six" can be checked. */
+    callbacks: integer("callbacks").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("callback_reminder_sent_once_per_day_idx").on(
+      t.userId,
+      t.sentOn,
+    ),
+  ],
+);

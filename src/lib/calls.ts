@@ -470,6 +470,43 @@ export const countCallbacksDue = cache(
   },
 );
 
+/**
+ * How many callbacks this person owes by the end of today — the daily digest.
+ *
+ * Deliberately a wider question than `countCallbacksDue`, which drives the
+ * sidebar badge and means "act on this now". At eight in the morning almost
+ * nothing is due yet, so a badge-shaped number would report zero and tell a
+ * caller their day is empty. This counts everything promised for today, plus
+ * anything already run past, which is what a morning briefing is for.
+ *
+ * The two are allowed to differ because they answer different questions, and
+ * the notification says "due today" where the badge says nothing — but keep
+ * that wording honest if either changes.
+ */
+export async function countCallbacksDueToday(
+  ownerId: number | undefined,
+  tz: string,
+): Promise<number> {
+  const [row] = (await db.execute(sql`
+    select count(l.id) as n
+    from call_lead l
+    join call_list cl on cl.id = l.call_list_id
+    ${latestCall}
+    where l.duplicate_of_lead_id is null
+      ${ownedBy(ownerId)}
+      and lc.outcome = 'callback'
+      and (
+        lc.callback_at is null
+        -- Local midnight tonight, turned back into an instant. The literal 1
+        -- rather than a parameter is on purpose: a bare placeholder makes
+        -- adding to a date ambiguous to Postgres.
+        or lc.callback_at
+             < (((now() at time zone ${tz})::date + 1)::timestamp at time zone ${tz})
+      )
+  `)) as Row[];
+  return n(row?.n);
+}
+
 /** Cards kept per column. A list of a thousand uncalled numbers is a queue,
  *  not a board, and rendering it as one helps nobody — the column says how
  *  many were left out. */

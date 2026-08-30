@@ -34,6 +34,9 @@ async function run() {
   // that back to us. Two API calls a tick, and it is what puts a meeting on
   // the Meetings diary and takes a cancelled one off it.
   await tick("meetings");
+  // One digest a day per person, claimed by a unique index — the other 287
+  // ticks find nothing to do.
+  await tick("callbacks");
 }
 
 run();

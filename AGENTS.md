@@ -424,6 +424,36 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   takes ~10s on a cold connection — the window in which somebody can press
   twice is exactly the window in which the first request is still going.
 
+### Callback digest
+
+One notification a day per person: "3 callbacks due today", opening
+`/callbacks`. `src/lib/callback-reminders.ts`, `/api/cron/callbacks` on the
+same worker loop. Schema in `2026-08-30-callback-reminder-sent.sql`.
+
+- **A digest, not one per callback — the opposite of the meeting rule, on
+  purpose.** A demo is rare and individually valuable, so it earns its own
+  notification at fixed offsets. Callbacks run at a dozen a day, and a caller
+  who gets a dozen notifications turns notifications off, which would cost them
+  the meeting reminders too. Those are the expensive ones to lose, so the noisy
+  feature must not be allowed to sink the quiet one.
+- **It exists because a callback lives nowhere but this database.** No invite
+  goes out and nothing else remembers it was promised, so a diary nobody opens
+  is a promise quietly broken. A meeting at least has Cal.com reminding the
+  prospect.
+- **`countCallbacksDueToday` is deliberately wider than `countCallbacksDue`**,
+  which drives the sidebar badge and means "act now". At eight in the morning
+  almost nothing is due yet, so a badge-shaped number would report zero and
+  tell a caller their day is empty. The digest counts everything promised for
+  today plus anything already overdue — a morning briefing, not a queue. The
+  two numbers may therefore differ, which is why the notification says "due
+  today" and the badge says nothing; keep that wording honest if either moves.
+- Sent between 08:00 and 17:00 on the recipient's own clock — earlier cut-off
+  than the meeting reminders, since a briefing arriving at 6pm has no day left
+  to act in. Claimed by a unique insert on `(user_id, sent_on)`, that date
+  being local. Scoped exactly as the screen is: a caller's own niches, the lot
+  for an admin.
+- Its own tag, so a callback digest never replaces an unread meeting reminder.
+
 ### Browser push reminders
 
 A meeting reminder has to reach somebody who has not opened the CRM yet today.
