@@ -44,6 +44,10 @@ export type MeetingSyncResult = {
    *  unconfigured Cal.com must leave every calling screen exactly as it was. */
   skipped?: "unconfigured" | "no-event-type";
   seen: number;
+  /** Bookings that were not already in the table. Tracked so the manual
+   *  refresh can say "1 new meeting" rather than a spinner and nothing —
+   *  every other count here is the same on a tick that changed nothing. */
+  created: number;
   matched: number;
   unmatched: number;
   cancelled: number;
@@ -142,7 +146,14 @@ function best(a: Candidate | undefined, b: Candidate): Candidate {
  * time it was made for.
  */
 export async function syncMeetings(): Promise<MeetingSyncResult> {
-  const empty = { seen: 0, matched: 0, unmatched: 0, cancelled: 0, hasMore: false };
+  const empty = {
+    seen: 0,
+    created: 0,
+    matched: 0,
+    unmatched: 0,
+    cancelled: 0,
+    hasMore: false,
+  };
   if (!calConfigured()) return { ...empty, skipped: "unconfigured" };
   // Fail closed. That Cal.com account carries the voice agent's bookings and
   // several clients' event types, and syncing all of it into this CRM would
@@ -187,7 +198,7 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
     else result.unmatched += 1;
     if (booking.status === "cancelled") result.cancelled += 1;
 
-    await db.execute(sql`
+    const written = (await db.execute(sql`
       insert into call_meeting (
         cal_booking_uid, cal_booking_id, call_lead_id, call_id, matched_by,
         start_at, end_at, status, title,
@@ -217,7 +228,12 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         attendee_tz = excluded.attendee_tz,
         meeting_url = excluded.meeting_url,
         synced_at = now()
-    `);
+      -- Postgres sets xmax to the locking transaction on an updated row and
+      -- leaves it 0 on a freshly inserted one, which is the only way an
+      -- upsert can say which of the two it just did.
+      returning (xmax = 0) as inserted
+    `)) as Row[];
+    if (written[0]?.inserted === true) result.created += 1;
   }
 
   return result;

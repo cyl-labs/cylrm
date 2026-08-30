@@ -410,6 +410,20 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   ordering the call-outcome enum and `app_user` migrations needed and for a
   worse reason: those broke one feature, this locks everybody out.
 
+- **Refresh button** (`POST /api/meetings/sync`, `components/calls/refresh-meetings.tsx`)
+  pulls Cal.com on demand: five minutes is fine for a meeting a day away and
+  much too slow for whoever booked one thirty seconds ago. Open to any
+  signed-in employee, since it can reveal nothing a five-minute wait would not
+  have. It reports what it found — `created` is counted off `returning
+  (xmax = 0)`, the only way an upsert can tell an insert from an update — since
+  a refresh that looks identical whether or not it worked teaches people to
+  press it again. Two guards, and the *in-flight* one is the load-bearing half:
+  presses landing during a running pull await that pull rather than starting a
+  second, and the 10-second cooldown runs from **completion**, not from the
+  start. An earlier version stamped the start and was useless, because Cal.com
+  takes ~10s on a cold connection — the window in which somebody can press
+  twice is exactly the window in which the first request is still going.
+
 ### Browser push reminders
 
 A meeting reminder has to reach somebody who has not opened the CRM yet today.

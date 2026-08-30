@@ -25,7 +25,11 @@ const CAL_API = "https://api.cal.com/v2";
  *  starts returning a differently-shaped booking one morning. */
 const CAL_API_VERSION = "2026-05-01";
 
-const TIMEOUT_MS = 15_000;
+/** Generous, because Cal.com is routinely slow on a cold connection — around
+ *  ten seconds for the first request and one for the next — and the two status
+ *  queries go out together. A tick that gives up at fifteen seconds reports a
+ *  failure for what is only a slow morning. */
+const TIMEOUT_MS = 25_000;
 
 /** Bookings pulled per status. Far above a real week's demos; `hasMore` is
  *  reported rather than paginated through, so a run that ever hits this says

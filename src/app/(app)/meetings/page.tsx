@@ -1,6 +1,7 @@
 import { PageShell } from "@/components/page-shell";
 import { MeetingsList } from "@/components/calls/meetings-list";
 import { PushToggle } from "@/components/calls/push-toggle";
+import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { getMeetings } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { callRegionOf, statsRegionOf } from "@/lib/users";
@@ -39,9 +40,16 @@ export default async function MeetingsPage() {
   return (
     <PageShell
       title="Meetings"
-      // Per browser, not per person — see PushToggle. It renders nothing at
-      // all where push cannot work, rather than offering a dead button.
-      actions={<PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />}
+      actions={
+        <>
+          {/* Refresh first: it is the one people reach for, right after
+              booking something on Cal.com. */}
+          <RefreshMeetings />
+          {/* Per browser, not per person — see PushToggle. Renders nothing at
+              all where push cannot work, rather than a dead button. */}
+          <PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
+        </>
+      }
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 sm:px-6">
         {meetings.length > 0 && (
