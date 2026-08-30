@@ -402,7 +402,13 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
 - Unset `CAL_API_KEY` means an empty screen and nothing else changes, in the
   same spirit as `lib/notify.ts`: the sync reports why it did nothing rather
   than throwing, so a cron tick never fails on a feature that is not switched
-  on. Safe to deploy before the migration is applied.
+  on. The key can therefore be added before or after the deploy.
+- **The migration cannot.** `countMeetingsToChaseFor` is called by the app
+  layout to draw the sidebar badge, so a missing `call_meeting` table is not a
+  broken Meetings screen — it is every screen in the app returning 500.
+  **Apply `2026-08-30-call-meeting.sql` before deploying the code**, the same
+  ordering the call-outcome enum and `app_user` migrations needed and for a
+  worse reason: those broke one feature, this locks everybody out.
 
 ## Payroll (Call CRM)
 
