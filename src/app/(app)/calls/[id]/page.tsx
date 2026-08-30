@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Table2 } from "lucide-react";
+import { ChevronLeft, Clock, Table2 } from "lucide-react";
 import {
   CALL_QUEUE_LIMIT,
   getCallList,
@@ -33,14 +33,18 @@ export default async function CallListPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; open?: string }>;
 }) {
   const { id } = await params;
   const listId = Number(id);
   if (!Number.isInteger(listId)) notFound();
 
-  const { view } = await searchParams;
+  const { view, open } = await searchParams;
   const filter: CallQueueFilter = isFilter(view) ? view : "queue";
+  // Only leads it is business hours for, where they are. Off by default: it
+  // hides work, and a caller opening a niche should see the whole of it until
+  // they ask not to.
+  const callableNow = open === "1";
 
   const me = await getCurrentUser();
   const list = await getCallList(listId, callScope(me));
@@ -58,7 +62,7 @@ export default async function CallListPage({
   const sopRegion =
     sopRegionFor(await callRegionOf(me?.id)) ?? sopRegionFor(list.region);
   const [leads, sop] = await Promise.all([
-    getCallQueue(listId, filter),
+    getCallQueue(listId, filter, callableNow),
     getDiallerSop(sopRegion),
   ]);
 
@@ -153,7 +157,7 @@ export default async function CallListPage({
               {FILTERS.map((f) => (
                 <Link
                   key={f.key}
-                  href={`/calls/${listId}?view=${f.key}`}
+                  href={`/calls/${listId}?view=${f.key}${callableNow ? "&open=1" : ""}`}
                   className={cn(
                     "shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
                     f.key === filter
@@ -165,6 +169,30 @@ export default async function CallListPage({
                 </Link>
               ))}
             </nav>
+            {/* The reason this exists: a caller starting at 10pm Singapore can
+                ring the US east coast, where it is 10am, but must not be
+                handed Honolulu at half past three in the morning. Carries the
+                current tab through, or toggling it would quietly reset the
+                view. */}
+            <Link
+              href={`/calls/${listId}?view=${filter}${callableNow ? "" : "&open=1"}`}
+              aria-label={
+                callableNow
+                  ? "Show every lead, whatever time it is there"
+                  : "Show only leads it is business hours for"
+              }
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] font-semibold transition-colors",
+                callableNow
+                  ? "border-success/40 bg-success/10 text-success hover:bg-success/15"
+                  : "hover:bg-muted",
+              )}
+            >
+              <Clock className="size-4" strokeWidth={1.9} />
+              <span className="hidden sm:inline">
+                {callableNow ? "Open now" : "Any time"}
+              </span>
+            </Link>
             {/* Straight to this niche's tab on the Spreadsheet screen, rather
                 than to the whole workbook with the right tab to be found.
                 Label drops below `sm` so it cannot push the "All" filter off

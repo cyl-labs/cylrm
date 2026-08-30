@@ -1166,3 +1166,27 @@ export const callbackReminderSent = pgTable(
     ),
   ],
 );
+
+/**
+ * Which timezone a US area code sits in.
+ *
+ * Reference data, kept in `data/us-area-codes.json` and synced here by
+ * `scripts/seed-area-codes.mjs` on every deploy — the file is the source of
+ * truth and this is its index.
+ *
+ * It is a table rather than a map in application code for one reason: the
+ * dialler queue selects with a LIMIT, so "is it business hours where this lead
+ * is" has to be answerable inside the query. Filtering the page after fetching
+ * it would hand somebody five leads and call it a queue.
+ *
+ * Declared here as well as in the migration because `drizzle-kit push` drops
+ * what it cannot see in this file.
+ */
+export const usAreaCode = pgTable("us_area_code", {
+  /** The three digits after the country code, e.g. "907". */
+  areaCode: text("area_code").primaryKey(),
+  /** An IANA zone, never a fixed offset: half of these observe daylight saving
+   *  and Arizona pointedly does not, so the zone database has to be the thing
+   *  deciding what the local time is. */
+  tz: text("tz").notNull(),
+});

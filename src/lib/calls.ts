@@ -88,6 +88,51 @@ const latestCall = sql`
   ) lr on true
 `;
 
+/**
+ * Which clock the lead is on, and therefore what time it is where they are.
+ *
+ * A US area code decides it — the lists are national, "Movers" alone spans 152
+ * of them, and roughly a third of the US leads are outside business hours at
+ * any given moment. The callers are overseas, so their own clock says nothing
+ * about whether a number can be rung.
+ *
+ * Resolved in SQL rather than after the rows come back, because the queue
+ * selects with a LIMIT: filtering in JavaScript would hand out short pages and
+ * counts that do not match them.
+ *
+ * Singapore and the UK are one zone each and need no table. A number with no
+ * zone — toll-free, or an area code not in `us_area_code` — comes back null
+ * rather than being guessed at, and is excluded when the caller asks for
+ * leads they can ring now. Expects `call_lead` aliased as `l`.
+ */
+const leadZone = sql`
+  left join us_area_code ac
+    on l.phone_key ~ '^1[0-9]{10}$'
+   and ac.area_code = substr(l.phone_key, 2, 3)
+  cross join lateral (
+    select coalesce(
+      ac.tz,
+      case
+        when l.phone_key ~ '^65[0-9]{8}$' then 'Asia/Singapore'
+        when l.phone_key ~ '^44' then 'Europe/London'
+      end
+    ) as tz
+  ) z
+`;
+
+/**
+ * Business hours where the lead is: 9am to 5pm, their time.
+ *
+ * The whole point of the feature — a caller starting at 10pm Singapore can
+ * ring the east coast and must not be handed Honolulu, where it is half past
+ * three in the morning.
+ */
+const CALLABLE_NOW = sql`(
+  z.tz is not null
+  and (now() at time zone z.tz)::time >= time '09:00'
+  and (now() at time zone z.tz)::time < time '17:00'
+)`;
+
 export type CallListSummary = {
   id: number;
   name: string;
@@ -270,6 +315,15 @@ export type QueueLead = {
    *  as well as the dial button: copying a listed number to ring it from a
    *  desk phone is the same call. Always null for Singapore — see lib/dnc.ts. */
   dncBlock: string | null;
+  /**
+   * The IANA zone the lead is in, from their area code.
+   *
+   * Null when it cannot be known — a toll-free number belongs to no place, and
+   * an area code we have no row for is not worth guessing at. The screens show
+   * nothing rather than a wrong clock, and "leads I can ring now" leaves those
+   * out.
+   */
+  tz: string | null;
 };
 
 export type CallQueueFilter = "queue" | "callbacks" | "closed" | "all";
@@ -287,7 +341,8 @@ const leadColumns = sql`
   lc.outcome as last_outcome, lc.called_at as last_called_at,
   lc.callback_at, lc.notes as last_notes, lc.by_name as last_called_by,
   lr.recording_id, lr.duration_ms as recording_ms,
-  (select count(*) from call c where c.call_lead_id = l.id) as attempts
+  (select count(*) from call c where c.call_lead_id = l.id) as attempts,
+  z.tz
 `;
 
 function toLead(r: Row, dids: DidMap): QueueLead {
@@ -322,6 +377,7 @@ function toLead(r: Row, dids: DidMap): QueueLead {
       },
       dialCountry(String(r.phone)),
     ),
+    tz: (r.tz as string | null) ?? null,
   };
 }
 
@@ -352,6 +408,7 @@ export async function getSheetLeads(ownerId?: number): Promise<SheetLead[]> {
     from call_lead l
     join call_list cl on cl.id = l.call_list_id
     ${latestCall}
+    ${leadZone}
     where l.duplicate_of_lead_id is null
       ${ownedBy(ownerId)}
     order by lc.called_at desc nulls last,
@@ -432,6 +489,7 @@ export async function getCallbacks(
     from call_lead l
     join call_list cl on cl.id = l.call_list_id
     ${latestCall}
+    ${leadZone}
     where l.duplicate_of_lead_id is null
       ${inList}
       ${ownedBy(ownerId)}
@@ -530,6 +588,7 @@ export async function getCallBoard(
     from call_lead l
     join call_list cl on cl.id = l.call_list_id
     ${latestCall}
+    ${leadZone}
     where l.duplicate_of_lead_id is null
       ${inList}
       ${ownedBy(ownerId)}
@@ -569,6 +628,16 @@ export const CALL_QUEUE_LIMIT = 500;
 export async function getCallQueue(
   callListId: number,
   filter: CallQueueFilter = "queue",
+  /**
+   * Only hand out leads it is business hours for, where they are.
+   *
+   * The reason this exists: a caller starting at 10pm Singapore can ring the
+   * east coast, where it is 10am, and must not be handed Honolulu at half past
+   * three in the morning. Applied in the query rather than after it, because
+   * of the LIMIT below — filtering the page after fetching it would return
+   * five leads and call it a queue.
+   */
+  callableNow = false,
 ): Promise<QueueLead[]> {
   const where =
     filter === "queue"
@@ -590,9 +659,11 @@ export async function getCallQueue(
     select ${leadColumns}
     from call_lead l
     ${latestCall}
+    ${leadZone}
     where l.call_list_id = ${callListId}
       and l.duplicate_of_lead_id is null
       ${where}
+      ${callableNow ? sql`and ${CALLABLE_NOW}` : sql``}
     order by
       (lc.outcome = 'callback' and (lc.callback_at is null or lc.callback_at <= now())) desc,
       (lc.outcome is null) desc,

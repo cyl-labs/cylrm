@@ -561,6 +561,44 @@ from the same `/api/cron/meetings` tick. Schema in
   `Notification.permission` to `denied`, so the normal button state only
   renders if the getter is stubbed.
 
+## Lead local time and calling hours (Call CRM)
+
+The US lists are national — "Movers" alone spans 152 area codes — and the
+callers are overseas, so a caller's own clock says nothing about whether a
+number can be rung. At any moment roughly a third of the US leads are outside
+business hours where they actually are. Measured on the live data: 51% Eastern,
+13% Central, 12% Pacific, 7% Hawaii, 6% Alaska, 5% Mountain, 4% toll-free.
+
+- **The zone comes from the area code**, via `us_area_code` — seeded from
+  `data/us-area-codes.json` by `scripts/seed-area-codes.mjs`, which `deploy.sh`
+  runs like `seed-sop.mjs`. The JSON is the source of truth; the table is its
+  index. Singapore and the UK are one zone each and need no lookup.
+- **It is a table and not a map in code** for one reason: `getCallQueue`
+  selects with a LIMIT, so "is it business hours where this lead is" has to be
+  answerable *inside* the query. Filtering the page after fetching it would
+  hand somebody five leads and call it a queue. `leadZone` in `lib/calls.ts` is
+  the join; every query selecting `leadColumns` carries it, because `tz` is one
+  of those columns.
+- **An unknown zone stays null and is never guessed.** Toll-free belongs to no
+  place, and an area code with no row is not worth inventing. Those leads show
+  no clock and are excluded from "open now" — being an hour out is cheap, being
+  nine hours out is the whole problem.
+- **`?open=1` on the dialler** filters to leads where it is 09:00–17:00 for
+  *them* (`CALLABLE_NOW`). Off by default, since it hides work. The tab links
+  carry it through, or switching tabs would silently reset it — the same trap
+  `?list=` documented on the stats filters.
+- **Not a split of the lists, deliberately.** A list is a niche and it is also
+  the unit of ownership, so splitting "Movers" into five would break both and
+  have to be redone on every import. Timezone is a property of a lead, so it is
+  a filter — which works on every existing list and every future one for free.
+- `LocalTime` (`components/calls/local-time.tsx`) renders the clock and ticks
+  every 30s in the browser rather than being baked into the page: a dial card
+  sits open for an hour, and a stale clock is worse than none because it is
+  believed. `suppressHydrationWarning`, like the other relative times.
+- A few area codes genuinely straddle two zones (208 Idaho, 850 Florida, 605
+  South Dakota); they are mapped to the majority zone rather than pretending to
+  certainty.
+
 ## Payroll (Call CRM)
 
 `/payroll` works out what each caller is owed and records what has been handed

@@ -45,6 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
 import { dialableNumber, e164 } from "@/lib/phone";
 import { websiteHref, websiteLabel } from "@/lib/website";
+import { LocalTime } from "@/components/calls/local-time";
 import { callTzDate } from "@/lib/call-time";
 import { cn } from "@/lib/utils";
 
@@ -822,6 +823,13 @@ export function Dialler({
           key={`number-${current.id}`}
           phone={current.phone}
           blocked={current.dncBlock}
+        />
+        {/* Directly under the number, because it is the last thing checked
+            before ringing it. Renders nothing when the zone is unknown. */}
+        <LocalTime
+          tz={current.tz}
+          withZone
+          className="mt-1.5 w-full justify-center text-[13px] font-semibold"
         />
         {/* Sizing a business up before dialling — is this one van or forty —
             is the question the number cannot answer. A new tab rather than

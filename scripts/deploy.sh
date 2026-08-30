@@ -106,6 +106,13 @@ fi
 say "Publishing SOP content"
 ssh "$HOST" "cd $REMOTE && node --env-file=.env scripts/seed-sop.mjs"
 
+# Reference data, same idea: data/us-area-codes.json is the source of truth and
+# `us_area_code` is its index. It has to be in the database rather than in code
+# because the dialler queue filters on "is it business hours where this lead
+# is" inside a query that carries a LIMIT.
+say "Publishing area codes"
+ssh "$HOST" "cd $REMOTE && node --env-file=.env scripts/seed-area-codes.mjs"
+
 say "Restarting"
 ssh "$HOST" "pm2 restart crm crm-worker"
 
