@@ -42,10 +42,20 @@ export default async function CallListPage({
 
   const { view, open } = await searchParams;
   const filter: CallQueueFilter = isFilter(view) ? view : "queue";
-  // Only leads it is business hours for, where they are. Off by default: it
-  // hides work, and a caller opening a niche should see the whole of it until
-  // they ask not to.
-  const callableNow = open === "1";
+  // Only leads it is business hours for, where they are.
+  //
+  // On by default since 2026-08-31. It shipped off, on the reasoning that a
+  // filter hiding work should be asked for rather than assumed, and that was
+  // the wrong trade for a floor calling the US from overseas: a third of those
+  // leads are outside their own business hours at any moment, so the default
+  // handed callers numbers that should not be rung and left them to notice.
+  // The safe state is the one that cannot waste a dial or wake anybody up, and
+  // the whole list is one tap away.
+  //
+  // "0" rather than the absence of the parameter is what turns it off, so a
+  // link that says nothing about the filter gets the default rather than
+  // silently disabling it.
+  const callableNow = open !== "0";
 
   const me = await getCurrentUser();
   const list = await getCallList(listId, callScope(me));
@@ -162,7 +172,7 @@ export default async function CallListPage({
               {FILTERS.map((f) => (
                 <Link
                   key={f.key}
-                  href={`/calls/${listId}?view=${f.key}${callableNow ? "&open=1" : ""}`}
+                  href={`/calls/${listId}?view=${f.key}${callableNow ? "" : "&open=0"}`}
                   className={cn(
                     "shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
                     f.key === filter
@@ -180,7 +190,7 @@ export default async function CallListPage({
                 current tab through, or toggling it would quietly reset the
                 view. */}
             <Link
-              href={`/calls/${listId}?view=${filter}${callableNow ? "" : "&open=1"}`}
+              href={`/calls/${listId}?view=${filter}${callableNow ? "&open=0" : ""}`}
               aria-label={
                 callableNow
                   ? "Show every lead, whatever time it is there"
@@ -221,7 +231,12 @@ export default async function CallListPage({
               broken. */}
           {/* Both numbers, always. One alone ("135 can be rung right now")
               sitting above a queue of 194 was read as 135 being shown. */}
-          {split.callableNow < split.total && (
+          {/* Nothing here when the filter is on and holding everything back:
+              "Showing the 0 leads it's business hours for" is a sentence that
+              reads as a fault, and the empty state below says the same thing
+              properly and offers the way past it. */}
+          {split.callableNow < split.total &&
+            !(callableNow && split.callableNow === 0) && (
             <p className="mt-2 text-[13px] text-muted-foreground">
               {callableNow ? (
                 <>
@@ -278,6 +293,10 @@ export default async function CallListPage({
         // booking pays nobody and is not the floor's news, the same reason
         // they are off the Scoreboard and off the confirm list.
         callerName={me?.role === "caller" ? me.name : undefined}
+        // Only while the filter is doing the hiding. With it off an empty
+        // queue really is an empty queue.
+        hiddenByHours={callableNow ? split.total - split.callableNow : 0}
+        showAllHref={`/calls/${listId}?view=${filter}&open=0`}
       />
     </PageShell>
   );

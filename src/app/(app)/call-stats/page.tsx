@@ -1,4 +1,4 @@
-import { getCallLists } from "@/lib/calls";
+import { getCallLists, LEAD_HOURS_LABEL } from "@/lib/calls";
 import Link from "next/link";
 import {
   getCallTotals,
@@ -290,6 +290,30 @@ export default async function CallStatsPage({
           by category can give a smaller number.
         </p>
 
+        {/* Said up here, not left to be found by scrolling three hundred rows.
+            The denominator is calls whose zone is known, never every call:
+            toll-free numbers and unmapped area codes belong to no place, and
+            counting them in either half would be a guess presented as a
+            figure. */}
+        {totals.outsideHours > 0 && (
+          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-[13px]">
+            <span className="font-bold text-destructive">
+              {totals.outsideHours.toLocaleString()}{" "}
+              {totals.outsideHours === 1 ? "call was" : "calls were"} placed
+              outside {LEAD_HOURS_LABEL} where the prospect is
+            </span>
+            <span className="text-muted-foreground">
+              {" "}
+              ({pct(totals.outsideHours, totals.zoneKnown)} of the{" "}
+              {totals.zoneKnown.toLocaleString()} whose timezone we know). They
+              are marked in <span className="font-semibold">Every call</span>{" "}
+              below. The dialler filters these out by default, so a call here
+              was either placed with the filter off or from a callback booked
+              for that time.
+            </span>
+          </p>
+        )}
+
         {totals.badNumbers > 0 && (
           <p className="text-[13px] text-muted-foreground">
             {totals.badNumbers.toLocaleString()}{" "}
@@ -547,16 +571,21 @@ export default async function CallStatsPage({
                   <tr className="border-b text-left">
                     {/* The zone is on the heading rather than repeated on
                         every row: one screen, one clock, said once. */}
-                    {[`When (${zone.label})`, "Who", "Business", "Niche", "Logged as"].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground"
-                        >
-                          {h}
-                        </th>
-                      ),
-                    )}
+                    {[
+                      `When (${zone.label})`,
+                      "Their time",
+                      "Who",
+                      "Business",
+                      "Niche",
+                      "Logged as",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -580,6 +609,39 @@ export default async function CallStatsPage({
                             company={c.company}
                             callerName={c.by}
                           />
+                        )}
+                      </td>
+                      {/* The clock the person who answered was reading, which
+                          is the only one that says whether this call should
+                          have been placed. A column rather than a line under
+                          the time above it: every prospect row has one, and it
+                          is scanned down the page looking for the odd hour. */}
+                      <td className="whitespace-nowrap px-4 py-2.5 tabular-nums">
+                        {c.theirTime === null ? (
+                          <span
+                            className="text-muted-foreground"
+                            title={
+                              c.source === "keypad"
+                                ? "A keypad dial has no lead, so no zone to read."
+                                : "No zone for this number: toll-free, or an area code we have no row for."
+                            }
+                          >
+                            &mdash;
+                          </span>
+                        ) : c.inHours === false ? (
+                          // The flag. Stated in words as well as colour, since
+                          // "03:12" is only obviously wrong once you know it
+                          // is the prospect's clock and not the screen's.
+                          <span className="font-bold text-destructive">
+                            {c.theirTime}
+                            <span className="block text-[11px] font-semibold">
+                              outside 9&ndash;5
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {c.theirTime}
+                          </span>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 font-semibold">

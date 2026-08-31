@@ -25,6 +25,19 @@ The dialler hands you one lead at a time, in this order:
 You can jump the queue by picking someone out of **Up next**, and the order
 resumes where it was afterwards.
 
+## You only get leads it is business hours for
+
+The queue hides anyone it is outside 9am to 5pm for, **where they are**. Your
+own clock says nothing about this: the US lists span five time zones, so at any
+hour of your day a large part of a list is asleep.
+
+This is on by default and the **Open now** button at the top is how you turn it
+off. If a niche says everyone in it is asleep, that is the filter talking and
+the list is fine. Come back later or work another one.
+
+Turning it off is for a reason, not a habit. A callback promised for 8am their
+time is one; wanting a fuller queue is not.
+
 ## Calls are placed on your handset
 
 The big button copies the number to your clipboard. It does not dial. Paste it

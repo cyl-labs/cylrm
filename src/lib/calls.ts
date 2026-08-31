@@ -1,9 +1,13 @@
 import { cache } from "react";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { dncBlockReason } from "@/lib/dnc";
 import { getCurrentUser } from "@/lib/session";
 import { dialCountry, e164 } from "@/lib/phone";
+import {
+  LEAD_HOURS_END,
+  LEAD_HOURS_START,
+} from "@/lib/call-hours";
 import { listAccountNumbers } from "@/lib/telnyx";
 import type { CallRegion, DialCountry } from "@/lib/phone";
 
@@ -19,6 +23,11 @@ import type { CallRegion, DialCountry } from "@/lib/phone";
  */
 export { classifyPhone, dialCountry, e164 } from "@/lib/phone";
 export type { CallRegion, DialCountry } from "@/lib/phone";
+export {
+  LEAD_HOURS_END,
+  LEAD_HOURS_LABEL,
+  LEAD_HOURS_START,
+} from "@/lib/call-hours";
 
 type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
@@ -105,7 +114,7 @@ const latestCall = sql`
  * rather than being guessed at, and is excluded when the caller asks for
  * leads they can ring now. Expects `call_lead` aliased as `l`.
  */
-const leadZone = sql`
+export const leadZone = sql`
   left join us_area_code ac
     on l.phone_key ~ '^1[0-9]{10}$'
    and ac.area_code = substr(l.phone_key, 2, 3)
@@ -127,11 +136,27 @@ const leadZone = sql`
  * ring the east coast and must not be handed Honolulu, where it is half past
  * three in the morning.
  */
-const CALLABLE_NOW = sql`(
+/**
+ * Was it business hours where the lead is, at some instant?
+ *
+ * Takes the instant so one rule serves both questions asked of it: the queue
+ * asks about `now()`, and Stats asks about `called_at` after the fact. Two
+ * copies of "9 to 5 their time" would be two answers to the same question, and
+ * the one on the report had better be the one the dialler filtered by.
+ *
+ * A null zone is never in hours. Toll-free belongs to no place and an unknown
+ * area code is not worth guessing at, so those are excluded here and reported
+ * separately rather than being flagged as an out-of-hours call nobody made.
+ *
+ * Expects the `leadZone` lateral aliased as `z`.
+ */
+export const withinLeadHours = (at: SQL) => sql`(
   z.tz is not null
-  and (now() at time zone z.tz)::time >= time '09:00'
-  and (now() at time zone z.tz)::time < time '17:00'
+  and (${at} at time zone z.tz)::time >= time ${sql.raw(`'${LEAD_HOURS_START}'`)}
+  and (${at} at time zone z.tz)::time < time ${sql.raw(`'${LEAD_HOURS_END}'`)}
 )`;
+
+const CALLABLE_NOW = withinLeadHours(sql`now()`);
 
 export type CallListSummary = {
   id: number;

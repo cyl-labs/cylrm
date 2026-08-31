@@ -1,6 +1,15 @@
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import type { CallOutcome } from "@/lib/calls";
+// The zone join and the 9-to-5 rule come from `calls.ts` rather than being
+// restated: the dialler filters the queue by that rule, and a report saying a
+// call was out of hours had better agree with the screen that handed it over.
+import {
+  LEAD_HOURS_END,
+  LEAD_HOURS_START,
+  leadZone,
+  withinLeadHours,
+} from "@/lib/calls";
 import { STATS_TZ } from "@/lib/stats-zones";
 
 type Row = Record<string, unknown>;
@@ -32,6 +41,14 @@ export type CallTotals = {
   lost: number;
   /** Leads whose number turned out to be wrong. */
   badNumbers: number;
+  /** Calls placed outside 9 to 5 where the person answering was. Counted only
+   *  over the calls whose zone is known, so it is a fraction of `zoneKnown`
+   *  and not of `calls`. */
+  outsideHours: number;
+  /** Calls whose number maps to a zone at all: the honest denominator for the
+   *  figure above. Toll-free numbers and area codes with no row belong to no
+   *  place, and calling those out of hours would be a guess. */
+  zoneKnown: number;
 };
 
 export type OutcomeCount = { outcome: CallOutcome; calls: number };
@@ -171,8 +188,17 @@ export async function getCallTotals(
       count(distinct c.call_lead_id) filter (where c.outcome = 'trial') as trials,
       count(distinct c.call_lead_id) filter (where c.outcome = 'won') as won,
       count(distinct c.call_lead_id) filter (where c.outcome = 'lost') as lost,
-      count(distinct c.call_lead_id) filter (where c.outcome = 'bad_number') as bad_numbers
+      count(distinct c.call_lead_id) filter (where c.outcome = 'bad_number') as bad_numbers,
+      -- Attempts, not leads: ringing one business three times at midnight is
+      -- three calls made out of hours, and counting it once would read as a
+      -- single slip rather than a habit.
+      count(*) filter (where z.tz is not null and not ${withinLeadHours(sql`c.called_at`)}) as outside_hours,
+      count(*) filter (where z.tz is not null) as zone_known
     from call c
+    -- Joined for the zone alone. call_lead_id is not null and the lateral
+    -- always yields exactly one row, so no count above can move.
+    join call_lead l on l.id = c.call_lead_id
+    ${leadZone}
     where ${since(w)} ${inList(listId)} ${byUser(userId)}
   `)) as Row[];
 
@@ -185,6 +211,8 @@ export async function getCallTotals(
     won: n(row?.won),
     lost: n(row?.lost),
     badNumbers: n(row?.bad_numbers),
+    outsideHours: n(row?.outside_hours),
+    zoneKnown: n(row?.zone_known),
   };
 }
 
@@ -413,6 +441,14 @@ export type CallLogRow = {
   callbackAt: string | null;
   /** Keypad only: this leg was added to a call already up. */
   addedToCall: boolean;
+  /** The wall clock where the prospect was, at the moment they were rung, as
+   *  "HH:MM". Null when the number maps to no zone (toll-free, an area code
+   *  not in `us_area_code`) and on every keypad row, which has no lead. */
+  theirTime: string | null;
+  /** Whether that was inside 9 to 5 their time. Null where the zone is
+   *  unknown: that is "we cannot say", which is a different answer from "they
+   *  were rung at four in the morning" and must not be flagged as one. */
+  inHours: boolean | null;
   /** Telnyx's file for this call, when it was dialled from the browser and the
    *  webhook has landed. Null for every handset call, every no-answer, and
    *  everything logged before browser dialling existed — which is most rows. */
@@ -504,10 +540,18 @@ export async function getCallLog(
       -- rendered in the zone the screen is set to, so a per-niche market has
       -- nothing left to decide.
       l.phone, cl.name as list_name,
+      -- The clock the person who answered was reading. Formatted here rather
+      -- than shipped as a zone and formatted in the browser: the zone varies
+      -- per row, and a time built client-side renders one string on the server
+      -- and another on hydration. Null where the area code maps to no zone.
+      to_char(c.called_at at time zone z.tz, 'HH24:MI') as their_time,
+      ${withinLeadHours(sql`c.called_at`)} as in_hours,
+      z.tz is not null as zone_known,
       r.recording_id, r.duration_ms as recording_ms
     from call c
     join call_lead l on l.id = c.call_lead_id
     join call_list cl on cl.id = l.call_list_id
+    ${leadZone}
     left join app_user u on u.id = c.user_id
     -- Per call, not per lead. The board can only ever reach the recording of a
     -- lead's *latest* call, because that is the row it hangs off; this table
@@ -528,6 +572,11 @@ export async function getCallLog(
       -- more than eleven digits repeated from the line below it.
       coalesce(nullif(c.label, ''), c.phone) as company,
       c.phone, null::text as list_name,
+      -- No lead, so no niche and no zone to read the far end's clock in. A
+      -- keypad dial is a test of a line rather than a call on a prospect, so
+      -- there is no one whose business hours it could have been outside.
+      null::text as their_time, null::boolean as in_hours,
+      false as zone_known,
       r.recording_id, r.duration_ms as recording_ms
     from keypad_call c
     join app_user u on u.id = c.user_id
@@ -566,6 +615,10 @@ export async function getCallLog(
       notes: (r.notes as string | null) ?? null,
       callbackAt: r.callback_at === null ? null : String(r.callback_at),
       addedToCall: r.added_to_call === true,
+      theirTime: (r.their_time as string | null) ?? null,
+      // Only a known zone gives a real answer. `zone_known` is what separates
+      // "not in hours" from "no idea", which the flag has to keep apart.
+      inHours: r.zone_known === true ? r.in_hours === true : null,
       recordingId: (r.recording_id as string | null) ?? null,
       recordingMs: r.recording_ms === null ? null : n(r.recording_ms),
     };

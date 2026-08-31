@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Check,
+  Clock,
   Copy,
   ExternalLink,
   Globe,
@@ -45,6 +47,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
 import { dialableNumber, e164 } from "@/lib/phone";
+// From `call-hours`, not `calls`: that one reaches for the database, and this
+// is a client component. Same wall `outcome.ts` and `phone.ts` were built for.
+import { LEAD_HOURS_LABEL } from "@/lib/call-hours";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { LocalTime } from "@/components/calls/local-time";
 import { callTzDate } from "@/lib/call-time";
@@ -629,6 +634,8 @@ export function Dialler({
   truncated = false,
   readOnly = false,
   callerName,
+  hiddenByHours = 0,
+  showAllHref,
 }: {
   leads: QueueLead[];
   /** The caller's own script and objection sheet, already rendered. One
@@ -657,6 +664,12 @@ export function Dialler({
   /** Who is signed in, for the booking post they owe Slack. Absent means no
    *  prompt, since a post has to be signed by somebody. */
   callerName?: string;
+  /** Leads in this view that "Open now" is holding back, and where to go to
+   *  see them. Zero means the filter is off or hiding nothing. Needed because
+   *  the filter is on by default: an empty queue then means "everyone is
+   *  asleep", and "Nothing to call here" would be a lie on a full list. */
+  hiddenByHours?: number;
+  showAllHref?: string;
   /** Demo workspace: the flow works, nothing is written. */
 }) {
   const router = useRouter();
@@ -769,14 +782,35 @@ export function Dialler({
       <div className="mx-auto w-full max-w-2xl px-4 py-5 sm:px-6">
         {bookingPost}
         <div className="py-11 text-center">
+        {/* Three different empty queues, and telling them apart is the whole
+            job of this block. "Nothing to call here" on a list of two hundred
+            people who happen to be asleep is a lie, and it is the one a caller
+            would act on by closing the niche. */}
         <p className="text-sm font-semibold">
-          {leads.length === 0 ? "Nothing to call here." : "Queue cleared."}
+          {leads.length === 0
+            ? hiddenByHours > 0
+              ? "Everyone here is asleep."
+              : "Nothing to call here."
+            : "Queue cleared."}
         </p>
         <p className="mt-1 text-[13px] text-muted-foreground">
           {leads.length === 0
-            ? "Import a CSV with a phone column to start."
+            ? hiddenByHours > 0
+              ? `It is outside ${LEAD_HOURS_LABEL} for all ${hiddenByHours.toLocaleString()} of them. Come back later, or work another niche.`
+              : "Import a CSV with a phone column to start."
             : "Every lead in this view has been worked."}
         </p>
+        {leads.length === 0 && hiddenByHours > 0 && showAllHref && (
+          // Never hidden behind a confirmation: ringing outside business hours
+          // is a judgement, not a rule, and a callback promised for 8am their
+          // time is a good reason to walk past this.
+          <Button asChild variant="outline" size="sm" className="mt-4">
+            <Link href={showAllHref}>
+              <Clock data-icon="inline-start" />
+              Show them anyway
+            </Link>
+          </Button>
+        )}
         {skipped.length > 0 && (
           <Button
             variant="outline"

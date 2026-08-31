@@ -583,10 +583,44 @@ business hours where they actually are. Measured on the live data: 51% Eastern,
   place, and an area code with no row is not worth inventing. Those leads show
   no clock and are excluded from "open now" — being an hour out is cheap, being
   nine hours out is the whole problem.
-- **`?open=1` on the dialler** filters to leads where it is 09:00–17:00 for
-  *them* (`CALLABLE_NOW`). Off by default, since it hides work. The tab links
-  carry it through, or switching tabs would silently reset it — the same trap
-  `?list=` documented on the stats filters.
+- **The dialler filters to leads it is 09:00–17:00 for, and does so by
+  default** (`CALLABLE_NOW`). It shipped off, on the reasoning that a filter
+  hiding work should be asked for; that was the wrong trade for a floor calling
+  the US from overseas, where a third of the leads are outside their own hours
+  at any moment, so the default handed over numbers that should not be rung.
+  **`?open=0` turns it off**, not the absence of the parameter: a link that
+  says nothing about the filter must get the default rather than silently
+  disabling it. The tab links carry the off state through, or switching tabs
+  would silently re-enable it — the same trap `?list=` documented on the stats
+  filters.
+- **The empty queue therefore has three meanings and must say which.** With the
+  filter on by default, a niche whose leads are all asleep produces an empty
+  queue, and the old "Nothing to call here. Import a CSV" was then a lie on a
+  list of two hundred people — and the one a caller would act on by closing the
+  niche. `Dialler` takes `hiddenByHours` and `showAllHref` and says "Everyone
+  here is asleep", with a "Show them anyway" link: ringing out of hours is a
+  judgement, not a rule, and a callback promised for 8am their time is a good
+  reason to walk past it. The header's split line is suppressed in that one
+  case rather than rendering "Showing the 0 leads it's business hours for".
+- **The hours live in `src/lib/call-hours.ts`**, not `lib/calls.ts`: the
+  dialler is a client component and `calls.ts` imports the Postgres client, the
+  same wall `stats-zones.ts`, `phone.ts` and `outcome.ts` were built to get
+  around. `calls.ts` re-exports all three constants. `withinLeadHours(at)`
+  stays in `calls.ts` (it builds SQL) and takes the instant, so one rule serves
+  both questions: the queue asks about `now()`, Stats asks about `called_at`.
+  Two copies of "9 to 5 their time" would be two answers, and the one on the
+  report had better be the one the dialler filtered by.
+- **Stats flags calls placed outside those hours** — a banner with the count
+  over the range, and a "Their time" column in "Every call" showing the wall
+  clock the person answering was reading, marked when it was out of hours.
+  Formatted in SQL (`to_char(... at time zone z.tz)`) rather than shipped as a
+  zone and formatted in the browser: the zone varies per row, and a time built
+  client-side renders one string on the server and another on hydration.
+  **The denominator is calls whose zone is known, never every call.** Toll-free
+  numbers and unmapped area codes belong to no place, so `inHours` is null
+  there and the row shows a dash: "we cannot say" is a different answer from
+  "they were rung at four in the morning" and must not be flagged as one.
+  Keypad rows are null too, having no lead and so no prospect.
 - **The screen must say what the toggle did.** It shipped without that and read
   as broken: the four summary tiles are list-wide by design and do not move, so
   the only thing that changed was the button and a small "N left" badge — and
