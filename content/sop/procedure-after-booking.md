@@ -43,22 +43,27 @@ Then, on the Cal.com page:
 Do not convert in your head. Change the setting and read the times off the
 screen, so what you say and what you book are the same thing.
 
-## Offer two days and two times, never "when are you free"
+## Offer two times, never "when are you free"
 
 This is where most bookings are lost. Asking when they are free hands the work
 back to them, and the answer is almost always "send me some times and I will
 check", which is a no with extra steps.
 
-Offer instead. **Two days, two times each.** Four options is enough to feel
-accommodating and few enough that they can answer on the spot.
+Offer instead. **Two times, one each on two different days.** Two is what a
+prospect can hold in their head and answer on the spot, and it is what you can
+hold in yours while reading slots off a screen. Four options was tried and read
+back wrong often enough to be worse than two: an offer you fumble is an offer
+they have to think about.
 
-> **You say** I have [Tuesday] at [10am] or [2pm], or [Thursday] at [11am] or [4pm]. Which of those works best for you?
+Two days rather than two times on one day, so a day they cannot do does not
+take both options with it.
 
-If none of the four suit, offer two more. Do not open it up again.
+> **You say** I have [Tuesday] at [10am], or [Thursday] at [2pm]. Which of those works better for you?
 
-Read the times off the open slots in front of you, and space the two days
-apart rather than offering the same day twice. Nothing sooner than two hours
-from now: Cal.com will not accept it.
+If neither suits, offer two more. Two at a time, always. Do not open it up again.
+
+Read both times off the open slots in front of you, never from memory.
+Nothing sooner than two hours from now: Cal.com will not accept it.
 
 Say the time back to them once more before you hang up, in their zone.
 

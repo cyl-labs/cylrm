@@ -96,19 +96,19 @@ offer what they hear and book what they agreed. Do not convert in your head.
 
 ### Offer times, never ask for them
 
-**Two days, two times each.**
+**Two times. One each on two different days.**
 
-> **You say** I have [Tuesday] at [10am] or [2pm], or [Thursday] at [11am] or [4pm]. Which of those works best for you?
+> **You say** I have [Tuesday] at [10am], or [Thursday] at [2pm]. Which of those works better for you?
 
 _(let them answer)_
 
-If none of the four suit, offer two more. Do not open it up.
+If neither suits, offer two more. Two at a time, always. Do not open it up.
 
 > **You say** No problem. What about [day] at [time], or [day] at [time]?
 
 _(let them answer)_
 
-Read the times off the open slots in front of you. Space the two days apart.
+Read the times off the open slots in front of you. Never from memory.
 
 Book the slot you just agreed, while they are still on the phone.
 
