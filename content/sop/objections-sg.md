@@ -192,7 +192,7 @@ _(let them answer)_
 
 > **You say** That's fine, you can consult them. But when it comes to voice agents, we're really the experts, so would it be helpful to set up a time where we can all get on a call together and I can answer any questions they might have?
 
-## Not the decision maker | Screener: "Can I ask who's calling, and what it's about?"
+## Not the decision maker | Person screening: "Can I ask who's calling, and what it's about?"
 
 
 A screener is not a prospect. They cannot buy anything, they can only stop you,
@@ -225,6 +225,42 @@ _(let them answer)_
 Once you are through, carry on from where the script left off. Do not
 reintroduce yourself and do not start again with a pitch. You already gave your
 name, and repeating it is what makes the call sound rehearsed.
+
+## Not the decision maker | Machine screening: "Record your name and reason for calling"
+
+
+An automated screener, not a person. It takes a few seconds of recording and a
+real human reads or hears it, right then, and decides whether to pick up.
+
+So this is not a conversation and nothing else on this page applies. There is
+nobody to ask a question of, nobody to come back at, and no second try. You get
+one take, and silence is a no.
+
+**Say your name, their business, one reason, then stop.**
+
+> **You say** Hi, it's [your name]. I had a quick question about how [company] handles calls and messages after hours. I'll only take a minute.
+
+Four things decide whether they pick up:
+
+- **Your name first, said slowly.** The transcript garbles a rushed name, and a
+  name they cannot read is a call they do not take.
+- **Their business name, once.** It is the only proof you are not working down
+  a list.
+- **One sentence of reason.** Then stop talking. A long recording reads as a
+  pitch before they have finished the first line.
+- **Do not pitch and do not name Cyllabs.** A company they have never heard of,
+  in a recording, is a sales call. They will decline it and you have spent your
+  one take.
+
+If they pick up, carry on from the top of the script. Do not apologise for the
+screener and do not re-explain yourself.
+
+**Do not redial straight after being screened.** The same number ringing twice
+in a minute is what the screener is for.
+
+**Log it as Voicemail, not Gatekeeper.** A machine is not a person, so if
+nobody picks up you did not reach anyone. Gatekeeper counts as a pickup in your
+numbers and on your pay; voicemail does not. Log what happened.
 
 ## Not the decision maker | Receptionist / gatekeeper keeps saying "not interested"
 
