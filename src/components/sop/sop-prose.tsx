@@ -91,6 +91,14 @@ export function SopProse({
         "[&_p>strong]:font-bold [&_li>strong]:font-bold",
         "[&_a]:underline [&_a]:underline-offset-2",
         "[&_hr]:my-6 [&_hr]:border-border",
+        // A fenced block is a form to copy out verbatim, the Slack templates
+        // being the only ones today, so the line breaks in it are the content
+        // and must survive. Wrapped rather than scrolled: a caller reading
+        // this on a phone should see the whole template, and a horizontal
+        // scroller inside a page is the overflow this app keeps out.
+        "[&_pre]:mt-3.5 [&_pre]:rounded-[3px] [&_pre]:bg-muted [&_pre]:px-3.5 [&_pre]:py-2.5",
+        "[&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:text-[13px] [&_pre]:leading-relaxed",
+        "[&_:not(pre)>code]:rounded-[3px] [&_:not(pre)>code]:bg-muted [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:text-[13px]",
         className,
       )}
       dangerouslySetInnerHTML={{ __html: tagged }}

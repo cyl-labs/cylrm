@@ -88,9 +88,11 @@ minutes, with the time already on it. You never type it in anywhere.
 
 ## Tell us anyway
 
-Once it is logged, let us know. The email reaches us either way, but a word
-from you is what gets the meeting looked at the same day rather than whenever
-somebody checks the inbox.
+Once it is logged, post it in **#meetings-booked**, straight away rather than
+saved up for your end-of-day report. The dialler puts the post on screen for
+you the moment you log it. The email reaches us either way, but a word from you
+is what gets the meeting looked at the same day rather than whenever somebody
+checks the inbox. See *Reporting in Slack*.
 
 ## Open Meetings every day
 

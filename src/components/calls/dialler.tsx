@@ -35,6 +35,7 @@ import {
   type SavedLine,
 } from "@/components/calls/second-line";
 import { TonePad } from "@/components/calls/tone-pad";
+import { BookingPostCard } from "@/components/calls/slack-post";
 import { ScriptPanel } from "@/components/sop/script-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -406,7 +407,9 @@ function CallForm({
   line,
 }: {
   lead: QueueLead;
-  onLogged: () => void;
+  /** Handed the outcome, not just the fact that something was saved: a booking
+   *  is the one that owes Slack a post, and only this knows which was logged. */
+  onLogged: (outcome: CallOutcome) => void;
   onSkip: () => void;
   calBookingUrl?: string;
   line: TelnyxLine;
@@ -453,7 +456,7 @@ function CallForm({
       toast.success(
         `${OUTCOME_LABELS[outcome]}: ${lead.company ?? lead.phone}`,
       );
-      onLogged();
+      onLogged(outcome);
     } catch {
       toast.error("Could not save: network error.");
     } finally {
@@ -625,6 +628,7 @@ export function Dialler({
   lines = [],
   truncated = false,
   readOnly = false,
+  callerName,
 }: {
   leads: QueueLead[];
   /** The caller's own script and objection sheet, already rendered. One
@@ -650,6 +654,9 @@ export function Dialler({
   truncated?: boolean;
   /** Closed view: these calls are finished, there is nothing to log. */
   readOnly?: boolean;
+  /** Who is signed in, for the booking post they owe Slack. Absent means no
+   *  prompt, since a post has to be signed by somebody. */
+  callerName?: string;
   /** Demo workspace: the flow works, nothing is written. */
 }) {
   const router = useRouter();
@@ -685,14 +692,53 @@ export function Dialler({
   // than a long list.
   const upNext = remaining.filter((l) => l.id !== current?.id);
 
-  function handleLogged(leadId: number) {
+  // The booking just logged, until the caller says they have posted it. Held
+  // here rather than in the lead card so it outlives moving on to the next
+  // number: the post is written after the Cal.com tab, by which time the card
+  // that prompted it would be three leads ago.
+  const [toPost, setToPost] = React.useState<string | null>(null);
+
+  const column = React.useRef<HTMLDivElement>(null);
+  /**
+   * Back to the top of the card.
+   *
+   * Not `window.scrollTo`. `PageShell` gives the page its own `overflow-auto`
+   * div and the window itself never scrolls, so a call naming the window is
+   * silently a no-op: "Up next" had one and had quietly stopped scrolling
+   * anywhere. Asking the element to bring itself into view lets the browser
+   * find the scroller rather than this guessing which one it is.
+   */
+  const backToTop = React.useCallback(() => {
+    column.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  function handleLogged(lead: QueueLead, outcome: CallOutcome) {
     line.reset();
-    setDone((prev) => new Set(prev).add(leadId));
+    setDone((prev) => new Set(prev).add(lead.id));
     setPickedId(null);
+    if (outcome === "demo_booked" && callerName) {
+      setToPost(lead.company ?? lead.name ?? lead.phone);
+      // The outcome buttons sit most of a screen below the top of the card, so
+      // logging one leaves the reader scrolled past where the prompt appears.
+      // A reminder nobody scrolls back up to is not a reminder.
+      backToTop();
+    }
     // `done` keeps the lead out of the queue locally; the refresh then makes
     // the server agree, so it cannot reappear on the next navigation.
     router.refresh();
   }
+
+  // Rendered above the card and in the empty state both. A demo booked on the
+  // last lead in the queue is exactly when this matters most, and that is the
+  // one path where there is no card left to sit above.
+  const bookingPost =
+    toPost && callerName ? (
+      <BookingPostCard
+        name={callerName}
+        lead={toPost}
+        onDismiss={() => setToPost(null)}
+      />
+    ) : null;
 
   const sections = objections ?? [];
   const scriptSections = script ?? [];
@@ -720,7 +766,9 @@ export function Dialler({
 
   if (!current) {
     return (
-      <div className="px-4 py-16 text-center sm:px-6">
+      <div className="mx-auto w-full max-w-2xl px-4 py-5 sm:px-6">
+        {bookingPost}
+        <div className="py-11 text-center">
         <p className="text-sm font-semibold">
           {leads.length === 0 ? "Nothing to call here." : "Queue cleared."}
         </p>
@@ -740,6 +788,7 @@ export function Dialler({
             Bring back {skipped.length} skipped
           </Button>
         )}
+        </div>
       </div>
     );
   }
@@ -763,7 +812,8 @@ export function Dialler({
         </aside>
       )}
 
-      <div className="min-w-0">
+      <div ref={column} className="min-w-0">
+      {bookingPost}
       <div className="rounded-xl border bg-card p-4 sm:p-5">
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
           <div className="min-w-0">
@@ -891,7 +941,7 @@ export function Dialler({
           <CallForm
             key={`form-${current.id}`}
             lead={current}
-            onLogged={() => handleLogged(current.id)}
+            onLogged={(outcome) => handleLogged(current, outcome)}
             calBookingUrl={calBookingUrl}
             line={line}
             onSkip={() => {
@@ -919,7 +969,7 @@ export function Dialler({
                   type="button"
                   onClick={() => {
                     setPickedId(l.id);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    backToTop();
                   }}
                   className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-[13px] transition-colors hover:bg-muted/50"
                 >

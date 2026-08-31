@@ -274,6 +274,10 @@ export default async function CallListPage({
         leads={leads}
         truncated={leads.length >= CALL_QUEUE_LIMIT}
         readOnly={filter === "closed"}
+        // Callers only, matching who the SOP asks to post: a founder's own
+        // booking pays nobody and is not the floor's news, the same reason
+        // they are off the Scoreboard and off the confirm list.
+        callerName={me?.role === "caller" ? me.name : undefined}
       />
     </PageShell>
   );

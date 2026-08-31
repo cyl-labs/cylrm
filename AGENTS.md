@@ -815,6 +815,49 @@ deleted is removed from the table too.
   accident. They are: owner or decision maker, interested, and a specific date
   and time agreed.
 
+### Slack reporting (post-SOP)
+
+Three things are posted to Slack and `content/sop/procedure-slack-reporting.md`
+is the document: daily numbers to `#daily-reports`, a booking to
+`#meetings-booked` the moment it is made, and time off by direct message in
+advance. Two of the three are prompted in the app by
+`src/components/calls/slack-post.tsx`.
+
+- **The templates live in that one component and that one document, nowhere
+  else.** A procedure people meet on their first day is one they stop following
+  in a fortnight, so the app fills the template in from what it already knows
+  and the post becomes a copy and a paste. If a template changes it changes in
+  those two files.
+- **`DailyReportCard` is on the call lists screen**, which is where a caller
+  starts and finishes, rather than on the dialler where they are mid-queue.
+  Its numbers come from `getCallTotals` in the person's own `stats_region`,
+  which is exactly what the Scoreboard's Today card runs: two ways of counting
+  a day would put two numbers in front of one caller, and the one typed into
+  Slack had better be the one their pay is read from. The card says which zone
+  it used, and renders nothing before the first call of the day, since a card
+  reporting zero calls at nine in the morning is furniture rather than a
+  reminder.
+- **`BookingPostCard` is not a toast.** It appears when `demo_booked` is
+  logged and stays until dismissed: the caller goes off to Cal.com to finish
+  the booking, so anything that expires in five seconds is gone before they
+  come back. It is rendered in the empty state as well as above the lead card,
+  because a demo booked on the last lead in the queue is when it matters most
+  and is the one path with no card to sit above. The meeting time and the trial
+  answer are left blank on purpose: the slot lives on Cal.com and does not
+  reach the CRM for a few minutes.
+- **Both are `role === "caller"` only**, matching who the SOP asks to post, and
+  the same reason founders are off the Scoreboard and off the confirm list.
+- **`window.scrollTo` does nothing on any Call CRM screen.** `PageShell` gives
+  the page its own `overflow-auto` div, so the window never scrolls and a call
+  naming it is silently a no-op. "Up next" in the dialler had one and had
+  quietly stopped scrolling anywhere; both call sites now go through
+  `backToTop`, which asks the column to `scrollIntoView` and lets the browser
+  find the scroller.
+- `SopProse` gained `pre` and inline `code` styling for the templates. Wrapped
+  (`whitespace-pre-wrap`), never a horizontal scroller: the line breaks in a
+  template are its content, and a caller reading this on a phone has to see the
+  whole thing.
+
 ## Do Not Call screening (Call CRM)
 
 **Built but dormant — parked 2026-08-18, nothing is switched on.** It waits on

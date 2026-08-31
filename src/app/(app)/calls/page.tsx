@@ -2,8 +2,14 @@ import Link from "next/link";
 import { ChevronRight, PhoneCall } from "lucide-react";
 import { getCallLists, type CallListSummary } from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
-import { listTeam } from "@/lib/users";
+import { listTeam, statsRegionOf } from "@/lib/users";
+import {
+  getCallTotals,
+  statsZone,
+  todayInStatsTz,
+} from "@/lib/call-stats";
 import { PageShell } from "@/components/page-shell";
+import { DailyReportCard } from "@/components/calls/slack-post";
 import { CallImportDialog } from "@/components/calls/call-import-dialog";
 import { ListAssignment } from "@/components/calls/list-assignment";
 import { ListActions } from "@/components/calls/list-actions";
@@ -35,6 +41,12 @@ export default async function CallsPage({
   const mine = isAdmin && mineParam === "1";
   const lists = mine ? myLists : all;
   const people = team.map((t) => ({ id: t.id, name: t.name, active: t.active }));
+
+  // The end-of-session report, filled in. Callers only: the founders are who
+  // it is posted to, so prompting them to file one would be a card asking
+  // nobody for anything, the same reason they are off the Scoreboard.
+  const report =
+    me && me.role === "caller" ? await dailyReport(me.id, me.name) : null;
 
   // One section per market, plus whatever nobody has filed yet. Empty folders
   // are dropped rather than left as a heading with nothing under it, so the
@@ -89,6 +101,16 @@ export default async function CallsPage({
       }
     >
       <div className="px-4 py-5 sm:px-6">
+        {report && (
+          <DailyReportCard
+            name={report.name}
+            date={report.date}
+            calls={report.calls}
+            pickups={report.pickups}
+            demos={report.demos}
+            zoneName={report.zoneName}
+          />
+        )}
         {lists.length === 0 ? (
           <div className="rounded-xl border border-dashed py-16 text-center">
             <PhoneCall
@@ -145,6 +167,46 @@ export default async function CallsPage({
       </div>
     </PageShell>
   );
+}
+
+/**
+ * This caller's day so far, for the post the SOP asks them to make.
+ *
+ * Counted exactly as the Scoreboard counts it: the same `getCallTotals`, the
+ * same day boundary, the same zone this person has chosen for their reporting
+ * screens. Two ways of counting a day would put two different numbers in front
+ * of one caller, and the one they type into Slack had better be the one their
+ * numbers are read from.
+ *
+ * Nothing is shown before the first call of the day. A card reporting zero
+ * calls at nine in the morning is not a reminder, it is furniture, and the
+ * point of this one is that it appears when there is something to say.
+ */
+async function dailyReport(userId: number, name: string) {
+  const zone = statsZone(await statsRegionOf(userId));
+  const date = todayInStatsTz(zone.tz);
+  const totals = await getCallTotals(
+    { kind: "day", date, tz: zone.tz },
+    undefined,
+    userId,
+  );
+  if (totals.calls === 0) return null;
+  return {
+    name,
+    // Fixed locale and zone, formatted on the server and passed down as a
+    // string: a date built in the browser renders one way on the server and
+    // another on hydration, which is the trap the spreadsheet documents.
+    date: new Intl.DateTimeFormat("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: zone.tz,
+    }).format(new Date()),
+    calls: totals.calls,
+    pickups: totals.pickups,
+    demos: totals.demos,
+    zoneName: zone.name,
+  };
 }
 
 /**
