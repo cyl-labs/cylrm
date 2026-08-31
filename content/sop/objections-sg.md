@@ -14,13 +14,40 @@ These can come up anywhere in the call, not just at the end.
 ## Brushing you off | Prospect: "Who is this? / What company are you with?"
 
 
+Lead with the problem, not the company name. Answer, then put a question back
+every time, or you end up being interviewed.
+
+**First time they ask:**
+
 > **You say** My name's [your name]. I work with [their trade] on missed calls and messages. We set up a voice agent that picks up when you're on a job or closed.
 
 _(let them answer)_
 
-If they ask again, give the name and go straight back to your question.
+**They ask again.** Give the name this time, then straight back to your
+question.
 
 > **You say** Cyllabs. Anyway, when you're out on a job, do those calls and messages go to voicemail?
+
+_(let them answer)_
+
+**They keep asking.** Two more answers and neither is longer than the last.
+Repeating the pitch is what makes you sound like a script; the short human
+answer is what usually settles it.
+
+> **You say** Just me. I help [their trade] businesses stop losing after-hours calls and WhatsApps.
+
+_(let them answer)_
+
+If it is still the only thing they want to talk about, say so plainly and give
+them the choice. Someone on their fourth "who are you" is not listening to an
+answer, and the question is now the objection.
+
+> **You say** Fair enough, you don't know me from anyone. Give me twenty seconds on why I called and if it's not for you, I'll leave you alone.
+
+_(let them answer)_
+
+If that does not land, it is a no. Log it and move on rather than spending the
+call proving who you are.
 
 ## Brushing you off | Prospect: "I'm not interested."
 

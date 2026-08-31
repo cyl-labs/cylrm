@@ -4,31 +4,19 @@ region: sg
 title: Cold Calling Script
 ---
 
-Top to bottom is the call. Indented blocks are detours.
-Take one only if it happens, then carry on where you left off.
+**Step 01 is your first line.** Everything on this page in a shaded block is
+said out loud, so start at 01 and go down. Indented blocks are detours: take
+one only if it happens, then carry on where you left off.
 
-## Before you call
+Three rules that hold for the whole call, none of them things you say:
 
-**Do not open with the company name.** Lead with the problem.
+- **Do not open with the company name.** Lead with the problem.
+- **Say "voice agent".** Not AI receptionist, chatbot or answering service.
+- **The demo already exists.** You are not offering to build one.
 
-**When they ask who is calling:**
-
-> **You say** My name's [your name]. I work with [their trade] on missed calls and messages. We set up a voice agent that picks up when you're on a job or closed.
-
-Short version:
-
-> **You say** Just me. I help [their trade] businesses stop losing after-hours calls and WhatsApps.
-
-**If they ask again, give the name and go straight back to your question.**
-
-> **You say** Cyllabs. Anyway, when you're out on a job, do those calls and messages go to voicemail?
-
-**Say "voice agent".** Not AI receptionist, chatbot or answering service.
-
-**The demo already exists.** You are not offering to build one.
-
-**If they ask the price:** it depends on their call volume and starts as low as
-$79 a month. Then take it back to the demo.
+Anything they interrupt with is in **Objection handling**, not here: who you
+are, what it costs, whether they even need it. Press **O** or the button on
+the dial card.
 
 ## Opener sequence
 
