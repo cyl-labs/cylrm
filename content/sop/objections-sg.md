@@ -192,6 +192,40 @@ _(let them answer)_
 
 > **You say** That's fine, you can consult them. But when it comes to voice agents, we're really the experts, so would it be helpful to set up a time where we can all get on a call together and I can answer any questions they might have?
 
+## Not the decision maker | Screener: "Can I ask who's calling, and what it's about?"
+
+
+A screener is not a prospect. They cannot buy anything, they can only stop you,
+and the only thing they are listening for is whether you are selling. So do not
+sell. Answer the question you were asked, quickly and flatly, and let the
+answer be boring.
+
+**Give a first name and the actual reason you rang.** Your reason is the
+opening question, said as a statement.
+
+> **You say** My name's [your name], I'm calling to see what time you guys close.
+
+_(let them answer)_
+
+Say it in one breath, the way you would if you were ringing about a delivery.
+Hesitating is what gets you screened; so is a job title, a pitch, or asking for
+"whoever handles your phones". None of that is an answer to what they asked.
+
+**If they ask what company:** give it and go straight back to the question.
+
+> **You say** Cyllabs. So what time do you guys close today?
+
+**If they ask outright whether it is a sales call**, do not deny it. Say the
+true and smaller version, and hand them something worth passing on.
+
+> **You say** It could turn into one, but I'm not selling you anything on this call. I built a demo for [company] and I wanted to check one thing about your after-hours calls and messages first. Is the owner around?
+
+_(let them answer)_
+
+Once you are through, carry on from where the script left off. Do not
+reintroduce yourself and do not start again with a pitch. You already gave your
+name, and repeating it is what makes the call sound rehearsed.
+
 ## Not the decision maker | Receptionist / gatekeeper keeps saying "not interested"
 
 
