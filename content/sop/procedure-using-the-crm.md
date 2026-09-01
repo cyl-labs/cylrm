@@ -7,6 +7,21 @@ title: Using the Call CRM
 Everything here applies whichever region you call. Times shown anywhere in the
 app are **Singapore time**.
 
+## The bar at the top is your week
+
+**300 calls a week.** The strip under the page title is where you are against
+it, on every screen, all day. You never have to go and look it up.
+
+It counts calls you have **logged**, from Monday, and it is your own calls and
+nobody else's. A call you made and did not log is not on it, which is the same
+rule your pay runs on.
+
+It does not stop at 300. Go past and it says so and keeps counting, because
+the target is the floor and not the ceiling.
+
+The **Scoreboard** is the same numbers broken down, with everyone else's
+beside yours.
+
 ## You only see your own niches
 
 Call lists are assigned. The dialler, the spreadsheet, the pipeline and the

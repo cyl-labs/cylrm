@@ -3,6 +3,8 @@ import { countCallbacksDue } from "@/lib/calls";
 import { countMeetingsToChaseFor } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { MobileNav } from "@/components/mobile-nav";
+import { QuotaBar } from "@/components/calls/quota-bar";
+import { getWeekProgress } from "@/lib/call-stats";
 import { canUseKeypad } from "@/lib/users";
 
 export async function PageShell({
@@ -20,6 +22,12 @@ export async function PageShell({
   const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
   const callbacks = await countCallbacksDue(callScope(me));
   const meetings = await countMeetingsToChaseFor(me);
+  // Callers only: the founders set the quota rather than owing it, the same
+  // reason they are off the Scoreboard and off the payroll confirm list. A
+  // caller can only ever be on a Call CRM screen, so there is no workspace to
+  // check as well as the role.
+  const week =
+    me?.role === "caller" ? await getWeekProgress(me.id) : null;
   return (
     <div className="flex h-svh flex-col">
       <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 gap-y-2 border-b bg-card px-4 py-2.5 sm:px-7">
@@ -37,6 +45,7 @@ export async function PageShell({
           <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
         )}
       </header>
+      {week && <QuotaBar calls={week.calls} />}
       {/* `relative` makes this the containing block for absolutely positioned
           descendants. Without it, `sr-only` spans (position: absolute, no
           positioned ancestor) resolve against the viewport instead, escape the

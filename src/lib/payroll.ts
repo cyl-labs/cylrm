@@ -28,22 +28,13 @@ export {
 /**
  * Monday (Eastern) of the week a payout falls in, as YYYY-MM-DD.
  *
- * Stamped onto the payout row so the history groups by week in the database
- * rather than being re-derived on every read — the reporting zone has moved
- * once already, from Singapore to New York, and that must not silently
- * reshuffle which week an old payment belongs to.
- *
- * Built by string arithmetic through an explicit `Z`, the same pattern
- * `call-stats/page.tsx` uses to step back a day: a calendar date has no zone,
- * and `new Date("2026-08-27")` is UTC midnight, which reads as the day before
- * anywhere west of Greenwich.
+ * Lives in `call-stats.ts` and is re-exported here. It moved on 2026-09-01,
+ * when the quota bar needed the same Monday: this module already imports from
+ * that one, so importing back would have made a cycle. The definition follows
+ * the dependency rather than the other way round, and every existing caller
+ * keeps working.
  */
-export function payWeekStart(today = todayInStatsTz()): string {
-  const d = new Date(`${today}T00:00:00Z`);
-  const dow = d.getUTCDay(); // 0 = Sunday
-  d.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
-  return d.toISOString().slice(0, 10);
-}
+export { payWeekStart } from "@/lib/call-stats";
 
 /**
  * Dates on this screen, rendered in the reporting zone.

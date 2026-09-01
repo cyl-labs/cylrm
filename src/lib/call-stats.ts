@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import type { CallOutcome } from "@/lib/calls";
@@ -50,6 +51,70 @@ export type CallTotals = {
    *  place, and calling those out of hours would be a guess. */
   zoneKnown: number;
 };
+
+/**
+ * Monday (Eastern) of the week a date falls in, as YYYY-MM-DD.
+ *
+ * Payroll stamps it onto the payout row so history groups by week in the
+ * database rather than being re-derived on every read: the reporting zone has
+ * moved once already, from Singapore to New York, and that must not silently
+ * reshuffle which week an old payment belongs to. The quota bar uses the same
+ * Monday, so a caller's week of work and their week of pay are the same seven
+ * days.
+ *
+ * Built by string arithmetic through an explicit `Z`, the same pattern
+ * `dayBackInStatsTz` uses: a calendar date has no zone, and
+ * `new Date("2026-08-27")` is UTC midnight, which reads as the day before
+ * anywhere west of Greenwich.
+ *
+ * Here rather than in `payroll.ts`, which already imports from this module and
+ * would otherwise close a cycle.
+ */
+export function payWeekStart(today = todayInStatsTz()): string {
+  const d = new Date(`${today}T00:00:00Z`);
+  const dow = d.getUTCDay(); // 0 = Sunday
+  d.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+  return d.toISOString().slice(0, 10);
+}
+
+export type WeekProgress = {
+  /** Calls this person has logged since Monday. */
+  calls: number;
+  /** The Monday it is counting from, YYYY-MM-DD, for the label. */
+  weekStart: string;
+};
+
+/**
+ * One caller's week so far, for the progress bar in the app shell.
+ *
+ * Counted by `getCallTotals` rather than by a query of its own, so "a call"
+ * means exactly what it means on Stats and the Scoreboard. A bar in the header
+ * disagreeing with the screen it sits above would be worse than no bar.
+ *
+ * `cache()`d because the shell renders it on every page, the same reason
+ * `countUnreadReplies` and `countCallbacksDue` are.
+ *
+ * The week is Payroll's week: Monday, cut in `STATS_TZ`, whatever zone the
+ * reader has picked for their reporting screens. A quota week that moved with
+ * the timezone picker would let someone change how much work they owe by
+ * changing a dropdown.
+ */
+export const getWeekProgress = cache(
+  async (userId: number): Promise<WeekProgress> => {
+    const weekStart = payWeekStart();
+    const totals = await getCallTotals(
+      {
+        kind: "between",
+        from: weekStart,
+        to: todayInStatsTz(STATS_TZ),
+        tz: STATS_TZ,
+      },
+      undefined,
+      userId,
+    );
+    return { calls: totals.calls, weekStart };
+  },
+);
 
 export type OutcomeCount = { outcome: CallOutcome; calls: number };
 
