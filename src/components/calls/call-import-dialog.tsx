@@ -41,6 +41,11 @@ import { cn } from "@/lib/utils";
 
 type Scan = {
   usable: number;
+  /** Usable rows whose number the CRM already holds, anywhere. */
+  duplicatesInCrm: number;
+  /** Where those copies sit, biggest first — the answer to "already where?". */
+  duplicateLists: { name: string; count: number }[];
+  otherListCount: number;
   skippedNoPhone: number;
   skippedRepeatedInFile: number;
   skippedBadNumber: { company: string; phone: string }[];
@@ -53,6 +58,12 @@ type Staged = {
   name: string;
   region: CallRegion | "none";
   ownerId: string;
+  /** Drop the rows the CRM already has instead of storing them flagged. */
+  dropDuplicates: boolean;
+  /** How many lists this file becomes. 1 is the ordinary import. */
+  split: number;
+  /** One owner per part, only read when split > 1. */
+  partOwnerIds: string[];
   scan: Scan | null;
   /** Why this file cannot be imported, from the server's own parser. */
   error: string | null;
@@ -63,6 +74,7 @@ type ImportResult = {
   appended: boolean;
   inserted: number;
   duplicates: number;
+  removedDuplicates: number;
   alreadyInList: number;
   skippedNoPhone: number;
   skippedRepeatedInFile: number;
@@ -71,6 +83,17 @@ type ImportResult = {
 
 const NEW_LIST = "__new__";
 const NO_OWNER = "__none__";
+const MAX_SPLIT = 10;
+
+/** Sizes of each part when `total` rows are dealt `split` ways. Dealing round
+ *  robin makes them equal to within one row, which is what this reproduces —
+ *  it is a preview of the server's own arithmetic, not a second rule. */
+function partSizes(total: number, split: number) {
+  return Array.from(
+    { length: split },
+    (_, i) => Math.floor(total / split) + (i < total % split ? 1 : 0),
+  );
+}
 
 function nameFromFilename(filename: string) {
   return filename.replace(/\.csv$/i, "").replace(/[_-]+/g, " ").trim();
@@ -175,6 +198,11 @@ export function CallImportDialog({
         name,
         region: guessRegion(name),
         ownerId: NO_OWNER,
+        // On by default: a number the CRM already holds is one nobody should
+        // ring again, and storing it flagged only leaves it to be counted.
+        dropDuplicates: true,
+        split: 1,
+        partOwnerIds: [],
         scan: null,
         error: null,
       };
@@ -197,14 +225,21 @@ export function CallImportDialog({
     );
   }
 
+  // What will actually be written: usable rows, less the ones the CRM already
+  // has when they are being dropped. This is the number the split is dealt
+  // from, so it is the one the screen counts with.
+  const toImport = (s: Staged) =>
+    s.scan === null
+      ? 0
+      : s.scan.usable - (s.dropDuplicates ? s.scan.duplicatesInCrm : 0);
+
   // Staged but not importable: a file whose numbers are all national format
   // reads as zero usable until a folder is chosen, and it has to stay on
-  // screen with its controls for that to be possible.
-  const importable = staged.filter(
-    (s) => s.error === null && (s.scan?.usable ?? 0) > 0,
-  );
+  // screen with its controls for that to be possible. So does one whose every
+  // number the CRM already holds — unticking the box is the way forward there.
+  const importable = staged.filter((s) => s.error === null && toImport(s) > 0);
   const scanned = staged.filter((s) => s.error === null && s.scan !== null);
-  const empty = scanned.filter((s) => s.scan!.usable === 0);
+  const empty = scanned.filter((s) => toImport(s) === 0);
   const ready =
     importable.length > 0 &&
     !scanning &&
@@ -223,12 +258,23 @@ export function CallImportDialog({
       for (const s of importable) {
         const body = new FormData();
         body.append("file", s.file);
+        if (s.dropDuplicates) body.append("dropDuplicates", "1");
         if (appending) {
           body.append("callListId", target);
         } else {
           body.append("name", s.name.trim());
           if (s.region !== "none") body.append("region", s.region);
-          if (s.ownerId !== NO_OWNER) body.append("assignedUserId", s.ownerId);
+          if (s.split > 1) {
+            body.append("split", String(s.split));
+            // One field per part, in order, so a part with nobody on it is
+            // still a position rather than a gap.
+            for (let i = 0; i < s.split; i++) {
+              const owner = s.partOwnerIds[i] ?? NO_OWNER;
+              body.append("partOwnerId", owner === NO_OWNER ? "" : owner);
+            }
+          } else if (s.ownerId !== NO_OWNER) {
+            body.append("assignedUserId", s.ownerId);
+          }
         }
         const res = await fetch("/api/call-lists", { method: "POST", body });
         const data = await res.json().catch(() => ({}));
@@ -239,7 +285,10 @@ export function CallImportDialog({
           );
           break;
         }
-        done.push(data as ImportResult);
+        // A split comes back as the set of lists it made; everything else is
+        // one list, the shape this has always returned.
+        if (Array.isArray(data.parts)) done.push(...(data.parts as ImportResult[]));
+        else done.push(data as ImportResult);
       }
       if (done.length > 0) {
         setResults(done);
@@ -257,7 +306,8 @@ export function CallImportDialog({
     if (!next) reset();
   }
 
-  const totalUsable = importable.reduce((a, s) => a + (s.scan?.usable ?? 0), 0);
+  const totalUsable = importable.reduce((a, s) => a + toImport(s), 0);
+  const totalLists = importable.reduce((a, s) => a + (appending ? 1 : s.split), 0);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -293,6 +343,8 @@ export function CallImportDialog({
                   <p className="font-semibold">{r.callListName}</p>
                   <p className="text-muted-foreground">
                     {r.inserted} imported
+                    {r.removedDuplicates > 0 &&
+                      ` · ${r.removedDuplicates} removed, already in the CRM`}
                     {r.duplicates > 0 &&
                       ` · ${r.duplicates} already on another list, held out of the queue`}
                     {r.alreadyInList > 0 && ` · ${r.alreadyInList} already here`}
@@ -355,7 +407,11 @@ export function CallImportDialog({
 
               {staged.length > 0 && (
                 <ul className="space-y-2">
-                  {staged.map((s) => (
+                  {staged.map((s) => {
+                    // The key carries the filename, so it holds dots and
+                    // spaces; an id is not the place for either.
+                    const domId = s.key.replace(/[^a-zA-Z0-9]+/g, "-");
+                    return (
                     <li
                       key={s.key}
                       className={cn(
@@ -406,6 +462,66 @@ export function CallImportDialog({
                                   </p>
                                 )
                               )}
+
+                              {/* The overlap, named. Everything the CRM already
+                                  holds, wherever it sits — last month's scrape
+                                  of this niche is the usual answer, and the
+                                  list names are how you tell. */}
+                              {s.scan.duplicatesInCrm > 0 && (
+                                <div className="mt-2 rounded-md bg-muted/60 px-2.5 py-2">
+                                  <p className="text-[12px] text-muted-foreground">
+                                    <span className="font-semibold text-foreground">
+                                      {s.scan.duplicatesInCrm}
+                                    </span>{" "}
+                                    already in the CRM
+                                    {s.scan.duplicateLists.length > 0 && (
+                                      <>
+                                        {" "}
+                                        — on{" "}
+                                        {s.scan.duplicateLists
+                                          .map((d) => `${d.name} (${d.count})`)
+                                          .join(", ")}
+                                        {s.scan.otherListCount > 0 &&
+                                          ` and ${s.scan.otherListCount} other ${
+                                            s.scan.otherListCount === 1
+                                              ? "list"
+                                              : "lists"
+                                          }`}
+                                      </>
+                                    )}
+                                  </p>
+                                  <label className="mt-1.5 flex items-center gap-2 text-[13px]">
+                                    <input
+                                      type="checkbox"
+                                      className="size-3.5 accent-primary"
+                                      checked={s.dropDuplicates}
+                                      onChange={(e) =>
+                                        update(s.key, {
+                                          dropDuplicates: e.target.checked,
+                                        })
+                                      }
+                                    />
+                                    Remove them —{" "}
+                                    <span className="font-semibold">
+                                      {toImport(s)}
+                                    </span>{" "}
+                                    to import
+                                  </label>
+                                  {!s.dropDuplicates ? (
+                                    <p className="mt-1 text-[12px] text-muted-foreground">
+                                      Kept, but flagged as duplicates: they
+                                      never reach anybody&rsquo;s queue.
+                                    </p>
+                                  ) : (
+                                    toImport(s) === 0 && (
+                                      <p className="mt-1 text-[12px] font-semibold text-destructive">
+                                        That is the whole file — you already
+                                        have every number in it.
+                                      </p>
+                                    )
+                                  )}
+                                </div>
+                              )}
                             </>
                           ) : (
                             <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -429,72 +545,183 @@ export function CallImportDialog({
                       </div>
 
                       {!s.error && !appending && (
-                        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                          <Input
-                            value={s.name}
-                            onChange={(e) =>
-                              update(s.key, { name: e.target.value })
-                            }
-                            placeholder="List name"
-                            aria-label={`Name for ${s.file.name}`}
-                            required
-                          />
-                          <Select
-                            value={s.region}
-                            onValueChange={(v) => {
-                              const next = v as CallRegion | "none";
-                              update(s.key, { region: next });
-                              // The count is only true for one market, so it
-                              // is re-read rather than left saying what the
-                              // previous folder found.
-                              void scanFile(s.key, s.file, next);
-                            }}
-                          >
-                            <SelectTrigger
-                              className="w-full sm:w-40"
-                              aria-label={`Folder for ${s.file.name}`}
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {REGION_ORDER.map((r) => (
-                                <SelectItem key={r} value={r}>
-                                  {REGION_LABELS[r]}
-                                </SelectItem>
-                              ))}
-                              <SelectItem value="none">Unfiled</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {canAssign && (
-                            <Select
-                              value={s.ownerId}
-                              onValueChange={(v) =>
-                                update(s.key, { ownerId: v })
+                        <div className="mt-3 space-y-2">
+                          <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                            <Input
+                              value={s.name}
+                              onChange={(e) =>
+                                update(s.key, { name: e.target.value })
                               }
+                              placeholder="List name"
+                              aria-label={`Name for ${s.file.name}`}
+                              required
+                            />
+                            <Select
+                              value={s.region}
+                              onValueChange={(v) => {
+                                const next = v as CallRegion | "none";
+                                update(s.key, { region: next });
+                                // The count is only true for one market, so it
+                                // is re-read rather than left saying what the
+                                // previous folder found.
+                                void scanFile(s.key, s.file, next);
+                              }}
                             >
                               <SelectTrigger
                                 className="w-full sm:w-40"
-                                aria-label={`Owner for ${s.file.name}`}
+                                aria-label={`Folder for ${s.file.name}`}
                               >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value={NO_OWNER}>
-                                  Nobody yet
-                                </SelectItem>
-                                {people.map((p) => (
-                                  <SelectItem key={p.id} value={String(p.id)}>
-                                    {p.name}
-                                    {!p.active && " (off)"}
+                                {REGION_ORDER.map((r) => (
+                                  <SelectItem key={r} value={r}>
+                                    {REGION_LABELS[r]}
+                                  </SelectItem>
+                                ))}
+                                <SelectItem value="none">Unfiled</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {/* A split names an owner per part, so the file's
+                                own owner select would be a second answer to
+                                the same question. */}
+                            {canAssign && s.split === 1 && (
+                              <Select
+                                value={s.ownerId}
+                                onValueChange={(v) =>
+                                  update(s.key, { ownerId: v })
+                                }
+                              >
+                                <SelectTrigger
+                                  className="w-full sm:w-40"
+                                  aria-label={`Owner for ${s.file.name}`}
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={NO_OWNER}>
+                                    Nobody yet
+                                  </SelectItem>
+                                  {people.map((p) => (
+                                    <SelectItem key={p.id} value={String(p.id)}>
+                                      {p.name}
+                                      {!p.active && " (off)"}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+
+                          {/* One niche, several callers. The parts are dealt
+                              round robin rather than cut into blocks, so each
+                              gets the same mix of a file that arrived sorted
+                              by city or rating. */}
+                          <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                            <Label
+                              htmlFor={`split-${domId}`}
+                              className="text-muted-foreground"
+                            >
+                              Split into
+                            </Label>
+                            <Select
+                              value={String(s.split)}
+                              onValueChange={(v) => {
+                                const next = Number(v);
+                                update(s.key, {
+                                  split: next,
+                                  // Keep whoever was already picked; the first
+                                  // part inherits the file's owner so widening
+                                  // a split does not silently unassign it.
+                                  partOwnerIds: Array.from(
+                                    { length: next },
+                                    (_, i) =>
+                                      s.partOwnerIds[i] ??
+                                      (i === 0 ? s.ownerId : NO_OWNER),
+                                  ),
+                                });
+                              }}
+                            >
+                              <SelectTrigger
+                                id={`split-${domId}`}
+                                className="w-24"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from(
+                                  { length: MAX_SPLIT },
+                                  (_, i) => i + 1,
+                                ).map((n) => (
+                                  <SelectItem key={n} value={String(n)}>
+                                    {n === 1 ? "1 list" : `${n} lists`}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
+                            {s.split > 1 && (
+                              <span className="text-muted-foreground">
+                                dealt out evenly, not cut into blocks
+                              </span>
+                            )}
+                          </div>
+
+                          {s.split > 1 && (
+                            <ul className="space-y-1.5 rounded-md border border-dashed p-2.5">
+                              {partSizes(toImport(s), s.split).map(
+                                (size, i) => (
+                                  <li
+                                    key={i}
+                                    className="flex flex-wrap items-center gap-2 text-[13px]"
+                                  >
+                                    <span className="min-w-0 flex-1 truncate">
+                                      {s.name.trim() || s.file.name} {i + 1}
+                                      <span className="text-muted-foreground">
+                                        {" "}
+                                        · {size} leads
+                                      </span>
+                                    </span>
+                                    {canAssign && (
+                                      <Select
+                                        value={s.partOwnerIds[i] ?? NO_OWNER}
+                                        onValueChange={(v) => {
+                                          const next = [...s.partOwnerIds];
+                                          next[i] = v;
+                                          update(s.key, { partOwnerIds: next });
+                                        }}
+                                      >
+                                        <SelectTrigger
+                                          className="w-full sm:w-40"
+                                          aria-label={`Owner for part ${i + 1} of ${s.file.name}`}
+                                        >
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value={NO_OWNER}>
+                                            Nobody yet
+                                          </SelectItem>
+                                          {people.map((p) => (
+                                            <SelectItem
+                                              key={p.id}
+                                              value={String(p.id)}
+                                            >
+                                              {p.name}
+                                              {!p.active && " (off)"}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </li>
+                                ),
+                              )}
+                            </ul>
                           )}
                         </div>
                       )}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
 
@@ -505,11 +732,11 @@ export function CallImportDialog({
               <p className="text-[13px] text-muted-foreground">
                 {!scanning &&
                   (importable.length > 0
-                    ? `${totalUsable} leads across ${importable.length} ${
-                        importable.length === 1 ? "file" : "files"
-                      }${empty.length > 0 ? `, ${empty.length} with nothing usable` : ""}`
+                    ? `${totalUsable} leads into ${totalLists} ${
+                        totalLists === 1 ? "list" : "lists"
+                      }${empty.length > 0 ? `, ${empty.length} file${empty.length === 1 ? "" : "s"} with nothing to import` : ""}`
                     : empty.length > 0
-                      ? "Set a folder to read these numbers."
+                      ? "Nothing to import from these files."
                       : "")}
               </p>
               <Button type="submit" disabled={!ready || submitting}>

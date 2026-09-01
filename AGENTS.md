@@ -229,6 +229,42 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   stops the run with the already-created lists intact rather than rolling back
   work that succeeded. Appending to an existing list is still offered, but
   only when exactly one file is staged.
+- **Deduplication is shown before the import, not discovered after it.** Every
+  import has always screened each number against the whole `call_lead` table
+  and flagged the matches (`duplicate_of_lead_id`), which holds them out of
+  every queue, count and board — but silently, and only once the list existed.
+  The dry run now returns `duplicatesInCrm` plus the lists those copies sit on
+  (`duplicateLists`, biggest first, capped at `OVERLAP_LISTS_SHOWN`), so the
+  review row reads "3 already in the CRM — on Movers SG (3)". Naming them is
+  the point: it is how you tell last month's scrape of this niche from an
+  unrelated overlap.
+  - `dropDuplicates=1` (**the review screen's default**) drops those rows
+    instead of storing them flagged. Unticking it restores the old behaviour
+    exactly. A file whose every number is already held is refused with a
+    message saying so rather than creating an empty list.
+  - **Screened against the whole database, not one list you pick.** That is a
+    superset of "compare it to the list I already have in this niche", and
+    ringing a business twice is worth preventing whichever list the other copy
+    is on. A picker would only be a way to get it wrong.
+- **`split=N` turns one file into N lists**, so one niche can be handed to
+  several callers — `partOwnerId` is sent once per part, in order, and each
+  list is named `<name> <i+1>`. Derived server-side rather than typed per part,
+  so the review screen can show exactly what will be created.
+  - **Rows are dealt round robin (`i % split`), never cut into contiguous
+    blocks.** A scrape arrives sorted — by city, by rating, by whatever the
+    directory ordered on — so slicing hands one caller every Alaska lead and
+    another every Californian one. Dealing gives every part the same mix and,
+    to within one row, the same size. `partSizes` in the dialog previews that
+    arithmetic; it mirrors the server and is not a second rule.
+  - Duplicates are removed **before** the deal, so each caller's share is equal
+    in leads they can actually ring rather than equal in rows.
+  - All parts are created in **one transaction**: a split that half-succeeds
+    leaves a niche divided between callers with a chunk of it missing.
+  - Refused when appending (there is nothing to create), capped at `MAX_SPLIT`
+    (10). `split=1` returns the single-list response shape it always has; more
+    returns `{ split, parts: [...] }`, and only the first part carries the
+    file-wide counts so a split does not report the same 12 unusable rows N
+    times.
 - **Renaming and deleting a list** are on a `⋯` menu on each card, admin only
   and enforced in `PATCH`/`DELETE /api/call-lists/[id]` rather than by hiding
   the button. Delete is genuinely destructive and says what it will destroy in

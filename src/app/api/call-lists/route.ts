@@ -9,6 +9,14 @@ import { websiteHref } from "@/lib/website";
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 500;
 
+/** How many ways one file may be split. Well above the size of the floor;
+ *  it exists so a typo cannot ask for four hundred lists. */
+const MAX_SPLIT = 10;
+
+/** Lists named in the "already in the CRM" line on the review screen. Enough
+ *  to recognise the niche you imported last month, not a full report. */
+const OVERLAP_LISTS_SHOWN = 4;
+
 /** The number kinds we hold a caller ID for. Anything else cannot be rung
  *  from this app, so it is refused at the door rather than sitting in a
  *  queue waiting to waste a dial. */
@@ -225,6 +233,20 @@ export async function POST(request: Request) {
     typeof appendToRaw === "string" && appendToRaw !== ""
       ? Number(appendToRaw)
       : null;
+  // Drop the rows whose number is already on some other lead rather than
+  // storing them flagged. Both are "out of the queue"; this one also keeps
+  // them out of the split, so each caller's share is the same size in leads
+  // they can actually ring.
+  const dropDuplicates = form.get("dropDuplicates") === "1";
+  // One file into N lists, so one niche can be handed to several callers.
+  const splitRaw = form.get("split");
+  const split =
+    typeof splitRaw === "string" && splitRaw !== "" ? Number(splitRaw) : 1;
+  // One per part, in order; "" means nobody. Absent entirely means every part
+  // takes `assignedUserId`, which is what a split of one has always done.
+  const partOwnersRaw = form
+    .getAll("partOwnerId")
+    .filter((v): v is string => typeof v === "string");
 
   if (!(file instanceof File)) {
     return Response.json({ error: "No CSV file provided." }, { status: 400 });
@@ -238,6 +260,24 @@ export async function POST(request: Request) {
   if (appendTo === null && !dryRun && (typeof name !== "string" || name.trim() === "")) {
     return Response.json({ error: "Call list name is required." }, { status: 400 });
   }
+  if (!Number.isInteger(split) || split < 1 || split > MAX_SPLIT) {
+    return Response.json(
+      { error: `Split must be a whole number from 1 to ${MAX_SPLIT}.` },
+      { status: 400 },
+    );
+  }
+  // A split creates lists; there is nothing to create when adding to one that
+  // already exists, and dealing a file across a list plus new ones would be a
+  // merge nobody asked for.
+  if (split > 1 && appendTo !== null) {
+    return Response.json(
+      { error: "A file added to an existing list cannot be split." },
+      { status: 400 },
+    );
+  }
+  if (partOwnersRaw.length > 0 && partOwnersRaw.length !== split) {
+    return Response.json({ error: "Invalid owners for the split." }, { status: 400 });
+  }
 
   // Both only mean anything on a new list: appending to one that exists must
   // not quietly re-file it or hand it to somebody else.
@@ -248,22 +288,39 @@ export async function POST(request: Request) {
     }
     region = regionRaw;
   }
-  let assignedUserId: number | null = null;
-  if (typeof ownerRaw === "string" && ownerRaw !== "") {
-    const parsed = Number(ownerRaw);
+  let badOwner = false;
+  const parseOwner = (raw: string): number | null => {
+    if (raw === "") return null;
+    const parsed = Number(raw);
     if (!Number.isInteger(parsed)) {
-      return Response.json({ error: "Invalid person." }, { status: 400 });
+      badOwner = true;
+      return null;
     }
-    // Checked here rather than left to the foreign key, which would come back
-    // as a constraint error with nothing to show the user.
-    const [person] = await db
+    return parsed;
+  };
+
+  const assignedUserId = parseOwner(typeof ownerRaw === "string" ? ownerRaw : "");
+  // One owner per part when the split names them, otherwise the file's own
+  // owner for every part.
+  const partOwners: (number | null)[] =
+    partOwnersRaw.length > 0
+      ? partOwnersRaw.map(parseOwner)
+      : Array.from({ length: split }, () => assignedUserId);
+  if (badOwner) {
+    return Response.json({ error: "Invalid person." }, { status: 400 });
+  }
+  // Checked here rather than left to the foreign key, which would come back as
+  // a constraint error with nothing to show the user. One query for the lot:
+  // a ten-way split otherwise means ten round trips before anything is read.
+  const ownerIds = [...new Set(partOwners.filter((o): o is number => o !== null))];
+  if (ownerIds.length > 0) {
+    const found = await db
       .select({ id: appUser.id })
       .from(appUser)
-      .where(eq(appUser.id, parsed));
-    if (!person) {
+      .where(inArray(appUser.id, ownerIds));
+    if (found.length !== ownerIds.length) {
       return Response.json({ error: "Person not found." }, { status: 404 });
     }
-    assignedUserId = parsed;
   }
 
   let existingList: {
@@ -393,14 +450,73 @@ export async function POST(request: Request) {
     });
   }
 
+  // Every number in this file that the CRM has already seen, wherever it came
+  // from. Run before the dry run returns as well as before an import, because
+  // "how much of this file do I already have" is the question the review
+  // screen exists to answer, and answering it afterwards is too late to act
+  // on. Screening against the whole database rather than one chosen list is
+  // deliberate: it is a superset of "the same niche", and ringing a business
+  // twice is worth preventing whichever list the other copy sits on.
+  const keys = [...new Set(rows.map((r) => r.key))];
+  const canonicalByPhone = new Map<string, number>();
+  const overlapCountByList = new Map<number, number>();
+  for (const batch of chunk(keys, 5000)) {
+    const existing = await db
+      .select({
+        id: callLead.id,
+        callListId: callLead.callListId,
+        phoneKey: callLead.phoneKey,
+        duplicateOfLeadId: callLead.duplicateOfLeadId,
+      })
+      .from(callLead)
+      .where(inArray(callLead.phoneKey, batch));
+    for (const row of existing) {
+      const canonical = row.duplicateOfLeadId ?? row.id;
+      const current = canonicalByPhone.get(row.phoneKey);
+      if (current === undefined || canonical < current) {
+        canonicalByPhone.set(row.phoneKey, canonical);
+      }
+      overlapCountByList.set(
+        row.callListId,
+        (overlapCountByList.get(row.callListId) ?? 0) + 1,
+      );
+    }
+  }
+  const duplicatesInCrm = rows.filter((r) => canonicalByPhone.has(r.key)).length;
+
   // Reported before the empty check below, never as an error: a file whose
   // numbers are all national format has nothing usable *yet*, and telling the
   // review screen so is what lets it offer the folder that fixes it. Failing
   // here left the row with no controls and no way forward.
   if (dryRun) {
+    // Named, not just counted. "87 already in the CRM" invites the question
+    // "where?", and the answer is what tells you whether this is last month's
+    // scrape of the same niche or an unrelated overlap.
+    const top = [...overlapCountByList.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, OVERLAP_LISTS_SHOWN);
+    const names =
+      top.length > 0
+        ? await db
+            .select({ id: callList.id, name: callList.name })
+            .from(callList)
+            .where(
+              inArray(
+                callList.id,
+                top.map(([id]) => id),
+              ),
+            )
+        : [];
+    const nameById = new Map(names.map((l) => [l.id, l.name]));
     return Response.json({
       dryRun: true,
       usable: rows.length,
+      duplicatesInCrm,
+      duplicateLists: top.map(([id, count]) => ({
+        name: nameById.get(id) ?? "a deleted list",
+        count,
+      })),
+      otherListCount: Math.max(0, overlapCountByList.size - top.length),
       skippedNoPhone,
       skippedBadNumber,
       skippedRepeatedInFile,
@@ -414,89 +530,104 @@ export async function POST(request: Request) {
     );
   }
 
-  // A number already being worked on another list is flagged rather than
-  // dropped, so the row is visible but stays out of the queue — calling the
-  // same business twice from two lists is the thing worth preventing.
-  const keys = [...new Set(rows.map((r) => r.key))];
-  const canonicalByPhone = new Map<string, number>();
-  for (const batch of chunk(keys, 5000)) {
-    const existing = await db
-      .select({
-        id: callLead.id,
-        phoneKey: callLead.phoneKey,
-        duplicateOfLeadId: callLead.duplicateOfLeadId,
-      })
-      .from(callLead)
-      .where(inArray(callLead.phoneKey, batch));
-    for (const row of existing) {
-      const canonical = row.duplicateOfLeadId ?? row.id;
-      const current = canonicalByPhone.get(row.phoneKey);
-      if (current === undefined || canonical < current) {
-        canonicalByPhone.set(row.phoneKey, canonical);
-      }
-    }
+  // A number already being worked elsewhere is either dropped outright or
+  // stored flagged — flagged keeps the row visible while holding it out of
+  // every queue, count and board, which is what this has always done.
+  const keep = dropDuplicates
+    ? rows.filter((r) => !canonicalByPhone.has(r.key))
+    : rows;
+  const removedDuplicates = rows.length - keep.length;
+
+  if (keep.length === 0) {
+    return Response.json(
+      { error: "Every usable number in this file is already in the CRM." },
+      { status: 400 },
+    );
   }
 
+  // Dealt round-robin rather than cut into blocks. A scrape arrives sorted —
+  // by city, by rating, by whatever the directory ordered on — so contiguous
+  // slices hand one caller every Alaska lead and another every Californian
+  // one. Dealing gives each part the same mix and, to within one row, the
+  // same size.
+  const parts: ParsedRow[][] = Array.from({ length: split }, () => []);
+  keep.forEach((r, i) => parts[i % split].push(r));
+
+  const trimmedName = typeof name === "string" ? name.trim() : "";
+  const nicheValue =
+    typeof niche === "string" && niche.trim() !== "" ? niche.trim() : null;
+
+  // All parts in one transaction: a split that half-succeeds leaves a niche
+  // divided between callers with a chunk of it missing, which is worse than
+  // having to import again.
   const result = await db.transaction(async (tx) => {
-    const list =
-      existingList ??
-      (
-        await tx
-          .insert(callList)
-          .values({
-            name: (name as string).trim(),
-            niche:
-              typeof niche === "string" && niche.trim() !== ""
-                ? niche.trim()
-                : null,
-            region,
-            assignedUserId,
-          })
-          .returning({ id: callList.id, name: callList.name })
-      )[0];
+    const done = [];
+    for (const [i, part] of parts.entries()) {
+      const list =
+        existingList ??
+        (
+          await tx
+            .insert(callList)
+            .values({
+              // Derived rather than typed per part, so the review screen can
+              // show exactly what will be created before it exists.
+              name: split > 1 ? `${trimmedName} ${i + 1}` : trimmedName,
+              niche: nicheValue,
+              region,
+              assignedUserId: partOwners[i],
+            })
+            .returning({ id: callList.id, name: callList.name })
+        )[0];
 
-    let inserted = 0;
-    let duplicates = 0;
-    for (const batch of chunk(rows, INSERT_CHUNK)) {
-      const values = batch.map((r) => {
-        const dup = canonicalByPhone.get(r.key);
-        if (dup !== undefined) duplicates++;
-        return {
-          callListId: list.id,
-          phone: r.phone,
-          phoneKey: r.key,
-          name: r.name,
-          company: r.company,
-          title: r.title,
-          email: r.email,
-          website: r.website,
-          sourceFields: r.raw,
-          duplicateOfLeadId: dup,
-        };
+      let inserted = 0;
+      let duplicates = 0;
+      for (const batch of chunk(part, INSERT_CHUNK)) {
+        const values = batch.map((r) => {
+          const dup = canonicalByPhone.get(r.key);
+          if (dup !== undefined) duplicates++;
+          return {
+            callListId: list.id,
+            phone: r.phone,
+            phoneKey: r.key,
+            name: r.name,
+            company: r.company,
+            title: r.title,
+            email: r.email,
+            website: r.website,
+            sourceFields: r.raw,
+            duplicateOfLeadId: dup,
+          };
+        });
+        // Appending a batch that overlaps what the list already holds hits the
+        // (call_list_id, phone_key) index; skipping is the right answer, the
+        // number is already in this queue.
+        const rowsIn = await tx
+          .insert(callLead)
+          .values(values)
+          .onConflictDoNothing()
+          .returning({ id: callLead.id });
+        inserted += rowsIn.length;
+      }
+
+      done.push({
+        callListId: list.id,
+        callListName: list.name,
+        appended: existingList !== null,
+        inserted,
+        duplicates,
+        // Only the first part carries the file-wide numbers, so a split does
+        // not report the same 12 unusable rows once per list.
+        removedDuplicates: i === 0 ? removedDuplicates : 0,
+        alreadyInList: part.length - inserted,
+        skippedNoPhone: i === 0 ? skippedNoPhone : 0,
+        skippedBadNumber: i === 0 ? skippedBadNumber : [],
+        skippedRepeatedInFile: i === 0 ? skippedRepeatedInFile : 0,
       });
-      // Appending a batch that overlaps what the list already holds hits the
-      // (call_list_id, phone_key) index; skipping is the right answer, the
-      // number is already in this queue.
-      const done = await tx
-        .insert(callLead)
-        .values(values)
-        .onConflictDoNothing()
-        .returning({ id: callLead.id });
-      inserted += done.length;
     }
-
-    return {
-      callListId: list.id,
-      callListName: list.name,
-      appended: existingList !== null,
-      inserted,
-      duplicates,
-      alreadyInList: rows.length - inserted,
-      skippedNoPhone,
-      skippedBadNumber,
-      skippedRepeatedInFile,
-    };
+    return done;
   });
 
-  return Response.json(result);
+  // A split of one keeps the shape it has always had; anything more comes back
+  // as the set of lists it made.
+  return Response.json(split > 1 ? { split, parts: result } : result[0]);
 }
