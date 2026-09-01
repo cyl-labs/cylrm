@@ -32,7 +32,16 @@ const DIALLABLE = new Set(["sg", "sg_tollfree", "us", "gb"]);
  * list of candidate columns rather than one winner.
  */
 const normalise = (h: string) =>
-  h.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  h
+    // camelCase is split before the case is folded, or the words run together
+    // and match nothing: Apify's Google Places export heads every column that
+    // way, so `phoneUnformatted` — the one column on it that carries E.164 —
+    // was invisible and the file read as national format throughout.
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 // Order matters: it is the priority in which a row's columns are tried.
 // A mobile or direct line reaches a person; a main line reaches reception.
@@ -47,6 +56,10 @@ const COLUMN_ALIASES = {
     "e164 phone",
     "international phone",
     "phone international",
+    // Google Places' name for it: `phone` is "(765) 517-3870" and
+    // `phoneUnformatted` is "+17655173870" on the same row.
+    "phone unformatted",
+    "unformatted phone",
     // A number checked against the company's own published contact details
     // beats anything the scrape guessed, so it wins next.
     "verified phone",
@@ -180,6 +193,35 @@ function pick(rec: CsvRecord, columns: string[]): string | null {
   for (const col of columns) {
     const v = rec[col]?.trim();
     if (v && v.toLowerCase() !== "na" && v !== "-") return v;
+  }
+  return null;
+}
+
+/** A Google Maps listing rather than a company's own site. */
+function isListingUrl(value: string): boolean {
+  const href = websiteHref(value);
+  if (!href) return false;
+  const { hostname, pathname } = new URL(href);
+  return /(^|\.)google\.[a-z.]+$/.test(hostname) && pathname.startsWith("/maps");
+}
+
+/**
+ * The company's own site, never the listing the scrape read it off.
+ *
+ * `url` is a website alias because most exports mean the company's site by it.
+ * A Google Places scrape means the Maps listing, and its `website` column is
+ * empty for precisely the businesses that have no site of their own — so
+ * falling through to `url` put a Maps link on one lead in seven, which tells a
+ * caller nothing and is the same reason `source url` was never an alias.
+ * Narrowed to google.*\/maps so a business hosted on sites.google.com is left
+ * alone.
+ */
+function pickWebsite(rec: CsvRecord, columns: string[]): string | null {
+  for (const col of columns) {
+    const v = rec[col]?.trim();
+    if (!v || v.toLowerCase() === "na" || v === "-") continue;
+    if (isListingUrl(v)) continue;
+    return v;
   }
   return null;
 }
@@ -445,7 +487,7 @@ export async function POST(request: Request) {
       // Normalised on the way in so the column holds openable URLs rather
       // than a mix of bare domains and junk. A value that will not parse is
       // dropped, not stored — source_fields still has the original.
-      website: websiteHref(pick(rec, websiteCols)),
+      website: websiteHref(pickWebsite(rec, websiteCols)),
       raw: rec,
     });
   }

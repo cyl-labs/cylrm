@@ -70,6 +70,24 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   in the alias list, being the one form no country has to be inferred from: two
   live scrapes carried a perfect `+1...` column beside a `(907) 276-4147`
   display column, and reading only the display one rejected every row.
+- **Header matching splits camelCase before folding case** (`normalise`),
+  because a scrape that heads its columns that way otherwise matches nothing:
+  `phoneUnformatted` folds to "phoneunformatted" and no alias can be written
+  for that which is not itself a typo. Apify's Google Places export is entirely
+  camelCase, and its `phoneUnformatted` is the E.164 twin of its national-format
+  `phone` — so a 1,500-row US scrape read as 10 usable rows until this landed,
+  and reads as 1,434 with no folder set at all. The rule is general: it also
+  earns `companyName`, `firstName`, `jobTitle` and the rest for free. Nothing
+  new collides — the other camelCase headers on that export split to "category
+  name", "image url", "search page url", none of which is an alias.
+- **`url` is a website alias, but a Maps listing is not a website.** Most
+  exports mean the company's own site by `url`; a Google Places scrape means
+  the listing, and its `website` column is empty for exactly the businesses
+  that have no site — so the fallback filled 269 of 1,500 leads' website button
+  with a Maps search link. `pickWebsite` skips them. Narrowed to `google.*`
+  with a `/maps` path rather than the whole domain, since a small business
+  genuinely hosted on `sites.google.com` must survive. Same reasoning that kept
+  `source_url` out of the aliases entirely.
 - **A dry run never fails on "no usable number".** It reports `usable: 0` and
   the counts instead, because a file whose numbers are all national format has
   nothing usable *yet* — the fix is choosing the folder, and erroring left the
