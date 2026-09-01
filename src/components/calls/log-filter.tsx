@@ -74,9 +74,11 @@ export function LogFilter({
             {OUTCOME_LABELS[o]}
           </SelectItem>
         ))}
-        {/* Last, and after the outcomes rather than among them: it is not one.
-            A keypad dial has no outcome at all, which is exactly why it needs
-            an entry of its own to be picked out by. */}
+        {/* Last, and after the outcomes rather than among them: neither is
+            one. A keypad dial has no outcome at all, and "outside 9-5" is a
+            fact about when a call was placed rather than how it went, which is
+            exactly why each needs an entry of its own to be picked out by. */}
+        <SelectItem value="outside_hours">Outside 9&ndash;5 there</SelectItem>
         <SelectItem value="keypad">Keypad</SelectItem>
       </SelectContent>
     </Select>

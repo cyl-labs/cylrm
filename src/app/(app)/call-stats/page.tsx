@@ -12,6 +12,7 @@ import {
   monthInStatsTz,
   monthOf,
   isStatsMonth,
+  isNonOutcomeLogFilter,
   statsZone,
   CALL_LOG_LIMIT,
   type StatsWindow,
@@ -110,12 +111,11 @@ export default async function CallStatsPage({
   // An outcome that is not one of ours falls back to all of them, like a
   // stale niche or person does. "keypad" is not an outcome — it asks for the
   // rows that have none — and is honoured for the same reason.
-  const outcome: LogFilterValue | undefined =
-    rawOutcome === "keypad"
-      ? "keypad"
-      : rawOutcome && rawOutcome in OUTCOME_LABELS
-        ? (rawOutcome as LogFilterValue)
-        : undefined;
+  const outcome: LogFilterValue | undefined = isNonOutcomeLogFilter(rawOutcome)
+    ? rawOutcome
+    : rawOutcome && rawOutcome in OUTCOME_LABELS
+      ? (rawOutcome as LogFilterValue)
+      : undefined;
   // Passed to the picker as-is. Not derived from the window: "today" is a
   // range that happens to resolve to a single day, and reading the window
   // back made the control show a date where it should say Today.
@@ -303,11 +303,27 @@ export default async function CallStatsPage({
             <span className="text-muted-foreground">
               {" "}
               ({pct(totals.outsideHours, totals.zoneKnown)} of the{" "}
-              {totals.zoneKnown.toLocaleString()} whose timezone we know). They
-              are marked in <span className="font-semibold">Every call</span>{" "}
-              below. The dialler filters these out by default, so a call here
-              was either placed with the filter off or from a callback booked
-              for that time.
+              {totals.zoneKnown.toLocaleString()} whose timezone we know).{" "}
+              {/* Straight to the rows rather than "they are marked below":
+                  finding 35 red cells in three hundred rows is the work this
+                  sentence was creating. The filter is on the table, so the
+                  tiles above stay the whole range. */}
+              <Link
+                href={`/call-stats?${new URLSearchParams({
+                  ...(listId ? { list: String(listId) } : {}),
+                  ...(personId ? { person: String(personId) } : {}),
+                  ...(day ? { day } : { range }),
+                  ...(region !== DEFAULT_STATS_REGION ? { tz: region } : {}),
+                  outcome: "outside_hours",
+                })}`}
+                className="font-semibold text-destructive underline underline-offset-2"
+              >
+                Show just those calls
+              </Link>{" "}
+              in Every call below. The dialler hides these leads by default, so
+              a call here was placed either with{" "}
+              <span className="font-semibold">Open now</span> switched off or
+              from a callback booked for that time.
             </span>
           </p>
         )}
@@ -558,9 +574,11 @@ export default async function CallStatsPage({
                 ? listId
                   ? "Keypad calls belong to no niche, so none show while one is selected."
                   : "Nothing dialled from the keypad in this range."
-                : outcome
-                  ? `Nothing logged as ${OUTCOME_LABELS[outcome].toLowerCase()} in this range.`
-                  : "No calls logged in this range."}
+                : outcome === "outside_hours"
+                  ? "Every call in this range was placed inside 9am to 5pm where the prospect is."
+                  : outcome
+                    ? `Nothing logged as ${OUTCOME_LABELS[outcome].toLowerCase()} in this range.`
+                    : "No calls logged in this range."}
             </p>
           ) : (
             <div className="max-h-[32rem] overflow-auto">

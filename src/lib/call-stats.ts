@@ -543,15 +543,21 @@ export type CallLogRow = {
 export const CALL_LOG_LIMIT = 300;
 
 /**
- * What the log can be narrowed to: one outcome, or the keypad.
+ * What the log can be narrowed to: one outcome, the keypad, or the calls
+ * placed outside the prospect's business hours.
  *
- * "keypad" is not an outcome and never becomes one — it says which table the
- * row came from. It sits in the same control because that is the question
- * being asked of this table ("show me only the…"), and because a keypad call
- * having no outcome is precisely why it needs its own entry rather than
- * hiding under one.
+ * Neither of the last two is an outcome and neither ever becomes one: "keypad"
+ * says which table the row came from, and "outside_hours" is a property of
+ * when the call was made. They sit in the same control because that is the
+ * question being asked of this table ("show me only the…"), and each needs an
+ * entry of its own precisely because no outcome can stand for it.
  */
-export type LogFilterValue = CallOutcome | "keypad";
+export type LogFilterValue = CallOutcome | "keypad" | "outside_hours";
+
+/** The filter values that are not outcomes, for parsing a URL. */
+export const isNonOutcomeLogFilter = (
+  v: unknown,
+): v is "keypad" | "outside_hours" => v === "keypad" || v === "outside_hours";
 
 /** The recording for a call session, newest first within it. One session can
  *  produce more than one file, and both `call` and `keypad_call` reach them
@@ -603,6 +609,11 @@ export async function getCallLog(
   // A niche filter is a filter on something keypad rows do not have. Excluding
   // them is not a technicality: leaving them in would put calls that belong to
   // no list under a heading naming one.
+  //
+  // "outside_hours" excludes them for the same kind of reason one level down:
+  // a keypad dial has no lead, so no zone, so nothing to be outside the hours
+  // of. Asking for out-of-hours calls and being handed rows whose hours are
+  // unknowable would be a worse answer than none.
   const wantKeypad = !listId && (filter === undefined || filter === "keypad");
   // Keypad calls, narrowed to a niche they cannot be in. Neither half has
   // anything to contribute, and there is no query to run — the screen says why
@@ -641,7 +652,13 @@ export async function getCallLog(
     where ${since(w)}
       ${listId ? sql`and cl.id = ${listId}` : sql``}
       ${byUser(userId)}
-      ${filter && filter !== "keypad" ? sql`and c.outcome = ${filter}` : sql``}
+      ${
+        filter === "outside_hours"
+          ? sql`and z.tz is not null and not ${withinLeadHours(sql`c.called_at`)}`
+          : filter && filter !== "keypad"
+            ? sql`and c.outcome = ${filter}`
+            : sql``
+      }
   `;
 
   const keypad = sql`

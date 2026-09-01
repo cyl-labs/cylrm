@@ -621,6 +621,15 @@ business hours where they actually are. Measured on the live data: 51% Eastern,
   there and the row shows a dash: "we cannot say" is a different answer from
   "they were rung at four in the morning" and must not be flagged as one.
   Keypad rows are null too, having no lead and so no prospect.
+- **`outcome=outside_hours` narrows the log to exactly those calls**, and the
+  banner links straight to it. It is a third non-outcome value on
+  `LogFilterValue` beside `keypad`, for the reason that one exists: it is the
+  question being asked of this table, and no outcome can stand for "was placed
+  at four in the morning their time". Keypad rows are excluded from it, having
+  no zone to be outside the hours of. The rows are **not** re-sorted to the top
+  instead: the table's header promises newest first, and `CALL_LOG_LIMIT` caps
+  the newest 300, so re-sorting would quietly change which 300 you were
+  looking at. Filtering makes them the only rows, which is the stronger answer.
 - **The screen must say what the toggle did.** It shipped without that and read
   as broken: the four summary tiles are list-wide by design and do not move, so
   the only thing that changed was the button and a small "N left" badge — and
