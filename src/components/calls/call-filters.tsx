@@ -8,12 +8,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+// Same formatter the range tabs use, so "25 Aug 2026" cannot be written one
+// way on one screen and another way on the next.
+import { formatStatsDate } from "@/components/calls/range-tabs";
 
-/** Four, not six. Yesterday and any other day are one tap on the calendar,
- *  which is a better day picker than a list of days — and, unlike the
- *  fortnight chart it replaced, it reaches back past a fortnight. */
+/**
+ * Any other day is one tap on the calendar, which is a better day picker than
+ * a list of days and, unlike the fortnight chart it replaced, reaches back
+ * past a fortnight.
+ *
+ * Yesterday is the exception and came back on 2026-09-01. It is the day asked
+ * for every morning, about the shift that just finished, and hunting it down
+ * on a calendar grid is work for the one day nobody ever has to look up.
+ */
 const RANGES = [
   { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
   { value: "7", label: "Last 7 days" },
   { value: "30", label: "Last 30 days" },
   { value: "all", label: "All time" },
@@ -134,7 +144,7 @@ export function CallFilters({
                   something to show for it rather than falling back to a range
                   that is not in force. */}
               {day && (
-                <SelectItem value="day">On {day}</SelectItem>
+                <SelectItem value="day">On {formatStatsDate(day)}</SelectItem>
               )}
             </SelectContent>
           </Select>

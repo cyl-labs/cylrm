@@ -1,6 +1,7 @@
 import { getCallLists, LEAD_HOURS_LABEL } from "@/lib/calls";
 import Link from "next/link";
 import {
+  dayBackInStatsTz,
   getCallTotals,
   getCallsByMonth,
   getListStats,
@@ -31,13 +32,10 @@ import { listTeam } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
-/** A date in the reporting zone, N days back from today there. */
-function dayBack(n: number, tz: string) {
-  const today = todayInStatsTz(tz);
-  const d = new Date(`${today}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+/** A date in the reporting zone, N days back from today there. Shared with the
+ *  Scoreboard rather than written twice: two versions of "what date was N days
+ *  ago" is two answers to the same question on two screens. */
+const dayBack = dayBackInStatsTz;
 
 /** `?range=` for a rolling window or a named day, `?day=` for any other. Only
  *  one is ever in force. The zone rides along on the window, so every query

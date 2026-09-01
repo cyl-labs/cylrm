@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarRange } from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,11 +57,25 @@ export function formatStatsRange(from: string, to: string): string {
 
 export type CustomRange = { from: string; to: string };
 
+/**
+ * A calendar date, moved by whole days.
+ *
+ * Stepped in UTC for the reason `formatStatsDate` never builds a Date: a
+ * calendar date has no zone, and parsing one in the browser's would land a day
+ * out for anybody west of Greenwich. Midnight UTC plus N days is exact.
+ */
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function RangeTabs({
   ranges,
   active,
   custom,
   today,
+  day,
   zoneName = "Eastern",
 }: {
   ranges: readonly { key: string; label: string }[];
@@ -73,6 +87,11 @@ export function RangeTabs({
    *  leaderboard running to next week is a range with nothing in the tail of
    *  it. */
   today?: string;
+  /** The single day the screen is showing, when it is showing one. Turns on
+   *  the arrows, which are the point: a preset list can only ever name the
+   *  two days worth naming, and the day before yesterday should not need the
+   *  custom dialog and two date inputs set to the same value. */
+  day?: string | null;
   /** The clock those dates are cut in, for the dialog to name. Defaults to
    *  Eastern, which is what it said when there was only the one. */
   zoneName?: string;
@@ -101,6 +120,35 @@ export function RangeTabs({
     mutate(next);
     router.push(`${pathname}?${next.toString()}`);
   }
+
+  /**
+   * Move the day in view by one, and land on a named preset where there is
+   * one.
+   *
+   * Writing `range=today` rather than `day=<today's date>` matters: otherwise
+   * stepping forward onto today leaves the Today tab dark and the screen
+   * showing a date, which reads as a different view of the same thing. The
+   * arrows and the tabs have to agree about where you are.
+   */
+  const stepDay = (delta: number) => {
+    if (!day || !today) return;
+    const next = shiftDate(day, delta);
+    if (next > today) return;
+    push((p) => {
+      p.delete("from");
+      p.delete("to");
+      if (next === today) {
+        p.delete("day");
+        p.set("range", "today");
+      } else if (next === shiftDate(today, -1)) {
+        p.delete("day");
+        p.set("range", "yesterday");
+      } else {
+        p.delete("range");
+        p.set("day", next);
+      }
+    });
+  };
 
   // Typed the wrong way round is a slip, not an error: the two dates are what
   // was meant either way, so they are swapped rather than refused.
@@ -149,6 +197,36 @@ export function RangeTabs({
         ))}
       </div>
 
+      {/* Only while a single day is in view. On a rolling window there is no
+          day to step, and arrows that meant "shift the last 7 days back one"
+          would be a second, different idea wearing the same buttons. */}
+      {day && today && (
+        <div className="flex shrink-0 items-center rounded-lg border bg-card p-0.5">
+          <button
+            type="button"
+            onClick={() => stepDay(-1)}
+            aria-label="Previous day"
+            className="rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ChevronLeft className="size-4" strokeWidth={2.4} />
+          </button>
+          <span className="whitespace-nowrap px-1.5 text-[13px] font-semibold tabular-nums">
+            {formatStatsDate(day)}
+          </span>
+          <button
+            type="button"
+            onClick={() => stepDay(1)}
+            // Today is the end of the road. A leaderboard for tomorrow is a
+            // screen of zeroes that reads as the calling having stopped.
+            disabled={day >= today}
+            aria-label="Next day"
+            className="rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+          >
+            <ChevronRight className="size-4" strokeWidth={2.4} />
+          </button>
+        </div>
+      )}
+
       {today !== undefined && (
         <Dialog open={open} onOpenChange={onOpenChange}>
           <DialogTrigger asChild>
@@ -185,7 +263,16 @@ export function RangeTabs({
                   type="date"
                   value={from}
                   max={today}
-                  onChange={(e) => setFrom(e.target.value)}
+                  // Picking a start date pulls the end to match, so one day is
+                  // one pick and Apply. Both fields seeded to today meant
+                  // choosing a date in the past silently asked for everything
+                  // from then until now, which is never what somebody picking
+                  // a single date wanted. A real range is still two picks,
+                  // which is what it was anyway.
+                  onChange={(e) => {
+                    setFrom(e.target.value);
+                    setTo(e.target.value);
+                  }}
                   className="h-9 w-full rounded-md border bg-transparent px-3 text-[13px] tabular-nums shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 />
               </div>

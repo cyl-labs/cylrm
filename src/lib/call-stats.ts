@@ -135,6 +135,22 @@ export const isStatsDate = (v: unknown): v is string =>
 export const todayInStatsTz = (tz: string = STATS_TZ) =>
   new Date().toLocaleDateString("en-CA", { timeZone: tz });
 
+/**
+ * The calendar date N days before today in the reporting zone.
+ *
+ * Stepped in UTC on purpose. A calendar date carries no zone, so the arithmetic
+ * must not go near a local `Date`: `new Date("2026-09-01")` is UTC midnight and
+ * reads as 31 August anywhere west of Greenwich, which is the mismatch
+ * `formatStatsDate` avoids by never building a Date at all. Landing on today in
+ * the right zone is `todayInStatsTz`'s job; from there it is plain day
+ * counting, and daylight saving cannot move a date by a whole day.
+ */
+export function dayBackInStatsTz(n: number, tz: string = STATS_TZ): string {
+  const d = new Date(`${todayInStatsTz(tz)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
 const since = (w: StatsWindow): SQL => {
   // Eastern unless the window says otherwise, which is what every window said
   // before the zone picker existed.

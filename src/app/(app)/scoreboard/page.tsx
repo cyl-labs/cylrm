@@ -4,6 +4,7 @@ import { RangeTabs } from "@/components/calls/range-tabs";
 import { getCurrentUser } from "@/lib/session";
 import { listTeam } from "@/lib/users";
 import {
+  dayBackInStatsTz,
   getPersonStats,
   isStatsDate,
   statsZone,
@@ -19,6 +20,10 @@ export const dynamic = "force-dynamic";
 
 const RANGES = [
   { key: "today", label: "Today" },
+  // Yesterday earns a named tab where no other single day does: it is the one
+  // everybody asks for, every morning, about the shift that just finished.
+  // Any other day is the arrows or the custom dialog.
+  { key: "yesterday", label: "Yesterday" },
   { key: "7", label: "7 days" },
   { key: "30", label: "30 days" },
 ] as const;
@@ -27,9 +32,26 @@ const RANGES = [
  *  rather than always New York's. A rolling window has no zone to read — N
  *  days back from this moment is the same instant everywhere — but it carries
  *  one anyway, since nothing else has to know which kind it was handed. */
-function windowFor(range: string, tz: string): StatsWindow {
+function windowFor(
+  range: string,
+  day: string | undefined,
+  tz: string,
+): StatsWindow {
+  // A day and a range answer the same question two ways, and the day wins:
+  // it is the more specific thing, and only one is ever written at a time.
+  if (day) return { kind: "day", date: day, tz };
   if (range === "today") return { kind: "day", date: todayInStatsTz(tz), tz };
+  if (range === "yesterday")
+    return { kind: "day", date: dayBackInStatsTz(1, tz), tz };
   return { kind: "rolling", days: Number(range), tz };
+}
+
+/** The date a named range resolves to, or null when it is not one day. Only a
+ *  single-day window has a day to step, so this is what turns the arrows on. */
+function dayOf(range: string, tz: string): string | null {
+  if (range === "today") return todayInStatsTz(tz);
+  if (range === "yesterday") return dayBackInStatsTz(1, tz);
+  return null;
 }
 
 const pct = (num: number, den: number) =>
@@ -179,11 +201,15 @@ export default async function ScoreboardPage({
     range?: string;
     from?: string;
     to?: string;
+    day?: string;
     tz?: string;
   }>;
 }) {
-  const { range: raw, from, to, tz: rawTz } = await searchParams;
+  const { range: raw, from, to, day: rawDay, tz: rawTz } = await searchParams;
   const range = RANGES.some((r) => r.key === raw) ? raw! : "today";
+  // Any day the arrows or a shared link name. Validated the same way `from`
+  // and `to` are, since it is concatenated into a `::date` downstream.
+  const day = isStatsDate(rawDay) ? rawDay : undefined;
 
   // Both ends or neither. A half-typed range in a shared link would otherwise
   // resolve to something plausible that nobody chose, and these get pasted
@@ -209,7 +235,7 @@ export default async function ScoreboardPage({
     getPersonStats(
       custom
         ? { kind: "between", from: custom.from, to: custom.to, tz: zone.tz }
-        : windowFor(range, zone.tz),
+        : windowFor(range, day, zone.tz),
     ),
     listTeam(),
   ]);
@@ -239,9 +265,23 @@ export default async function ScoreboardPage({
         <>
           <RangeTabs
             ranges={RANGES}
-            active={range}
+            // A `?day=` that is neither today nor yesterday matches no tab, so
+            // none is lit and the arrows carry the date instead. Passing the
+            // resolved range would light a tab that is not what you are
+            // looking at.
+            active={day ? "" : range}
             custom={custom}
             today={today}
+            // A custom range of one day is still a day, so it gets the arrows
+            // too: picking a date in the dialog and then wanting the one
+            // before it should not mean opening the dialog again.
+            day={
+              custom
+                ? custom.from === custom.to
+                  ? custom.from
+                  : null
+                : (day ?? dayOf(range, zone.tz))
+            }
             zoneName={zone.name}
           />
           <TimezonePicker region={region} />
