@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Upload, X } from "lucide-react";
+import { FileDrop } from "@/components/file-drop";
 import type { CallRegion } from "@/lib/calls";
 import { REGION_LABELS, REGION_ORDER } from "@/components/calls/region";
 import { Button } from "@/components/ui/button";
@@ -182,11 +183,7 @@ export function CallImportDialog({
     [],
   );
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(e.target.files ?? []);
-    // The same input can be used twice; clearing it means re-picking the same
-    // file fires change again rather than silently doing nothing.
-    e.target.value = "";
+  async function addFiles(picked: File[]) {
     if (picked.length === 0) return;
     setError(null);
 
@@ -373,18 +370,12 @@ export function CallImportDialog({
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="call-import-file">
-                  {staged.length > 0 ? "Add more files" : "CSV files"}
-                </Label>
-                <Input
-                  id="call-import-file"
-                  type="file"
-                  accept=".csv,text/csv"
-                  multiple
-                  onChange={handleFileChange}
-                />
-              </div>
+              <FileDrop
+                id="call-import-file"
+                multiple
+                onFiles={addFiles}
+                label={staged.length > 0 ? "Add more files" : "Choose CSV files"}
+              />
 
               {staged.length === 1 && callLists.length > 0 && (
                 <div className="space-y-2">

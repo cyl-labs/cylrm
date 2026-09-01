@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
+import { FileDrop } from "@/components/file-drop";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -79,11 +80,12 @@ export function ImportDialog({
     setResult(null);
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0] ?? null;
+  function handleFiles(picked: File[]) {
+    const selected = picked[0] ?? null;
+    if (!selected) return;
     setFile(selected);
     setError(null);
-    if (selected && !nameEdited) setName(nameFromFilename(selected.name));
+    if (!nameEdited) setName(nameFromFilename(selected.name));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -207,12 +209,13 @@ export function ImportDialog({
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="import-file">CSV file</Label>
-                <Input
+                <FileDrop
                   id="import-file"
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={handleFileChange}
+                  onFiles={handleFiles}
+                  // The zone is the only thing on screen, so it has to say
+                  // which file was picked — the native control did that.
+                  label={file ? file.name : "Choose a CSV file"}
+                  hint={file ? "Pick another to replace it" : undefined}
                 />
               </div>
               <div className="space-y-2">
