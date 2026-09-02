@@ -124,7 +124,13 @@ export function useObjectionHints(opts: {
     // glancing back wants to see the objection before last, and a card that
     // silently swapped underneath them read as "stuck on the same tip".
     setSuggestions((prev) =>
-      [{ heard: data.heard ?? text, matches }, ...prev].slice(0, KEEP),
+      [
+        { heard: data.heard ?? text, matches },
+        // Same objection raised again moves to the top rather than appearing
+        // twice: two identical cards with different quotes read as a stutter,
+        // and the answer to both is the same paragraph.
+        ...prev.filter((p) => p.matches[0]?.title !== top),
+      ].slice(0, KEEP),
     );
   }, []);
 

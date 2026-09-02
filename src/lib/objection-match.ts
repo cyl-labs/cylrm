@@ -95,6 +95,15 @@ Return an EMPTY list for:
   "it would have to be Friday". That is the call going well.
 - Politely ending a call that has already gone well.
 
+**Confirming they miss calls is NOT an objection — it is the problem being sold
+into.** "They go to voicemail", "calls go to voicemail after hours", "nobody
+picks up after six", "we close at six" are the prospect agreeing they have the
+gap. That is the call going WELL and the entry list has no answer for it.
+The "I answer all of them anyway" entry is the OPPOSITE claim — that they do
+NOT lose calls, because somebody always picks up — and it fires only on that.
+Match the claim, never the topic: two sentences can both be about after-hours
+calls and mean opposite things.
+
 **Objecting to the time it costs is NOT scheduling.** "Ten minutes is a bit of
 a commitment", "we're too busy", "I don't have time for this" are the
 too-busy objection, and they stay an objection even when the same sentence goes
