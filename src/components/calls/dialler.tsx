@@ -850,10 +850,71 @@ export function Dialler({
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerIsScript, scriptSections.length, sections.length]);
 
+  // The script and the objections, above the lead card rather than buried in it.
+  //
+  // They were near the bottom of the card, under the number, the website, the
+  // email and the qualification checklist — which on a phone is a scroll away
+  // from anything, and on an empty queue was nowhere at all, because that state
+  // returns before the card and before the drawers with it. A caller whose
+  // queue is empty because everyone in the niche is asleep still wants to read
+  // the script.
+  //
+  // Side by side because they are a pair, and the one already open in the
+  // column beside the card needs no button on a wide screen.
+  const docs =
+    scriptSections.length > 0 || sections.length > 0 ? (
+      <div className="mb-3 flex gap-2">
+        {scriptSections.length > 0 && (
+          <Button
+            variant="outline"
+            className={cn("h-10 flex-1", !drawerIsScript && "xl:hidden")}
+            onClick={() => setScriptOpen(true)}
+          >
+            <ScrollText data-icon="inline-start" />
+            Script
+          </Button>
+        )}
+        {sections.length > 0 && (
+          <Button
+            variant="outline"
+            className={cn("h-10 flex-1", drawerIsScript && "xl:hidden")}
+            onClick={() => setObjectionsOpen(true)}
+          >
+            <MessageSquareWarning data-icon="inline-start" />
+            Objections
+          </Button>
+        )}
+      </div>
+    ) : null;
+
+  // Rendered by both returns. Portalled, so where they sit in the tree does not
+  // matter — but being absent from the empty state did.
+  const drawers = (
+    <>
+      <ObjectionDrawer
+        open={objectionsOpen}
+        onOpenChange={setObjectionsOpen}
+        sections={sections}
+        // Carried in whichever side the objections are on, so swapping the
+        // column changes where the answer appears and not whether it does.
+        highlight={panelHit}
+        exact={hints.hint?.title ?? null}
+        heard={hints.hint?.heard ?? null}
+      />
+      <ScriptDrawer
+        open={scriptOpen}
+        onOpenChange={setScriptOpen}
+        sections={scriptSections}
+      />
+    </>
+  );
+
   if (!current) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-5 sm:px-6">
         {bookingPost}
+        {docs}
+        {drawers}
         <div className="py-11 text-center">
         {/* Three different empty queues, and telling them apart is the whole
             job of this block. "Nothing to call here" on a list of two hundred
@@ -934,6 +995,7 @@ export function Dialler({
 
       <div ref={column} className="min-w-0">
       {bookingPost}
+      {docs}
       <div className="rounded-xl border bg-card p-4 sm:p-5">
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
           <div className="min-w-0">
@@ -1027,21 +1089,6 @@ export function Dialler({
 
         <QualificationCriteria />
 
-        {scriptSections.length > 0 && (
-          // Whichever document is not in the column needs a button at every
-          // width, because the column is the only other way to it. The one that
-          // IS in the column only needs a button below `xl`, where there is no
-          // column — hence the conditional class rather than two components.
-          <Button
-            variant="outline"
-            className={cn("mt-3 h-11 w-full", !drawerIsScript && "xl:hidden")}
-            onClick={() => setScriptOpen(true)}
-          >
-            <ScrollText data-icon="inline-start" />
-            Script
-          </Button>
-        )}
-
         {liveHints && sections.length > 0 && (
           // Shown whenever the feature is on rather than only mid-call: it
           // appeared only once a call was up, so an idle screen showed no
@@ -1079,20 +1126,6 @@ export function Dialler({
               </div>
             ) : null}
           </div>
-        )}
-
-        {sections.length > 0 && (
-          // The mirror of the button above: shown at every width when the
-          // column is holding the script, and only below `xl` when the column
-          // is already holding these.
-          <Button
-            variant="outline"
-            className={cn("mt-3 h-11 w-full", drawerIsScript && "xl:hidden")}
-            onClick={() => setObjectionsOpen(true)}
-          >
-            <MessageSquareWarning data-icon="inline-start" />
-            Objection handling
-          </Button>
         )}
 
         {!readOnly && (
@@ -1163,29 +1196,15 @@ export function Dialler({
 
       </div>
 
-      {/* Mounted by the dialler, not by the lead card. It renders through a
-          portal, so the DOM node moves but this tree does not — opening it
+      {/* Mounted by the dialler, not by the lead card. Both render through a
+          portal, so the DOM node moves but this tree does not — opening one
           cannot unmount the dialler, and once dialling happens in the browser
           that is what stops it dropping a live call. */}
-      <ObjectionDrawer
-        open={objectionsOpen}
-        onOpenChange={setObjectionsOpen}
-        sections={sections}
-        // Carried in whichever side the objections are on, so swapping the
-        // column changes where the answer appears and not whether it does.
-        highlight={panelHit}
-        exact={hints.hint?.title ?? null}
-        heard={hints.hint?.heard ?? null}
-      />
+      {drawers}
       {/* The far end's audio has to land somewhere. One element for the whole
           dialler, never inside the lead card, which remounts per number. */}
       <audio id={REMOTE_AUDIO_ID} autoPlay />
       <audio id={SECOND_AUDIO_ID} autoPlay />
-      <ScriptDrawer
-        open={scriptOpen}
-        onOpenChange={setScriptOpen}
-        sections={scriptSections}
-      />
     </div>
   );
 }
