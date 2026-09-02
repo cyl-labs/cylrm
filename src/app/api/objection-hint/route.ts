@@ -44,7 +44,7 @@ type Ready = {
   expected: string[];
   asking: string[];
 };
-const ready = new Map<number, Ready>();
+const ready = new Map<string, Ready>();
 
 /** The `You say` lines from the script's opening section — the qualifying
  *  questions whose answers are information rather than objections. */
@@ -56,16 +56,30 @@ function openingQuestions(script: SopSection[]): string[] {
     .filter(Boolean);
 }
 
-async function labelsFor(userId: number): Promise<Ready> {
-  const hit = ready.get(userId);
+/**
+ * Which market's sheet to answer against.
+ *
+ * A caller assigned a market always gets theirs, whatever the browser asks for.
+ * Only an account with no market — the founders', so it can work all of them —
+ * is allowed to choose, which is the same rule the screen follows when it shows
+ * them a picker and shows everybody else none.
+ *
+ * Resolving it here from `callRegionOf` alone was the bug: the screen fell back
+ * and offered a choice, the route did not, so a founder saw the panel on the
+ * left and "No objection sheet for this market" from the server.
+ */
+async function labelsFor(userId: number, wanted: string | null): Promise<Ready> {
+  const mine = sopRegionFor(await callRegionOf(userId));
+  const region = mine ?? (wanted === "sg" || wanted === "us" ? wanted : "us");
+  const key = `${userId}:${region}`;
+  const hit = ready.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit;
   const allowed = await canUseLiveHints(userId);
   if (!allowed) {
     const miss = { at: Date.now(), allowed: false, labels: [], expected: [], asking: [] };
-    ready.set(userId, miss);
+    ready.set(key, miss);
     return miss;
   }
-  const region = sopRegionFor(await callRegionOf(userId));
   const { objections, script } = await getDiallerSop(region);
   const fresh: Ready = {
     at: Date.now(),
@@ -74,7 +88,7 @@ async function labelsFor(userId: number): Promise<Ready> {
     expected: script.flatMap((s) => s.prospectCues),
     asking: openingQuestions(script),
   };
-  ready.set(userId, fresh);
+  ready.set(key, fresh);
   return fresh;
 }
 
@@ -87,7 +101,15 @@ export async function POST(request: Request) {
   if (!objectionMatchConfigured()) {
     return Response.json({ error: "Live hints are off." }, { status: 503 });
   }
-  const { allowed, labels, expected, asking } = await labelsFor(me.id);
+  const form = await request.formData().catch(() => null);
+  const prospect = form?.get("prospect");
+  const caller = form?.get("caller");
+  const wanted = form?.get("market");
+
+  const { allowed, labels, expected, asking } = await labelsFor(
+    me.id,
+    typeof wanted === "string" ? wanted : null,
+  );
   if (!allowed) {
     return Response.json({ error: "No live hints access." }, { status: 403 });
   }
@@ -95,9 +117,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "No objection sheet for this market." }, { status: 503 });
   }
 
-  const form = await request.formData().catch(() => null);
-  const prospect = form?.get("prospect");
-  const caller = form?.get("caller");
   if (!(prospect instanceof Blob) || prospect.size === 0) {
     return Response.json({ error: "Nothing to listen to yet." }, { status: 400 });
   }

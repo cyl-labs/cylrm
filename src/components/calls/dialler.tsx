@@ -639,6 +639,7 @@ export function Dialler({
   hiddenByHours = 0,
   showAllHref,
   liveHints = false,
+  market = null,
 }: {
   leads: QueueLead[];
   /** The caller's own script and objection sheet, already rendered. One
@@ -677,6 +678,10 @@ export function Dialler({
    *  `LIVE_HINTS=1` and an OpenAI key are set, in which case the dialler
    *  behaves exactly as it does today. */
   liveHints?: boolean;
+  /** Which market's sheet is on screen. Sent with a hint request because the
+   *  page falls back to the list's market for anyone with none of their own,
+   *  so the server cannot work it out from the signed-in user alone. */
+  market?: string | null;
   /** Demo workspace: the flow works, nothing is written. */
 }) {
   const router = useRouter();
@@ -708,6 +713,9 @@ export function Dialler({
     enabled: liveHints && canDialFromBrowser,
     callActive: line.state === "active",
     remoteStream: line.remoteStream,
+    // The dialler falls back to the list's market for anyone who has none of
+    // their own, so the server cannot work it out from the user alone.
+    market,
   });
 
   const remaining = React.useMemo(

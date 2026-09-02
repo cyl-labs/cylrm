@@ -46,8 +46,12 @@ export function useObjectionHints(opts: {
   enabled: boolean;
   callActive: boolean;
   remoteStream: () => MediaStream | null;
+  /** Which market's sheet to match against. Sent because the screen may be
+   *  showing a market the server would not have picked: an account with no
+   *  market of its own chooses, and the server cannot know which. */
+  market?: string | null;
 }): ObjectionHints {
-  const { enabled, callActive, remoteStream } = opts;
+  const { enabled, callActive, remoteStream, market } = opts;
   const [hint, setHint] = React.useState<Hint | null>(null);
   const [asking, setAsking] = React.useState(false);
   const [ready, setReady] = React.useState(false);
@@ -108,6 +112,7 @@ export function useObjectionHints(opts: {
       const body = new FormData();
       body.append("prospect", prospect, "prospect.wav");
       if (caller) body.append("caller", caller, "caller.wav");
+      if (market) body.append("market", market);
       const res = await fetch("/api/objection-hint", { method: "POST", body });
       if (!res.ok) {
         const j = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -129,7 +134,7 @@ export function useObjectionHints(opts: {
     } finally {
       setAsking(false);
     }
-  }, [asking]);
+  }, [asking, market]);
 
   const dismiss = React.useCallback(() => {
     setHint(null);

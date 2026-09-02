@@ -286,6 +286,7 @@ export default async function CallListPage({
             // Read on the server so the key never reaches the browser. Unset
             // means no arm button, no socket and no cost — the dialler behaves
             // exactly as it did before this shipped.
+            market={sopRegion}
             liveHints={
               process.env.LIVE_HINTS === "1" &&
               Boolean(process.env.OPENAI_API_KEY) &&

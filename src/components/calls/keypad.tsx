@@ -223,6 +223,9 @@ export function Keypad({
     enabled: liveHints && objections.length > 0,
     callActive: line.state === "active",
     remoteStream: line.remoteStream,
+    // The panel may be showing a market the server would not have chosen: an
+    // account with no market of its own picks one here.
+    market: sheet?.key ?? null,
   });
   const busy = line.state !== "idle";
   const two = line.second !== null;
