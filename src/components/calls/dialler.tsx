@@ -777,17 +777,12 @@ export function Dialler({
   const sections = objections ?? [];
   const scriptSections = script ?? [];
 
-  // Which rows the panel lights up. Matched back by title rather than carried
-  // as an index: the API builds its own label list, and two arrays that must
-  // stay aligned is the coupling that breaks quietly when one gains an entry.
+  // Which family the panel lights up — never a single entry. Picking one of
+  // seven categories is a much easier problem than one of nineteen entries, and
+  // a wrong family costs a glance at three rows rather than a caller reading
+  // out a scripted answer to an objection nobody raised.
   const newest = hints.suggestions[0];
-  const rowOf = React.useCallback(
-    (title: string | undefined) =>
-      title === undefined ? null : (sections.findIndex((s) => s.title === title) ?? -1),
-    [sections],
-  );
-  const panelHit = newest ? rowOf(newest.matches[0]?.title) : null;
-  const panelAlt = newest ? rowOf(newest.matches[1]?.title) : null;
+  const panelHit = newest?.matches[0]?.category ?? null;
 
   // One key opens the script. It used to open the objection sheet; the
   // objections now sit permanently beside the card, so the key was pointing at
@@ -886,8 +881,7 @@ export function Dialler({
           <ObjectionPanel
             sections={sections}
             highlight={panelHit}
-            alternate={panelAlt}
-            heard={hints.suggestions[0]?.heard ?? null}
+            heard={newest?.heard ?? null}
           />
         </aside>
       )}
@@ -1072,30 +1066,17 @@ export function Dialler({
           </div>
         )}
 
-        {hints.suggestions.length > 0 && (
-          // Newest on top, earlier ones kept below as one-line rows. A single
-          // card that swapped its own contents read as "stuck on the same tip",
-          // and a caller who has just handled one objection often wants to
-          // glance back at the one before it.
-          // Below `xl` only: with no room for the panel there is nothing to
-          // highlight, so the match has to bring its own card.
-          <div className="mt-3 space-y-2 xl:hidden">
-            {hints.suggestions.map((s, i) => (
-              <ObjectionSuggestion
-                // Keyed on the shortlist so a new suggestion resets which option
-                // is showing and whether the notes are open, by construction.
-                key={`${s.heard}|${s.matches.map((m) => m.title).join("|")}`}
-                heard={s.heard}
-                matches={s.matches}
-                compact={i > 0}
-                onDismiss={() => hints.dismiss(s.heard)}
-                onOpenLibrary={() => {
-                  hints.dismiss(s.heard);
-                  setObjectionsOpen(true);
-                }}
-              />
-            ))}
-          </div>
+        {newest?.matches[0]?.category && (
+          // Below `xl` only: with no column there is nothing to highlight, so
+          // the match has to name its section here instead. Still a section and
+          // not a line — see the panel for why.
+          <ObjectionSuggestion
+            className="mt-3 xl:hidden"
+            heard={newest.heard}
+            category={newest.matches[0].category}
+            onDismiss={() => hints.dismiss(newest.heard)}
+            onOpenLibrary={() => setObjectionsOpen(true)}
+          />
         )}
 
         {sections.length > 0 && (
