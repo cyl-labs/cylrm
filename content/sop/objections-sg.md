@@ -187,6 +187,22 @@ _(let them answer)_
 
 > **You say** That's fine, you can consult them. But when it comes to voice agents, we're really the experts, so would it be helpful to set up a time where we can all get on a call together and I can answer any questions they might have?
 
+## Not the decision maker | "I'm the receptionist / I'm not the owner, I'll pass it on"
+
+
+Different from a screener asking who you are: this person has already heard you
+out and is offering to relay it. A relayed message is a message that does not
+get relayed, so the aim is not to be passed on — it is to find out when the
+owner is reachable and ring back then.
+
+> **You say** Appreciate that. Rather than passing on a message, would it be easier if I just showed the owner directly? I built a demo for [company] — is there a time they're usually around?
+
+_(let them answer)_
+
+> **You say** No problem. What's the best way to catch them — are they in tomorrow morning?
+
+_(let them answer)_
+
 ## Not the decision maker | Person screening: "Can I ask who's calling, and what it's about?"
 
 
