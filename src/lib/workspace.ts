@@ -107,17 +107,27 @@ export const EMAIL_PREFIXES = [
  * Call CRM screens a caller may not open either.
  *
  * Stats is the whole operation's performance, Team is who has a login and what
- * they are paid to do, and Payroll is what everyone is owed; all three are the
- * admins' business. Callers get the Scoreboard instead, which shows the floor's
- * numbers without showing the floor's staffing or its wages. Kept separate from
- * EMAIL_PREFIXES so the two reasons stay legible: one is a different product,
- * this is a permission.
+ * they are paid to do, and Payroll is what everyone is owed; all of it is the
+ * admins' business. Kept separate from EMAIL_PREFIXES so the two reasons stay
+ * legible: one is a different product, this is a permission.
+ *
+ * The Scoreboard joined them on 2026-09-03. It was the one performance screen a
+ * caller could open, on the reasoning that a league table motivates a floor
+ * without exposing staffing or wages. That holds for a floor; there is one
+ * person dialling, and a leaderboard of one reads as a thin operation rather
+ * than as a competition. Worth reopening to callers when there are enough of
+ * them for it to be one — the screen itself is unchanged, only who may open it.
  *
  * The Keypad was on this list until 2026-08-25. It is not a rank but a single
  * permission — `app_user.keypad_access`, granted per person — so it lives in
  * `KEYPAD_PREFIX` below instead. Admins keep it by being admins.
  */
-export const ADMIN_ONLY_CALL_PREFIXES = ["/call-stats", "/team", "/payroll"];
+export const ADMIN_ONLY_CALL_PREFIXES = [
+  "/call-stats",
+  "/scoreboard",
+  "/team",
+  "/payroll",
+];
 
 /**
  * The Keypad, which is granted per person rather than by role.
@@ -149,8 +159,8 @@ export const isAdminOnlyPath = (pathname: string) =>
   matches(pathname, [...EMAIL_PREFIXES, ...ADMIN_ONLY_CALL_PREFIXES]);
 
 /**
- * The nav for this person: a caller's Call CRM has no Stats in it, and the
- * Keypad appears only for someone granted it.
+ * The nav for this person: a caller's Call CRM has no Stats or Scoreboard in
+ * it, and the Keypad appears only for someone granted it.
  *
  * `keypad` is read from the database by the layout, not taken off the session,
  * so a grant made on the Team screen shows up on their next page load rather
