@@ -15,7 +15,7 @@ import { canUseLiveHints } from "@/lib/users";
  * audio itself.
  */
 
-const SESSIONS = "https://api.openai.com/v1/realtime/transcription_sessions";
+const SESSIONS = "https://api.openai.com/v1/realtime/client_secrets";
 const TIMEOUT_MS = 10_000;
 
 export async function POST() {
@@ -43,27 +43,40 @@ export async function POST() {
       headers: {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
-        "OpenAI-Beta": "realtime=v1",
       },
       signal: AbortSignal.timeout(TIMEOUT_MS),
       body: JSON.stringify({
-        input_audio_format: "g711_ulaw",
-        input_audio_transcription: { model: "gpt-4o-mini-transcribe" },
-        // Server-side voice activity detection gives us utterance boundaries.
-        // Without it we would have to guess where a sentence ends, and the
-        // measurement work showed segmentation matters as much as the model.
-        turn_detection: { type: "server_vad", silence_duration_ms: 400 },
+        session: {
+          type: "transcription",
+          audio: {
+            input: {
+              // `audio/pcmu` is mu-law at 8 kHz, which is what the worklet
+              // emits. Verified against the live API with real call audio.
+              format: { type: "audio/pcmu" },
+              transcription: { model: "gpt-4o-mini-transcribe" },
+              // Server-side voice activity detection gives us utterance
+              // boundaries. Without it we would be guessing where a sentence
+              // ends, and the measurement work showed segmentation matters as
+              // much as the model does.
+              turn_detection: { type: "server_vad", silence_duration_ms: 400 },
+            },
+          },
+        },
       }),
     });
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 200);
+      // Logged as well as returned: this route failing is invisible from the
+      // dialler by design, and a 404 from a changed API shape is exactly the
+      // thing that leaves "Listening" on screen forever with no explanation.
+      console.error("[openai/token] session refused", res.status, detail);
       return Response.json(
         { error: `OpenAI refused a session (${res.status}): ${detail}` },
         { status: 502 },
       );
     }
-    const json = (await res.json()) as { client_secret?: { value?: string } };
-    const secret = json.client_secret?.value;
+    const json = (await res.json()) as { value?: string };
+    const secret = json.value;
     if (!secret) {
       return Response.json({ error: "No client secret returned." }, { status: 502 });
     }

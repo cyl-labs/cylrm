@@ -1002,16 +1002,29 @@ export function Dialler({
           <div className="mt-3 rounded-lg border bg-muted/30 px-3 py-2">
             <div className="flex items-center gap-2">
               <span className="relative flex size-2 shrink-0">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
-                <span className="relative inline-flex size-2 rounded-full bg-primary" />
+                {!hints.problem && (
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
+                )}
+                <span
+                  className={cn(
+                    "relative inline-flex size-2 rounded-full",
+                    hints.problem ? "bg-destructive" : "bg-primary",
+                  )}
+                />
               </span>
               <p className="min-w-0 flex-1 truncate text-xs font-semibold">
-                Listening
-                {!hints.lastHeard && (
-                  <span className="font-normal text-muted-foreground">
-                    {" "}
-                    — a script appears when they raise an objection
-                  </span>
+                {hints.problem ? (
+                  <span className="text-destructive">{hints.problem}</span>
+                ) : (
+                  <>
+                    Listening
+                    {!hints.lastHeard && (
+                      <span className="font-normal text-muted-foreground">
+                        {" "}
+                        — a script appears when they raise an objection
+                      </span>
+                    )}
+                  </>
                 )}
               </p>
               <button
@@ -1022,7 +1035,7 @@ export function Dialler({
                 Stop
               </button>
             </div>
-            {hints.lastHeard && (
+            {hints.lastHeard && !hints.problem && (
               <p className="mt-1 truncate text-[11px] text-muted-foreground">
                 Heard: “{hints.lastHeard}”
               </p>

@@ -25,7 +25,9 @@
  * streams and returns callbacks. Swapping OpenAI for Deepgram is this file.
  */
 
-const SESSION_URL = "wss://api.openai.com/v1/realtime?intent=transcription";
+// No query string: the session's shape is fixed when the client secret is
+// minted, not on the socket. Verified against the live API.
+const SESSION_URL = "wss://api.openai.com/v1/realtime";
 const WORKLET = "/pcm-worklet.js";
 
 /** How much audio to keep before arming. 8 kHz mu-law is one byte per sample,
@@ -182,7 +184,10 @@ export async function startLiveTranscript(opts: {
 
   const open = async () => {
     const res = await fetch("/api/openai/token", { method: "POST" });
-    if (!res.ok) throw new Error(String(res.status));
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error ?? `Could not start listening (${res.status}).`);
+    }
     const { token } = (await res.json()) as { token: string };
 
     // A browser cannot set an Authorization header on a WebSocket, so the
@@ -190,7 +195,6 @@ export async function startLiveTranscript(opts: {
     const ws = new WebSocket(SESSION_URL, [
       "realtime",
       `openai-insecure-api-key.${token}`,
-      "openai-beta.realtime-v1",
     ]);
     socket = ws;
 
@@ -228,9 +232,9 @@ export async function startLiveTranscript(opts: {
       // One retry, then quiet. A socket dropping twenty seconds in would
       // otherwise kill the feature for the rest of the call with no signal at
       // all; retrying forever would hammer a service that is plainly unwell.
-      if (reconnects >= 1) return teardown("socket closed");
+      if (reconnects >= 1) return teardown("Stopped listening — connection lost.");
       reconnects += 1;
-      void open().catch(() => teardown("reconnect failed"));
+      void open().catch(() => teardown("Stopped listening — could not reconnect."));
     };
 
     ws.onerror = () => {
@@ -244,7 +248,9 @@ export async function startLiveTranscript(opts: {
       if (armed || closed) return;
       armed = true;
       deadline = setTimeout(() => teardown("time limit"), MAX_STREAM_MS);
-      void open().catch(() => teardown("could not open a session"));
+      void open().catch((err) =>
+        teardown(err instanceof Error ? err.message : "Could not start listening."),
+      );
     },
     stop: () => teardown("stopped"),
   };

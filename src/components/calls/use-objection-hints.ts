@@ -47,6 +47,15 @@ export type ObjectionHints = {
    * garbled lines explains a run of poor suggestions.
    */
   lastHeard: string | null;
+  /**
+   * Why it is not listening, or null.
+   *
+   * Silent degradation is right for a hint that does not match; it is wrong for
+   * a session that never opened. The first version failed silently either way,
+   * so a wrong API endpoint left "Listening" on screen for a whole call with no
+   * way to tell it was dead — which is exactly how this bug reached production.
+   */
+  problem: string | null;
   arm: () => void;
   /** Stop listening for the rest of this call. */
   stop: () => void;
@@ -63,6 +72,7 @@ export function useObjectionHints(opts: {
   const [armed, setArmed] = React.useState(false);
   const [ready, setReady] = React.useState(false);
   const [lastHeard, setLastHeard] = React.useState<string | null>(null);
+  const [problem, setProblem] = React.useState<string | null>(null);
 
   const liveRef = React.useRef<LiveTranscript | null>(null);
   const historyRef = React.useRef<Utterance[]>([]);
@@ -130,6 +140,11 @@ export function useObjectionHints(opts: {
         const live = await startLiveTranscript({
           prospect: stream,
           caller,
+          onEnd: (reason) => {
+            // Only worth saying while armed: a teardown on hangup is not a
+            // fault, and the strip is gone by then anyway.
+            setProblem(reason.startsWith("Stopped") || reason.includes("listening") ? reason : null);
+          },
           onUtterance: (u) => {
             historyRef.current = [...historyRef.current, u].slice(-20);
             if (u.speaker !== "prospect") return;
@@ -153,6 +168,7 @@ export function useObjectionHints(opts: {
       setArmed(false);
       setSuggestion(null);
       setLastHeard(null);
+      setProblem(null);
       historyRef.current = [];
       shown.clear();
       latestRef.current = 0;
@@ -164,7 +180,9 @@ export function useObjectionHints(opts: {
     armed,
     available: enabled && callActive && ready,
     lastHeard,
+    problem,
     arm: React.useCallback(() => {
+      setProblem(null);
       liveRef.current?.arm();
       setArmed(true);
     }, []),
@@ -175,6 +193,7 @@ export function useObjectionHints(opts: {
       setReady(false);
       setSuggestion(null);
       setLastHeard(null);
+      setProblem(null);
     }, []),
     dismiss: React.useCallback(() => setSuggestion(null), []),
   };
