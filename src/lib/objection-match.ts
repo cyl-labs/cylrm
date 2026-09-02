@@ -136,6 +136,13 @@ They are doing their job on what they think is an inbound call, and the answer
 is the caller's own opener. Do not reach for a different entry instead: the
 correct output here is nothing.
 
+**Two entries both involve another person, and they are opposites.** "I need to
+talk to my partner first" is the DECISION MAKER wanting to consult somebody
+before saying yes — they can buy, they just will not today. "I'm not the owner /
+I'll pass it on" is somebody who CANNOT buy handing you off: a receptionist, an
+employee, "I'll pass it to the team", "you'd have to call the office". If the
+speaker cannot decide, it is never the partner entry.
+
 **"Too busy" means seasonal call volume, nothing else.** A prospect saying they
 are out on a job, already on another call, or cannot always answer right away is
 describing the gap this product fills — the problem being sold into, and the
