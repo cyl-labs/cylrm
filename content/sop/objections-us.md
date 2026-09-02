@@ -247,7 +247,7 @@ one take, and silence is a no.
 
 **Say your name, their business, one reason, then stop.**
 
-> **You say** Hi, it's [your name]. I had a quick question about how [company] handles calls after hours. I'll only take a minute.
+> **You say** Hi, my name's [your name]. I'm calling about [company] — wanted to check what time you close today.
 
 Four things decide whether they pick up:
 

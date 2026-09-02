@@ -101,15 +101,30 @@ const stripTags = (html: string) =>
  * it on rendered HTML would mean matching tags back out of a string, which is
  * the thing `toSections` already avoids.
  */
+/** How long a lead-in can be before it is prose rather than a cue. */
+const CUE_MAX = 250;
+
 function splitSpoken(body: string): { response: string; context: string } {
+  const blocks = body
+    .split(/\n{2,}/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+  const isSpoken = (b: string) =>
+    /^>\s*\*\*You say\*\*/.test(b) || /^_\(.*\)_$/.test(b);
+
   const spoken: string[] = [];
   const rest: string[] = [];
-  for (const block of body.split(/\n{2,}/)) {
-    const b = block.trim();
-    if (!b) continue;
-    if (/^>\s*\*\*You say\*\*/.test(b) || /^_\(.*\)_$/.test(b)) spoken.push(b);
-    else rest.push(b);
-  }
+  blocks.forEach((b, i) => {
+    if (isSpoken(b)) return spoken.push(b);
+    // A short block immediately before a spoken line is that line's cue —
+    // "If they ask what company:", "**First time they ask:**" — and belongs
+    // with it. Several sections offer three alternative replies for three
+    // situations, and stripped of their cues they read as one script to
+    // recite in order, which is nonsense and was shipped that way.
+    const isCue =
+      b.length <= CUE_MAX && blocks[i + 1] !== undefined && isSpoken(blocks[i + 1]);
+    (isCue ? spoken : rest).push(b);
+  });
   return { response: spoken.join("\n\n"), context: rest.join("\n\n") };
 }
 
