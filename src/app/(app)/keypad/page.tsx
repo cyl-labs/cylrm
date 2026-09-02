@@ -49,11 +49,17 @@ export default async function KeypadPage() {
     call_region: string | null;
   }[];
 
-  // The caller's own objection sheet, exactly as the dialler resolves it. There
-  // is no lead here to fall back to, so anyone with no market set gets none —
-  // the same condition that leaves them without a script on a lead call.
+  // The caller's own market, falling back to US for anyone who has none.
+  //
+  // The dialler hit this first and fixed it the same way, for the same reason:
+  // it can only show one market's script, so a founder — who deliberately has
+  // no market, in order to work all of them — got no panel and no drawer at
+  // all, which reads as the feature being broken rather than as a setting.
+  // There it falls back to the list's own market; here there is no list, so it
+  // falls back to US, which is where ten of the eleven active accounts work and
+  // where the live leads are.
   const { objections, script } = await getDiallerSop(
-    sopRegionFor(await callRegionOf(me?.id)),
+    sopRegionFor(await callRegionOf(me?.id)) ?? "us",
   );
 
   return (
