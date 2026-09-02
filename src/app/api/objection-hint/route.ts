@@ -18,6 +18,16 @@ import {
  */
 
 const MAX_UTTERANCE = 1_000;
+
+/** The `You say` lines from the script's opening section — the qualifying
+ *  questions whose answers are information rather than objections. */
+function openingQuestions(script: { title: string; responseHtml: string }[]): string[] {
+  const opener = script.find((s) => /opener/i.test(s.title));
+  if (!opener) return [];
+  return [...opener.responseHtml.matchAll(/<strong>You say<\/strong>\s*([^<]+)/g)]
+    .map((m) => m[1].trim())
+    .filter(Boolean);
+}
 const MAX_HISTORY = 6;
 
 export async function POST(request: Request) {
@@ -62,7 +72,7 @@ export async function POST(request: Request) {
     : [];
 
   const region = sopRegionFor(await callRegionOf(me.id));
-  const { objections } = await getDiallerSop(region);
+  const { objections, script } = await getDiallerSop(region);
 
   // Objections only. The script is deliberately NOT in the label set.
   //
@@ -83,7 +93,19 @@ export async function POST(request: Request) {
 
   if (labels.length === 0) return Response.json({ seq, matches: [], heard: "" });
 
-  const hint = await matchObjection(labels, history, utterance);
+  // The script's expected answers — "They go to voicemail", "I answer them" —
+  // are told to the classifier as things to stay quiet about. Derived from the
+  // script document, so editing it keeps this in step with no code change.
+  const expected = script.flatMap((s) => s.prospectCues);
+  // The caller's own opening questions. When the last thing the caller said was
+  // one of these, whatever comes back is the prospect answering a qualifying
+  // question — information the pitch is built on, not a reason not to buy.
+  //
+  // A sharper signal than listing the expected answers, because it keys on what
+  // the CALLER said, which is scripted and therefore predictable, rather than
+  // on paraphrases of what the prospect might say back.
+  const asking = openingQuestions(script);
+  const hint = await matchObjection(labels, history, utterance, expected, asking);
 
   // The matched sections themselves, not indices into a list the browser would
   // have to rebuild identically. Two arrays that must stay aligned is exactly

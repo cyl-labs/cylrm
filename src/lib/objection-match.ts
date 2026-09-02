@@ -70,10 +70,34 @@ export function objectionMatchConfigured(): boolean {
   return Boolean(process.env.OPENAI_API_KEY) && process.env.LIVE_HINTS === "1";
 }
 
-function systemPrompt(sections: SopSection[]): string {
+function systemPrompt(sections: SopSection[], expected: string[], asking: string[]): string {
   const list = sections
     .map((s, i) => `${i}. ${s.category ? `[${s.category}] ` : ""}${s.title}`)
     .join("\n");
+  // The script's own `> **Prospect** "…"` lines, derived from the document
+  // rather than listed here, so editing the script keeps this in step.
+  const scripted = expected.length
+    ? `\n\n**These answers are already handled by the caller's script. Return an EMPTY
+list for them — even when an entry above looks like a match.** This rule wins
+over the entry list. They are the replies the caller's own opening questions are
+written to produce, so hearing one means the call is going to plan; the caller
+is reading the script beside this card and does not need a second copy of a beat
+they are already on.
+
+This covers anything that MEANS the same, not only these exact words — "I answer
+all my own calls", "I pick it up myself", "someone always answers", "we still
+pick up after hours" are all the same answer as "I answer them":
+${expected.map((e) => `- ${e}`).join("\n")}`
+    : "";
+  const qualifying = asking.length
+    ? `\n\n**If the caller's last line was one of their scripted opening questions,
+whatever the prospect says back is an ANSWER, not an objection. Return an empty
+list.** These questions exist to find out how the business handles calls, and
+the reply — "we close at six", "they go to voicemail", "no, I still pick up",
+"I answer them myself" — is the information the pitch is built on. The caller
+has not pitched anything yet, so there is nothing to object to. The questions:
+${asking.map((q) => `- ${q}`).join("\n")}`
+    : "";
   return `You help a cold caller on a live call. The caller is struggling to remember which script fits what the prospect just said.
 
 Return a SHORTLIST of at most ${SHORTLIST} entries that might fit, best first.
@@ -110,6 +134,8 @@ too-busy objection, and they stay an objection even when the same sentence goes
 on to agree — "that's a lot of time, but fine, I'll listen" is someone telling
 you their hesitation out loud, which is exactly when the script is wanted.
 
+${scripted}${qualifying}
+
 Prefer an empty list over a weak match: a wrong hint costs more than no hint.
 If it could be two, return both ranked — a short list the caller picks from
 beats one confident wrong answer.
@@ -131,6 +157,13 @@ export async function matchObjection(
   sections: SopSection[],
   history: HintTurn[],
   utterance: string,
+  /** The script's own expected prospect answers. Anything matching one of these
+   *  stays silent: the caller is reading the script beside this card and does
+   *  not need a second copy of a beat they are already on. */
+  expected: string[] = [],
+  /** The caller's scripted opening questions. An answer to one of these is the
+   *  prospect giving information, not raising an objection. */
+  asking: string[] = [],
 ): Promise<Hint> {
   const empty: Hint = { candidates: [], heard: "" };
   const key = process.env.OPENAI_API_KEY;
@@ -151,7 +184,7 @@ export async function matchObjection(
       body: JSON.stringify({
         model: MODEL,
         messages: [
-          { role: "system", content: systemPrompt(sections) },
+          { role: "system", content: systemPrompt(sections, expected, asking) },
           {
             role: "user",
             content: `The conversation so far:\n${convo || "(start of call)"}\n\nProspect just said: "${utterance}"`,
