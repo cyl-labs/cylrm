@@ -62,36 +62,25 @@ export async function POST(request: Request) {
     : [];
 
   const region = sopRegionFor(await callRegionOf(me.id));
-  const { objections, script } = await getDiallerSop(region);
+  const { objections } = await getDiallerSop(region);
 
-  // Objections AND the script. Not an enrichment — without the script the
-  // classifier is structurally unable to be right about a whole class of thing.
-  // "I pick up my own calls" is script beat C when it answers the opener's
-  // "what happens to your calls?", and the "I answer all of them anyway"
-  // objection when it is pushback after the pitch. Same words, different
-  // answer depending on where in the call you are; offered only the objection
-  // list the model must either mislabel it or stay silent, and in testing it
-  // did both.
+  // Objections only. The script is deliberately NOT in the label set.
   //
-  // A script section earns a place when it is keyed to something the prospect
-  // says — it quotes them, or it is a branch. The forward beats ("Once they say
-  // yes") are steps the caller takes and match nothing.
+  // It was, briefly, on the reasoning that "I pick up my own calls" is a script
+  // beat early in a call and an objection later. That reasoning is sound and
+  // the conclusion was still wrong, for a reason a live call made obvious: the
+  // script is *already on screen* in the panel beside this card, so matching to
+  // it tells the caller something they can already see. Worse, the section it
+  // matched — "Their answer will be one of these three" — is a routing step
+  // whose entire instruction is "whatever they say, go to the next section". It
+  // has no answer of its own, so the card rendered three prospect quotes and
+  // nothing to say.
   //
-  // Their titles cannot be the label, though: they describe what the caller
-  // does ("Their answer will be one of these three"), and the three answers
-  // being named are `###` sub-beats that never become sections. So a script
-  // label is built from its prospect cues, which is where "I answer them"
-  // actually lives.
-  const labels = [
-    ...objections,
-    ...script
-      .filter((s) => s.prospectCues.length > 0 || s.branch)
-      .map((s) =>
-        s.prospectCues.length > 0
-          ? { ...s, title: `Prospect says ${s.prospectCues.join(" / ")}` }
-          : s,
-      ),
-  ];
+  // The objections are the thing this feature exists for, because they are the
+  // thing that is hidden in a drawer. Anything already visible does not need a
+  // card.
+  const labels = objections;
+
   if (labels.length === 0) return Response.json({ seq, matches: [], heard: "" });
 
   const hint = await matchObjection(labels, history, utterance);
