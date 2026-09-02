@@ -19,7 +19,24 @@ import type { SopSection } from "@/lib/sop";
  */
 
 const API = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-5-nano";
+/**
+ * `gpt-4.1-mini`, chosen on measurement rather than price.
+ *
+ * On a 24-case regression set hand-labelled from real calls it scores 23/24
+ * against gpt-5-nano's 22/24 — better recall (13/13 in-shortlist vs 11/13) for
+ * one extra soft false positive — and it answers in ~1.0s where gpt-5-nano at
+ * `reasoning_effort: "low"` takes ~4.1s. Four seconds is the difference between
+ * a card arriving while the prospect is still talking and one arriving after
+ * the caller has already had to answer them.
+ *
+ * Not a reasoning model, so it takes no `reasoning_effort`. That parameter is
+ * why this comment is long: gpt-5-nano at "minimal" is ~1.2s and looked like a
+ * free win on one utterance, but it is wrong on four of five real ones — it
+ * fires "How much is it?" at "we close at six pm" — and it reached a live call
+ * before anyone measured it properly. Change the model only against the
+ * regression set, never against a single example.
+ */
+const MODEL = "gpt-4.1-mini";
 const TIMEOUT_MS = 8_000;
 
 /** How many candidates the caller is offered. Two, always — see `SHORTLIST`. */
@@ -124,12 +141,6 @@ export async function matchObjection(
       signal: AbortSignal.timeout(TIMEOUT_MS),
       body: JSON.stringify({
         model: MODEL,
-        // "minimal", not "low": measured on the same utterance, "low" takes
-        // ~4.1s and "minimal" ~1.2s, and they return the identical shortlist.
-        // Three seconds is the difference between a card that lands while the
-        // prospect is still finishing and one that arrives after the caller has
-        // already had to answer.
-        reasoning_effort: "minimal",
         messages: [
           { role: "system", content: systemPrompt(sections) },
           {
