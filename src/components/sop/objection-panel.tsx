@@ -14,35 +14,45 @@ import { cn } from "@/lib/utils";
  * tap; the objections are the part a caller has to *know*, and they were the
  * part hidden in a drawer.
  *
- * The live hint highlights a *category* here — "Price", "Already sorted" — and
- * never a single entry, and never opens one.
+ * The hint marks one entry and opens it, with its whole family tinted around
+ * it. Both, deliberately: measured on the regression set the exact entry and
+ * the family are equally accurate — 39/40 either way — so there is nothing to
+ * gain by being vague, and when the exact row is wrong the right one is
+ * usually its neighbour, visibly inside the same tinted group.
  *
- * Two reasons, and the second is the one that decided it. Picking one of seven
- * families is a far easier problem than picking one of nineteen entries, so it
- * is right more often. And when it is wrong, the cost is a caller glancing at
- * the wrong three rows rather than reading out a scripted answer to an
- * objection nobody raised — which is the failure that makes a caller sound
- * stupid and the tool untrustworthy. Pointing at an area asks the caller to
- * choose; pointing at a line invites them to recite.
- *
- * The caller still opens the row themselves. That is deliberate: they should
- * know this library, and a hint that hands over the words teaches nothing.
+ * That equality only holds because the caller asks. One clean utterance with
+ * their own last line for context is a far easier problem than the continuous
+ * version faced, which had to judge every fragment of every call — and a hint
+ * you asked for and disagree with costs a glance, where one that appeared
+ * unbidden and was wrong cost trust in the whole thing.
  */
 export function ObjectionPanel({
   sections,
-  /** The category the live hint pointed at, or null. Never a single entry. */
+  /** The family the hint pointed at, tinted as context. */
   highlight,
+  /** The exact entry within it, marked and opened. */
+  exact,
   /** What the prospect was heard to say. The check on a wrong match. */
   heard,
   className,
 }: {
   sections: SopSection[];
   highlight?: string | null;
+  exact?: string | null;
   heard?: string | null;
   className?: string;
 }) {
   const [opened, setOpened] = React.useState<number | null>(null);
+  const [lastExact, setLastExact] = React.useState(exact);
   const groupRef = React.useRef<HTMLLIElement | null>(null);
+  const hitRow = exact ? sections.findIndex((s) => s.title === exact) : -1;
+
+  // A new answer opens its row. Adjusted during render rather than in an
+  // effect, which would render the old row first and then correct it.
+  if (exact !== lastExact) {
+    setLastExact(exact);
+    if (hitRow >= 0) setOpened(hitRow);
+  }
 
   // Bring the group into view, and nothing more — no row is opened for them.
   // Scoped to this column: `scrollIntoView` would scroll the page and move the
@@ -83,6 +93,7 @@ export function ObjectionPanel({
         {sections.map((s, i) => {
           const isOpen = opened === i;
           const isHit = Boolean(highlight) && s.category === highlight;
+          const isExact = i === hitRow;
           const newGroup = s.category && s.category !== sections[i - 1]?.category;
           // The first row of the matched group is what gets scrolled to.
           const isGroupTop = isHit && newGroup;
@@ -100,7 +111,7 @@ export function ObjectionPanel({
                   {s.category}
                   {isHit ? (
                     <span className="ml-2 font-semibold normal-case opacity-90">
-                      sounds like one of these
+                      sounds like this
                     </span>
                   ) : null}
                 </p>
@@ -112,16 +123,20 @@ export function ObjectionPanel({
                 className={cn(
                   "flex w-full items-start gap-2 px-4 py-2.5 text-left transition-colors hover:bg-muted/50",
                   isOpen && !isHit && "bg-muted/40",
-                  // The whole family is tinted, no single row picked out. The
-                  // caller chooses which of three or four fits.
-                  isHit && "border-l-4 border-primary bg-primary/[0.07] pl-3",
+                  // The family is tinted so the alternatives are visible; the
+                  // matched row inside it is the loud one.
+                  isHit && "border-l-4 border-primary/40 bg-primary/[0.05] pl-3",
+                  isExact && "border-primary bg-primary/[0.14]",
                 )}
               >
                 <span className="mt-0.5 text-[11px] font-bold tabular-nums text-muted-foreground/70">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span
-                  className="min-w-0 flex-1 text-[13px] font-semibold leading-snug"
+                  className={cn(
+                    "min-w-0 flex-1 text-[13px] leading-snug",
+                    isExact ? "font-bold" : "font-semibold",
+                  )}
                 >
                   {s.title}
                 </span>

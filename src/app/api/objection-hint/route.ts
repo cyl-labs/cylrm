@@ -123,13 +123,21 @@ export async function POST(request: Request) {
     asking,
   );
 
-  // A category, never a single entry. One of seven families is a much easier
-  // problem than one of nineteen entries, and a wrong family costs a glance at
-  // three rows rather than a caller reading out a scripted answer to an
-  // objection nobody raised.
+  // Both the entry and its family. Measured on the regression set the two are
+  // equally accurate — 39/40 either way, 20/20 on the cases that must match —
+  // so pointing precisely costs nothing, and the family still frames it: when
+  // the exact row is wrong the right one is usually the row above or below,
+  // visibly in the same tinted group.
+  //
+  // That equality is a property of this design, not of the classifier. One
+  // clean utterance with the caller's line for context is a far easier problem
+  // than the continuous version faced, where it had to judge every fragment of
+  // every call.
   const top = hint.candidates[0];
+  const picked = top === undefined ? undefined : labels[top];
   return Response.json({
     heard: theirs.trim(),
-    category: top === undefined ? null : (labels[top]?.category ?? null),
+    category: picked?.category ?? null,
+    title: picked?.title ?? null,
   });
 }

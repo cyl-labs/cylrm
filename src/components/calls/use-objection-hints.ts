@@ -19,6 +19,10 @@ import { startCallAudio, type CallAudio } from "./call-audio";
 export type Hint = {
   /** The family it pointed at, e.g. "Price". Null when nothing fits. */
   category: string | null;
+  /** The exact entry within that family, opened for them. Null when nothing
+   *  fits. The family is shown too, so a near miss still lands beside the
+   *  right row rather than nowhere. */
+  title: string | null;
   /** What the prospect was heard to say — the check on a wrong answer. */
   heard: string;
 };

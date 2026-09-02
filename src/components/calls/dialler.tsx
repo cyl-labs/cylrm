@@ -879,6 +879,7 @@ export function Dialler({
           <ObjectionPanel
             sections={sections}
             highlight={panelHit}
+            exact={hints.hint?.title ?? null}
             heard={hints.hint?.heard ?? null}
           />
         </aside>
@@ -1018,7 +1019,8 @@ export function Dialler({
                   <p className="text-[11px] text-muted-foreground">{hints.problem}</p>
                 ) : (
                   <p className="text-[11px] font-semibold xl:hidden">
-                    {hints.hint?.category} — open Objection handling
+                    {hints.hint?.title ?? hints.hint?.category} — open Objection
+                    handling
                   </p>
                 )}
               </div>
