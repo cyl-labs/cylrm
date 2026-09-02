@@ -41,18 +41,72 @@ export function ListActions({
   name,
   leads,
   calls,
+  people = [],
 }: {
   listId: number;
   name: string;
   leads: number;
   /** Calls logged against this list's leads. Deleting takes them too. */
   calls: number;
+  /** Who a part can be handed to. Deactivated people stay in the list for the
+   *  reason they stay assignable elsewhere: switching somebody off for a
+   *  fortnight should not silently strip their niches. */
+  people?: { id: number; name: string; active: boolean }[];
 }) {
   const router = useRouter();
   const [renaming, setRenaming] = React.useState(false);
+  const [splitting, setSplitting] = React.useState(false);
+  const [parts, setParts] = React.useState<{ name: string; owner: string }[]>([]);
   const [deleting, setDeleting] = React.useState(false);
   const [draft, setDraft] = React.useState(name);
   const [busy, setBusy] = React.useState(false);
+
+  /** Open the split dialog with N parts, pre-named the way the importer names
+   *  them so a split here and a split on the way in read the same. */
+  function openSplit(count: number) {
+    setParts(
+      Array.from({ length: count }, (_, i) => ({
+        name: `${name} ${i + 1}`,
+        owner: "",
+      })),
+    );
+    setSplitting(true);
+  }
+
+  /** What each part will hold. Mirrors the server's deal rather than being a
+   *  second rule: leads go round-robin, so the first few parts take the
+   *  remainder. Duplicates are not dealt, so this is an upper bound on a list
+   *  that has some — the dialog says so rather than pretending to precision. */
+  const shares = (n: number) =>
+    Array.from({ length: n }, (_, i) => Math.floor(leads / n) + (i < leads % n ? 1 : 0));
+
+  async function split() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/call-lists/${listId}/split`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          parts: parts.map((p) => ({
+            name: p.name,
+            assignedUserId: p.owner === "" ? null : Number(p.owner),
+          })),
+        }),
+      });
+      const data = (await res.json()) as { error?: string; parts?: { name: string }[] };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not split that list.");
+        return;
+      }
+      setSplitting(false);
+      toast.success(`Split into ${data.parts?.length ?? parts.length} lists.`);
+      router.refresh();
+    } catch {
+      toast.error("Could not split that list.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // Only the trigger needs this: it sits on top of the card, which is one big
   // link. The menu and both dialogs render through a portal, so their clicks
@@ -132,6 +186,12 @@ export function ListActions({
             Rename
           </DropdownMenuItem>
           <DropdownMenuItem
+            disabled={leads < 2}
+            onSelect={() => openSplit(2)}
+          >
+            Split between callers
+          </DropdownMenuItem>
+          <DropdownMenuItem
             variant="destructive"
             onSelect={() => setDeleting(true)}
           >
@@ -166,6 +226,91 @@ export function ListActions({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={splitting} onOpenChange={setSplitting}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Split “{name}”</DialogTitle>
+            <DialogDescription>
+              Leads are dealt one at a time between the lists, not cut into
+              blocks — a scrape arrives sorted by city or rating, so slicing it
+              would hand one caller every Alaska lead. Everyone gets the same
+              mix. Calls already logged stay with their lead.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="split-count" className="text-[13px]">
+                Into
+              </Label>
+              <select
+                id="split-count"
+                value={parts.length}
+                onChange={(e) => openSplit(Number(e.target.value))}
+                className="h-9 rounded-md border bg-background px-2 text-sm"
+              >
+                {Array.from({ length: 9 }, (_, i) => i + 2).map((n) => (
+                  <option key={n} value={n}>
+                    {n} lists
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {parts.map((part, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  value={part.name}
+                  onChange={(e) =>
+                    setParts((p) =>
+                      p.map((x, n) => (n === i ? { ...x, name: e.target.value } : x)),
+                    )
+                  }
+                  className="h-9 flex-1"
+                  aria-label={`Name for list ${i + 1}`}
+                />
+                <select
+                  value={part.owner}
+                  onChange={(e) =>
+                    setParts((p) =>
+                      p.map((x, n) => (n === i ? { ...x, owner: e.target.value } : x)),
+                    )
+                  }
+                  aria-label={`Owner for list ${i + 1}`}
+                  className="h-9 w-36 rounded-md border bg-background px-2 text-sm"
+                >
+                  <option value="">Nobody</option>
+                  {people.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.active ? "" : " (off)"}
+                    </option>
+                  ))}
+                </select>
+                <span className="w-16 shrink-0 text-right text-[12px] tabular-nums text-muted-foreground">
+                  ~{shares(parts.length)[i]}
+                </span>
+              </div>
+            ))}
+
+            <p className="text-[12px] text-muted-foreground">
+              “{name}” keeps its calls and becomes the first list, so nothing
+              logged against it is lost. Counts are approximate: numbers already
+              held elsewhere in the CRM are not dealt out.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSplitting(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button onClick={split} disabled={busy || parts.some((p) => !p.name.trim())}>
+              {busy ? "Splitting…" : `Split into ${parts.length}`}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -253,6 +253,7 @@ function ListCard({
             name={l.name}
             leads={l.total}
             calls={l.callsLogged}
+            people={people}
           />
         )}
       </div>
