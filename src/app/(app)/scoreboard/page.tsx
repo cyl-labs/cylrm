@@ -115,8 +115,13 @@ const PLACES = [
 function Podium({
   people,
   meId,
+  showNumbers,
 }: {
   people: { id: number | null; name: string; calls: number; demos: number }[];
+  /** Whether anybody's figures are shown. Callers see the ranking and their own
+   *  numbers; everyone else's belong to the founders, the same line `/call-stats`
+   *  already draws. */
+  showNumbers: boolean;
   meId?: number;
 }) {
   const top = people.slice(0, 3);
@@ -172,19 +177,35 @@ function Podium({
                   isMe && "ring-2 ring-primary ring-offset-2 ring-offset-card",
                 )}
               >
-                <p className="text-2xl font-extrabold tabular-nums leading-none sm:text-3xl">
-                  {person.demos}
-                </p>
+                {showNumbers ? (
+                  <p className="text-2xl font-extrabold tabular-nums leading-none sm:text-3xl">
+                    {person.demos}
+                  </p>
+                ) : (
+                  // The place, where the count would be. A podium without a
+                  // number is still a podium — first, second and third is the
+                  // whole point of standing on one.
+                  <p className="text-2xl font-extrabold leading-none sm:text-3xl">
+                    {place.label}
+                  </p>
+                )}
                 <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] opacity-80">
-                  {person.demos === 1 ? "demo" : "demos"}
+                  {showNumbers ? (person.demos === 1 ? "demo" : "demos") : "place"}
                 </p>
-                <p className="mt-1 text-[11px] tabular-nums opacity-70">
-                  {person.calls.toLocaleString()} calls
-                </p>
+                {showNumbers && (
+                  <p className="mt-1 text-[11px] tabular-nums opacity-70">
+                    {person.calls.toLocaleString()} calls
+                  </p>
+                )}
 
-                <span className="absolute bottom-1.5 text-[11px] font-bold opacity-60">
-                  {place.label}
-                </span>
+                {/* Only when a number is standing in the big slot above. With
+                    the figures hidden the place has taken that slot, and
+                    repeating it here would print it twice. */}
+                {showNumbers && (
+                  <span className="absolute bottom-1.5 text-[11px] font-bold opacity-60">
+                    {place.label}
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -222,6 +243,12 @@ export default async function ScoreboardPage({
       : null;
 
   const me = await getCurrentUser();
+  // Everyone else's figures are the founders' business, the same line
+  // `/call-stats` already draws — it is admin-only for exactly this reason.
+  // A caller still sees the ranking, and still sees their own numbers on the
+  // card above: the board is a competition, not a window into a colleague's
+  // week or their pay.
+  const showNumbers = me?.role === "admin";
   // Which clock this board is read in: the URL first — the board gets pasted
   // into Discord, and a link should show what the sender was looking at — then
   // whatever this person last chose on either screen, then Eastern.
@@ -355,7 +382,9 @@ export default async function ScoreboardPage({
           )}
         </div>
 
-        {people.length > 0 && <Podium people={people} meId={me?.id} />}
+        {people.length > 0 && (
+          <Podium people={people} meId={me?.id} showNumbers={showNumbers} />
+        )}
 
         {people.length > 0 && (
         <div className="overflow-hidden rounded-xl border bg-card">
@@ -370,7 +399,10 @@ export default async function ScoreboardPage({
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b text-left">
-                    {["", "Person", "Calls", "Pickups", "Demos"].map((h, i) => (
+                    {(showNumbers
+                      ? ["", "Person", "Calls", "Pickups", "Demos"]
+                      : ["", "Person"]
+                    ).map((h, i) => (
                       <th
                         key={h || "rank"}
                         className={cn(
@@ -405,32 +437,36 @@ export default async function ScoreboardPage({
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums">
-                          {/* Demos decide the ranking, but demos are rare and
-                              lumpy. The bar shows the dialling underneath
-                              them, which is the part a caller controls. */}
-                          <span className="inline-flex items-center justify-end gap-2">
-                            <span
-                              aria-hidden
-                              className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-muted sm:block"
-                            >
-                              <span
-                                className="block h-full rounded-full bg-primary/45"
-                                style={{
-                                  width: `${Math.round((p.calls / topCalls) * 100)}%`,
-                                }}
-                              />
-                            </span>
-                            {p.calls.toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
-                          {pct(p.pickups, p.calls)}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-bold tabular-nums">
-                          {p.demos.toLocaleString()}
-                        </td>
-                      </tr>
+                        {showNumbers && (
+                          <>
+                            <td className="px-4 py-2.5 text-right tabular-nums">
+                              {/* Demos decide the ranking, but demos are rare and
+                                  lumpy. The bar shows the dialling underneath
+                                  them, which is the part a caller controls. */}
+                              <span className="inline-flex items-center justify-end gap-2">
+                                <span
+                                  aria-hidden
+                                  className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-muted sm:block"
+                                >
+                                  <span
+                                    className="block h-full rounded-full bg-primary/45"
+                                    style={{
+                                      width: `${Math.round((p.calls / topCalls) * 100)}%`,
+                                    }}
+                                  />
+                                </span>
+                                {p.calls.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
+                              {pct(p.pickups, p.calls)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-bold tabular-nums">
+                              {p.demos.toLocaleString()}
+                            </td>
+                          </>
+                        )}
+</tr>
                     );
                   })}
                 </tbody>
