@@ -235,6 +235,11 @@ export function Keypad({
   // on for it — then reads the same way for the first call and the second.
   const entry = adding ? secondTyped : typed;
   const setEntry = adding ? setSecondTyped : setTyped;
+  // Typing edits the number when there is a number to edit — idle, or partway
+  // through adding a second call. A connected call turns the pad into a tone
+  // pad, so the field goes read-only rather than disappearing.
+  const editable = !busy || adding;
+  const entryRef = React.useRef<HTMLInputElement | null>(null);
   const kind = entry ? classifyPhone(entry) : "missing";
   const target = e164(entry);
   const diallable = Boolean(target) && DIALLABLE.has(kind);
@@ -597,15 +602,54 @@ export function Keypad({
               {adding && (
                 <LineRow label={typed || "First call"} status={elapsed} live />
               )}
-              <div
+              {/* A real input whenever the number can be edited.
+                  It was a div, on the reasoning that this is a phone rather
+                  than a form — and that cost every affordance a person expects
+                  of a number they can change: no caret, so no way to click
+                  into the middle or the start of it; Ctrl-A selected the whole
+                  page; and nothing on screen said it could be typed into at
+                  all.
+                  Read-only during a call rather than swapped out, so the
+                  number stays put while the pad is sending tones: a connected
+                  call turns the keys into DTMF, and editing then would be the
+                  wrong behaviour for a phone. */}
+              <input
+                ref={entryRef}
+                value={entry}
+                readOnly={!editable}
+                inputMode="tel"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Number to dial"
+                placeholder="+"
+                onChange={(e) =>
+                  editable &&
+                  setEntry(
+                    withCountryCode(
+                      e.target.value.replace(/[^\d+]/g, "").slice(0, 20),
+                    ),
+                  )
+                }
+                onPaste={(e) => {
+                  if (!editable) return;
+                  const pasted = pastedNumber(e.clipboardData.getData("text"));
+                  if (!pasted) return;
+                  e.preventDefault();
+                  setEntry((v) =>
+                    withCountryCode(
+                      (pasted.startsWith("+") || !v ? pasted : v + pasted).slice(0, 20),
+                    ),
+                  );
+                }}
                 className={cn(
-                  "truncate text-center font-semibold tabular-nums tracking-tight",
+                  "w-full truncate rounded-md bg-transparent text-center font-semibold tabular-nums tracking-tight outline-none",
+                  "placeholder:text-muted-foreground/40",
                   adding ? "mt-2 text-[24px]" : "text-[30px]",
-                  !entry && "text-muted-foreground/40",
+                  editable
+                    ? "cursor-text focus:bg-muted/40"
+                    : "cursor-default select-none",
                 )}
-              >
-                {entry || "+"}
-              </div>
+              />
             </>
           )}
           <p className="mt-1 min-h-[16px] text-center text-[12px] text-muted-foreground">
@@ -640,6 +684,43 @@ export function Keypad({
               {bookOpen ? "Hide numbers" : "Pick a number"}
             </button>
             {bookOpen && <NumberBook lines={book} onPick={pickFromBook} />}
+          </div>
+        )}
+
+        {liveHints && objections.length > 0 && (
+          // Shown whenever the feature is on, not only mid-call. It used to
+          // appear only once a call was up, so an idle screen showed the panel
+          // and no button and read as the button being missing.
+            <div className="mb-3">
+            <Button
+              variant="outline"
+              className="h-11 w-full"
+              onClick={hints.ask}
+              disabled={!hints.available || hints.asking}
+            >
+              <Ear data-icon="inline-start" />
+              {hints.asking
+                ? "Checking…"
+                : hints.available
+                  ? "What did they just say?"
+                  : "What did they just say? — on a call"}
+            </Button>
+            {hints.hint || hints.problem ? (
+              <div className="mt-1.5 rounded-md border bg-muted/30 px-2.5 py-1.5">
+                {hints.hint?.heard ? (
+                  <p className="truncate text-[11px] italic text-muted-foreground">
+                    heard: “{hints.hint.heard}”
+                  </p>
+                ) : null}
+                {hints.problem ? (
+                  <p className="text-[11px] text-muted-foreground">{hints.problem}</p>
+                ) : (
+                  <p className="text-[11px] font-semibold xl:hidden">
+                    {hints.hint?.title ?? hints.hint?.category}
+                  </p>
+                )}
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -771,43 +852,6 @@ export function Keypad({
           </div>
         )}
       </div>
-
-      {liveHints && objections.length > 0 && (
-        // Shown whenever the feature is on, not only mid-call. It used to
-        // appear only once a call was up, so an idle screen showed the panel
-        // and no button and read as the button being missing.
-        <div className="mt-3">
-          <Button
-            variant="outline"
-            className="h-11 w-full"
-            onClick={hints.ask}
-            disabled={!hints.available || hints.asking}
-          >
-            <Ear data-icon="inline-start" />
-            {hints.asking
-              ? "Checking…"
-              : hints.available
-                ? "What did they just say?"
-                : "What did they just say? — on a call"}
-          </Button>
-          {hints.hint || hints.problem ? (
-            <div className="mt-1.5 rounded-md border bg-muted/30 px-2.5 py-1.5">
-              {hints.hint?.heard ? (
-                <p className="truncate text-[11px] italic text-muted-foreground">
-                  heard: “{hints.hint.heard}”
-                </p>
-              ) : null}
-              {hints.problem ? (
-                <p className="text-[11px] text-muted-foreground">{hints.problem}</p>
-              ) : (
-                <p className="text-[11px] font-semibold xl:hidden">
-                  {hints.hint?.title ?? hints.hint?.category}
-                </p>
-              )}
-            </div>
-          ) : null}
-        </div>
-      )}
 
       <p className="mt-3 text-center text-[12px] leading-relaxed text-muted-foreground">
         Numbers dialled here show in the call history on Stats, and calls are
