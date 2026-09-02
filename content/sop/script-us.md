@@ -66,7 +66,7 @@ _(let them answer, then carry on below)_
 
 ## The close
 
-> **You say** My goal wasn't to sell you anything today, and I'm not going to hard sell you on this. I actually built out a demo for your business — I'm really just trying to see if you like what I can build you. You either like it or you don't. I was hoping to find a time where we could do a quick Google Meet.
+> **You say** My goal wasn't to sell you anything today. I actually built out a demo for your business — I'm really just trying to see if what we build can help you get more customers. I was hoping to find a time where we could do a quick Google Meet.
 
 _(let them answer)_
 
