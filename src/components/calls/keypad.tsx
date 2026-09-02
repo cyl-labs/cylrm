@@ -27,6 +27,7 @@ import { PHONE_KEYS } from "./tone-pad";
 import { useTelnyxCall } from "./use-telnyx-call";
 import { useObjectionHints } from "./use-objection-hints";
 import { ObjectionPanel } from "@/components/sop/objection-panel";
+import { ScriptDrawer } from "@/components/sop/script-drawer";
 import type { SopSection } from "@/lib/sop";
 
 const REMOTE_AUDIO_ID = "keypad-remote-audio";
@@ -162,6 +163,7 @@ export function Keypad({
   book,
   objections = [],
   liveHints = false,
+  script = [],
 }: {
   /** The caller ID this person rings from, or null if they have none yet. */
   did: string | null;
@@ -179,6 +181,8 @@ export function Keypad({
   objections?: SopSection[];
   /** Whether the "what did they just say?" button exists at all. */
   liveHints?: boolean;
+  /** The caller's script, behind the "o" key as it is on the dialler. */
+  script?: SopSection[];
 }) {
   const [typed, setTyped] = React.useState("");
   // The book of numbers, and what was last taken out of it. The pick is kept
@@ -204,6 +208,8 @@ export function Keypad({
   // The same help the dialler has. There is no lead here, so nothing is logged
   // and nothing is scored — but a demo line answers with the same objections a
   // prospect does, and this is where those get practised.
+  const [scriptOpen, setScriptOpen] = React.useState(false);
+
   const hints = useObjectionHints({
     enabled: liveHints && objections.length > 0,
     callActive: line.state === "active",
@@ -413,6 +419,11 @@ export function Keypad({
     } else if (e.key === "Enter") {
       if (adding) callSecond();
       else call();
+    } else if (e.key === "o" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      // The same key the dialler uses, so it means one thing across the app.
+      // Safe beside the pad: "o" is not a digit, and `inTextField` above has
+      // already let anything typed into a field through.
+      if (script.length > 0) setScriptOpen((v) => !v);
     } else if (e.key === "Escape") {
       // Out of the second number first: escaping straight to a hangup while
       // someone is halfway through typing one would end the call they were
@@ -765,6 +776,11 @@ export function Keypad({
 
       <audio id={REMOTE_AUDIO_ID} autoPlay />
       <audio id={SECOND_AUDIO_ID} autoPlay />
+      <ScriptDrawer
+        open={scriptOpen}
+        onOpenChange={setScriptOpen}
+        sections={script}
+      />
       </div>
     </div>
   );

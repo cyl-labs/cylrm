@@ -52,7 +52,7 @@ export default async function KeypadPage() {
   // The caller's own objection sheet, exactly as the dialler resolves it. There
   // is no lead here to fall back to, so anyone with no market set gets none —
   // the same condition that leaves them without a script on a lead call.
-  const { objections } = await getDiallerSop(
+  const { objections, script } = await getDiallerSop(
     sopRegionFor(await callRegionOf(me?.id)),
   );
 
@@ -70,6 +70,7 @@ export default async function KeypadPage() {
             plain: row ? row.call_region === null : false,
           })}
           objections={objections}
+          script={script}
           liveHints={
             process.env.LIVE_HINTS === "1" &&
             Boolean(process.env.OPENAI_API_KEY) &&
