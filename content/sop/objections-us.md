@@ -57,7 +57,7 @@ _(let them answer)_
 
 > **You say** Well, 80% of callers who hit your voicemail hang up and call the next company. Before you spend money on ads or marketing, wouldn't it make sense to capture all of the calls you're currently getting?
 
-## Brushing you off | Prospect: "Now's not a good time."
+## Brushing you off | Prospect: "Call me back later / I'm busy."
 
 
 > **You say** That's fine. I wasn't trying to get into the details right now. I was hoping to schedule a time with you when you're free.

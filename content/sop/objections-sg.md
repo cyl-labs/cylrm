@@ -62,7 +62,7 @@ _(let them answer)_
 
 > **You say** No worries. Real quick though, do you use WhatsApp for the business at all? Those messages hit the same wall after hours, so I'm curious if that's something you're dealing with too.
 
-## Brushing you off | Prospect: "Now's not a good time."
+## Brushing you off | Prospect: "Call me back later / I'm busy."
 
 
 > **You say** That's fine. I wasn't trying to get into the details right now. I was hoping to schedule a time with you when you're free.
