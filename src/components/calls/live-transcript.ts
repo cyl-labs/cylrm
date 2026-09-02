@@ -52,6 +52,20 @@ export type LiveTranscript = {
 
 type Side = "caller" | "prospect";
 
+/**
+ * One transcription session per side.
+ *
+ * Not one session carrying both: a transcription session has no notion of who
+ * is speaking, and an earlier version tried to label frames with a `role`
+ * field that does not exist. The API answered `unknown_parameter` to every
+ * caller frame and discarded it, so the caller's half was silently never
+ * transcribed at all — which is the configuration measurement showed is worse.
+ *
+ * With a socket each, the speaker is structural: it is whichever socket the
+ * transcript arrived on. Two sessions is roughly twice the audio minutes,
+ * which at this volume is a couple of dollars a month.
+ */
+
 /** One side's capture: a worklet writing into a ring buffer, and once armed,
  *  straight out to the socket. */
 type Tap = {
@@ -115,23 +129,20 @@ export async function startLiveTranscript(opts: {
   onUtterance: (u: Utterance) => void;
   onEnd?: (reason: string) => void;
 }): Promise<LiveTranscript> {
-  let socket: WebSocket | null = null;
+  const sockets: Partial<Record<Side, WebSocket>> = {};
   let armed = false;
   let closed = false;
-  let reconnects = 0;
+  const reconnects: Record<Side, number> = { caller: 0, prospect: 0 };
   let deadline: ReturnType<typeof setTimeout> | null = null;
   const taps: Partial<Record<Side, Tap>> = {};
 
   const send = (side: Side, frame: Uint8Array) => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) return;
-    socket.send(
-      JSON.stringify({
-        type: "input_audio_buffer.append",
-        audio: b64(frame),
-        // Both sides ride one session; the label comes back on the event so
-        // speaker separation stays structural rather than diarised.
-        ...(side === "caller" ? { role: "caller" } : {}),
-      }),
+    const ws = sockets[side];
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    // Nothing but the audio: this event takes no other fields, and an invented
+    // one is rejected per frame rather than ignored.
+    ws.send(
+      JSON.stringify({ type: "input_audio_buffer.append", audio: b64(frame) }),
     );
   };
 
@@ -173,16 +184,19 @@ export async function startLiveTranscript(opts: {
         // Already stopped.
       }
     }
-    try {
-      socket?.close();
-    } catch {
-      // Already closing.
+    for (const ws of Object.values(sockets)) {
+      try {
+        ws?.close();
+      } catch {
+        // Already closing.
+      }
     }
-    socket = null;
+    sockets.caller = undefined;
+    sockets.prospect = undefined;
     opts.onEnd?.(reason);
   };
 
-  const open = async () => {
+  const open = async (side: Side) => {
     const res = await fetch("/api/openai/token", { method: "POST" });
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -196,17 +210,15 @@ export async function startLiveTranscript(opts: {
       "realtime",
       `openai-insecure-api-key.${token}`,
     ]);
-    socket = ws;
+    sockets[side] = ws;
 
     ws.onopen = () => {
-      // Flush the pre-roll first, oldest frame first, then go live.
-      for (const side of ["caller", "prospect"] as Side[]) {
-        const tap = taps[side];
-        if (!tap) continue;
-        for (const frame of tap.chunks) send(side, frame);
-        tap.chunks = [];
-        tap.bytes = 0;
-      }
+      // Flush this side's pre-roll, oldest frame first, then go live.
+      const tap = taps[side];
+      if (!tap) return;
+      for (const frame of tap.chunks) send(side, frame);
+      tap.chunks = [];
+      tap.bytes = 0;
     };
 
     ws.onmessage = (e) => {
@@ -223,18 +235,28 @@ export async function startLiveTranscript(opts: {
       ) {
         // Only finals. Deltas are noise for a classifier that needs a whole
         // thought, and were measured to be where fragment errors come from.
-        opts.onUtterance({ speaker: "prospect", text: msg.transcript.trim() });
+        // The speaker is which socket this came in on, not a claim in the
+        // payload — a transcription session does not know who is talking.
+        opts.onUtterance({ speaker: side, text: msg.transcript.trim() });
       }
     };
 
     ws.onclose = () => {
       if (closed || !armed) return;
-      // One retry, then quiet. A socket dropping twenty seconds in would
-      // otherwise kill the feature for the rest of the call with no signal at
-      // all; retrying forever would hammer a service that is plainly unwell.
-      if (reconnects >= 1) return teardown("Stopped listening — connection lost.");
-      reconnects += 1;
-      void open().catch(() => teardown("Stopped listening — could not reconnect."));
+      // One retry per side, then quiet. A socket dropping twenty seconds in
+      // would otherwise kill this side for the rest of the call with no signal
+      // at all; retrying forever would hammer a service that is plainly unwell.
+      //
+      // Only the prospect's side is worth tearing everything down for. Losing
+      // the caller's costs disambiguation, not the feature.
+      if (reconnects[side] >= 1) {
+        if (side === "prospect") teardown("Stopped listening — connection lost.");
+        return;
+      }
+      reconnects[side] += 1;
+      void open(side).catch(() => {
+        if (side === "prospect") teardown("Stopped listening — could not reconnect.");
+      });
     };
 
     ws.onerror = () => {
@@ -248,9 +270,12 @@ export async function startLiveTranscript(opts: {
       if (armed || closed) return;
       armed = true;
       deadline = setTimeout(() => teardown("time limit"), MAX_STREAM_MS);
-      void open().catch((err) =>
+      void open("prospect").catch((err) =>
         teardown(err instanceof Error ? err.message : "Could not start listening."),
       );
+      // Best effort, and quiet on failure: the caller's own side sharpens the
+      // classification but the prospect's is the one carrying objections.
+      if (taps.caller) void open("caller").catch(() => {});
     },
     stop: () => teardown("stopped"),
   };
