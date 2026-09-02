@@ -813,6 +813,16 @@ export function Dialler({
   const panelSections = panelLeft === "script" ? scriptSections : sections;
   const drawerIsScript = panelLeft === "objections";
 
+  // When the objections are behind the key rather than in the column, an answer
+  // has nowhere to land, so the drawer is opened for them. Only on a new answer
+  // — reopening it after they closed it would be the tool arguing with them.
+  const lastAnswer = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const key = hints.hint ? `${hints.hint.heard}|${hints.hint.title}` : null;
+    if (key && key !== lastAnswer.current && !drawerIsScript) setObjectionsOpen(true);
+    lastAnswer.current = key;
+  }, [hints.hint, drawerIsScript]);
+
   // One key opens the script. It used to open the objection sheet; the
   // objections now sit permanently beside the card, so the key was pointing at
   // the one thing already on screen and the script was the thing behind a tap.
@@ -1161,6 +1171,11 @@ export function Dialler({
         open={objectionsOpen}
         onOpenChange={setObjectionsOpen}
         sections={sections}
+        // Carried in whichever side the objections are on, so swapping the
+        // column changes where the answer appears and not whether it does.
+        highlight={panelHit}
+        exact={hints.hint?.title ?? null}
+        heard={hints.hint?.heard ?? null}
       />
       {/* The far end's audio has to land somewhere. One element for the whole
           dialler, never inside the lead card, which remounts per number. */}
