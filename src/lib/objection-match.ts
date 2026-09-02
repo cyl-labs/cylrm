@@ -128,6 +128,17 @@ NOT lose calls, because somebody always picks up — and it fires only on that.
 Match the claim, never the topic: two sentences can both be about after-hours
 calls and mean opposite things.
 
+**The "who is this / what company are you with" entry is only for a challenge to
+your identity** — them asking who YOU are, or refusing to hear you until they
+know. A prospect asking what you want, what this has to do with their business,
+or what service you need is not that; pick a different entry or none.
+
+**"Too busy" means seasonal call volume, nothing else.** A prospect saying they
+are out on a job, already on another call, or cannot always answer right away is
+describing the gap this product fills — the problem being sold into, and the
+answer the caller's own questions are digging for. That is not the busy-season
+objection and usually not an objection at all.
+
 **Objecting to the time it costs is NOT scheduling.** "Ten minutes is a bit of
 a commitment", "we're too busy", "I don't have time for this" are the
 too-busy objection, and they stay an objection even when the same sentence goes
