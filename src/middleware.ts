@@ -53,7 +53,12 @@ export const config = {
   // expired — and a script fetch answered with the login page's HTML does not
   // merely fail, it can unregister the worker and silently end somebody's
   // reminders. It is a static file with nothing private in it.
+  // `pcm-worklet.js` is the same case as `sw.js`: a static script fetched by
+  // `audioWorklet.addModule()` rather than as part of a page load. Left in the
+  // matcher it answers with the login page's HTML, and `addModule` rejects —
+  // which would take the live hints down on any session the browser considers
+  // stale, silently, in the middle of a call.
   matcher: [
-    "/((?!api|u/|_next/static|_next/image|favicon.ico|icon.png|sw.js).*)",
+    "/((?!api|u/|_next/static|_next/image|favicon.ico|icon.png|sw.js|pcm-worklet.js).*)",
   ],
 };
