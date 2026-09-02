@@ -186,6 +186,24 @@ export const canUseLiveHints = cache(
   },
 );
 
+/**
+ * Which document the dialler puts in its left column; the other is on "o".
+ *
+ * Cached for the reason `callRegionOf` is: the dialler asks while rendering,
+ * and reading from the database rather than the session means a caller flipping
+ * it sees the change on their next page load rather than their next login.
+ */
+export const panelLeftOf = cache(
+  async (userId: number | null | undefined): Promise<"objections" | "script"> => {
+    if (!userId) return "objections";
+    const [row] = await db
+      .select({ v: appUser.panelLeft })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.v === "script" ? "script" : "objections";
+  },
+);
+
 /** How this person places calls. Cached for the same reason callRegionOf is. */
 export const dialMethodOf = cache(
   async (userId: number | null | undefined): Promise<"browser" | "handset"> => {

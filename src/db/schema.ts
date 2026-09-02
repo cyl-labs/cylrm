@@ -480,6 +480,9 @@ export const appUser = pgTable("app_user", {
    *  is being tested — and unlike keypadAccess, admins are not implicitly in:
    *  this one can be wrong in front of a prospect. */
   liveHints: boolean("live_hints").notNull().default(false),
+  /** Which document holds the dialler's left column; the other is on "o".
+   *  A working preference the caller sets, not a policy an admin assigns. */
+  panelLeft: text("panel_left").notNull().default("objections").$type<"objections" | "script">(),
   /** How this person prefers to be paid — a PayNow number, a bank and account,
    *  a Wise or PayPal link. Free text rather than a set of options, because any
    *  list of methods would be wrong within a month and the only reader is a

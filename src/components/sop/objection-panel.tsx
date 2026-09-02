@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, MessageSquareWarning } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, MessageSquareWarning, ScrollText } from "lucide-react";
 import { SopProse } from "@/components/sop/sop-prose";
 import type { SopSection } from "@/lib/sop";
 import { cn } from "@/lib/utils";
@@ -34,12 +34,19 @@ export function ObjectionPanel({
   exact,
   /** What the prospect was heard to say. The check on a wrong match. */
   heard,
+  /** What this column is showing. The other document is on the "o" key, so the
+   *  pair always covers both and neither is ever out of reach. */
+  kind = "objections",
+  /** Swap the two. Absent means no control — the caller cannot change it. */
+  onSwap,
   className,
 }: {
   sections: SopSection[];
   highlight?: string | null;
   exact?: string | null;
   heard?: string | null;
+  kind?: "objections" | "script";
+  onSwap?: () => void;
   className?: string;
 }) {
   const [opened, setOpened] = React.useState<number | null>(null);
@@ -78,10 +85,31 @@ export function ObjectionPanel({
       )}
     >
       <div className="border-b px-4 py-3">
-        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
-          <MessageSquareWarning className="size-3.5" strokeWidth={2.2} />
-          Objection handling
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="flex flex-1 items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+            {kind === "script" ? (
+              <ScrollText className="size-3.5" strokeWidth={2.2} />
+            ) : (
+              <MessageSquareWarning className="size-3.5" strokeWidth={2.2} />
+            )}
+            {kind === "script" ? "Script" : "Objection handling"}
+          </p>
+          {onSwap ? (
+            // Callers disagree about which belongs here and both are
+            // defensible: somebody learning the pitch wants the script open,
+            // somebody who knows it wants the objections, because that is what
+            // they reach for under pressure. Their preference, not an admin's.
+            <button
+              type="button"
+              onClick={onSwap}
+              title={`Show the ${kind === "script" ? "objections" : "script"} here instead`}
+              className="-m-1 flex shrink-0 items-center gap-1 rounded p-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <ArrowLeftRight className="size-3.5" strokeWidth={2.2} />
+              {kind === "script" ? "Objections" : "Script"}
+            </button>
+          ) : null}
+        </div>
         {heard ? (
           <p className="mt-1.5 truncate text-[11px] italic text-muted-foreground">
             heard: “{heard}”
@@ -130,7 +158,10 @@ export function ObjectionPanel({
                 )}
               >
                 <span className="mt-0.5 text-[11px] font-bold tabular-nums text-muted-foreground/70">
-                  {String(i + 1).padStart(2, "0")}
+                  {/* Branch steps go unnumbered, as they do on the script page:
+                      a conditional numbered in sequence reads as something you
+                      always say. */}
+                  {s.branch ? "↳" : String(i + 1).padStart(2, "0")}
                 </span>
                 <span
                   className={cn(

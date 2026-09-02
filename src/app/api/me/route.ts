@@ -20,12 +20,23 @@ export async function PATCH(request: Request) {
 
   const body = (await request.json().catch(() => null)) as {
     statsRegion?: unknown;
+    panelLeft?: unknown;
   } | null;
   if (!body) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const values: { statsRegion?: "sg" | "us" | "gb" | null } = {};
+  const values: {
+    statsRegion?: "sg" | "us" | "gb" | null;
+    panelLeft?: "objections" | "script";
+  } = {};
+
+  if ("panelLeft" in body) {
+    if (body.panelLeft !== "objections" && body.panelLeft !== "script") {
+      return Response.json({ error: "Invalid panel." }, { status: 400 });
+    }
+    values.panelLeft = body.panelLeft;
+  }
 
   if ("statsRegion" in body) {
     // Null clears it back to Eastern, which is the default rather than an

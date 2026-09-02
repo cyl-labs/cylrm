@@ -640,6 +640,7 @@ export function Dialler({
   showAllHref,
   liveHints = false,
   market = null,
+  panelLeft: initialPanel = "objections",
 }: {
   leads: QueueLead[];
   /** The caller's own script and objection sheet, already rendered. One
@@ -682,6 +683,8 @@ export function Dialler({
    *  page falls back to the list's market for anyone with none of their own,
    *  so the server cannot work it out from the signed-in user alone. */
   market?: string | null;
+  /** Which document holds the left column. The other is on "o". */
+  panelLeft?: "objections" | "script";
   /** Demo workspace: the flow works, nothing is written. */
 }) {
   const router = useRouter();
@@ -698,6 +701,22 @@ export function Dialler({
   // of lead — and, once dialling is in the browser, an active call.
   const [objectionsOpen, setObjectionsOpen] = React.useState(false);
   const [scriptOpen, setScriptOpen] = React.useState(false);
+  // Which document is in the column, and which is therefore on "o". Held here
+  // rather than read on every render so the swap is instant; the write to the
+  // account is best effort, exactly as the timezone picker's is — a preference
+  // that fails to save costs the next page load and nothing else.
+  const [panelLeft, setPanelLeft] = React.useState(initialPanel);
+  const swapPanel = React.useCallback(() => {
+    setPanelLeft((v) => {
+      const next = v === "objections" ? "script" : "objections";
+      fetch("/api/me", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ panelLeft: next }),
+      }).catch(() => {});
+      return next;
+    });
+  }, []);
   // One line for the whole session, held here so changing lead or refreshing
   // after an outcome cannot drop a call in progress.
   const line = useTelnyxCall(
@@ -789,6 +808,10 @@ export function Dialler({
   // a wrong family costs a glance at three rows rather than a caller reading
   // out a scripted answer to an objection nobody raised.
   const panelHit = hints.hint?.category ?? null;
+  // The column holds one document and "o" opens the other, so the pair always
+  // covers both and neither is ever unreachable.
+  const panelSections = panelLeft === "script" ? scriptSections : sections;
+  const drawerIsScript = panelLeft === "objections";
 
   // One key opens the script. It used to open the objection sheet; the
   // objections now sit permanently beside the card, so the key was pointing at
@@ -807,11 +830,15 @@ export function Dialler({
         return;
       }
       e.preventDefault();
-      if (scriptSections.length > 0) setScriptOpen((v) => !v);
+      if (drawerIsScript) {
+        if (scriptSections.length > 0) setScriptOpen((v) => !v);
+      } else if (sections.length > 0) {
+        setObjectionsOpen((v) => !v);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [scriptSections.length]);
+  }, [drawerIsScript, scriptSections.length, sections.length]);
 
   if (!current) {
     return (
@@ -871,12 +898,12 @@ export function Dialler({
     <div
       className={cn(
         "mx-auto w-full px-4 py-5 sm:px-6",
-        sections.length > 0
+        panelSections.length > 0
           ? "max-w-2xl xl:grid xl:max-w-6xl xl:grid-cols-[minmax(0,24rem)_minmax(0,42rem)] xl:justify-center xl:gap-6"
           : "max-w-2xl",
       )}
     >
-      {sections.length > 0 && (
+      {panelSections.length > 0 && (
         // Objections took the script's column on purpose. The script is read
         // top to bottom and is much the same every call, so it can live behind
         // a tap; the objections are the part a caller has to know, and they
@@ -885,10 +912,12 @@ export function Dialler({
         // see all of teaches where things are, and a card teaches nothing.
         <aside className="hidden xl:block">
           <ObjectionPanel
-            sections={sections}
-            highlight={panelHit}
-            exact={hints.hint?.title ?? null}
-            heard={hints.hint?.heard ?? null}
+            sections={panelSections}
+            kind={panelLeft}
+            onSwap={scriptSections.length > 0 ? swapPanel : undefined}
+            highlight={panelLeft === "objections" ? panelHit : null}
+            exact={panelLeft === "objections" ? (hints.hint?.title ?? null) : null}
+            heard={panelLeft === "objections" ? (hints.hint?.heard ?? null) : null}
           />
         </aside>
       )}
@@ -989,11 +1018,13 @@ export function Dialler({
         <QualificationCriteria />
 
         {scriptSections.length > 0 && (
-          // At every width now: the column beside this card holds the
-          // objections, so this is the only way to the script.
+          // Whichever document is not in the column needs a button at every
+          // width, because the column is the only other way to it. The one that
+          // IS in the column only needs a button below `xl`, where there is no
+          // column — hence the conditional class rather than two components.
           <Button
             variant="outline"
-            className="mt-3 h-11 w-full"
+            className={cn("mt-3 h-11 w-full", !drawerIsScript && "xl:hidden")}
             onClick={() => setScriptOpen(true)}
           >
             <ScrollText data-icon="inline-start" />
@@ -1041,11 +1072,12 @@ export function Dialler({
         )}
 
         {sections.length > 0 && (
-          // Only below `xl`, where the panel beside this card cannot fit. On a
-          // wide screen the list is already open and searchable next to them.
+          // The mirror of the button above: shown at every width when the
+          // column is holding the script, and only below `xl` when the column
+          // is already holding these.
           <Button
             variant="outline"
-            className="mt-3 h-11 w-full xl:hidden"
+            className={cn("mt-3 h-11 w-full", drawerIsScript && "xl:hidden")}
             onClick={() => setObjectionsOpen(true)}
           >
             <MessageSquareWarning data-icon="inline-start" />
