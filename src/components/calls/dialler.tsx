@@ -41,7 +41,7 @@ import {
 } from "@/components/calls/second-line";
 import { TonePad } from "@/components/calls/tone-pad";
 import { BookingPostCard } from "@/components/calls/slack-post";
-import { ScriptPanel } from "@/components/sop/script-panel";
+import { ObjectionPanel } from "@/components/sop/objection-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -777,8 +777,22 @@ export function Dialler({
   const sections = objections ?? [];
   const scriptSections = script ?? [];
 
-  // One key opens the sheet. Ignored while typing, or the notes field would
-  // swallow every "o" a caller writes.
+  // Which rows the panel lights up. Matched back by title rather than carried
+  // as an index: the API builds its own label list, and two arrays that must
+  // stay aligned is the coupling that breaks quietly when one gains an entry.
+  const newest = hints.suggestions[0];
+  const rowOf = React.useCallback(
+    (title: string | undefined) =>
+      title === undefined ? null : (sections.findIndex((s) => s.title === title) ?? -1),
+    [sections],
+  );
+  const panelHit = newest ? rowOf(newest.matches[0]?.title) : null;
+  const panelAlt = newest ? rowOf(newest.matches[1]?.title) : null;
+
+  // One key opens the script. It used to open the objection sheet; the
+  // objections now sit permanently beside the card, so the key was pointing at
+  // the one thing already on screen and the script was the thing behind a tap.
+  // Ignored while typing, or the notes field would swallow every "o" written.
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "o" || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -792,11 +806,11 @@ export function Dialler({
         return;
       }
       e.preventDefault();
-      setObjectionsOpen((v) => !v);
+      if (scriptSections.length > 0) setScriptOpen((v) => !v);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [scriptSections.length]);
 
   if (!current) {
     return (
@@ -856,14 +870,25 @@ export function Dialler({
     <div
       className={cn(
         "mx-auto w-full px-4 py-5 sm:px-6",
-        scriptSections.length > 0
-          ? "max-w-2xl xl:grid xl:max-w-6xl xl:grid-cols-[minmax(0,22rem)_minmax(0,42rem)] xl:justify-center xl:gap-6"
+        sections.length > 0
+          ? "max-w-2xl xl:grid xl:max-w-6xl xl:grid-cols-[minmax(0,24rem)_minmax(0,42rem)] xl:justify-center xl:gap-6"
           : "max-w-2xl",
       )}
     >
-      {scriptSections.length > 0 && (
+      {sections.length > 0 && (
+        // Objections took the script's column on purpose. The script is read
+        // top to bottom and is much the same every call, so it can live behind
+        // a tap; the objections are the part a caller has to know, and they
+        // were the part hidden in a drawer. The live hint highlights a row in
+        // here rather than printing its own card — pointing at a list they can
+        // see all of teaches where things are, and a card teaches nothing.
         <aside className="hidden xl:block">
-          <ScriptPanel sections={scriptSections} />
+          <ObjectionPanel
+            sections={sections}
+            highlight={panelHit}
+            alternate={panelAlt}
+            heard={hints.suggestions[0]?.heard ?? null}
+          />
         </aside>
       )}
 
@@ -963,12 +988,11 @@ export function Dialler({
         <QualificationCriteria />
 
         {scriptSections.length > 0 && (
-          // Only where the side panel cannot fit. On a wide screen the script
-          // is already open beside this card and a button to open it again
-          // would be a second way to reach the same words.
+          // At every width now: the column beside this card holds the
+          // objections, so this is the only way to the script.
           <Button
             variant="outline"
-            className="mt-3 h-11 w-full xl:hidden"
+            className="mt-3 h-11 w-full"
             onClick={() => setScriptOpen(true)}
           >
             <ScrollText data-icon="inline-start" />
@@ -1053,7 +1077,9 @@ export function Dialler({
           // card that swapped its own contents read as "stuck on the same tip",
           // and a caller who has just handled one objection often wants to
           // glance back at the one before it.
-          <div className="mt-3 space-y-2">
+          // Below `xl` only: with no room for the panel there is nothing to
+          // highlight, so the match has to bring its own card.
+          <div className="mt-3 space-y-2 xl:hidden">
             {hints.suggestions.map((s, i) => (
               <ObjectionSuggestion
                 // Keyed on the shortlist so a new suggestion resets which option
@@ -1073,11 +1099,11 @@ export function Dialler({
         )}
 
         {sections.length > 0 && (
-          // Beside the number rather than in the header: it is reached in the
-          // middle of a sentence, with one hand, while someone is talking.
+          // Only below `xl`, where the panel beside this card cannot fit. On a
+          // wide screen the list is already open and searchable next to them.
           <Button
             variant="outline"
-            className="mt-3 h-11 w-full"
+            className="mt-3 h-11 w-full xl:hidden"
             onClick={() => setObjectionsOpen(true)}
           >
             <MessageSquareWarning data-icon="inline-start" />
