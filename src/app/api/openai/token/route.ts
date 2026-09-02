@@ -58,7 +58,11 @@ export async function POST() {
               // boundaries. Without it we would be guessing where a sentence
               // ends, and the measurement work showed segmentation matters as
               // much as the model does.
-              turn_detection: { type: "server_vad", silence_duration_ms: 400 },
+              // 250ms, not the 400 this shipped with. Every millisecond here is dead
+              // time between the prospect finishing and the highlight moving,
+              // and the classifier already gets whole merged utterances, so a
+              // slightly eager cut costs little.
+              turn_detection: { type: "server_vad", silence_duration_ms: 250 },
             },
           },
         },

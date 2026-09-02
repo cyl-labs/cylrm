@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/session";
 import { callRegionOf, canUseLiveHints } from "@/lib/users";
+import type { SopSection } from "@/lib/sop";
 import { sopRegionFor } from "@/lib/calls";
 import { getDiallerSop } from "@/lib/sop";
 import {
@@ -19,15 +20,63 @@ import {
 
 const MAX_UTTERANCE = 1_000;
 
+/**
+ * The label set and this caller's access, cached per person for a minute.
+ *
+ * This runs once per thing the prospect says, and each call was making three
+ * database round trips — the access check, the caller's market, and the SOP
+ * documents. React's `cache()` only dedupes within a single request, so across
+ * separate ones they all re-queried. None of it can change mid-call: the SOP
+ * only moves on deploy, and a market or a grant is not edited between two
+ * sentences.
+ *
+ * A minute is short enough that revoking access still bites while somebody is
+ * still on the phone, and the `LIVE_HINTS` kill switch is read from the
+ * environment on every request and is not cached at all.
+ */
+const TTL_MS = 60_000;
+type Ready = {
+  at: number;
+  allowed: boolean;
+  labels: SopSection[];
+  expected: string[];
+  asking: string[];
+};
+const ready = new Map<number, Ready>();
+
 /** The `You say` lines from the script's opening section — the qualifying
  *  questions whose answers are information rather than objections. */
-function openingQuestions(script: { title: string; responseHtml: string }[]): string[] {
+function openingQuestions(script: SopSection[]): string[] {
   const opener = script.find((s) => /opener/i.test(s.title));
   if (!opener) return [];
   return [...opener.responseHtml.matchAll(/<strong>You say<\/strong>\s*([^<]+)/g)]
     .map((m) => m[1].trim())
     .filter(Boolean);
 }
+
+async function labelsFor(userId: number): Promise<Ready> {
+  const hit = ready.get(userId);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit;
+  const allowed = await canUseLiveHints(userId);
+  if (!allowed) {
+    const miss = { at: Date.now(), allowed: false, labels: [], expected: [], asking: [] };
+    ready.set(userId, miss);
+    return miss;
+  }
+  const region = sopRegionFor(await callRegionOf(userId));
+  const { objections, script } = await getDiallerSop(region);
+  const fresh: Ready = {
+    at: Date.now(),
+    allowed: true,
+    labels: objections,
+    expected: script.flatMap((s) => s.prospectCues),
+    asking: openingQuestions(script),
+  };
+  ready.set(userId, fresh);
+  return fresh;
+}
+
+
 const MAX_HISTORY = 6;
 
 export async function POST(request: Request) {
@@ -39,7 +88,8 @@ export async function POST(request: Request) {
   if (!objectionMatchConfigured()) {
     return Response.json({ error: "Live hints are off." }, { status: 503 });
   }
-  if (!(await canUseLiveHints(me.id))) {
+  const { allowed, labels, expected, asking } = await labelsFor(me.id);
+  if (!allowed) {
     return Response.json({ error: "No live hints access." }, { status: 403 });
   }
 
@@ -71,40 +121,8 @@ export async function POST(request: Request) {
         .map((t) => ({ speaker: t.speaker, text: t.text.slice(0, MAX_UTTERANCE) }))
     : [];
 
-  const region = sopRegionFor(await callRegionOf(me.id));
-  const { objections, script } = await getDiallerSop(region);
-
-  // Objections only. The script is deliberately NOT in the label set.
-  //
-  // It was, briefly, on the reasoning that "I pick up my own calls" is a script
-  // beat early in a call and an objection later. That reasoning is sound and
-  // the conclusion was still wrong, for a reason a live call made obvious: the
-  // script is *already on screen* in the panel beside this card, so matching to
-  // it tells the caller something they can already see. Worse, the section it
-  // matched — "Their answer will be one of these three" — is a routing step
-  // whose entire instruction is "whatever they say, go to the next section". It
-  // has no answer of its own, so the card rendered three prospect quotes and
-  // nothing to say.
-  //
-  // The objections are the thing this feature exists for, because they are the
-  // thing that is hidden in a drawer. Anything already visible does not need a
-  // card.
-  const labels = objections;
-
   if (labels.length === 0) return Response.json({ seq, matches: [], heard: "" });
 
-  // The script's expected answers — "They go to voicemail", "I answer them" —
-  // are told to the classifier as things to stay quiet about. Derived from the
-  // script document, so editing it keeps this in step with no code change.
-  const expected = script.flatMap((s) => s.prospectCues);
-  // The caller's own opening questions. When the last thing the caller said was
-  // one of these, whatever comes back is the prospect answering a qualifying
-  // question — information the pitch is built on, not a reason not to buy.
-  //
-  // A sharper signal than listing the expected answers, because it keys on what
-  // the CALLER said, which is scripted and therefore predictable, rather than
-  // on paraphrases of what the prospect might say back.
-  const asking = openingQuestions(script);
   const hint = await matchObjection(labels, history, utterance, expected, asking);
 
   // The matched sections themselves, not indices into a list the browser would
