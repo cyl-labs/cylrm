@@ -30,6 +30,13 @@ import { ObjectionPanel } from "@/components/sop/objection-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
 import type { SopSection } from "@/lib/sop";
 
+export type Sheet = {
+  key: "us" | "sg";
+  label: string;
+  script: SopSection[];
+  objections: SopSection[];
+};
+
 const REMOTE_AUDIO_ID = "keypad-remote-audio";
 const SECOND_AUDIO_ID = "keypad-second-audio";
 
@@ -161,9 +168,8 @@ export function Keypad({
   callerName,
   lines,
   book,
-  objections = [],
+  sheets = [],
   liveHints = false,
-  script = [],
 }: {
   /** The caller ID this person rings from, or null if they have none yet. */
   did: string | null;
@@ -176,13 +182,12 @@ export function Keypad({
    *  work every market. Empty for a caller with one market, who has one number
    *  and nothing to choose between — they get the pad exactly as it was. */
   book: KeypadLine[];
-  /** The caller's own objection sheet. Empty for anyone with no market set,
-   *  which is the same condition that leaves the dialler without one. */
-  objections?: SopSection[];
+  /** The market sheets this person may see: one for a caller assigned a
+   *  market, both for anyone with none. More than one puts a picker on screen;
+   *  a caller with one market never sees a control, having nothing to choose. */
+  sheets?: Sheet[];
   /** Whether the "what did they just say?" button exists at all. */
   liveHints?: boolean;
-  /** The caller's script, behind the "o" key as it is on the dialler. */
-  script?: SopSection[];
 }) {
   const [typed, setTyped] = React.useState("");
   // The book of numbers, and what was last taken out of it. The pick is kept
@@ -209,6 +214,10 @@ export function Keypad({
   // and nothing is scored — but a demo line answers with the same objections a
   // prospect does, and this is where those get practised.
   const [scriptOpen, setScriptOpen] = React.useState(false);
+  const [market, setMarket] = React.useState(sheets[0]?.key);
+  const sheet = sheets.find((s) => s.key === market) ?? sheets[0];
+  const objections = sheet?.objections ?? [];
+  const script = sheet?.script ?? [];
 
   const hints = useObjectionHints({
     enabled: liveHints && objections.length > 0,
@@ -536,6 +545,29 @@ export function Keypad({
     >
       {objections.length > 0 && (
         <aside className="hidden xl:block">
+          {sheets.length > 1 && (
+            // Only where there is a choice. A caller assigned a market works
+            // that market all day and has nothing to pick between; the picker
+            // exists for the account that deliberately has no market so it can
+            // work all of them.
+            <div className="mb-2 flex rounded-lg border bg-card p-1">
+              {sheets.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => setMarket(s.key)}
+                  className={cn(
+                    "flex-1 rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors",
+                    s.key === sheet?.key
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted/60",
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
           <ObjectionPanel
             sections={objections}
             highlight={hints.hint?.category ?? null}

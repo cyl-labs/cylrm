@@ -49,18 +49,26 @@ export default async function KeypadPage() {
     call_region: string | null;
   }[];
 
-  // The caller's own market, falling back to US for anyone who has none.
+  // Which market's sheet this screen shows.
   //
-  // The dialler hit this first and fixed it the same way, for the same reason:
-  // it can only show one market's script, so a founder — who deliberately has
-  // no market, in order to work all of them — got no panel and no drawer at
-  // all, which reads as the feature being broken rather than as a setting.
-  // There it falls back to the list's own market; here there is no list, so it
-  // falls back to US, which is where ten of the eleven active accounts work and
-  // where the live leads are.
-  const { objections, script } = await getDiallerSop(
-    sopRegionFor(await callRegionOf(me?.id)) ?? "us",
-  );
+  // Somebody assigned a market gets theirs and no choice, which is right: they
+  // work one market all day and a picker would be a way to get it wrong.
+  //
+  // Somebody with no market — the founders' account, deliberately, so it can
+  // work all of them — gets both and picks. That is the case the dialler solves
+  // by falling back to the list's own market; there is no list here, so the
+  // choice has to be offered rather than guessed. Showing nothing, which is
+  // what `getDiallerSop(null)` returns, reads as the feature being broken
+  // rather than as a setting.
+  const mine = sopRegionFor(await callRegionOf(me?.id));
+  const [us, sg] = await Promise.all([
+    mine === "sg" ? null : getDiallerSop("us"),
+    mine === "us" ? null : getDiallerSop("sg"),
+  ]);
+  const sheets = [
+    us ? { key: "us" as const, label: "US", ...us } : null,
+    sg ? { key: "sg" as const, label: "Singapore", ...sg } : null,
+  ].filter((x) => x !== null);
 
   return (
     <PageShell title="Keypad">
@@ -75,8 +83,7 @@ export default async function KeypadPage() {
             // handed one market has one number and nothing to choose between.
             plain: row ? row.call_region === null : false,
           })}
-          objections={objections}
-          script={script}
+          sheets={sheets}
           liveHints={
             process.env.LIVE_HINTS === "1" &&
             Boolean(process.env.OPENAI_API_KEY) &&
