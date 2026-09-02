@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/session";
+import { canUseLiveHints } from "@/lib/users";
 
 /**
  * A short-lived credential for the browser's transcription session.
@@ -27,6 +28,13 @@ export async function POST() {
   // flag is the single switch — so it has to actually be one.
   if (!key || process.env.LIVE_HINTS !== "1") {
     return Response.json({ error: "Live hints are off." }, { status: 503 });
+  }
+
+  // Granted per person while the feature is in testing. Enforced here rather
+  // than by hiding the button: a hidden control is a courtesy, and anyone with
+  // the browser console walks straight past it.
+  if (!(await canUseLiveHints(me.id))) {
+    return Response.json({ error: "No live hints access." }, { status: 403 });
   }
 
   try {

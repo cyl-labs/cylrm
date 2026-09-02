@@ -1,0 +1,25 @@
+-- Who gets live objection hints on the dialler, per person.
+--
+-- Apply BEFORE deploying the code that reads it.
+--
+-- The feature listens to a live call and suggests which script fits. It is
+-- new and unproven against real calls — everything measured so far ran against
+-- stored recordings — so it is handed out one person at a time rather than
+-- switched on for the floor.
+--
+-- A column rather than a role, for the reason `keypad_access` is one: this is
+-- a single permission and grants nothing else, and a second tier would have to
+-- answer what else it means.
+--
+-- Unlike `keypad_access`, admins are NOT implicitly granted. That column
+-- withholds a screen that admins already had; this one is a test of something
+-- that may be wrong in front of a prospect, and "everyone senior gets it
+-- automatically" is the wrong default while it is being tested. Founders turn
+-- it on for themselves like anybody else, which also means the Team screen
+-- shows a real switch on every row instead of the word "Always".
+--
+-- Note this is the *second* gate, not the only one. `LIVE_HINTS` in the
+-- environment still turns the feature off for everybody at once, and remains
+-- the fast rollback; this decides who sees it while it is on.
+alter table app_user
+  add column if not exists live_hints boolean not null default false;

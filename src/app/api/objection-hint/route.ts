@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/session";
-import { callRegionOf } from "@/lib/users";
+import { callRegionOf, canUseLiveHints } from "@/lib/users";
 import { sopRegionFor } from "@/lib/calls";
 import { getDiallerSop } from "@/lib/sop";
 import {
@@ -28,6 +28,9 @@ export async function POST(request: Request) {
   // switch that turns this off — the rollback plan depends on that being true.
   if (!objectionMatchConfigured()) {
     return Response.json({ error: "Live hints are off." }, { status: 503 });
+  }
+  if (!(await canUseLiveHints(me.id))) {
+    return Response.json({ error: "No live hints access." }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as {

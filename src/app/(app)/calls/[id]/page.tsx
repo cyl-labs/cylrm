@@ -10,7 +10,7 @@ import {
   type CallQueueFilter,
 } from "@/lib/calls";
 import { getDiallerSop } from "@/lib/sop";
-import { callRegionOf, dialMethodOf } from "@/lib/users";
+import { callRegionOf, canUseLiveHints, dialMethodOf } from "@/lib/users";
 import { sopRegionFor } from "@/lib/calls";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
@@ -287,7 +287,9 @@ export default async function CallListPage({
             // means no arm button, no socket and no cost — the dialler behaves
             // exactly as it did before this shipped.
             liveHints={
-              process.env.LIVE_HINTS === "1" && Boolean(process.env.OPENAI_API_KEY)
+              process.env.LIVE_HINTS === "1" &&
+              Boolean(process.env.OPENAI_API_KEY) &&
+              (await canUseLiveHints(me?.id))
             }
             lines={dialMethod === "browser" ? await getSavedLines() : []}
             script={sop.script}

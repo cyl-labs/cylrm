@@ -46,6 +46,7 @@ export async function PATCH(
     telnyxDid?: unknown;
     dialMethod?: unknown;
     keypadAccess?: unknown;
+    liveHints?: unknown;
   } | null;
   if (!body) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
@@ -143,6 +144,13 @@ export async function PATCH(
   // One permission, not a rank: it opens the Keypad and nothing else. Stored
   // for callers only in practice — an admin has it by being an admin, and
   // `canUseKeypad` never reads the column for them.
+  if ("liveHints" in body) {
+    if (typeof body.liveHints !== "boolean") {
+      return Response.json({ error: "Invalid value." }, { status: 400 });
+    }
+    values.liveHints = body.liveHints;
+  }
+
   if ("keypadAccess" in body) {
     if (typeof body.keypadAccess !== "boolean") {
       return Response.json(

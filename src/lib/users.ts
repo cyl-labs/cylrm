@@ -27,6 +27,7 @@ export type TeamMember = {
   isOwner: boolean;
   /** May open the Keypad. Admins always may, whatever this says. */
   keypadAccess: boolean;
+  liveHints: boolean;
   /** How they prefer to be paid — free text, possibly a link. Set on Team,
    *  read on Payroll at the moment a payout is recorded. */
   paymentMethod: string | null;
@@ -57,6 +58,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       dialMethod: appUser.dialMethod,
       isOwner: appUser.isOwner,
       keypadAccess: appUser.keypadAccess,
+      liveHints: appUser.liveHints,
       paymentMethod: appUser.paymentMethod,
       // A join rather than a correlated subquery, because the subquery this
       // replaces was silently wrong. Drizzle renders an interpolated column
@@ -154,6 +156,30 @@ export const canUseKeypad = cache(
     if (!userId) return false;
     const [row] = await db
       .select({ granted: appUser.keypadAccess })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.granted ?? false;
+  },
+);
+
+/**
+ * May this person use live objection hints?
+ *
+ * Deliberately unlike `canUseKeypad`: there is no admin shortcut. That one
+ * withholds a screen admins already had; this one is an unproven feature that
+ * can put a wrong suggestion in front of a caller mid-call, so everybody opts
+ * in explicitly — founders included.
+ *
+ * Cached for the reason `callRegionOf` is: the dialler page asks while
+ * rendering, and reading from the database rather than the session means an
+ * admin granting it takes effect on the next page load rather than the next
+ * login.
+ */
+export const canUseLiveHints = cache(
+  async (userId: number | null | undefined): Promise<boolean> => {
+    if (!userId) return false;
+    const [row] = await db
+      .select({ granted: appUser.liveHints })
       .from(appUser)
       .where(eq(appUser.id, userId));
     return row?.granted ?? false;

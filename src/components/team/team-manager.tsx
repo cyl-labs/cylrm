@@ -130,7 +130,7 @@ export function TeamManager({
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b text-left">
-                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Paid by", "Keypad", "Calls", "Last dialled", ""].map(
+                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Paid by", "Keypad", "Hints", "Calls", "Last dialled", ""].map(
                   (h, i) => (
                     <th
                       key={h || "actions"}
@@ -345,6 +345,30 @@ export function TeamManager({
                       ) : (
                         <span className="text-muted-foreground">
                           {m.keypadAccess ? "Granted" : "No"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2.5">
+                      {/* No "Always" for admins here, unlike Keypad: this is a
+                          feature under test that can put a wrong suggestion in
+                          front of a caller mid-call, so everybody opts in
+                          deliberately — founders included. */}
+                      {canManage ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-7",
+                            m.liveHints && "font-bold text-primary",
+                          )}
+                          disabled={busyId === m.id}
+                          onClick={() => patch(m, { liveHints: !m.liveHints })}
+                        >
+                          {m.liveHints ? "On" : "Off"}
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {m.liveHints ? "On" : "Off"}
                         </span>
                       )}
                     </td>
