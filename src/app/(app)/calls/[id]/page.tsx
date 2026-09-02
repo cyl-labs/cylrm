@@ -283,6 +283,12 @@ export default async function CallListPage({
       <Dialler
             calBookingUrl={process.env.CAL_BOOKING_URL}
             canDialFromBrowser={dialMethod === "browser"}
+            // Read on the server so the key never reaches the browser. Unset
+            // means no arm button, no socket and no cost — the dialler behaves
+            // exactly as it did before this shipped.
+            liveHints={
+              process.env.LIVE_HINTS === "1" && Boolean(process.env.OPENAI_API_KEY)
+            }
             lines={dialMethod === "browser" ? await getSavedLines() : []}
             script={sop.script}
             objections={sop.objections}

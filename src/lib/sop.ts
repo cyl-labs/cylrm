@@ -31,6 +31,30 @@ export type SopSection = {
   html: string;
   /** Heading and body as plain text, lowercased, for the drawer's search. */
   search: string;
+  /**
+   * Just the lines a caller says out loud — the `> **You say**` blockquotes and
+   * the stage directions between them — rendered in document order.
+   *
+   * Split out for the live hint, which appears mid-sentence and has to be
+   * readable at a glance. Sections are not uniform: most are purely spoken
+   * lines, but some carry paragraphs of coaching around them (`Machine
+   * screening` is fifteen lines of explanation around one sentence), and
+   * dumping that on screen during a call buries the thing they need.
+   */
+  responseHtml: string;
+  /** Everything else in the section: the coaching, the reasoning, the caveats.
+   *  Worth having, never worth reading while a prospect waits. */
+  contextHtml: string;
+  /**
+   * The `> **Prospect** "…"` lines: what a prospect says that lands you here.
+   *
+   * On the objection sheet the `title` already is that, so this is empty. On
+   * the script it is the only usable label — the headings there describe what
+   * the *caller* does next ("Their answer will be one of these three"), and the
+   * three answers it is naming live in `###` sub-beats that never become
+   * sections of their own. Without this, "I answer them" has no label to match.
+   */
+  prospectCues: string[];
 };
 
 export type SopDoc = {
@@ -69,6 +93,26 @@ const stripTags = (html: string) =>
  * only structure that matters, splitting text is cheap, and it avoids parsing
  * HTML back out of a string to find them again.
  */
+/**
+ * Split a section body into the lines said aloud and everything else.
+ *
+ * Done on the markdown, where a spoken line is unambiguously a blockquote led
+ * by `**You say**` and a stage direction is an italic line in brackets. Doing
+ * it on rendered HTML would mean matching tags back out of a string, which is
+ * the thing `toSections` already avoids.
+ */
+function splitSpoken(body: string): { response: string; context: string } {
+  const spoken: string[] = [];
+  const rest: string[] = [];
+  for (const block of body.split(/\n{2,}/)) {
+    const b = block.trim();
+    if (!b) continue;
+    if (/^>\s*\*\*You say\*\*/.test(b) || /^_\(.*\)_$/.test(b)) spoken.push(b);
+    else rest.push(b);
+  }
+  return { response: spoken.join("\n\n"), context: rest.join("\n\n") };
+}
+
 function toSections(md: string): { intro: string; sections: SopSection[] } {
   const parts = md.split(/^## /m);
   const intro = parts.shift() ?? "";
@@ -80,12 +124,21 @@ function toSections(md: string): { intro: string; sections: SopSection[] } {
     const title = bar === -1 ? heading : heading.slice(bar + 3).trim();
     const body = at === -1 ? "" : part.slice(at + 1);
     const html = marked.parse(body, { async: false }) as string;
+    const { response, context } = splitSpoken(body);
+    // Includes the `###` sub-beats' quotes, which is the point: they never
+    // become sections, so their cues would otherwise be unreachable.
+    const prospectCues = [...body.matchAll(/^>\s*\*\*Prospect\*\*\s*(.+)$/gm)]
+      .map((m) => m[1].trim())
+      .filter(Boolean);
     return {
       title,
       category,
       branch: /^(if|only if|otherwise)\b/i.test(title),
       html,
       search: `${title} ${stripTags(html)}`.toLowerCase(),
+      responseHtml: response ? (marked.parse(response, { async: false }) as string) : "",
+      contextHtml: context ? (marked.parse(context, { async: false }) as string) : "",
+      prospectCues,
     };
   });
   return {

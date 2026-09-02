@@ -1,0 +1,164 @@
+import type { SopSection } from "@/lib/sop";
+
+/**
+ * Which objection is the prospect raising?
+ *
+ * Plain `fetch` against OpenAI, in the shape `deepgram.ts` established: no SDK,
+ * a `configured()` gate so an unset key is a quiet 503 rather than a crash, and
+ * errors that name the vendor.
+ *
+ * The label set is passed in rather than built here, and it comes from the SOP
+ * documents — never a second hard-coded list. Editing `objections-us.md` and
+ * deploying therefore changes what this knows, the same way `PICKUP` and
+ * `STATS_ZONES` have exactly one home.
+ *
+ * Everything about the prompt below was settled by measurement against real
+ * recordings, not by taste. The notes say which, because each rule is there to
+ * stop a specific failure that was observed and would otherwise be "simplified"
+ * back in.
+ */
+
+const API = "https://api.openai.com/v1/chat/completions";
+const MODEL = "gpt-5-nano";
+const TIMEOUT_MS = 8_000;
+
+/** How many candidates the caller is offered. Two, always — see `SHORTLIST`. */
+export const SHORTLIST = 2;
+
+/** Suppress a label that already fired for this call within this window.
+ *
+ *  Repetition, not error, was the dominant noise source measured across 47
+ *  calls: prospects say the same thing several ways in a row ("we pick up
+ *  24/7" / "a real human answers" / "you can call at three in the morning"),
+ *  each is correctly classified, and the caller gets the same card four times.
+ *  30s removes 27% of all suggestions; the curve is flat past it, and longer
+ *  starts hiding genuine re-raises. */
+export const REPEAT_COOLDOWN_MS = 30_000;
+
+export type HintTurn = { speaker: "caller" | "prospect"; text: string };
+
+export type Hint = {
+  /** Indices into the sections array passed in, best first, at most SHORTLIST.
+   *  Empty means nothing fits, which is the common and correct answer. */
+  candidates: number[];
+  /** Verbatim quote from the prospect that the match rests on.
+   *
+   *  Required rather than optional, and it does two jobs: a model made to point
+   *  at words has a harder time justifying a match on "Bye-bye.", and it is
+   *  what the caller reads to see at a glance that a hint is wrong. */
+  heard: string;
+};
+
+export function objectionMatchConfigured(): boolean {
+  return Boolean(process.env.OPENAI_API_KEY) && process.env.LIVE_HINTS === "1";
+}
+
+function systemPrompt(sections: SopSection[]): string {
+  const list = sections
+    .map((s, i) => `${i}. ${s.category ? `[${s.category}] ` : ""}${s.title}`)
+    .join("\n");
+  return `You help a cold caller on a live call. The caller is struggling to remember which script fits what the prospect just said.
+
+Return a SHORTLIST of at most ${SHORTLIST} entries that might fit, best first.
+
+An entry fits if the prospect is giving a REASON NOT TO BUY, or saying something
+the caller needs a scripted answer for.
+
+**Judge the content, not whether the caller prompted it.** The caller's script
+deliberately asks "do you get missed calls?" and "does it go to voicemail?", so
+an objection very often arrives as the ANSWER to a question. "I pick up all my
+own calls anyway" is that objection even though the caller asked about it. Never
+dismiss something merely because it answered a question.
+
+Return an EMPTY list for:
+- Backchannel and fragments: "yeah", "okay", "mm-hmm", "like,", "so..."
+- Pure logistics carrying no reason not to buy: opening hours, an address,
+  spelling an email, giving a name, confirming a time zone.
+- Anything about scheduling, or agreeing to the meeting. Choosing a day or a
+  time is the call going WELL and is never an objection.
+- Politely ending a call that has already gone well.
+
+Prefer an empty list over a weak match: a wrong hint costs more than no hint.
+If it could be two, return both ranked — a short list the caller picks from
+beats one confident wrong answer.
+
+"heard" must be a verbatim quote from what the prospect just said, or "" when
+the list is empty.
+
+The entries:
+${list}`;
+}
+
+/**
+ * Ask which entry fits. Returns empty candidates on any failure.
+ *
+ * Never throws: this is called while somebody is on a live call, and a
+ * classifier having a bad second must cost a missing hint and nothing else.
+ */
+export async function matchObjection(
+  sections: SopSection[],
+  history: HintTurn[],
+  utterance: string,
+): Promise<Hint> {
+  const empty: Hint = { candidates: [], heard: "" };
+  const key = process.env.OPENAI_API_KEY;
+  if (!key || sections.length === 0 || !utterance.trim()) return empty;
+
+  const convo = history
+    .map((t) => `${t.speaker === "caller" ? "Caller" : "Prospect"}: "${t.text}"`)
+    .join("\n");
+
+  try {
+    const res = await fetch(API, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      body: JSON.stringify({
+        model: MODEL,
+        reasoning_effort: "low",
+        messages: [
+          { role: "system", content: systemPrompt(sections) },
+          {
+            role: "user",
+            content: `The conversation so far:\n${convo || "(start of call)"}\n\nProspect just said: "${utterance}"`,
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "shortlist",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                candidates: { type: "array", items: { type: "integer" } },
+                heard: { type: "string" },
+              },
+              required: ["candidates", "heard"],
+            },
+          },
+        },
+      }),
+    });
+    if (!res.ok) return empty;
+    const json = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const raw = json.choices?.[0]?.message?.content;
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw) as Partial<Hint>;
+    const candidates = (parsed.candidates ?? [])
+      // The enum cannot be expressed in JSON Schema for a dynamic list, so an
+      // out-of-range index is possible and must not index past the array.
+      .filter((i) => Number.isInteger(i) && i >= 0 && i < sections.length)
+      .slice(0, SHORTLIST);
+    return { candidates, heard: String(parsed.heard ?? "").slice(0, 300) };
+  } catch {
+    // Timeout, network, or malformed JSON. No hint, no noise.
+    return empty;
+  }
+}

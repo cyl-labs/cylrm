@@ -124,6 +124,14 @@ export type TelnyxLine = {
   sendDigit: (digit: string) => void;
   /** Clears the timer and the session id, ready for the next lead. */
   reset: () => void;
+  /**
+   * The far end's audio on the first call, or null before media is flowing.
+   *
+   * Read-only, and read by the live transcript the same way `audio-bridge.ts`
+   * reads it. Deliberately a getter rather than state: the stream appears part
+   * way through a call and nothing should re-render when it does.
+   */
+  remoteStream: () => MediaStream | null;
 
   /** The second call, or null when there is only one. */
   second: SecondLine | null;
@@ -569,6 +577,11 @@ export function useTelnyxCall(
     setSeconds(0);
   }, []);
 
+  const remoteStream = React.useCallback(
+    () => callRef.current?.remoteStream ?? null,
+    [],
+  );
+
   return {
     ready,
     problem,
@@ -582,6 +595,7 @@ export function useTelnyxCall(
     toggleMute,
     sendDigit,
     reset,
+    remoteStream,
     second,
     merged,
     merging,

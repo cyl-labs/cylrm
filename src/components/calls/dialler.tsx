@@ -14,6 +14,7 @@ import {
   Mic,
   MicOff,
   MessageSquareWarning,
+  Ear,
   PhoneCall,
   PhoneOff,
   ScrollText,
@@ -26,6 +27,8 @@ import { toast } from "sonner";
 import type { CallOutcome, QueueLead } from "@/lib/calls";
 import type { SopSection } from "@/lib/sop";
 import { ObjectionDrawer } from "@/components/sop/objection-drawer";
+import { ObjectionSuggestion } from "@/components/sop/objection-suggestion";
+import { useObjectionHints } from "@/components/calls/use-objection-hints";
 import {
   useTelnyxCall,
   type TelnyxLine,
@@ -636,6 +639,7 @@ export function Dialler({
   callerName,
   hiddenByHours = 0,
   showAllHref,
+  liveHints = false,
 }: {
   leads: QueueLead[];
   /** The caller's own script and objection sheet, already rendered. One
@@ -670,6 +674,10 @@ export function Dialler({
    *  asleep", and "Nothing to call here" would be a lie on a full list. */
   hiddenByHours?: number;
   showAllHref?: string;
+  /** Listen to the live call and suggest which objection fits. Off unless
+   *  `LIVE_HINTS=1` and an OpenAI key are set, in which case the dialler
+   *  behaves exactly as it does today. */
+  liveHints?: boolean;
   /** Demo workspace: the flow works, nothing is written. */
 }) {
   const router = useRouter();
@@ -693,6 +701,15 @@ export function Dialler({
     canDialFromBrowser,
     SECOND_AUDIO_ID,
   );
+
+  // Held here for the same reason the line is: `DialControls` is keyed on
+  // whether a call is up and `CallForm` is keyed per lead, so either would
+  // tear the transcript down in the middle of a call.
+  const hints = useObjectionHints({
+    enabled: liveHints && canDialFromBrowser,
+    callActive: line.state === "active",
+    remoteStream: line.remoteStream,
+  });
 
   const remaining = React.useMemo(
     () => leads.filter((l) => !done.has(l.id) && !skipped.includes(l.id)),
@@ -953,6 +970,39 @@ export function Dialler({
             <ScrollText data-icon="inline-start" />
             Script
           </Button>
+        )}
+
+        {hints.available && !hints.armed && (
+          // Pressed once a human answers. Voicemail is the largest single
+          // outcome and a caller knows within two seconds, which makes them a
+          // free and perfect detector — better than a classifier that has to
+          // hear the greeting, pay for it, and then be right. Nothing has been
+          // sent before this: capture has been filling a buffer, so the opening
+          // seconds are not lost by waiting for the press.
+          <Button
+            variant="outline"
+            className="mt-3 h-11 w-full"
+            onClick={hints.arm}
+          >
+            <Ear data-icon="inline-start" />
+            Real person — follow along
+          </Button>
+        )}
+
+        {hints.suggestion && (
+          <ObjectionSuggestion
+            // Keyed on the shortlist so a new suggestion resets which option is
+            // showing and whether the notes are open, by construction.
+            key={hints.suggestion.matches.map((m) => m.title).join("|")}
+            className="mt-3"
+            heard={hints.suggestion.heard}
+            matches={hints.suggestion.matches}
+            onDismiss={hints.dismiss}
+            onOpenLibrary={() => {
+              hints.dismiss();
+              setObjectionsOpen(true);
+            }}
+          />
         )}
 
         {sections.length > 0 && (
