@@ -1,38 +1,40 @@
 import { getCurrentUser } from "@/lib/session";
 import { callRegionOf, canUseLiveHints } from "@/lib/users";
-import type { SopSection } from "@/lib/sop";
 import { sopRegionFor } from "@/lib/calls";
-import { getDiallerSop } from "@/lib/sop";
+import { getDiallerSop, type SopSection } from "@/lib/sop";
 import {
   matchObjection,
   objectionMatchConfigured,
-  type HintTurn,
+  transcribeClip,
 } from "@/lib/objection-match";
 
 /**
- * Which script fits what the prospect just said.
+ * "What did they just say, and which section covers it?"
  *
- * The label set is built here, server-side, from the caller's own market — so
- * the browser sends speech and never a list of objections it could get wrong or
- * stale. The indices returned are positions in `getDiallerSop().objections`,
- * which is the same array the dialler already holds, so the two cannot drift.
+ * One request per press, rather than a transcription session running for the
+ * length of every call. Spotting that an objection has been raised is the
+ * caller's job — somebody who cannot do that is not qualified for the work — so
+ * this only saves them hunting for the response. It also cuts about nine tenths
+ * of the cost: the old design classified all eleven-or-so things a prospect
+ * said per call in order to produce two or three cards.
+ *
+ * Both sides are transcribed, because the caller's own last line is what tells
+ * an answer apart from an objection: the script asks "does it go to voicemail?"
+ * and the reply reads exactly like the "I answer all of them anyway" objection
+ * without it. Measured on real calls, the caller's side silenced eleven false
+ * positives with no incorrect silencing.
  */
 
-const MAX_UTTERANCE = 1_000;
+const MAX_CLIP_BYTES = 2_000_000;
 
 /**
  * The label set and this caller's access, cached per person for a minute.
  *
- * This runs once per thing the prospect says, and each call was making three
- * database round trips — the access check, the caller's market, and the SOP
- * documents. React's `cache()` only dedupes within a single request, so across
- * separate ones they all re-queried. None of it can change mid-call: the SOP
- * only moves on deploy, and a market or a grant is not edited between two
- * sentences.
- *
- * A minute is short enough that revoking access still bites while somebody is
- * still on the phone, and the `LIVE_HINTS` kill switch is read from the
- * environment on every request and is not cached at all.
+ * The SOP moves only on deploy and nobody edits a market mid-shift, so this
+ * need not be three database round trips on every press. Short enough that
+ * revoking access still bites while somebody is working, and the `LIVE_HINTS`
+ * kill switch is read from the environment every request and never cached, so
+ * it stays instant.
  */
 const TTL_MS = 60_000;
 type Ready = {
@@ -76,9 +78,6 @@ async function labelsFor(userId: number): Promise<Ready> {
   return fresh;
 }
 
-
-const MAX_HISTORY = 6;
-
 export async function POST(request: Request) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -92,45 +91,45 @@ export async function POST(request: Request) {
   if (!allowed) {
     return Response.json({ error: "No live hints access." }, { status: 403 });
   }
+  if (labels.length === 0) {
+    return Response.json({ error: "No objection sheet for this market." }, { status: 503 });
+  }
 
-  const body = (await request.json().catch(() => null)) as {
-    utterance?: unknown;
-    history?: unknown;
-    seq?: unknown;
-  } | null;
+  const form = await request.formData().catch(() => null);
+  const prospect = form?.get("prospect");
+  const caller = form?.get("caller");
+  if (!(prospect instanceof Blob) || prospect.size === 0) {
+    return Response.json({ error: "Nothing to listen to yet." }, { status: 400 });
+  }
+  if (prospect.size > MAX_CLIP_BYTES) {
+    return Response.json({ error: "Clip too long." }, { status: 400 });
+  }
 
-  const utterance =
-    typeof body?.utterance === "string" ? body.utterance.trim().slice(0, MAX_UTTERANCE) : "";
-  if (!utterance) return Response.json({ error: "Nothing to match." }, { status: 400 });
+  // Together: they are independent, and the caller waits on the slower one.
+  const [theirs, ours] = await Promise.all([
+    transcribeClip(prospect),
+    caller instanceof Blob && caller.size > 0 && caller.size <= MAX_CLIP_BYTES
+      ? transcribeClip(caller)
+      : Promise.resolve(""),
+  ]);
 
-  // Echoed back untouched so the browser can drop a response that arrives after
-  // a newer one — utterances land seconds apart and can return out of order.
-  const seq = Number.isInteger(body?.seq) ? (body!.seq as number) : 0;
+  if (!theirs.trim()) return Response.json({ heard: "", category: null });
 
-  const history: HintTurn[] = Array.isArray(body?.history)
-    ? (body.history as unknown[])
-        .filter(
-          (t): t is HintTurn =>
-            typeof t === "object" &&
-            t !== null &&
-            (("speaker" in t && (t as HintTurn).speaker === "caller") ||
-              (t as HintTurn).speaker === "prospect") &&
-            typeof (t as HintTurn).text === "string",
-        )
-        .slice(-MAX_HISTORY)
-        .map((t) => ({ speaker: t.speaker, text: t.text.slice(0, MAX_UTTERANCE) }))
-    : [];
+  const hint = await matchObjection(
+    labels,
+    ours.trim() ? [{ speaker: "caller", text: ours.trim() }] : [],
+    theirs.trim(),
+    expected,
+    asking,
+  );
 
-  if (labels.length === 0) return Response.json({ seq, matches: [], heard: "" });
-
-  const hint = await matchObjection(labels, history, utterance, expected, asking);
-
-  // The matched sections themselves, not indices into a list the browser would
-  // have to rebuild identically. Two arrays that must stay aligned is exactly
-  // the kind of coupling that breaks quietly when one side gains an entry.
+  // A category, never a single entry. One of seven families is a much easier
+  // problem than one of nineteen entries, and a wrong family costs a glance at
+  // three rows rather than a caller reading out a scripted answer to an
+  // objection nobody raised.
+  const top = hint.candidates[0];
   return Response.json({
-    seq,
-    heard: hint.heard,
-    matches: hint.candidates.map((i) => labels[i]),
+    heard: theirs.trim(),
+    category: top === undefined ? null : (labels[top]?.category ?? null),
   });
 }

@@ -19,6 +19,7 @@ import type { SopSection } from "@/lib/sop";
  */
 
 const API = "https://api.openai.com/v1/chat/completions";
+const AUDIO = "https://api.openai.com/v1/audio/transcriptions";
 /**
  * `gpt-4.1-mini`, chosen on measurement rather than price.
  *
@@ -65,6 +66,42 @@ export type Hint = {
    *  what the caller reads to see at a glance that a hint is wrong. */
   heard: string;
 };
+
+/**
+ * A few seconds of one side of a call, as text.
+ *
+ * Batch rather than a streaming session: the clip is already complete by the
+ * time anyone asks about it, so there is nothing to stream. Returns "" on any
+ * failure — a caller pressing a button and getting nothing is a disappointment,
+ * an exception on a live call is a bug.
+ */
+export async function transcribeClip(clip: Blob): Promise<string> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return "";
+  const form = new FormData();
+  form.append("file", clip, "clip.wav");
+  form.append("model", "gpt-4o-mini-transcribe");
+  form.append("response_format", "json");
+  // The clip is eight seconds of a cold call, not an essay. Saying so stops it
+  // inventing a tidy sentence out of a half-caught one.
+  form.append("prompt", "A short excerpt from a business phone call.");
+  try {
+    const res = await fetch(AUDIO, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}` },
+      body: form,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      console.error("[transcribeClip]", res.status, (await res.text()).slice(0, 160));
+      return "";
+    }
+    const json = (await res.json()) as { text?: string };
+    return typeof json.text === "string" ? json.text : "";
+  } catch {
+    return "";
+  }
+}
 
 export function objectionMatchConfigured(): boolean {
   return Boolean(process.env.OPENAI_API_KEY) && process.env.LIVE_HINTS === "1";

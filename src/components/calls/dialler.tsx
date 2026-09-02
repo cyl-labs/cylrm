@@ -27,7 +27,6 @@ import { toast } from "sonner";
 import type { CallOutcome, QueueLead } from "@/lib/calls";
 import type { SopSection } from "@/lib/sop";
 import { ObjectionDrawer } from "@/components/sop/objection-drawer";
-import { ObjectionSuggestion } from "@/components/sop/objection-suggestion";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
 import {
   useTelnyxCall,
@@ -781,8 +780,7 @@ export function Dialler({
   // seven categories is a much easier problem than one of nineteen entries, and
   // a wrong family costs a glance at three rows rather than a caller reading
   // out a scripted answer to an objection nobody raised.
-  const newest = hints.suggestions[0];
-  const panelHit = newest?.matches[0]?.category ?? null;
+  const panelHit = hints.hint?.category ?? null;
 
   // One key opens the script. It used to open the objection sheet; the
   // objections now sit permanently beside the card, so the key was pointing at
@@ -881,7 +879,7 @@ export function Dialler({
           <ObjectionPanel
             sections={sections}
             highlight={panelHit}
-            heard={newest?.heard ?? null}
+            heard={hints.hint?.heard ?? null}
           />
         </aside>
       )}
@@ -994,89 +992,38 @@ export function Dialler({
           </Button>
         )}
 
-        {hints.available && !hints.armed && (
-          // Pressed once a human answers. Voicemail is the largest single
-          // outcome and a caller knows within two seconds, which makes them a
-          // free and perfect detector — better than a classifier that has to
-          // hear the greeting, pay for it, and then be right. Nothing has been
-          // sent before this: capture has been filling a buffer, so the opening
-          // seconds are not lost by waiting for the press.
+        {hints.available && (
+          // Pressed when the prospect raises something, not once per call.
+          // Spotting an objection is the caller's job; this only saves them
+          // hunting for which section covers it. Nothing has left the browser
+          // before this — the audio sits in a ten-second buffer.
           <div className="mt-3">
             <Button
               variant="outline"
               className="h-11 w-full"
-              onClick={hints.arm}
+              onClick={hints.ask}
+              disabled={hints.asking}
             >
               <Ear data-icon="inline-start" />
-              Listen and suggest scripts
+              {hints.asking ? "Checking…" : "What did they just say?"}
             </Button>
-            <p className="mt-1 text-center text-[11px] text-muted-foreground">
-              Press once a person answers — not for voicemail. It also catches
-              the last 20 seconds, so nothing said in your opener is missed.
-            </p>
-          </div>
-        )}
-
-        {hints.armed && (
-          // Arming used to change nothing on screen until a match happened,
-          // which can be a minute or never — so it read as broken. This says
-          // it is on, shows the last thing it heard as proof, and gives a way
-          // out. Everything a caller needs to know is one glance.
-          <div className="mt-3 rounded-lg border bg-muted/30 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="relative flex size-2 shrink-0">
-                {!hints.problem && (
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
-                )}
-                <span
-                  className={cn(
-                    "relative inline-flex size-2 rounded-full",
-                    hints.problem ? "bg-destructive" : "bg-primary",
-                  )}
-                />
-              </span>
-              <p className="min-w-0 flex-1 truncate text-xs font-semibold">
+            {hints.hint || hints.problem ? (
+              <div className="mt-1.5 rounded-md border bg-muted/30 px-2.5 py-1.5">
+                {hints.hint?.heard ? (
+                  <p className="truncate text-[11px] italic text-muted-foreground">
+                    heard: “{hints.hint.heard}”
+                  </p>
+                ) : null}
                 {hints.problem ? (
-                  <span className="text-destructive">{hints.problem}</span>
+                  <p className="text-[11px] text-muted-foreground">{hints.problem}</p>
                 ) : (
-                  <>
-                    Listening
-                    {!hints.lastHeard && (
-                      <span className="font-normal text-muted-foreground">
-                        {" "}
-                        — a script appears when they raise an objection
-                      </span>
-                    )}
-                  </>
+                  <p className="text-[11px] font-semibold xl:hidden">
+                    {hints.hint?.category} — open Objection handling
+                  </p>
                 )}
-              </p>
-              <button
-                type="button"
-                onClick={hints.stop}
-                className="shrink-0 text-[11px] font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-              >
-                Stop
-              </button>
-            </div>
-            {hints.lastHeard && !hints.problem && (
-              <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                Heard: “{hints.lastHeard}”
-              </p>
-            )}
+              </div>
+            ) : null}
           </div>
-        )}
-
-        {newest?.matches[0]?.category && (
-          // Below `xl` only: with no column there is nothing to highlight, so
-          // the match has to name its section here instead. Still a section and
-          // not a line — see the panel for why.
-          <ObjectionSuggestion
-            className="mt-3 xl:hidden"
-            heard={newest.heard}
-            category={newest.matches[0].category}
-            onDismiss={() => hints.dismiss(newest.heard)}
-            onOpenLibrary={() => setObjectionsOpen(true)}
-          />
         )}
 
         {sections.length > 0 && (
