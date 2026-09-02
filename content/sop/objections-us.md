@@ -158,7 +158,20 @@ If they are unhappy with it, skip the price question — that is already your op
 
 > **You say** That's exactly why I called. I built a demo for your business, so you can hear it take a call live. Do you have 15 minutes this week to take a look?
 
-## Already sorted | Prospect: "I'm happy with what I've got" / "I don't want to replace my current system"
+## Already sorted | Prospect: "Voicemail is fine / they can leave a message"
+
+
+Voicemail is the thing being replaced, not a setup worth protecting, so the
+backup answer below does not apply — there is nothing to sit behind. Go at what
+voicemail actually costs them instead.
+
+> **You say** Well, 80% of callers who hit your voicemail hang up and call the next company. Before you spend money on ads or marketing, wouldn't it make sense to capture all of the calls you're currently getting?
+
+_(let them answer)_
+
+> **You say** Do you have 15 minutes this week to take a look?
+
+## Already sorted | Prospect: "I don't want to replace my current system"
 
 
 > **You say** Yeah, most of our clients actually use ours as a backup. It only picks up what your current setup misses, so nothing changes about what you've already got.
