@@ -187,7 +187,7 @@ _(let them answer)_
 
 > **You say** That's fine, you can consult them. But when it comes to voice agents, we're really the experts, so would it be helpful to set up a time where we can all get on a call together and I can answer any questions they might have?
 
-## Not the decision maker | "I'm the receptionist / I'm not the owner, I'll pass it on"
+## Not the decision maker | "I'm not the owner / call the office / I'll pass it to the manager"
 
 
 Different from a screener asking who you are: this person has already heard you
