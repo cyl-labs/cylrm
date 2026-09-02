@@ -62,6 +62,8 @@ export type ObjectionHints = {
    */
   problem: string | null;
   arm: () => void;
+  /** Drop everything, for moving to the next lead. */
+  clear: () => void;
   /** Stop listening for the rest of this call. */
   stop: () => void;
   /** Remove one card, identified by what was heard. */
@@ -185,12 +187,15 @@ export function useObjectionHints(opts: {
       liveRef.current = null;
       setReady(false);
       setArmed(false);
-      setSuggestions([]);
       setLastHeard(null);
       setProblem(null);
       historyRef.current = [];
       shown.clear();
       latestRef.current = 0;
+      // Suggestions deliberately survive the hangup. They are the record of
+      // what came up, and the minute after a call ends is when a caller is
+      // writing notes and picking an outcome — exactly when they want to look
+      // back at it. Cleared on moving to the next lead instead.
     };
   }, [enabled, callActive, remoteStream, classify]);
 
@@ -204,6 +209,11 @@ export function useObjectionHints(opts: {
       setProblem(null);
       liveRef.current?.arm();
       setArmed(true);
+    }, []),
+    clear: React.useCallback(() => {
+      setSuggestions([]);
+      setLastHeard(null);
+      setProblem(null);
     }, []),
     stop: React.useCallback(() => {
       liveRef.current?.stop();

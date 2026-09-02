@@ -744,6 +744,10 @@ export function Dialler({
 
   function handleLogged(lead: QueueLead, outcome: CallOutcome) {
     line.reset();
+    // The suggestion queue outlives the hangup on purpose — a caller writes
+    // notes and picks an outcome after the call, which is exactly when they
+    // want to see what came up. This is where it ends: the lead is done.
+    hints.clear();
     setDone((prev) => new Set(prev).add(lead.id));
     setPickedId(null);
     if (outcome === "demo_booked" && callerName) {
