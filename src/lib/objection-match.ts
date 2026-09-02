@@ -130,8 +130,11 @@ calls and mean opposite things.
 
 **The "who is this / what company are you with" entry is only for a challenge to
 your identity** — them asking who YOU are, or refusing to hear you until they
-know. A prospect asking what you want, what this has to do with their business,
-or what service you need is not that; pick a different entry or none.
+know. A prospect asking what you want, what this has to do with their business, or
+what service you need is **not an objection at all — return an empty list.**
+They are doing their job on what they think is an inbound call, and the answer
+is the caller's own opener. Do not reach for a different entry instead: the
+correct output here is nothing.
 
 **"Too busy" means seasonal call volume, nothing else.** A prospect saying they
 are out on a job, already on another call, or cannot always answer right away is
