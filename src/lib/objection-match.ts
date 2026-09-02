@@ -124,7 +124,12 @@ export async function matchObjection(
       signal: AbortSignal.timeout(TIMEOUT_MS),
       body: JSON.stringify({
         model: MODEL,
-        reasoning_effort: "low",
+        // "minimal", not "low": measured on the same utterance, "low" takes
+        // ~4.1s and "minimal" ~1.2s, and they return the identical shortlist.
+        // Three seconds is the difference between a card that lands while the
+        // prospect is still finishing and one that arrives after the caller has
+        // already had to answer.
+        reasoning_effort: "minimal",
         messages: [
           { role: "system", content: systemPrompt(sections) },
           {

@@ -989,7 +989,8 @@ export function Dialler({
               Listen and suggest scripts
             </Button>
             <p className="mt-1 text-center text-[11px] text-muted-foreground">
-              Press once a person answers. Not for voicemail.
+              Press once a person answers — not for voicemail. It also catches
+              the last 20 seconds, so nothing said in your opener is missed.
             </p>
           </div>
         )}
@@ -1043,20 +1044,28 @@ export function Dialler({
           </div>
         )}
 
-        {hints.suggestion && (
-          <ObjectionSuggestion
-            // Keyed on the shortlist so a new suggestion resets which option is
-            // showing and whether the notes are open, by construction.
-            key={hints.suggestion.matches.map((m) => m.title).join("|")}
-            className="mt-3"
-            heard={hints.suggestion.heard}
-            matches={hints.suggestion.matches}
-            onDismiss={hints.dismiss}
-            onOpenLibrary={() => {
-              hints.dismiss();
-              setObjectionsOpen(true);
-            }}
-          />
+        {hints.suggestions.length > 0 && (
+          // Newest on top, earlier ones kept below as one-line rows. A single
+          // card that swapped its own contents read as "stuck on the same tip",
+          // and a caller who has just handled one objection often wants to
+          // glance back at the one before it.
+          <div className="mt-3 space-y-2">
+            {hints.suggestions.map((s, i) => (
+              <ObjectionSuggestion
+                // Keyed on the shortlist so a new suggestion resets which option
+                // is showing and whether the notes are open, by construction.
+                key={`${s.heard}|${s.matches.map((m) => m.title).join("|")}`}
+                heard={s.heard}
+                matches={s.matches}
+                compact={i > 0}
+                onDismiss={() => hints.dismiss(s.heard)}
+                onOpenLibrary={() => {
+                  hints.dismiss(s.heard);
+                  setObjectionsOpen(true);
+                }}
+              />
+            ))}
+          </div>
         )}
 
         {sections.length > 0 && (

@@ -30,9 +30,14 @@ const HISTORY = 6;
 
 export type Suggestion = { heard: string; matches: SopSection[] };
 
+/** How many stay on screen. Three is about a phone's worth without pushing the
+ *  outcome buttons off; older ones fall off the bottom rather than expiring on
+ *  a timer, so nothing vanishes while it is being read. */
+const KEEP = 3;
+
 export type ObjectionHints = {
-  /** Non-null while there is something to show. */
-  suggestion: Suggestion | null;
+  /** Newest first. Empty when nothing has matched yet. */
+  suggestions: Suggestion[];
   /** True once the caller has said this is a real person. */
   armed: boolean;
   /** True when there is a live call to arm. */
@@ -59,7 +64,8 @@ export type ObjectionHints = {
   arm: () => void;
   /** Stop listening for the rest of this call. */
   stop: () => void;
-  dismiss: () => void;
+  /** Remove one card, identified by what was heard. */
+  dismiss: (heard: string) => void;
 };
 
 export function useObjectionHints(opts: {
@@ -68,7 +74,7 @@ export function useObjectionHints(opts: {
   remoteStream: () => MediaStream | null;
 }): ObjectionHints {
   const { enabled, callActive, remoteStream } = opts;
-  const [suggestion, setSuggestion] = React.useState<Suggestion | null>(null);
+  const [suggestions, setSuggestions] = React.useState<Suggestion[]>([]);
   const [armed, setArmed] = React.useState(false);
   const [ready, setReady] = React.useState(false);
   const [lastHeard, setLastHeard] = React.useState<string | null>(null);
@@ -104,15 +110,22 @@ export function useObjectionHints(opts: {
     if ((data.seq ?? 0) < latestRef.current) return;
     latestRef.current = data.seq ?? seq;
 
-    // Keyed on the title, which is stable and unique across both documents —
-    // an index would not be, now that the labels span objections and script.
-    const top = data.matches[0].title;
+    // Bound before the closure below, which otherwise loses the narrowing.
+    const matches = data.matches;
+    // Keyed on the title rather than a list index: the title is stable across
+    // an edit to the objection sheet, an index is not.
+    const top = matches[0].title;
     const now = Date.now();
     const last = lastShownRef.current.get(top);
     if (last !== undefined && now - last < COOLDOWN_MS) return;
     lastShownRef.current.set(top, now);
 
-    setSuggestion({ heard: data.heard ?? text, matches: data.matches });
+    // Newest on top, older ones pushed down rather than replaced: a caller
+    // glancing back wants to see the objection before last, and a card that
+    // silently swapped underneath them read as "stuck on the same tip".
+    setSuggestions((prev) =>
+      [{ heard: data.heard ?? text, matches }, ...prev].slice(0, KEEP),
+    );
   }, []);
 
   // Start capturing as soon as the call is up — but `startLiveTranscript` sends
@@ -166,7 +179,7 @@ export function useObjectionHints(opts: {
       liveRef.current = null;
       setReady(false);
       setArmed(false);
-      setSuggestion(null);
+      setSuggestions([]);
       setLastHeard(null);
       setProblem(null);
       historyRef.current = [];
@@ -176,7 +189,7 @@ export function useObjectionHints(opts: {
   }, [enabled, callActive, remoteStream, classify]);
 
   return {
-    suggestion,
+    suggestions,
     armed,
     available: enabled && callActive && ready,
     lastHeard,
@@ -191,10 +204,13 @@ export function useObjectionHints(opts: {
       liveRef.current = null;
       setArmed(false);
       setReady(false);
-      setSuggestion(null);
+      setSuggestions([]);
       setLastHeard(null);
       setProblem(null);
     }, []),
-    dismiss: React.useCallback(() => setSuggestion(null), []),
+    dismiss: React.useCallback(
+      (heard: string) => setSuggestions((p) => p.filter((s) => s.heard !== heard)),
+      [],
+    ),
   };
 }

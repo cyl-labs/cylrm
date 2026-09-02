@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 export function ObjectionSuggestion({
   heard,
   matches,
+  compact = false,
   onDismiss,
   onOpenLibrary,
   className,
@@ -44,6 +45,10 @@ export function ObjectionSuggestion({
    *  than indices, so nothing here has to rebuild the classifier's list in the
    *  same order. They may come from the objection sheet or the script. */
   matches: SopSection[];
+  /** Render as a one-line row rather than a full card. Used for the objections
+   *  raised before this one: they stay reachable without three open cards
+   *  pushing the outcome buttons off a phone screen. */
+  compact?: boolean;
   onDismiss: () => void;
   /** Fall back to searching by hand — the route that always works. */
   onOpenLibrary: () => void;
@@ -55,9 +60,27 @@ export function ObjectionSuggestion({
   // than an effect that clears them after the fact.
   const [picked, setPicked] = React.useState(0);
   const [showContext, setShowContext] = React.useState(false);
+  const [open, setOpen] = React.useState(!compact);
 
   const shown = matches[picked];
   if (!shown) return null;
+
+  if (compact && !open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "flex w-full items-center gap-2 rounded-lg border border-primary/25 bg-primary/[0.03] px-3 py-2 text-left text-xs hover:bg-primary/[0.07]",
+          className,
+        )}
+      >
+        <span className="h-4 w-1 shrink-0 rounded-full bg-primary/40" />
+        <span className="min-w-0 flex-1 truncate font-medium">{shown.title}</span>
+        <span className="shrink-0 text-[11px] text-muted-foreground">earlier</span>
+      </button>
+    );
+  }
 
   return (
     <div
