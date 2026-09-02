@@ -979,14 +979,55 @@ export function Dialler({
           // hear the greeting, pay for it, and then be right. Nothing has been
           // sent before this: capture has been filling a buffer, so the opening
           // seconds are not lost by waiting for the press.
-          <Button
-            variant="outline"
-            className="mt-3 h-11 w-full"
-            onClick={hints.arm}
-          >
-            <Ear data-icon="inline-start" />
-            Real person — follow along
-          </Button>
+          <div className="mt-3">
+            <Button
+              variant="outline"
+              className="h-11 w-full"
+              onClick={hints.arm}
+            >
+              <Ear data-icon="inline-start" />
+              Listen and suggest scripts
+            </Button>
+            <p className="mt-1 text-center text-[11px] text-muted-foreground">
+              Press once a person answers. Not for voicemail.
+            </p>
+          </div>
+        )}
+
+        {hints.armed && (
+          // Arming used to change nothing on screen until a match happened,
+          // which can be a minute or never — so it read as broken. This says
+          // it is on, shows the last thing it heard as proof, and gives a way
+          // out. Everything a caller needs to know is one glance.
+          <div className="mt-3 rounded-lg border bg-muted/30 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="relative flex size-2 shrink-0">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
+                <span className="relative inline-flex size-2 rounded-full bg-primary" />
+              </span>
+              <p className="min-w-0 flex-1 truncate text-xs font-semibold">
+                Listening
+                {!hints.lastHeard && (
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    — a script appears when they raise an objection
+                  </span>
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={hints.stop}
+                className="shrink-0 text-[11px] font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Stop
+              </button>
+            </div>
+            {hints.lastHeard && (
+              <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                Heard: “{hints.lastHeard}”
+              </p>
+            )}
+          </div>
         )}
 
         {hints.suggestion && (

@@ -37,7 +37,19 @@ export type ObjectionHints = {
   armed: boolean;
   /** True when there is a live call to arm. */
   available: boolean;
+  /**
+   * The last thing the prospect was heard to say, matched or not.
+   *
+   * Shown while listening, and it is the answer to "is this thing working?".
+   * Without it, arming changes nothing on screen until a match happens — which
+   * can be a minute or never — and a caller reasonably concludes it is broken.
+   * It also puts the transcription quality in front of them, so a run of
+   * garbled lines explains a run of poor suggestions.
+   */
+  lastHeard: string | null;
   arm: () => void;
+  /** Stop listening for the rest of this call. */
+  stop: () => void;
   dismiss: () => void;
 };
 
@@ -50,6 +62,7 @@ export function useObjectionHints(opts: {
   const [suggestion, setSuggestion] = React.useState<Suggestion | null>(null);
   const [armed, setArmed] = React.useState(false);
   const [ready, setReady] = React.useState(false);
+  const [lastHeard, setLastHeard] = React.useState<string | null>(null);
 
   const liveRef = React.useRef<LiveTranscript | null>(null);
   const historyRef = React.useRef<Utterance[]>([]);
@@ -119,7 +132,9 @@ export function useObjectionHints(opts: {
           caller,
           onUtterance: (u) => {
             historyRef.current = [...historyRef.current, u].slice(-20);
-            if (u.speaker === "prospect") void classify(u.text);
+            if (u.speaker !== "prospect") return;
+            setLastHeard(u.text);
+            void classify(u.text);
           },
         });
         if (cancelled) return live.stop();
@@ -137,6 +152,7 @@ export function useObjectionHints(opts: {
       setReady(false);
       setArmed(false);
       setSuggestion(null);
+      setLastHeard(null);
       historyRef.current = [];
       shown.clear();
       latestRef.current = 0;
@@ -147,9 +163,18 @@ export function useObjectionHints(opts: {
     suggestion,
     armed,
     available: enabled && callActive && ready,
+    lastHeard,
     arm: React.useCallback(() => {
       liveRef.current?.arm();
       setArmed(true);
+    }, []),
+    stop: React.useCallback(() => {
+      liveRef.current?.stop();
+      liveRef.current = null;
+      setArmed(false);
+      setReady(false);
+      setSuggestion(null);
+      setLastHeard(null);
     }, []),
     dismiss: React.useCallback(() => setSuggestion(null), []),
   };
