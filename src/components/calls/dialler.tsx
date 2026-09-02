@@ -993,7 +993,11 @@ export function Dialler({
           </Button>
         )}
 
-        {hints.available && (
+        {liveHints && sections.length > 0 && (
+          // Shown whenever the feature is on rather than only mid-call: it
+          // appeared only once a call was up, so an idle screen showed no
+          // button at all and read as the feature being missing.
+          //
           // Pressed when the prospect raises something, not once per call.
           // Spotting an objection is the caller's job; this only saves them
           // hunting for which section covers it. Nothing has left the browser

@@ -769,16 +769,23 @@ export function Keypad({
         )}
       </div>
 
-      {hints.available && (
+      {liveHints && objections.length > 0 && (
+        // Shown whenever the feature is on, not only mid-call. It used to
+        // appear only once a call was up, so an idle screen showed the panel
+        // and no button and read as the button being missing.
         <div className="mt-3">
           <Button
             variant="outline"
             className="h-11 w-full"
             onClick={hints.ask}
-            disabled={hints.asking}
+            disabled={!hints.available || hints.asking}
           >
             <Ear data-icon="inline-start" />
-            {hints.asking ? "Checking…" : "What did they just say?"}
+            {hints.asking
+              ? "Checking…"
+              : hints.available
+                ? "What did they just say?"
+                : "What did they just say? — on a call"}
           </Button>
           {hints.hint || hints.problem ? (
             <div className="mt-1.5 rounded-md border bg-muted/30 px-2.5 py-1.5">
