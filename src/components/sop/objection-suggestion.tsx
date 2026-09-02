@@ -16,8 +16,13 @@ import { cn } from "@/lib/utils";
  * reading out whatever appeared, including the roughly one in three that is
  * wrong.
  *
- * So: the heard line leads, the options follow, and it stays visually quieter
- * than the lead card and the script. A caller who can see
+ * So: the heard line leads and the options follow. It shipped visually quiet —
+ * dashed border, muted everything — and that was an over-correction: a caller
+ * on a live call reported almost not noticing it appear. Being ignorable when
+ * wrong is a property of *showing the evidence*, not of being faint. It now
+ * announces itself and still never covers the lead card or the dial controls.
+ *
+ * A caller who can see
  *
  *     Heard: "it would have to be Friday"
  *     → Brushing you off: "Call me back later / I'm busy."
@@ -57,15 +62,16 @@ export function ObjectionSuggestion({
   return (
     <div
       className={cn(
-        // Quieter than the lead card on purpose: this is a guide, and anything
-        // that competes for attention asserts a confidence it has not earned.
-        "rounded-lg border border-dashed bg-muted/40 p-3 text-sm",
+        // Loud enough to catch the eye mid-call, additive rather than covering.
+        // The accent bar does the noticing; the content stays calm.
+        "animate-in fade-in slide-in-from-top-1 rounded-lg border-2 border-l-8",
+        "border-primary/30 border-l-primary bg-primary/5 p-3 text-sm shadow-sm",
         className,
       )}
     >
       <div className="flex items-start gap-2">
-        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-          Heard: <span className="italic">“{heard}”</span>
+        <p className="min-w-0 flex-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+          Objection heard
         </p>
         <button
           type="button"
@@ -77,17 +83,22 @@ export function ObjectionSuggestion({
         </button>
       </div>
 
-      <p className="mt-1 font-medium">
-        {shown.category ? (
-          <span className="text-muted-foreground">{shown.category} — </span>
-        ) : null}
-        {shown.title}
+      {/* The objection, as large as anything on the card: it is the thing a
+          caller is scanning for, and it is also the check — if it does not
+          match what they just heard, they skip the rest. */}
+      <p className="mt-0.5 text-base font-bold leading-snug">{shown.title}</p>
+      <p className="mt-1 text-xs italic text-muted-foreground">
+        they said: “{heard}”
+      </p>
+
+      <p className="mt-2.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+        Say this
       </p>
 
       {shown.responseHtml ? (
-        <SopProse html={shown.responseHtml} gutter={false} className="mt-2" />
+        <SopProse html={shown.responseHtml} gutter={false} className="mt-1" />
       ) : (
-        <SopProse html={shown.html} gutter={false} className="mt-2" />
+        <SopProse html={shown.html} gutter={false} className="mt-1" />
       )}
 
       {shown.contextHtml ? (

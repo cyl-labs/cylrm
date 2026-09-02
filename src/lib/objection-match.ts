@@ -74,9 +74,15 @@ Return an EMPTY list for:
 - Backchannel and fragments: "yeah", "okay", "mm-hmm", "like,", "so..."
 - Pure logistics carrying no reason not to buy: opening hours, an address,
   spelling an email, giving a name, confirming a time zone.
-- Anything about scheduling, or agreeing to the meeting. Choosing a day or a
-  time is the call going WELL and is never an objection.
+- Choosing or agreeing a time for the meeting: "Friday works", "mornings",
+  "it would have to be Friday". That is the call going well.
 - Politely ending a call that has already gone well.
+
+**Objecting to the time it costs is NOT scheduling.** "Ten minutes is a bit of
+a commitment", "we're too busy", "I don't have time for this" are the
+too-busy objection, and they stay an objection even when the same sentence goes
+on to agree — "that's a lot of time, but fine, I'll listen" is someone telling
+you their hesitation out loud, which is exactly when the script is wanted.
 
 Prefer an empty list over a weak match: a wrong hint costs more than no hint.
 If it could be two, return both ranked — a short list the caller picks from
