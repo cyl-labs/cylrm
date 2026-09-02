@@ -4,7 +4,9 @@ import { PageShell } from "@/components/page-shell";
 import { Keypad } from "@/components/calls/keypad";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { canUseKeypad } from "@/lib/users";
+import { callRegionOf, canUseKeypad, canUseLiveHints } from "@/lib/users";
+import { getDiallerSop } from "@/lib/sop";
+import { sopRegionFor } from "@/lib/calls";
 import { getKeypadLines, getSavedLines } from "@/lib/calls";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +49,13 @@ export default async function KeypadPage() {
     call_region: string | null;
   }[];
 
+  // The caller's own objection sheet, exactly as the dialler resolves it. There
+  // is no lead here to fall back to, so anyone with no market set gets none —
+  // the same condition that leaves them without a script on a lead call.
+  const { objections } = await getDiallerSop(
+    sopRegionFor(await callRegionOf(me?.id)),
+  );
+
   return (
     <PageShell title="Keypad">
       <div className="px-4 py-6 sm:px-6">
@@ -60,6 +69,12 @@ export default async function KeypadPage() {
             // handed one market has one number and nothing to choose between.
             plain: row ? row.call_region === null : false,
           })}
+          objections={objections}
+          liveHints={
+            process.env.LIVE_HINTS === "1" &&
+            Boolean(process.env.OPENAI_API_KEY) &&
+            (await canUseLiveHints(me?.id))
+          }
         />
       </div>
     </PageShell>

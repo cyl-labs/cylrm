@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  Ear,
   BookUser,
   Delete,
   Mic,
@@ -24,6 +25,9 @@ import {
 } from "./second-line";
 import { PHONE_KEYS } from "./tone-pad";
 import { useTelnyxCall } from "./use-telnyx-call";
+import { useObjectionHints } from "./use-objection-hints";
+import { ObjectionPanel } from "@/components/sop/objection-panel";
+import type { SopSection } from "@/lib/sop";
 
 const REMOTE_AUDIO_ID = "keypad-remote-audio";
 const SECOND_AUDIO_ID = "keypad-second-audio";
@@ -156,6 +160,8 @@ export function Keypad({
   callerName,
   lines,
   book,
+  objections = [],
+  liveHints = false,
 }: {
   /** The caller ID this person rings from, or null if they have none yet. */
   did: string | null;
@@ -168,6 +174,11 @@ export function Keypad({
    *  work every market. Empty for a caller with one market, who has one number
    *  and nothing to choose between — they get the pad exactly as it was. */
   book: KeypadLine[];
+  /** The caller's own objection sheet. Empty for anyone with no market set,
+   *  which is the same condition that leaves the dialler without one. */
+  objections?: SopSection[];
+  /** Whether the "what did they just say?" button exists at all. */
+  liveHints?: boolean;
 }) {
   const [typed, setTyped] = React.useState("");
   // The book of numbers, and what was last taken out of it. The pick is kept
@@ -189,6 +200,15 @@ export function Keypad({
   const [secondName, setSecondName] = React.useState("");
 
   const line = useTelnyxCall(REMOTE_AUDIO_ID, Boolean(did), SECOND_AUDIO_ID);
+
+  // The same help the dialler has. There is no lead here, so nothing is logged
+  // and nothing is scored — but a demo line answers with the same objections a
+  // prospect does, and this is where those get practised.
+  const hints = useObjectionHints({
+    enabled: liveHints && objections.length > 0,
+    callActive: line.state === "active",
+    remoteStream: line.remoteStream,
+  });
   const busy = line.state !== "idle";
   const two = line.second !== null;
 
@@ -495,7 +515,26 @@ export function Keypad({
                     : `Calling from ${did}`));
 
   return (
-    <div className="mx-auto w-full max-w-[340px]">
+    <div
+      className={cn(
+        "mx-auto w-full",
+        objections.length > 0
+          ? "max-w-[340px] xl:grid xl:max-w-4xl xl:grid-cols-[minmax(0,24rem)_minmax(0,340px)] xl:justify-center xl:gap-6"
+          : "max-w-[340px]",
+      )}
+    >
+      {objections.length > 0 && (
+        <aside className="hidden xl:block">
+          <ObjectionPanel
+            sections={objections}
+            highlight={hints.hint?.category ?? null}
+            exact={hints.hint?.title ?? null}
+            heard={hints.hint?.heard ?? null}
+          />
+        </aside>
+      )}
+
+      <div className="min-w-0">
       <div className="rounded-[14px] border bg-card p-5 shadow-[0_1px_3px_rgba(41,47,76,0.05)]">
         <div className="min-h-[64px]">
           {two ? (
@@ -687,6 +726,36 @@ export function Keypad({
         )}
       </div>
 
+      {hints.available && (
+        <div className="mt-3">
+          <Button
+            variant="outline"
+            className="h-11 w-full"
+            onClick={hints.ask}
+            disabled={hints.asking}
+          >
+            <Ear data-icon="inline-start" />
+            {hints.asking ? "Checking…" : "What did they just say?"}
+          </Button>
+          {hints.hint || hints.problem ? (
+            <div className="mt-1.5 rounded-md border bg-muted/30 px-2.5 py-1.5">
+              {hints.hint?.heard ? (
+                <p className="truncate text-[11px] italic text-muted-foreground">
+                  heard: “{hints.hint.heard}”
+                </p>
+              ) : null}
+              {hints.problem ? (
+                <p className="text-[11px] text-muted-foreground">{hints.problem}</p>
+              ) : (
+                <p className="text-[11px] font-semibold xl:hidden">
+                  {hints.hint?.title ?? hints.hint?.category}
+                </p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+
       <p className="mt-3 text-center text-[12px] leading-relaxed text-muted-foreground">
         Numbers dialled here show in the call history on Stats, and calls are
         recorded as {callerName}. There is no lead and no outcome, so nothing
@@ -696,6 +765,7 @@ export function Keypad({
 
       <audio id={REMOTE_AUDIO_ID} autoPlay />
       <audio id={SECOND_AUDIO_ID} autoPlay />
+      </div>
     </div>
   );
 }
