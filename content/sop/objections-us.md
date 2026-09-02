@@ -6,11 +6,6 @@ title: Objection Handling
 
 These can come up anywhere in the call, not just at the end.
 
-## Brushing you off | Prospect is hesitant / wavering, no clear objection yet
-
-
-> **You say** Honestly, I'm not gonna hard sell you on this. I even offer free trials to a lot of businesses if they're not sure they're getting enough calls to see if it'd add value. And we're not even at that point yet, right, I'm really just trying to see if you like what I can build you, because we're pretty good at it, we work with a lot of other [industry] companies. So I think I could impress you, and that'd basically be it. Wouldn't be a hard sales pitch, you either like it or you don't.
-
 ## Brushing you off | Prospect: "Who is this? / What company are you with?"
 
 
