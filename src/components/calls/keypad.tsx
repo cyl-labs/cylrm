@@ -26,7 +26,7 @@ import {
 import { PHONE_KEYS } from "./tone-pad";
 import { useTelnyxCall } from "./use-telnyx-call";
 import { useObjectionHints } from "./use-objection-hints";
-import { useClaimLine } from "./line-presence";
+import { useClaimLine, useLineLeader } from "./line-presence";
 import { IncomingCall } from "./incoming-call";
 import { ObjectionPanel } from "@/components/sop/objection-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
@@ -210,14 +210,19 @@ export function Keypad({
   // the row can read "pxn junk removal" rather than eleven digits.
   const [secondName, setSecondName] = React.useState("");
 
-  const line = useTelnyxCall(REMOTE_AUDIO_ID, Boolean(did), SECOND_AUDIO_ID);
+  // Claimed first, so this tab outranks a listening one before the election
+  // settles; then the line, only if this is the tab that won it.
+  useClaimLine(Boolean(did));
+  const leader = useLineLeader();
+  const line = useTelnyxCall(
+    REMOTE_AUDIO_ID,
+    Boolean(did) && leader,
+    SECOND_AUDIO_ID,
+  );
 
   // The same help the dialler has. There is no lead here, so nothing is logged
   // and nothing is scored — but a demo line answers with the same objections a
   // prospect does, and this is where those get practised.
-  // As on the dialler: the app-wide listener stands down while this screen
-  // holds a line of its own.
-  useClaimLine(Boolean(did));
 
   const [scriptOpen, setScriptOpen] = React.useState(false);
   const [market, setMarket] = React.useState(sheets[0]?.key);
@@ -519,7 +524,9 @@ export function Keypad({
   // a time: the first thing in the way is the thing to fix.
   const hint = !did
     ? "No caller ID assigned to you yet — an admin sets one on Team."
-    : line.problem
+    : !leader
+      ? "The phone is open in another CRM tab. Dial from there, or close it and reload."
+      : line.problem
       ? line.problem
       : line.mergeProblem
         ? line.mergeProblem

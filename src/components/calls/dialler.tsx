@@ -29,7 +29,7 @@ import type { SopSection } from "@/lib/sop";
 import { ObjectionDrawer } from "@/components/sop/objection-drawer";
 import { IncomingCall } from "@/components/calls/incoming-call";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
-import { useClaimLine } from "@/components/calls/line-presence";
+import { useClaimLine, useLineLeader } from "@/components/calls/line-presence";
 import {
   useTelnyxCall,
   type TelnyxLine,
@@ -175,11 +175,26 @@ function DialControls({
   const [secondName, setSecondName] = React.useState("");
   // The tone pad, for the switchboards that answer instead of a person.
   const [padOpen, setPadOpen] = React.useState(false);
+  // Whether this tab is the one holding the phone. Read here as well as where
+  // the line is taken, because the alternative is a dial card that renders
+  // nothing and explains nothing.
+  const holder = useLineLeader();
 
   // Nothing at all, not even the fallback line. Telling someone who always
   // dials from their own phone that there is "no caller ID yet" is an apology
   // for a missing setup, when they are already working exactly as intended.
   if (!enabled) return null;
+  // Lost the election: another tab has a calling screen open. Said out loud,
+  // because an unexplained missing dial button reads as the phone being broken
+  // — and the way out is one the caller can act on themselves.
+  if (!holder) {
+    return (
+      <p className="mt-2 text-center text-[12px] text-muted-foreground">
+        The phone is open in another CRM tab. Dial from there, or close it and
+        reload this page.
+      </p>
+    );
+  }
   const busy = line.state !== "idle";
   const blocked =
     lead.dncBlock ??
@@ -721,16 +736,18 @@ export function Dialler({
   }, []);
   // One line for the whole session, held here so changing lead or refreshing
   // after an outcome cannot drop a call in progress.
+  // Claimed before the line is taken, so this tab is already outranking any
+  // tab that is merely listening by the time the election is decided.
+  useClaimLine(canDialFromBrowser);
+  // The phone lives in one tab per browser. A calling screen outranks a
+  // listening one, so opening the dialler here takes the line off a forgotten
+  // background tab rather than being refused it.
+  const leader = useLineLeader();
   const line = useTelnyxCall(
     REMOTE_AUDIO_ID,
-    canDialFromBrowser,
+    canDialFromBrowser && leader,
     SECOND_AUDIO_ID,
   );
-
-  // Tells the app-wide inbound listener to stand down: two registrations
-  // against one credential would fork an incoming call to both and show two
-  // banners for it.
-  useClaimLine(canDialFromBrowser);
 
   // Held here for the same reason the line is: `DialControls` is keyed on
   // whether a call is up and `CallForm` is keyed per lead, so either would

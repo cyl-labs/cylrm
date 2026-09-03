@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useTelnyxCall } from "./use-telnyx-call";
 import { IncomingCall } from "./incoming-call";
-import { useLineClaimed } from "./line-presence";
+import { useLineClaimed, useLineLeader } from "./line-presence";
 
 /**
  * Somebody ringing in while nobody is looking at a dialler.
@@ -32,7 +32,10 @@ export function InboundListener({
   enabled: boolean;
 }) {
   const claimed = useLineClaimed();
-  const line = useTelnyxCall(AUDIO_ID, enabled && !claimed);
+  // One registration per browser, not per tab. Without this every open Call
+  // CRM tab registered against the same credential.
+  const leader = useLineLeader();
+  const line = useTelnyxCall(AUDIO_ID, enabled && !claimed && leader);
 
   return (
     <>
