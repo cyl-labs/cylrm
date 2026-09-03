@@ -293,7 +293,13 @@ export function useTelnyxCall(
         if (cancelled) return;
 
         const client = new TelnyxRTC({ login_token: token });
-        client.on("telnyx.ready", () => !cancelled && setReady(true));
+        client.on("telnyx.ready", () => {
+          // Which room this browser actually registered in. A tab left open
+          // across a connection change keeps its old registration, so the call
+          // rings a room nobody is in — invisible without this.
+          console.log("[telnyx] registered, ready for calls");
+          if (!cancelled) setReady(true);
+        });
         client.on("telnyx.error", (e: unknown) => {
           // Logged as well as shown: the message on screen is the same four
           // words whatever went wrong, which is right for a caller mid-shift
@@ -302,6 +308,15 @@ export function useTelnyxCall(
           if (!cancelled) setProblem("Telnyx refused the connection.");
         });
         client.on("telnyx.notification", (n: { type: string; call?: TelnyxCall }) => {
+          // Every notification, not only the ones acted on. Inbound calling was
+          // built without a real invite to test against, so when one fails to
+          // ring there is otherwise no way to tell "the invite never arrived"
+          // from "it arrived and was dropped" — and those need opposite fixes.
+          console.log("[telnyx]", n.type, {
+            direction: n.call?.direction,
+            state: n.call?.state,
+            from: n.call?.options?.remoteCallerNumber,
+          });
           if (n.type !== "callUpdate" || !n.call) return;
           const call = n.call;
           const phase = phaseOf(call.state);
