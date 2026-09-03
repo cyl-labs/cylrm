@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { LogRecording } from "@/components/calls/log-recording";
 
 const FOLLOWUP_LABELS: Record<MeetingFollowupResult, string> = {
   confirmed: "Confirmed — they're coming",
@@ -326,6 +327,16 @@ export function MeetingsList({
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                {/* The same sheet the call log opens: audio, and a transcript
+                    whose turns seek it. Made on request in there, not here. */}
+                {m.recordingId && (
+                  <LogRecording
+                    recordingId={m.recordingId}
+                    recordingMs={m.recordingMs}
+                    company={m.company ?? m.attendeeName ?? "Booking call"}
+                    callerName={m.bookedBy ?? "Caller"}
+                  />
+                )}
                 {m.meetingUrl && (
                   <a
                     href={m.meetingUrl}
@@ -352,11 +363,24 @@ export function MeetingsList({
               open: it rides along with the meeting, which is cheap because a
               transcript only exists when somebody already paid for one.
             */}
-            {(m.bookingNotes || (m.bookingTurns?.length ?? 0) > 0) && (
+            {/*
+              The notes from the call that won the meeting.
+              Collapsed, because the demo is the thing on this screen and the
+              handover is what you open just before walking into one — usually
+              a founder taking a demo booked by somebody else, for whom these
+              notes are the only briefing there is.
+
+              A native `details`, so it opens before hydration and needs no
+              state on a list that can be long. The recording sits in the
+              button row above rather than in here: it opens a sheet of its
+              own, and burying one behind a fold to reach the other is a tap
+              nobody needs.
+            */}
+            {m.bookingNotes && (
               <details className="group mt-3 rounded-lg border bg-muted/30">
                 <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">
                   <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-                  From the booking call
+                  Notes from the booking call
                   {m.bookedAt && (
                     <span
                       className="font-normal text-muted-foreground"
@@ -366,57 +390,11 @@ export function MeetingsList({
                     </span>
                   )}
                 </summary>
-                <div className="space-y-3 border-t px-3 py-2.5">
-                  {m.bookingNotes && (
-                    <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-                        Notes
-                      </p>
-                      {/* Typed by a caller mid-conversation, so the line
-                          breaks they left are part of what they wrote. */}
-                      <p className="mt-1 whitespace-pre-wrap text-[13px]">
-                        {m.bookingNotes}
-                      </p>
-                    </div>
-                  )}
-                  {(m.bookingTurns?.length ?? 0) > 0 ? (
-                    <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-                        Transcript
-                      </p>
-                      {/* Scrolls inside itself rather than pushing the rest of
-                          the diary down a screen and a half. */}
-                      <div className="mt-1 max-h-64 space-y-1.5 overflow-y-auto pr-1">
-                        {m.bookingTurns?.map((t, i) => (
-                          <p key={i} className="text-[13px] leading-snug">
-                            <span
-                              className={cn(
-                                "font-semibold",
-                                t.speaker === "caller"
-                                  ? "text-primary"
-                                  : "text-foreground",
-                              )}
-                            >
-                              {t.speaker === "caller" ? "Caller" : "Prospect"}
-                            </span>{" "}
-                            <span className="text-muted-foreground">
-                              {t.text}
-                            </span>
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    // Said rather than left blank: an empty section reads as a
-                    // transcript that failed, when in fact none was ever asked
-                    // for. Transcription is billed per minute and lives behind
-                    // the button on the recording sheet.
-                    <p className="text-[12px] text-muted-foreground">
-                      No transcript yet — make one from the call&apos;s
-                      recording on the pipeline board.
-                    </p>
-                  )}
-                </div>
+                {/* Typed by a caller mid-conversation, so the line breaks they
+                    left are part of what they wrote. */}
+                <p className="whitespace-pre-wrap border-t px-3 py-2.5 text-[13px]">
+                  {m.bookingNotes}
+                </p>
               </details>
             )}
           </li>

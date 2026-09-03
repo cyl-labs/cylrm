@@ -1,7 +1,6 @@
 import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import type { TranscriptTurn } from "@/db/schema";
 import { dncBlockReason } from "@/lib/dnc";
 import { dialCountry } from "@/lib/phone";
 import { callScope, type CurrentUser } from "@/lib/session";
@@ -279,9 +278,10 @@ export type Meeting = {
   /** The notes off that call — the handover from whoever booked it to
    *  whoever takes the demo, and usually the only one there is. */
   bookingNotes: string | null;
-  /** Its transcript, when one has already been made. Null is the ordinary
-   *  case: transcription is billed per minute and happens on request. */
-  bookingTurns: TranscriptTurn[] | null;
+  /** Its recording, for the same listen-back sheet the call log opens.
+   *  Null when the call was made from a handset or never recorded. */
+  recordingId: string | null;
+  recordingMs: number | null;
 
   /**
    * Owed a chase call: the meeting is today or tomorrow in this screen's
@@ -324,14 +324,20 @@ const meetingSelect = sql`
   -- there is.
   bc.notes as booking_notes,
   bc.called_at as booked_at,
-  -- Its recording's transcript, if somebody has already paid for one. Never
-  -- transcribed on demand from here: that is billed per minute and belongs
-  -- behind the button on the recording sheet that already does it.
+  -- Its recording, so the meeting card can offer the same "listen back" the
+  -- call log does. Only the id and the length: the audio lives in Telnyx's S3
+  -- and a fresh presigned URL is minted per play, which is why one opened a
+  -- month later still works.
   (
-    select cr.transcript_turns from call_recording cr
+    select cr.recording_id from call_recording cr
     where cr.call_session_id = bc.telnyx_session_id
     order by cr.id limit 1
-  ) as booking_turns,
+  ) as recording_id,
+  (
+    select cr.duration_ms from call_recording cr
+    where cr.call_session_id = bc.telnyx_session_id
+    order by cr.id limit 1
+  ) as recording_ms,
   f.result as followup_result, f.created_at as followup_at,
   f.by_name as followup_by
 `;
@@ -403,7 +409,8 @@ function toMeeting(r: Row): Meeting {
     bookedBy: (r.booked_by as string | null) ?? null,
     bookedAt: iso(r.booked_at),
     bookingNotes: (r.booking_notes as string | null) ?? null,
-    bookingTurns: (r.booking_turns as TranscriptTurn[] | null) ?? null,
+    recordingId: (r.recording_id as string | null) ?? null,
+    recordingMs: r.recording_ms === null ? null : Number(r.recording_ms),
     needsChase: r.needs_chase === true,
     followup: r.followup_result
       ? {
