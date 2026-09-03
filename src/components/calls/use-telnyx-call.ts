@@ -42,6 +42,23 @@ type TelnyxCall = {
   peer?: { instance?: RTCPeerConnection | null } | null;
 };
 
+/**
+ * How many times to ask Telnyx to register before giving up, and how long to
+ * wait between asks.
+ *
+ * A freshly minted credential is not usable the instant it exists, and the
+ * server's wait after creating one is a guess at how long activation takes —
+ * measured at five seconds, observed to be too short. The browser presenting
+ * that credential is what actually discovers it, so the retry belongs here
+ * rather than as a longer sleep on the server, which would delay every mount
+ * whether it needed it or not.
+ *
+ * Roughly nineteen seconds across four tries, which covers activation with
+ * room to spare and is far less than the reload it replaces.
+ */
+const REGISTER_TRIES = 4;
+const REGISTER_BACKOFF_MS = [2_000, 5_000, 12_000];
+
 /** A call arriving, before it has been answered or refused. */
 export type Incoming = {
   /** The number ringing, as the invite gave it. */
@@ -279,8 +296,13 @@ export function useTelnyxCall(
     // opened: no token minted, no credential created, no SIP registration.
     if (!enabled) return;
     let cancelled = false;
+    // Registration succeeded at least once. Only failures *before* that are
+    // retried: `telnyx.error` also fires for trouble during a live call, and
+    // tearing the client down to retry then would drop the conversation.
+    let everReady = false;
+    let retry: ReturnType<typeof setTimeout> | null = null;
 
-    (async () => {
+    const start = async (attempt: number) => {
       try {
         const res = await fetch("/api/telnyx/token", { method: "POST" });
         if (!res.ok) {
@@ -294,6 +316,7 @@ export function useTelnyxCall(
 
         const client = new TelnyxRTC({ login_token: token });
         client.on("telnyx.ready", () => {
+          everReady = true;
           // Which room this browser actually registered in. A tab left open
           // across a connection change keeps its old registration, so the call
           // rings a room nobody is in — invisible without this.
@@ -305,6 +328,28 @@ export function useTelnyxCall(
           // words whatever went wrong, which is right for a caller mid-shift
           // and useless for working out what Telnyx actually objected to.
           console.error("[telnyx] client error", e);
+          // A registration that never came up. Overwhelmingly this is a
+          // credential Telnyx has issued but not yet finished activating —
+          // the token is minted seconds before the browser presents it, and
+          // the wait on the server is a guess at how long that takes. Before
+          // this the client asked once, was refused, and stayed dead for the
+          // rest of the session: the phone was gone until somebody thought to
+          // reload, and nothing on screen suggested that would help.
+          if (!everReady && !cancelled && attempt + 1 < REGISTER_TRIES) {
+            try {
+              client.disconnect();
+            } catch {
+              // Already down; that is what is being retried.
+            }
+            // A fresh token each time, not this one again: if the credential
+            // behind it was the problem, presenting it a second time asks the
+            // same question.
+            retry = setTimeout(
+              () => start(attempt + 1),
+              REGISTER_BACKOFF_MS[attempt] ?? 12_000,
+            );
+            return;
+          }
           if (!cancelled) setProblem("Telnyx refused the connection.");
         });
         client.on("telnyx.notification", (n: { type: string; call?: TelnyxCall }) => {
@@ -449,10 +494,12 @@ export function useTelnyxCall(
       } catch {
         if (!cancelled) setProblem("Could not start the phone line.");
       }
-    })();
+    };
+    start(0);
 
     return () => {
       cancelled = true;
+      if (retry) clearTimeout(retry);
       try {
         bridgeRef.current?.close();
         bridgeRef.current = null;
