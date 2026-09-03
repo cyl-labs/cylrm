@@ -357,11 +357,22 @@ export function useTelnyxCall(
           // built without a real invite to test against, so when one fails to
           // ring there is otherwise no way to tell "the invite never arrived"
           // from "it arrived and was dropped" — and those need opposite fixes.
-          console.log("[telnyx]", n.type, {
-            direction: n.call?.direction,
-            state: n.call?.state,
-            from: n.call?.options?.remoteCallerNumber,
-          });
+          // Call updates are logged narrowly; everything else in full. The
+          // one that matters is `gatewayState`: a client that is merely
+          // connected can place calls but cannot be *rung*, so outbound
+          // working says nothing about whether inbound will. REGED is the
+          // state that receives; NOREG, UNREGED and FAIL_WAIT do not.
+          console.log(
+            "[telnyx]",
+            n.type,
+            n.type === "callUpdate"
+              ? {
+                  direction: n.call?.direction,
+                  state: n.call?.state,
+                  from: n.call?.options?.remoteCallerNumber,
+                }
+              : n,
+          );
           if (n.type !== "callUpdate" || !n.call) return;
           const call = n.call;
           const phase = phaseOf(call.state);
