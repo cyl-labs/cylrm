@@ -218,6 +218,19 @@ export function useTelnyxCall(
   // anything to have assigned its return value to, and a notification arriving
   // in that gap must not be mistaken for the first call.
   const pendingSecondRef = React.useRef(false);
+  /**
+   * A call this hook is in the middle of placing.
+   *
+   * The mirror of `pendingSecondRef`, and it exists because an unattributed
+   * update used to be adopted as the first line whenever no first line was
+   * held. That is exactly the state an *incoming* call arrives in, and the
+   * SDK's earliest update for one carries no `direction` at all — so a call
+   * ringing in was claimed as the call the caller had dialled, one tick before
+   * it announced itself as inbound. From then on it matched the line we
+   * thought we were holding, the banner never fired, and only its hangup got
+   * through. The phone could not ring.
+   */
+  const pendingFirstRef = React.useRef(false);
   // The second call we have just hung up ourselves. It goes on reporting for a
   // moment after `hangup()` returns, and those updates belong to no live line.
   // Acting on them is what made pressing × on the added line end the *first*
@@ -255,6 +268,7 @@ export function useTelnyxCall(
     bridgeRef.current?.close();
     bridgeRef.current = null;
     pendingSecondRef.current = false;
+    pendingFirstRef.current = false;
     // Remembered before the hangup, not after: the updates it provokes are the
     // ones that must be recognised as this call's and ignored.
     if (secondRef.current || secondIdRef.current) {
@@ -509,7 +523,13 @@ export function useTelnyxCall(
 
           // A brand new first call, for the same reason as `isNewSecond`:
           // `dial` has not yet had anywhere to put what `newCall` returned.
-          const isNewFirst = callRef.current === null && !pendingSecondRef.current;
+          // Gated on actually having dialled, because "no first call is held"
+          // is equally true of a call ringing in, and an inbound call's first
+          // update carries no direction to tell them apart by.
+          const isNewFirst =
+            callRef.current === null &&
+            pendingFirstRef.current &&
+            !pendingSecondRef.current;
           // Anything else belongs to no line this hook is holding. Ignoring it
           // is the whole point: an unattributable update must never be able to
           // take over the first line, which is what ends a live call.
@@ -663,6 +683,9 @@ export function useTelnyxCall(
       if (!clientRef.current || !ready || callRef.current) return;
       setSessionId(null);
       setState("connecting");
+      // Set before `newCall`, which can emit its first updates from inside the
+      // call, before there is anywhere to have put its return value.
+      pendingFirstRef.current = true;
       callRef.current = clientRef.current.newCall({
         destinationNumber: to,
         callerNumber: from,
@@ -672,6 +695,7 @@ export function useTelnyxCall(
         audio: true,
         video: false,
       });
+      pendingFirstRef.current = false;
     },
     [ready, audioId],
   );
