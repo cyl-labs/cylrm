@@ -375,16 +375,14 @@ export function useTelnyxCall(
           // connected can place calls but cannot be *rung*, so outbound
           // working says nothing about whether inbound will. REGED is the
           // state that receives; NOREG, UNREGED and FAIL_WAIT do not.
+          // Flat strings rather than an object: a collapsed `▶ Object` in the
+          // console has to be clicked to be read, and this is read by whoever
+          // is standing at the phone when it does not ring.
           console.log(
-            "[telnyx]",
-            n.type,
-            n.type === "callUpdate"
-              ? {
-                  direction: n.call?.direction,
-                  state: n.call?.state,
-                  from: n.call?.options?.remoteCallerNumber,
-                }
-              : n,
+            `[telnyx] ${n.type}` +
+              (n.type === "callUpdate"
+                ? ` dir=${n.call?.direction} state=${n.call?.state} from=${n.call?.options?.remoteCallerNumber}`
+                : ""),
           );
           if (n.type !== "callUpdate" || !n.call) return;
           const call = n.call;
@@ -394,7 +392,11 @@ export function useTelnyxCall(
           // describe nothing that is still on the phone, so they are dropped
           // before anything can be inferred from them.
           if (sameCall(call, retiredRef.current.call, retiredRef.current.id)) {
+            console.log("[telnyx] dropped: already retired");
             return;
+          }
+          if (call.direction !== "inbound") {
+            console.log(`[telnyx] not inbound (dir=${call.direction})`);
           }
 
           // An invite from outside. Recognised before any of the outbound
@@ -406,6 +408,11 @@ export function useTelnyxCall(
             call.direction === "inbound" &&
             !sameCall(call, callRef.current, firstIdRef.current)
           ) {
+            console.log(
+              `[telnyx] INBOUND recognised — phase=${phase}, ${
+                phase === "idle" ? "clearing" : "showing the banner"
+              }`,
+            );
             if (phase === "idle") {
               // They gave up, or we answered elsewhere.
               if (sameCall(call, incomingRef.current, null)) {
