@@ -165,22 +165,41 @@ export async function mintCallToken(userId: number): Promise<CallLogin> {
   if (!res.ok) throw new Error(`Telnyx token mint failed (${res.status}).`);
   const token = (await res.text()).trim();
 
-  // The SIP user behind that credential. Fetched rather than kept from the
-  // create call, because a reused credential never went through it.
+  // Who to log in as.
+  //
+  // A generated telephony credential is what this app has always used, and it
+  // places calls perfectly well — but nothing ever registers a gateway under
+  // it, so an inbound call to the connection is answered SIP 480 and the
+  // browser is never rung. A credential connection also carries one *static*
+  // SIP user, and it is that user which `registration_status` reports on: it
+  // has read "Not Registered" every time it has been looked at, on the working
+  // connection as well as the broken one.
+  //
+  // So for somebody who has a connection to themselves — which is exactly the
+  // set of people who need to be reachable on a number — log in as that
+  // connection's own user. Everybody else keeps the generated credential,
+  // since they only ever dial out.
   const cred = (await telnyx(`/telephony_credentials/${credentialId}`)) as {
     data: { sip_username: string; sip_password: string };
   };
+  let login = cred.data.sip_username;
+  let password = cred.data.sip_password;
+  if (user.connectionId?.trim()) {
+    const conn = (await telnyx(
+      `/credential_connections/${user.connectionId.trim()}`,
+    )) as { data: { user_name: string; password: string } };
+    if (conn.data?.user_name && conn.data?.password) {
+      login = conn.data.user_name;
+      password = conn.data.password;
+    }
+  }
 
   // Only after a fresh credential. A token from one that already existed is
   // usable at once, and the dialler asks for this on mount, where five seconds
   // is a caller reading the first card rather than a caller waiting.
   if (minted) await new Promise((r) => setTimeout(r, PROPAGATION_MS));
 
-  const out: CallLogin = {
-    token,
-    login: cred.data.sip_username,
-    password: cred.data.sip_password,
-  };
+  const out: CallLogin = { token, login, password };
   tokenCache.set(userId, {
     ...out,
     expiresAt: Math.min(Date.now() + CACHE_CAP_MS, credentialExpiresAt),
