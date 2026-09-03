@@ -504,6 +504,15 @@ export const appUser = pgTable("app_user", {
    *  rather than in process memory because Telnyx does not enforce unique
    *  credential names — forgetting the id on a deploy mints another one and
    *  leaves no handle to delete the old. */
+  /** The Telnyx connection this person's browser registers against, or null
+   *  for the shared one in TELNYX_CONNECTION_ID.
+   *
+   *  A number is assigned to a connection, and inbound calls ring whatever is
+   *  registered there — so a person who needs to be rung back needs a
+   *  connection of their own with their number on it. Pointing the number at a
+   *  SIP user instead cannot work: `mintCallToken` replaces the credential
+   *  roughly daily, so the username never stays still. */
+  telnyxConnectionId: text("telnyx_connection_id"),
   telnyxCredentialId: text("telnyx_credential_id"),
   telnyxCredentialExpiresAt: timestamp("telnyx_credential_expires_at", {
     withTimezone: true,

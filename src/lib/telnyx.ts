@@ -85,12 +85,18 @@ export async function mintCallToken(userId: number): Promise<string> {
     .select({
       id: appUser.id,
       username: appUser.username,
+      connectionId: appUser.telnyxConnectionId,
       credentialId: appUser.telnyxCredentialId,
       expiresAt: appUser.telnyxCredentialExpiresAt,
     })
     .from(appUser)
     .where(eq(appUser.id, userId));
   if (!user) throw new Error("No such user.");
+
+  // Their own connection, or the shared one. Somebody who has to be reachable
+  // on a number gets a connection to themselves, because that is the thing an
+  // inbound call can be routed to — see the column's note in `schema.ts`.
+  const connectionId = user.connectionId?.trim() || config().connectionId;
 
   // Reuse while there is comfortable life left; a credential about to expire
   // would mint a token that dies with it.
@@ -101,6 +107,12 @@ export async function mintCallToken(userId: number): Promise<string> {
   let credentialExpiresAt = user.expiresAt?.getTime() ?? 0;
   let minted = false;
 
+  // A credential lives under one connection. Moving somebody between
+  // connections therefore has to clear `telnyx_credential_id` in the same
+  // statement, or they keep registering against the room they just left and
+  // their number rings nobody. Not enforced here — nothing in the request
+  // knows the credential's connection without asking Telnyx — so it is done
+  // where the move is made, and said out loud in the migration.
   if (!credentialId || remaining < 2 * 60 * 60 * 1000) {
     if (credentialId) {
       // Best effort: an orphan costs nothing but tidiness, and failing to
@@ -113,7 +125,7 @@ export async function mintCallToken(userId: number): Promise<string> {
     const created = (await telnyx("/telephony_credentials", {
       method: "POST",
       body: JSON.stringify({
-        connection_id: config().connectionId,
+        connection_id: connectionId,
         name: `cylrm:${user.username}`,
         expires_at: expiresAt.toISOString(),
       }),

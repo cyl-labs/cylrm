@@ -1,0 +1,33 @@
+-- The Telnyx connection a person's browser registers against.
+--
+-- Apply BEFORE deploying the code that reads it; null means the shared
+-- TELNYX_CONNECTION_ID, which is what everybody uses today, so the column is
+-- inert until somebody is moved.
+--
+-- Why per person at all: a phone number is assigned to a *connection*, and
+-- inbound calls to it ring whatever is registered there. With one shared
+-- connection carrying a dozen credentials, an inbound call has no way to know
+-- which of them it is for — Telnyx works down the list, finds mostly dead ones,
+-- and gives up. That is the immediate "destination did not pick up".
+--
+-- Pointing the number at a specific SIP user instead does not work here, and
+-- the reason is worth writing down: `mintCallToken` deliberately creates a
+-- fresh credential roughly daily and deletes the old one, so the username
+-- changes constantly. Outbound wants credentials short-lived and disposable;
+-- inbound wants something stable to address. A connection each is the thing
+-- that is stable, so the number is wired to the room rather than to the desk.
+--
+-- MOVING SOMEBODY: clear their credential in the same statement. A credential
+-- lives under one connection, so a person left holding an old one keeps
+-- registering against the room they just left, and their number rings nobody.
+--
+--   update app_user
+--      set telnyx_connection_id = '...', telnyx_credential_id = null
+--    where username = '...';
+--
+-- `mintCallToken` cannot check this for itself: nothing in the request knows
+-- which connection an existing credential belongs to without asking Telnyx on
+-- every token mint, which is a round trip on the dial path to catch a mistake
+-- made once.
+alter table app_user
+  add column if not exists telnyx_connection_id text;
