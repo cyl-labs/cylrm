@@ -310,11 +310,24 @@ export function useTelnyxCall(
           if (!cancelled) setProblem(data.error ?? "Calling is unavailable.");
           return;
         }
-        const { token } = (await res.json()) as { token: string };
+        const cred = (await res.json()) as {
+          token?: string;
+          login?: string;
+          password?: string;
+        };
         const { TelnyxRTC } = await import("@telnyx/webrtc");
         if (cancelled) return;
 
-        const client = new TelnyxRTC({ login_token: token });
+        // SIP credentials when the server sends them, the ephemeral token
+        // otherwise. The difference is not cosmetic: a token authenticates a
+        // session that can place calls, while a login registers a gateway, and
+        // only a registered gateway can be rung. Inbound calls to a token-only
+        // session are answered SIP 480 by the registrar.
+        const client = new TelnyxRTC(
+          cred.login && cred.password
+            ? { login: cred.login, password: cred.password }
+            : { login_token: cred.token ?? "" },
+        );
         client.on("telnyx.ready", () => {
           everReady = true;
           // Which room this browser actually registered in. A tab left open

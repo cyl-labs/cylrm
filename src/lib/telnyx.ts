@@ -68,18 +68,32 @@ async function telnyx(path: string, init: RequestInit = {}) {
  * enforce unique credential names, so forgetting it across a deploy mints
  * another one every time with no handle left to delete the old.
  */
-const tokenCache = new Map<number, { token: string; expiresAt: number }>();
+const tokenCache = new Map<number, CallLogin & { expiresAt: number }>();
+
+/**
+ * What a browser needs to reach Telnyx.
+ *
+ * Two ways in, and they are not equivalent. A `token` authenticates a session
+ * that can *place* calls; `login`/`password` performs a Verto login that
+ * registers a gateway, and only a registered gateway can be *rung*. An inbound
+ * call to a token-only session is answered SIP 480 — the registrar saying
+ * nobody is there — which is precisely what receiving a call looked like until
+ * this was understood.
+ */
+export type CallLogin = { token: string; login: string; password: string };
 
 const CACHE_CAP_MS = 12 * 60 * 60 * 1000;
 const CREDENTIAL_LIFE_MS = 24 * 60 * 60 * 1000;
 /** Telnyx documents a short delay before a fresh credential authenticates. */
 const PROPAGATION_MS = 5_000;
 
-export async function mintCallToken(userId: number): Promise<string> {
+export async function mintCallToken(userId: number): Promise<CallLogin> {
   config();
 
   const cached = tokenCache.get(userId);
-  if (cached && cached.expiresAt > Date.now()) return cached.token;
+  if (cached && cached.expiresAt > Date.now()) {
+    return { token: cached.token, login: cached.login, password: cached.password };
+  }
 
   const [user] = await db
     .select({
@@ -151,16 +165,46 @@ export async function mintCallToken(userId: number): Promise<string> {
   if (!res.ok) throw new Error(`Telnyx token mint failed (${res.status}).`);
   const token = (await res.text()).trim();
 
+  // The SIP user behind that credential. Fetched rather than kept from the
+  // create call, because a reused credential never went through it.
+  const cred = (await telnyx(`/telephony_credentials/${credentialId}`)) as {
+    data: { sip_username: string; sip_password: string };
+  };
+
   // Only after a fresh credential. A token from one that already existed is
   // usable at once, and the dialler asks for this on mount, where five seconds
   // is a caller reading the first card rather than a caller waiting.
   if (minted) await new Promise((r) => setTimeout(r, PROPAGATION_MS));
 
-  tokenCache.set(userId, {
+  const out: CallLogin = {
     token,
+    login: cred.data.sip_username,
+    password: cred.data.sip_password,
+  };
+  tokenCache.set(userId, {
+    ...out,
     expiresAt: Math.min(Date.now() + CACHE_CAP_MS, credentialExpiresAt),
   });
-  return token;
+  return out;
+}
+
+/**
+ * Who logs in with SIP credentials rather than a token.
+ *
+ * A comma-separated list of user ids in `TELNYX_SIP_LOGIN_USERS`, because this
+ * changes how a caller authenticates and getting it wrong takes the phone away
+ * from the whole floor. An env list rolls back in the time it takes to edit
+ * `.env` and restart, needs no migration, and lets one person be moved over and
+ * watched before anybody else is.
+ *
+ * Empty means everybody keeps the token, which is exactly today's behaviour.
+ */
+export function usesSipLogin(userId: number): boolean {
+  return (process.env.TELNYX_SIP_LOGIN_USERS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .includes(String(userId));
 }
 
 /**

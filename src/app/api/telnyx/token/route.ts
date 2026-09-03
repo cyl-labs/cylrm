@@ -1,5 +1,9 @@
 import { getCurrentUser } from "@/lib/session";
-import { TelnyxNotConfiguredError, mintCallToken } from "@/lib/telnyx";
+import {
+  TelnyxNotConfiguredError,
+  mintCallToken,
+  usesSipLogin,
+} from "@/lib/telnyx";
 
 /**
  * A short-lived browser credential for the signed-in caller.
@@ -16,7 +20,15 @@ export async function POST() {
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    return Response.json({ token: await mintCallToken(me.id) });
+    const cred = await mintCallToken(me.id);
+    // One or the other, never both: the browser must not be handed a second
+    // way in that it did not use, and the SIP password is the stronger secret
+    // of the two.
+    return Response.json(
+      usesSipLogin(me.id)
+        ? { login: cred.login, password: cred.password }
+        : { token: cred.token },
+    );
   } catch (err) {
     // Unconfigured is the steady state until the numbers are bought, so it is
     // reported rather than thrown: the dialler shows no dial button and every
