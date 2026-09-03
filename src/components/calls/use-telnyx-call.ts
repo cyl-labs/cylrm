@@ -395,7 +395,21 @@ export function useTelnyxCall(
             console.log("[telnyx] dropped: already retired");
             return;
           }
-          if (call.direction !== "inbound") {
+          if (call.direction === "inbound") {
+            // Why the branch below is or is not taken. The ringing update was
+            // being matched as a call we had placed ourselves and skipped, so
+            // only the hangup got through — a banner that could never appear
+            // while the phone was actually ringing.
+            console.log(
+              `[telnyx] inbound guard: same=${sameCall(
+                call,
+                callRef.current,
+                firstIdRef.current,
+              )} id=${call.id} callRef=${callRef.current?.id ?? "null"} firstId=${
+                firstIdRef.current ?? "null"
+              } retired=${retiredRef.current.id ?? "null"}`,
+            );
+          } else {
             console.log(`[telnyx] not inbound (dir=${call.direction})`);
           }
 
