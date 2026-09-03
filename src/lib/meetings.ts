@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import type { TranscriptTurn } from "@/db/schema";
 import { dncBlockReason } from "@/lib/dnc";
 import { dialCountry } from "@/lib/phone";
 import { callScope, type CurrentUser } from "@/lib/session";
@@ -273,6 +274,14 @@ export type Meeting = {
   /** Who logged the `demo_booked` call. Shown to admins only, like the
    *  callbacks diary shows who promised the call. */
   bookedBy: string | null;
+  /** When that call happened. */
+  bookedAt: string | null;
+  /** The notes off that call — the handover from whoever booked it to
+   *  whoever takes the demo, and usually the only one there is. */
+  bookingNotes: string | null;
+  /** Its transcript, when one has already been made. Null is the ordinary
+   *  case: transcription is billed per minute and happens on request. */
+  bookingTurns: TranscriptTurn[] | null;
 
   /**
    * Owed a chase call: the meeting is today or tomorrow in this screen's
@@ -309,6 +318,20 @@ const meetingSelect = sql`
   l.dnc_status, l.dnc_checked_at,
   cl.name as list_name,
   (select u.name from app_user u where u.id = bc.user_id) as booked_by,
+  -- What was actually said on the call that won this meeting. Read before
+  -- ringing to confirm, and before the demo itself: the caller who booked it
+  -- is often not the founder taking it, and the notes are the only handover
+  -- there is.
+  bc.notes as booking_notes,
+  bc.called_at as booked_at,
+  -- Its recording's transcript, if somebody has already paid for one. Never
+  -- transcribed on demand from here: that is billed per minute and belongs
+  -- behind the button on the recording sheet that already does it.
+  (
+    select cr.transcript_turns from call_recording cr
+    where cr.call_session_id = bc.telnyx_session_id
+    order by cr.id limit 1
+  ) as booking_turns,
   f.result as followup_result, f.created_at as followup_at,
   f.by_name as followup_by
 `;
@@ -378,6 +401,9 @@ function toMeeting(r: Row): Meeting {
         )
       : null,
     bookedBy: (r.booked_by as string | null) ?? null,
+    bookedAt: iso(r.booked_at),
+    bookingNotes: (r.booking_notes as string | null) ?? null,
+    bookingTurns: (r.booking_turns as TranscriptTurn[] | null) ?? null,
     needsChase: r.needs_chase === true,
     followup: r.followup_result
       ? {

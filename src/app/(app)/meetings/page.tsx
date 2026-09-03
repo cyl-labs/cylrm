@@ -6,7 +6,12 @@ import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { callRegionOf, statsRegionOf } from "@/lib/users";
-import { statsZone } from "@/lib/stats-zones";
+import {
+  statsZone,
+  isStatsRegion,
+  DEFAULT_STATS_REGION,
+} from "@/lib/stats-zones";
+import { TimezonePicker } from "@/components/calls/timezone-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -23,15 +28,29 @@ export const dynamic = "force-dynamic";
  * worker's five-minute tick, so a reschedule or a cancellation shows up here
  * without a caller having to notice one and remember to say so.
  */
-export default async function MeetingsPage() {
+export default async function MeetingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tz?: string }>;
+}) {
   const me = await getCurrentUser();
+  const { tz: rawTz } = await searchParams;
 
-  // Their own clock: the reporting zone they picked if they picked one, else
-  // the market they work, else Eastern — the same order Stats resolves it in,
-  // so the two screens cannot disagree about what day a thing is on.
-  const zone = statsZone(
-    (await statsRegionOf(me?.id)) ?? (await callRegionOf(me?.id)),
-  );
+  // Their own clock: the zone in the link if there is one, else the reporting
+  // zone they picked, else the market they work, else Eastern — the same order
+  // Stats resolves it in, so the two screens cannot disagree about what day a
+  // thing is on, and a link shows its sender what they were looking at.
+  //
+  // The picker earns its place here for a reason Stats does not have: a
+  // meeting is agreed in the prospect's zone and kept in the caller's, and
+  // those are rarely the same country. Someone in Singapore reading "2:00 PM
+  // ET" has to do the arithmetic themselves at exactly the moment it matters.
+  const region = isStatsRegion(rawTz)
+    ? rawTz
+    : ((await statsRegionOf(me?.id)) ??
+      (await callRegionOf(me?.id)) ??
+      DEFAULT_STATS_REGION);
+  const zone = statsZone(region);
 
   const meetings = await getMeetings(callScope(me), zone.tz);
   // The database's clock decided this, not this render's.
@@ -49,6 +68,9 @@ export default async function MeetingsPage() {
           {/* Per browser, not per person — see PushToggle. Renders nothing at
               all where push cannot work, rather than a dead button. */}
           <PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
+          {/* Last, like it is on Stats: the control you set once and leave,
+              rather than one you move through while reading. */}
+          <TimezonePicker region={region} />
         </>
       }
     >
