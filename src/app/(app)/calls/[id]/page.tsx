@@ -41,6 +41,7 @@ export default async function CallListPage({
   if (!Number.isInteger(listId)) notFound();
 
   const { view, open } = await searchParams;
+  const me = await getCurrentUser();
   const filter: CallQueueFilter = isFilter(view) ? view : "queue";
   // Only leads it is business hours for, where they are.
   //
@@ -55,9 +56,18 @@ export default async function CallListPage({
   // "0" rather than the absence of the parameter is what turns it off, so a
   // link that says nothing about the filter gets the default rather than
   // silently disabling it.
-  const callableNow = open !== "0";
+  //
+  // Callers do not get the choice: for them it is always on, and `?open=0` in
+  // a pasted link does nothing. Ringing a business at four in the morning their
+  // time is not a judgement worth leaving to whoever is on shift, and the
+  // "Show them anyway" escape was written for somebody weighing a callback
+  // promised for 8am — which is a founder's call to make.
+  //
+  // Enforced here rather than by hiding the control: a hidden link is a
+  // courtesy, and the URL it points at is two words long.
+  const canSeeAsleep = me?.role === "admin";
+  const callableNow = !canSeeAsleep || open !== "0";
 
-  const me = await getCurrentUser();
   const list = await getCallList(listId, callScope(me));
   if (!list) notFound();
 
@@ -189,6 +199,7 @@ export default async function CallListPage({
                 handed Honolulu at half past three in the morning. Carries the
                 current tab through, or toggling it would quietly reset the
                 view. */}
+            {canSeeAsleep && (
             <Link
               href={`/calls/${listId}?view=${filter}${callableNow ? "&open=0" : ""}`}
               aria-label={
@@ -210,6 +221,7 @@ export default async function CallListPage({
                   already applied. */}
               <span className="hidden sm:inline">Open now</span>
             </Link>
+            )}
             {/* Straight to this niche's tab on the Spreadsheet screen, rather
                 than to the whole workbook with the right tab to be found.
                 Label drops below `sm` so it cannot push the "All" filter off
@@ -306,7 +318,9 @@ export default async function CallListPage({
         // Only while the filter is doing the hiding. With it off an empty
         // queue really is an empty queue.
         hiddenByHours={callableNow ? split.total - split.callableNow : 0}
-        showAllHref={`/calls/${listId}?view=${filter}&open=0`}
+        showAllHref={
+          canSeeAsleep ? `/calls/${listId}?view=${filter}&open=0` : undefined
+        }
       />
     </PageShell>
   );
