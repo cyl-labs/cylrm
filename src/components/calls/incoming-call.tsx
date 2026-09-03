@@ -47,7 +47,15 @@ function ago(iso: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-export function IncomingCall({ incoming }: { incoming: Incoming }) {
+export function IncomingCall({
+  incoming,
+  /** True when a call is already up. Answering ends it, so the buttons say so
+   *  rather than letting somebody drop a live conversation by reflex. */
+  busy = false,
+}: {
+  incoming: Incoming;
+  busy?: boolean;
+}) {
   const [lead, setLead] = React.useState<Lead | null>(null);
   const [looked, setLooked] = React.useState(false);
 
@@ -124,9 +132,14 @@ export function IncomingCall({ incoming }: { incoming: Incoming }) {
         )}
       </div>
 
+      {busy && (
+        <p className="border-t border-success/30 bg-background/40 px-3 pt-2 text-center text-[12px] font-semibold text-muted-foreground">
+          You are on a call — answering will end it.
+        </p>
+      )}
       {/* Full width and side by side, because this is answered with a thumb on
           a phone and under a couple of seconds of pressure. */}
-      <div className="flex gap-2 border-t border-success/30 bg-background/40 p-2">
+      <div className={cn("flex gap-2 bg-background/40 p-2", !busy && "border-t border-success/30")}>
         <Button
           variant="outline"
           className={cn("h-12 flex-1 text-[15px]")}
@@ -140,7 +153,7 @@ export function IncomingCall({ incoming }: { incoming: Incoming }) {
           onClick={incoming.answer}
         >
           <Phone data-icon="inline-start" />
-          Answer
+          {busy ? "End & answer" : "Answer"}
         </Button>
       </div>
     </div>

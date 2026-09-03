@@ -3,7 +3,11 @@ import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
 import { countMeetingsToChaseFor } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
-import { canUseKeypad } from "@/lib/users";
+import { canUseKeypad, dialMethodOf } from "@/lib/users";
+import { LinePresence } from "@/components/calls/line-presence";
+import { InboundListener } from "@/components/calls/inbound-listener";
+import { db } from "@/db";
+import { sql } from "drizzle-orm";
 import { NavLinks } from "@/components/nav-links";
 import { Toaster } from "@/components/ui/sonner";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -20,7 +24,18 @@ export default async function AppLayout({
   const callbacks = await countCallbacksDue(callScope(me));
   const meetings = await countMeetingsToChaseFor(me);
   const keypad = await canUseKeypad(me?.id, me?.role);
+
+  // Whether this person can be rung back at all: they need a number of their
+  // own, and they need to be dialling in the browser rather than from a
+  // handset. Without both there is nothing for a prospect to reach.
+  const [row] = (await db.execute(
+    sql`select telnyx_did from app_user where id = ${me?.id ?? -1}`,
+  )) as { telnyx_did: string | null }[];
+  const reachable =
+    Boolean(row?.telnyx_did?.trim()) && (await dialMethodOf(me?.id)) === "browser";
+
   return (
+    <LinePresence>
     <div className="flex min-h-svh">
       {/* Below `lg` this is a drawer instead — see `MobileNav`, whose trigger
           sits in the page header. */}
@@ -60,6 +75,11 @@ export default async function AppLayout({
       </aside>
       <main className="min-w-0 flex-1 bg-background">{children}</main>
       <Toaster />
+      {/* Registers on every screen except the two that hold a line of their
+          own, so a prospect ringing back reaches somebody wherever they are in
+          the workspace rather than only on the dialler. */}
+      {reachable && <InboundListener enabled />}
     </div>
+    </LinePresence>
   );
 }

@@ -337,6 +337,19 @@ export function useTelnyxCall(
                 call.options?.remoteCallerName ??
                 "Unknown number",
               answer: () => {
+                // Already talking to somebody. Answering has to end that call
+                // first, or `callRef` is overwritten and the live one is
+                // orphaned — still connected, with nothing on screen able to
+                // hang it up. Declining is the right move when busy, and the
+                // banner says so; this is here so that pressing Answer anyway
+                // does something coherent rather than something broken.
+                if (callRef.current && callRef.current !== call) {
+                  try {
+                    callRef.current.hangup();
+                  } catch {
+                    // Already gone.
+                  }
+                }
                 try {
                   call.answer?.();
                 } catch {

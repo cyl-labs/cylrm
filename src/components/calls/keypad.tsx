@@ -26,6 +26,7 @@ import {
 import { PHONE_KEYS } from "./tone-pad";
 import { useTelnyxCall } from "./use-telnyx-call";
 import { useObjectionHints } from "./use-objection-hints";
+import { useClaimLine } from "./line-presence";
 import { IncomingCall } from "./incoming-call";
 import { ObjectionPanel } from "@/components/sop/objection-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
@@ -214,6 +215,10 @@ export function Keypad({
   // The same help the dialler has. There is no lead here, so nothing is logged
   // and nothing is scored — but a demo line answers with the same objections a
   // prospect does, and this is where those get practised.
+  // As on the dialler: the app-wide listener stands down while this screen
+  // holds a line of its own.
+  useClaimLine(Boolean(did));
+
   const [scriptOpen, setScriptOpen] = React.useState(false);
   const [market, setMarket] = React.useState(sheets[0]?.key);
   const sheet = sheets.find((s) => s.key === market) ?? sheets[0];
@@ -588,7 +593,11 @@ export function Keypad({
 
       <div className="min-w-0">
       {line.incoming && (
-        <IncomingCall key={line.incoming.from} incoming={line.incoming} />
+        <IncomingCall
+          key={line.incoming.from}
+          incoming={line.incoming}
+          busy={line.state !== "idle"}
+        />
       )}
       <div className="rounded-[14px] border bg-card p-5 shadow-[0_1px_3px_rgba(41,47,76,0.05)]">
         <div className="min-h-[64px]">

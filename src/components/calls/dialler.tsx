@@ -29,6 +29,7 @@ import type { SopSection } from "@/lib/sop";
 import { ObjectionDrawer } from "@/components/sop/objection-drawer";
 import { IncomingCall } from "@/components/calls/incoming-call";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
+import { useClaimLine } from "@/components/calls/line-presence";
 import {
   useTelnyxCall,
   type TelnyxLine,
@@ -726,6 +727,11 @@ export function Dialler({
     SECOND_AUDIO_ID,
   );
 
+  // Tells the app-wide inbound listener to stand down: two registrations
+  // against one credential would fork an incoming call to both and show two
+  // banners for it.
+  useClaimLine(canDialFromBrowser);
+
   // Held here for the same reason the line is: `DialControls` is keyed on
   // whether a call is up and `CallForm` is keyed per lead, so either would
   // tear the transcript down in the middle of a call.
@@ -865,7 +871,11 @@ export function Dialler({
   // Above everything, in both returns: a call rings for seconds and an empty
   // queue is exactly when somebody is most likely to be looking elsewhere.
   const ringing = line.incoming ? (
-    <IncomingCall key={line.incoming.from} incoming={line.incoming} />
+    <IncomingCall
+      key={line.incoming.from}
+      incoming={line.incoming}
+      busy={line.state !== "idle"}
+    />
   ) : null;
 
   const docs =
