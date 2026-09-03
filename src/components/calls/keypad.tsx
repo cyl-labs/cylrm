@@ -26,6 +26,7 @@ import {
 import { PHONE_KEYS } from "./tone-pad";
 import { useTelnyxCall } from "./use-telnyx-call";
 import { useObjectionHints } from "./use-objection-hints";
+import { IncomingCall } from "./incoming-call";
 import { ObjectionPanel } from "@/components/sop/objection-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
 import type { SopSection } from "@/lib/sop";
@@ -586,6 +587,9 @@ export function Keypad({
       )}
 
       <div className="min-w-0">
+      {line.incoming && (
+        <IncomingCall key={line.incoming.from} incoming={line.incoming} />
+      )}
       <div className="rounded-[14px] border bg-card p-5 shadow-[0_1px_3px_rgba(41,47,76,0.05)]">
         <div className="min-h-[64px]">
           {two ? (

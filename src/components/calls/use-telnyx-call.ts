@@ -21,6 +21,12 @@ export type CallState = "idle" | "connecting" | "ringing" | "active" | "ending";
 
 type TelnyxCall = {
   id?: string;
+  /** Which way the call is going. Present on an inbound invite, which is how
+   *  one is told from the two outbound legs this hook already tracks. */
+  direction?: string;
+  /** Who is ringing. `options` is where the SDK puts the invite's caller id. */
+  options?: { remoteCallerNumber?: string; remoteCallerName?: string };
+  answer?: () => void;
   hangup: () => void;
   muteAudio: () => void;
   unmuteAudio: () => void;
@@ -34,6 +40,14 @@ type TelnyxCall = {
    *  sender carrying ours. Both are on the SDK's public call interface. */
   remoteStream?: MediaStream | null;
   peer?: { instance?: RTCPeerConnection | null } | null;
+};
+
+/** A call arriving, before it has been answered or refused. */
+export type Incoming = {
+  /** The number ringing, as the invite gave it. */
+  from: string;
+  answer: () => void;
+  reject: () => void;
 };
 
 /** The second call, when there is one. Null means there is one line up, or
@@ -133,6 +147,10 @@ export type TelnyxLine = {
    */
   remoteStream: () => MediaStream | null;
 
+  /** Somebody ringing in, or null. Answering makes it the first line, so the
+   *  rest of this hook — the timer, mute, hangup, the transcript tap — works on
+   *  it exactly as it does on a call we placed. */
+  incoming: Incoming | null;
   /** The second call, or null when there is only one. */
   second: SecondLine | null;
   /** True once both calls can hear each other. */
@@ -202,6 +220,8 @@ export function useTelnyxCall(
     null,
   );
   const [second, setSecond] = React.useState<SecondLine | null>(null);
+  const [incoming, setIncoming] = React.useState<Incoming | null>(null);
+  const incomingRef = React.useRef<TelnyxCall | null>(null);
   const [merged, setMerged] = React.useState(false);
   const [merging, setMerging] = React.useState(false);
   const [mergeProblem, setMergeProblem] = React.useState<string | null>(null);
@@ -290,6 +310,55 @@ export function useTelnyxCall(
           // describe nothing that is still on the phone, so they are dropped
           // before anything can be inferred from them.
           if (sameCall(call, retiredRef.current.call, retiredRef.current.id)) {
+            return;
+          }
+
+          // An invite from outside. Recognised before any of the outbound
+          // matching below, because that logic asks "is this the first or the
+          // second call we placed?" and an inbound call is neither — left to
+          // fall through, a stranger ringing in would be adopted as the line
+          // the caller thought they had dialled.
+          if (
+            call.direction === "inbound" &&
+            !sameCall(call, callRef.current, firstIdRef.current)
+          ) {
+            if (phase === "idle") {
+              // They gave up, or we answered elsewhere.
+              if (sameCall(call, incomingRef.current, null)) {
+                incomingRef.current = null;
+                setIncoming(null);
+              }
+              return;
+            }
+            incomingRef.current = call;
+            setIncoming({
+              from:
+                call.options?.remoteCallerNumber ??
+                call.options?.remoteCallerName ??
+                "Unknown number",
+              answer: () => {
+                try {
+                  call.answer?.();
+                } catch {
+                  // Gone already; the update that follows clears the banner.
+                }
+                // From here it is simply the first line, so the timer, mute,
+                // hangup and the transcript tap all work on it unchanged.
+                callRef.current = call;
+                firstIdRef.current = call.id ?? null;
+                incomingRef.current = null;
+                setIncoming(null);
+              },
+              reject: () => {
+                try {
+                  call.hangup();
+                } catch {
+                  // Already gone.
+                }
+                incomingRef.current = null;
+                setIncoming(null);
+              },
+            });
             return;
           }
 
@@ -596,6 +665,7 @@ export function useTelnyxCall(
     sendDigit,
     reset,
     remoteStream,
+    incoming,
     second,
     merged,
     merging,

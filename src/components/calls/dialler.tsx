@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import type { CallOutcome, QueueLead } from "@/lib/calls";
 import type { SopSection } from "@/lib/sop";
 import { ObjectionDrawer } from "@/components/sop/objection-drawer";
+import { IncomingCall } from "@/components/calls/incoming-call";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
 import {
   useTelnyxCall,
@@ -861,6 +862,12 @@ export function Dialler({
   //
   // Side by side because they are a pair, and the one already open in the
   // column beside the card needs no button on a wide screen.
+  // Above everything, in both returns: a call rings for seconds and an empty
+  // queue is exactly when somebody is most likely to be looking elsewhere.
+  const ringing = line.incoming ? (
+    <IncomingCall key={line.incoming.from} incoming={line.incoming} />
+  ) : null;
+
   const docs =
     scriptSections.length > 0 || sections.length > 0 ? (
       <div className="mb-3 flex gap-2">
@@ -913,6 +920,7 @@ export function Dialler({
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-5 sm:px-6">
         {bookingPost}
+        {ringing}
         {docs}
         {drawers}
         <div className="py-11 text-center">
@@ -995,6 +1003,7 @@ export function Dialler({
 
       <div ref={column} className="min-w-0">
       {bookingPost}
+      {ringing}
       {docs}
       <div className="rounded-xl border bg-card p-4 sm:p-5">
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
