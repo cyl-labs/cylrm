@@ -92,11 +92,15 @@ export default async function CallsPage({
               ))}
             </div>
           )}
-          <CallImportDialog
-            callLists={all.map((l) => ({ id: l.id, name: l.name }))}
-            people={people}
-            canAssign={isAdmin}
-          />
+          {/* Admins only. A caller is handed their niches; importing is not
+              a thing they do, and offering it invites a dead end. */}
+          {isAdmin && (
+            <CallImportDialog
+              callLists={all.map((l) => ({ id: l.id, name: l.name }))}
+              people={people}
+              canAssign={isAdmin}
+            />
+          )}
         </div>
       }
     >
@@ -117,9 +121,16 @@ export default async function CallsPage({
               className="mx-auto size-6 text-muted-foreground"
               strokeWidth={1.6}
             />
-            <p className="mt-3 text-sm font-semibold">No call lists yet.</p>
+            <p className="mt-3 text-sm font-semibold">
+              {isAdmin ? "No call lists yet." : "Nothing assigned to you yet."}
+            </p>
+            {/* A caller cannot fix this themselves, so they are told what is
+                actually happening rather than given an instruction they have
+                no permission to follow. */}
             <p className="mt-1 text-[13px] text-muted-foreground">
-              Import a CSV with a phone column to start calling.
+              {isAdmin
+                ? "Import a CSV with a phone column to start calling."
+                : "Your niches will appear here once an admin assigns them. Ask for more when you run out."}
             </p>
           </div>
         ) : isAdmin ? (

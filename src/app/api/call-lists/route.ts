@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { appUser, callLead, callList } from "@/db/schema";
 import { csvToRecords, type CsvRecord } from "@/lib/csv";
 import { classifyPhone, e164, phoneKey } from "@/lib/calls";
-import { getSession } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
 import { websiteHref } from "@/lib/website";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -253,9 +253,19 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session.loggedIn) {
+  const me = await getCurrentUser();
+  if (!me) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // Creating a niche is an admin's job, the same as renaming or deleting one:
+  // a caller is handed the lists they work and has no business drawing new
+  // ones. Enforced here rather than by hiding the button, which a fetch walks
+  // straight past.
+  if (me.role !== "admin") {
+    return Response.json(
+      { error: "Only an admin can import a call list." },
+      { status: 403 },
+    );
   }
 
   const form = await request.formData();
