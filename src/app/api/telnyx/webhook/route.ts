@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { verifyTelnyxSignature } from "@/lib/telnyx";
-import { phoneKey } from "@/lib/calls";
+import { phoneKeyCandidates } from "@/lib/calls";
 
 /**
  * Telnyx call events.
@@ -134,7 +134,7 @@ async function recordInbound(
     const from = String(p.from ?? "");
     const to = String(p.to ?? "");
     if (!from || !to) return;
-    const key = phoneKey(from);
+    const keys = phoneKeyCandidates(from);
     await db.execute(sql`
       insert into inbound_call
         (call_session_id, from_number, to_number, user_id, call_lead_id, started_at)
@@ -142,8 +142,8 @@ async function recordInbound(
         ${sessionId}, ${from}, ${to},
         (select id from app_user where telnyx_did = ${to} and active limit 1),
         ${
-          key
-            ? sql`(select id from call_lead where phone_key = ${key}
+          keys.length > 0
+            ? sql`(select id from call_lead where phone_key = any(${keys})
                    order by duplicate_of_lead_id nulls first, id limit 1)`
             : sql`null`
         },

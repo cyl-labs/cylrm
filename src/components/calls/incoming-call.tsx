@@ -95,7 +95,10 @@ export function IncomingCall({
         <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
           {who ? (
             <>
-              {incoming.from}
+              {/* The lead's own number once matched: what the SDK hands us has
+                  had its country code stripped, and the stored one is the
+                  number a person would recognise and dial back. */}
+              {lead?.phone ?? incoming.from}
               {lead?.title ? ` · ${lead.title}` : ""}
               {lead ? ` · ${lead.list}` : ""}
             </>

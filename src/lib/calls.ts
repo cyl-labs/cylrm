@@ -816,6 +816,35 @@ export function phoneKey(
   return digits;
 }
 
+/**
+ * Every key one line could be stored under.
+ *
+ * `phoneKey` needs a market to read a number written without a country code,
+ * and an inbound call arrives without one: the WebRTC SDK reports a caller as
+ * "7346396427", dropping the "+1" Telnyx sent. Keyed as written that misses
+ * "17346396427", so a prospect we have called before rings in as an unknown
+ * number — which happened on the first real inbound call, to a lead sitting in
+ * the caller's own niche.
+ *
+ * Rather than infer a market and risk the 650/65 collision `classifyPhone`
+ * documents, this returns the small set of keys that are *the same line*
+ * written differently. Adding or removing a NANP country code cannot turn one
+ * number into another: "1" + ten digits is the international form of those ten
+ * digits and nothing else.
+ *
+ * For matching only. `phoneKey` remains what a row is *stored* under, so
+ * nothing here can create a second key for one lead.
+ */
+export function phoneKeyCandidates(raw: string): string[] {
+  const key = phoneKey(raw);
+  if (!key) return [];
+  const out = new Set([key]);
+  // The national form of a NANP number, and its international twin.
+  if (key.length === 10) out.add(`1${key}`);
+  if (key.length === 11 && key.startsWith("1")) out.add(key.slice(1));
+  return [...out];
+}
+
 
 /**
  * Our caller ID for that country, or null when none is configured.

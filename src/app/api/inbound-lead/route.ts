@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { phoneKey } from "@/lib/calls";
+import { phoneKeyCandidates } from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
 
 /**
@@ -13,7 +13,10 @@ import { callScope, getCurrentUser } from "@/lib/session";
  *
  * Matched on `phone_key` — digits only — because that is what the importer
  * stores and what dedupe already relies on, so a number written any of the ways
- * a directory writes it still finds its lead.
+ * a directory writes it still finds its lead. Against every key the line could
+ * be under, not just one: the SDK reports a caller without their country code,
+ * and keying on that alone made a lead in the caller's own niche ring in as an
+ * unknown number.
  *
  * Scoped like every other calling query: a caller sees a lead on their own
  * niches, an admin sees any. An unmatched number is a perfectly ordinary
@@ -24,8 +27,10 @@ export async function GET(request: Request) {
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const from = new URL(request.url).searchParams.get("from") ?? "";
-  const key = phoneKey(from);
-  if (!key) return Response.json({ lead: null });
+  // Every way this line could be stored, because the number arrives from the
+  // SDK without its country code — see `phoneKeyCandidates`.
+  const keys = phoneKeyCandidates(from);
+  if (keys.length === 0) return Response.json({ lead: null });
 
   const owner = callScope(me);
   const [lead] = (await db.execute(sql`
@@ -33,7 +38,7 @@ export async function GET(request: Request) {
            cl.name as list_name
     from call_lead l
     join call_list cl on cl.id = l.call_list_id
-    where l.phone_key = ${key}
+    where l.phone_key = any(${keys})
       ${owner === undefined ? sql`` : sql`and cl.assigned_user_id = ${owner}`}
     -- A number can sit on more than one list when a duplicate was kept rather
     -- than dropped. The original is the one with the history on it.
