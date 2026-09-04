@@ -7,6 +7,7 @@ import {
   MailOpen,
   PhoneCall,
   PhoneForwarded,
+  PhoneMissed,
   ScrollText,
   Send,
   ShieldCheck,
@@ -67,6 +68,9 @@ export const WORKSPACES: Workspace[] = [
     links: [
       { href: "/calls", label: "Call lists", icon: PhoneCall },
       { href: "/callbacks", label: "Callbacks", icon: PhoneForwarded },
+      // Beside Callbacks because it is the same job from the other side: a
+      // promise they made rather than one we did, worked the same way.
+      { href: "/missed-calls", label: "Missed calls", icon: PhoneMissed },
       // Next to Callbacks because it is read the same way — a diary opened at
       // the start of a shift and worked top to bottom.
       { href: "/meetings", label: "Meetings", icon: CalendarClock },
@@ -188,6 +192,7 @@ export function workspacesFor(role: "admin" | "caller" | undefined) {
 const CALL_PREFIXES = [
   "/calls",
   "/callbacks",
+  "/missed-calls",
   "/meetings",
   "/sop",
   "/call-sheet",

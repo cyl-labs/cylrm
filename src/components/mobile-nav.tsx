@@ -24,6 +24,7 @@ export function MobileNav({
   keypad = false,
   unreadReplies = 0,
   callbacksDue = 0,
+  missedCalls = 0,
   meetingsToChase = 0,
 }: {
   /** Decides whether the drawer offers the Email CRM at all. */
@@ -32,6 +33,7 @@ export function MobileNav({
   keypad?: boolean;
   unreadReplies?: number;
   callbacksDue?: number;
+  missedCalls?: number;
   meetingsToChase?: number;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -45,11 +47,14 @@ export function MobileNav({
         <Menu className="size-5" strokeWidth={1.8} />
         {/* With the nav closed the badge inside it is invisible, so the
             trigger carries the fact that something is waiting. */}
-        {(unreadReplies > 0 || callbacksDue > 0 || meetingsToChase > 0) && (
+        {(unreadReplies > 0 ||
+          callbacksDue > 0 ||
+          meetingsToChase > 0 ||
+          missedCalls > 0) && (
           <span
             className={cn(
               "absolute right-1.5 top-1.5 size-2 rounded-full",
-              callbacksDue > 0 || meetingsToChase > 0
+              callbacksDue > 0 || meetingsToChase > 0 || missedCalls > 0
                 ? "bg-destructive"
                 : "bg-primary",
             )}
@@ -77,6 +82,7 @@ export function MobileNav({
             keypad={keypad}
             unreadReplies={unreadReplies}
             callbacksDue={callbacksDue}
+            missedCalls={missedCalls}
             meetingsToChase={meetingsToChase}
           />
         </div>

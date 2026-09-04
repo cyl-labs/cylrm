@@ -15,6 +15,7 @@ export function NavLinks({
   keypad = false,
   unreadReplies = 0,
   callbacksDue = 0,
+  missedCalls = 0,
   meetingsToChase = 0,
 }: {
   /** Decides which of this workspace's screens are on offer — a caller's has
@@ -25,6 +26,7 @@ export function NavLinks({
   unreadReplies?: number;
   /** Callbacks whose time has passed — the calling side's version of unread. */
   callbacksDue?: number;
+  missedCalls?: number;
   /** Meetings today or tomorrow that nobody has rung to confirm. */
   meetingsToChase?: number;
 }) {
@@ -51,6 +53,11 @@ export function NavLinks({
             {href === "/replies" && unreadReplies > 0 && (
               <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-primary-foreground">
                 {unreadReplies > 99 ? "99+" : unreadReplies}
+              </span>
+            )}
+            {href === "/missed-calls" && missedCalls > 0 && (
+              <span className="ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[11px] font-bold leading-none text-primary-foreground">
+                {missedCalls > 99 ? "99+" : missedCalls}
               </span>
             )}
             {href === "/callbacks" && callbacksDue > 0 && (

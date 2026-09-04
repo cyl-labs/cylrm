@@ -763,6 +763,59 @@ export type TranscriptTurn = {
   text: string;
 };
 
+/**
+ * A call that came in.
+ *
+ * Deliberately not a `call` row. That table is the outbound cold-calling
+ * system — keyed to a `call_lead`, with an outcome vocabulary describing a
+ * call somebody chose to make — and putting inbound in it would land every
+ * ring-back in the pickup counts, on the Scoreboard and in a payout. The same
+ * structural split `keypad_call` has, for the same reason.
+ *
+ * Written by the Telnyx webhook, never by the browser: a call that rang out
+ * while the CRM was closed is exactly the one worth knowing about, and no
+ * browser was there to report it.
+ */
+export const inboundCall = pgTable(
+  "inbound_call",
+  {
+    id: serial("id").primaryKey(),
+    /** One row per call, not per leg: Telnyx forks an invite and emits
+     *  `call.initiated` several times for one ringing phone. */
+    callSessionId: text("call_session_id").notNull().unique(),
+    fromNumber: text("from_number").notNull(),
+    toNumber: text("to_number").notNull(),
+    /** Whose number was rung. Null when it matches nobody, which is kept
+     *  rather than dropped — that is a misconfiguration worth seeing. */
+    userId: integer("user_id").references(() => appUser.id),
+    callLeadId: integer("call_lead_id").references(() => callLead.id),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Null means nobody picked up, which is what "missed" means. Derived
+     *  rather than a flag, so a late `call.answered` cannot leave a row
+     *  disagreeing with itself. */
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    /** Rung back, or otherwise dealt with. Set by hand: deriving it from a
+     *  later outgoing call would only work for numbers that match a lead, and
+     *  the ones that do not are the likeliest to be forgotten. */
+    handledAt: timestamp("handled_at", { withTimezone: true }),
+    handledBy: integer("handled_by").references(() => appUser.id),
+  },
+  (t) => [
+    index("inbound_call_user_idx").on(t.userId),
+    index("inbound_call_started_idx").on(t.startedAt.desc()),
+    // The sidebar badge's query, which runs on every page render for every
+    // signed-in person. Declared here as well as in the migration because
+    // `drizzle-kit push` drops any index it cannot see in this file — the trap
+    // `call_user_id_idx` fell into.
+    index("inbound_call_outstanding_idx")
+      .on(t.userId)
+      .where(sql`answered_at is null and handled_at is null`),
+  ],
+);
+
 export const callRecording = pgTable(
   "call_recording",
   {

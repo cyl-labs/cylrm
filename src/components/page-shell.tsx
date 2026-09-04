@@ -1,5 +1,6 @@
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
+import { countMissedCalls } from "@/lib/inbound";
 import { countMeetingsToChaseFor } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { MobileNav } from "@/components/mobile-nav";
@@ -21,6 +22,9 @@ export async function PageShell({
   // the drawer that leads nowhere they are allowed to go.
   const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
   const callbacks = await countCallbacksDue(callScope(me));
+  // Scoped by the number that was rung, not by niche ownership: an inbound
+  // call is addressed to a person.
+  const missed = await countMissedCalls(me);
   const meetings = await countMeetingsToChaseFor(me);
   // Callers only: the founders set the quota rather than owing it, the same
   // reason they are off the Scoreboard and off the payroll confirm list. A
@@ -36,6 +40,7 @@ export async function PageShell({
         keypad={await canUseKeypad(me?.id, me?.role)}
         unreadReplies={unread}
         callbacksDue={callbacks}
+        missedCalls={missed}
         meetingsToChase={meetings}
       />
         <h1 className="text-lg font-extrabold tracking-[-0.02em] sm:text-xl">

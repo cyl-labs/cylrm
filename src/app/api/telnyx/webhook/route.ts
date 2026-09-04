@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { verifyTelnyxSignature } from "@/lib/telnyx";
+import { phoneKey } from "@/lib/calls";
 
 /**
  * Telnyx call events.
@@ -11,10 +12,16 @@ import { verifyTelnyxSignature } from "@/lib/telnyx";
  * routes: this writes to the database, so the "unset means silently off" rule
  * that applies to outbound best-effort calls does not apply here.
  *
- * Only `call.recording.saved` is acted on. `call.initiated`, `call.answered`
- * and `call.hangup` all arrive at this same URL and are answered 200 and
+ * Two things are acted on: `call.recording.saved`, and the inbound call
+ * lifecycle (`call.initiated` / `call.answered` / `call.hangup`) for calls
+ * arriving at a caller's own number. Everything else is answered 200 and
  * ignored — a 4xx or 5xx makes Telnyx retry each one and eventually disable
  * the webhook entirely.
+ *
+ * Inbound is recorded here rather than in the browser on purpose. A call that
+ * rang out while the CRM was closed is exactly the one worth knowing about,
+ * and no browser was there to report it; the webhook sees every leg either
+ * way.
  */
 export async function POST(request: Request) {
   // Read the bytes before parsing: the signature is over the raw body, and
@@ -40,6 +47,19 @@ export async function POST(request: Request) {
 
   const type = event.data?.event_type;
   const p = event.data?.payload ?? {};
+
+  // An inbound leg. `direction` is "incoming" here, matching the call events
+  // API rather than the browser SDK's "inbound" — the two vocabularies differ
+  // and it is worth not assuming they agree.
+  if (
+    p.direction === "incoming" &&
+    (type === "call.initiated" ||
+      type === "call.answered" ||
+      type === "call.hangup")
+  ) {
+    await recordInbound(type, p);
+    return NextResponse.json({ ok: true, inbound: type });
+  }
 
   if (type !== "call.recording.saved") {
     // Logged, not stored. The first real call is what confirms the browser's
@@ -89,4 +109,65 @@ export async function POST(request: Request) {
   `);
 
   return NextResponse.json({ ok: true, recordingId, sessionId });
+}
+
+/**
+ * One row per inbound call, built up across its three events.
+ *
+ * Keyed on the session rather than the leg: Telnyx forks an invite and emits
+ * `call.initiated` several times for one ringing phone, and a person
+ * experienced one call. `on conflict do nothing` makes the extra legs free.
+ *
+ * Everything is resolved here, at write time, rather than joined at read time
+ * — who was rung, and which lead is calling. Both can change afterwards (a
+ * number gets reassigned, a lead is deleted) and a missed call should keep
+ * saying who it was for on the day it came in.
+ */
+async function recordInbound(
+  type: string,
+  p: Record<string, unknown>,
+): Promise<void> {
+  const sessionId = String(p.call_session_id ?? "");
+  if (!sessionId) return;
+
+  if (type === "call.initiated") {
+    const from = String(p.from ?? "");
+    const to = String(p.to ?? "");
+    if (!from || !to) return;
+    const key = phoneKey(from);
+    await db.execute(sql`
+      insert into inbound_call
+        (call_session_id, from_number, to_number, user_id, call_lead_id, started_at)
+      values (
+        ${sessionId}, ${from}, ${to},
+        (select id from app_user where telnyx_did = ${to} and active limit 1),
+        ${
+          key
+            ? sql`(select id from call_lead where phone_key = ${key}
+                   order by duplicate_of_lead_id nulls first, id limit 1)`
+            : sql`null`
+        },
+        ${p.start_time ? String(p.start_time) : sql`now()`}
+      )
+      on conflict (call_session_id) do nothing
+    `);
+    return;
+  }
+
+  if (type === "call.answered") {
+    // Coalesced, so a second leg's answer cannot move the time the call was
+    // actually picked up.
+    await db.execute(sql`
+      update inbound_call
+      set answered_at = coalesce(answered_at, now())
+      where call_session_id = ${sessionId}
+    `);
+    return;
+  }
+
+  await db.execute(sql`
+    update inbound_call
+    set ended_at = coalesce(ended_at, now())
+    where call_session_id = ${sessionId}
+  `);
 }

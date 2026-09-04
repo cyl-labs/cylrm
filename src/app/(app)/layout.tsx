@@ -1,6 +1,7 @@
 import { LogOut } from "lucide-react";
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
+import { countMissedCalls } from "@/lib/inbound";
 import { countMeetingsToChaseFor } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { canUseKeypad, dialMethodOf } from "@/lib/users";
@@ -22,6 +23,9 @@ export default async function AppLayout({
   // the drawer that leads nowhere they are allowed to go.
   const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
   const callbacks = await countCallbacksDue(callScope(me));
+  // Scoped by the number that was rung, not by niche ownership: an inbound
+  // call is addressed to a person.
+  const missed = await countMissedCalls(me);
   const meetings = await countMeetingsToChaseFor(me);
   const keypad = await canUseKeypad(me?.id, me?.role);
 
@@ -51,6 +55,7 @@ export default async function AppLayout({
           keypad={keypad}
           unreadReplies={unread}
           callbacksDue={callbacks}
+          missedCalls={missed}
           meetingsToChase={meetings}
         />
         <div className="mt-auto px-2.5 pb-3.5">
