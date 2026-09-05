@@ -69,7 +69,14 @@ _(let them answer)_
 
 _(let them answer)_
 
-### Only if they seem confused or skeptical of "voice agent"
+## Only if they ask what that means, or clearly have not heard of it
+
+Do not volunteer this. Most owners have a rough idea what a voice agent is, and
+explaining it to somebody who did not ask moves the call off their problem and
+onto your product — which is where "yeah, we looked into that already" comes
+from. Wait to be asked.
+
+> **Prospect** "What do you mean? / What's a voice agent?"
 
 > **You say** Oh, it's AI. It picks up your phone instantly, 24/7, whenever you're busy on a job or closed. Answers the common questions, can even book the appointment, so you stop losing callers.
 

@@ -54,6 +54,16 @@ export function ObjectionPanel({
   const groupRef = React.useRef<HTMLLIElement | null>(null);
   const hitRow = exact ? sections.findIndex((s) => s.title === exact) : -1;
 
+  // Counted the way the script page counts, so the two cannot disagree about
+  // which step is 03. Numbering by array index was invisible for as long as
+  // every branch sat at the end of a document — the moment one landed in the
+  // middle, every row below it read one higher here than on the page a caller
+  // learned the pitch from.
+  const stepNumbers = React.useMemo(() => {
+    let step = 0;
+    return sections.map((s) => (s.branch ? null : (step += 1)));
+  }, [sections]);
+
   // A new answer opens its row. Adjusted during render rather than in an
   // effect, which would render the old row first and then correct it.
   if (exact !== lastExact) {
@@ -161,7 +171,7 @@ export function ObjectionPanel({
                   {/* Branch steps go unnumbered, as they do on the script page:
                       a conditional numbered in sequence reads as something you
                       always say. */}
-                  {s.branch ? "↳" : String(i + 1).padStart(2, "0")}
+                  {s.branch ? "↳" : String(stepNumbers[i]).padStart(2, "0")}
                 </span>
                 <span
                   className={cn(
