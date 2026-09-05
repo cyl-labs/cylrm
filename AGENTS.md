@@ -940,6 +940,19 @@ deleted is removed from the table too.
   - The library labels those rows **Founders**. Every row an admin sees is one
     only they can open, so the badge is not about access — it is so a founder
     can tell which documents their callers cannot see before quoting one.
+- **An objection handle must be a `##` branch, never a `###` sub-beat.** A
+  `###` never becomes a section of its own, so on the dial card it renders as a
+  small muted heading *inside* the parent step's expansion, directly above a
+  full-width tinted "YOU SAY" block — and callers read it out on every call.
+  Measured, not theorised: the "Oh, it's AI" line was a `###` and was being said
+  unprompted every time. A `##` whose title starts `If` / `Only if` /
+  `Otherwise` matches the branch rule, so it gets its own collapsed row marked
+  `↳`, takes no step number, and has to be opened deliberately. Applied to the
+  voicemail script, the "what is a voice agent" explainer and the "you're
+  selling me something" answer. Give each one a `> **Prospect**` cue too — that
+  is what the live hint matches on, and it shows the caller what triggers it.
+  Coaching prose stays out of the spoken half by itself as long as the block
+  after it is not a `> **You say**` line (see `splitSpoken`'s cue rule).
 - **One script and one objection sheet per region, enforced by a unique index**
   (`sop_document_kind_region_idx`). So a second `kind: script` file for a
   market is refused at publish time, not silently half-used: the voicemail

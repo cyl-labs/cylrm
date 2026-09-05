@@ -88,6 +88,28 @@ _(let them answer, then carry on below)_
 
 _(let them answer)_
 
+**What that line means, so you never have to defend it.** "Not today" is
+about *this call*, not about the company. We sell voice agents; of course we
+do. What you are promising is narrow and you can keep it: they listen to the
+thing, and then they say yes or no. No strings, nothing to sign, no second
+call they did not agree to.
+
+## Only if they say you are selling them something
+
+Do not say "I'm not selling". You are, they know it, and denying it is the one
+move here that actually loses the call — one prospect answered it with "you
+don't need to lie to me, I'm a business owner, I'm not an idiot", and stopped
+listening a minute before he hung up.
+
+Agree with them instead, then make the promise smaller. Being caught out is
+recoverable; arguing about it is not.
+
+> **Prospect** "You're trying to sell me something." / "That's the whole point of this call."
+
+> **You say** Ha — fair enough, you're right, this is what I do. What I meant is I'm not asking you to buy anything today. All I want is for you to hear it and tell me whether it's any good. If it isn't for you, that's a no and I'll leave you alone.
+
+_(let them answer, then carry on below)_
+
 ## Once they say yes
 
 Do all of this before you hang up.
