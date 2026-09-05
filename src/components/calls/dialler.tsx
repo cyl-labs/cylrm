@@ -11,6 +11,7 @@ import {
   Globe,
   CalendarPlus,
   Grid3x3,
+  MapPin,
   Mic,
   MicOff,
   MessageSquareWarning,
@@ -54,6 +55,7 @@ import { dialableNumber, e164 } from "@/lib/phone";
 // From `call-hours`, not `calls`: that one reaches for the database, and this
 // is a client component. Same wall `outcome.ts` and `phone.ts` were built for.
 import { LEAD_HOURS_LABEL } from "@/lib/call-hours";
+import { placeLabel, placeShort } from "@/lib/place";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { LocalTime } from "@/components/calls/local-time";
 import { callTzDate } from "@/lib/call-time";
@@ -1092,13 +1094,26 @@ export function Dialler({
           phone={current.phone}
           blocked={current.dncBlock}
         />
-        {/* Directly under the number, because it is the last thing checked
-            before ringing it. Renders nothing when the zone is unknown. */}
-        <LocalTime
-          tz={current.tz}
-          withZone
-          className="mt-1.5 w-full justify-center text-[13px] font-semibold"
-        />
+        {/* Directly under the number, because these are the last two things
+            checked before ringing it: where they are and what time it is
+            there. One row, since they answer the same question — and both
+            render independently, because a toll-free number has a known
+            address and no zone, while a mobile has a zone and often no
+            address. */}
+        <div className="mt-1.5 flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-[13px] font-semibold">
+          {placeLabel(current) && (
+            <span className="inline-flex items-center gap-1 text-foreground">
+              <MapPin className="size-3.5 shrink-0" strokeWidth={2.2} />
+              {placeLabel(current)}
+            </span>
+          )}
+          {placeLabel(current) && current.tz && (
+            <span aria-hidden className="text-muted-foreground/50">
+              ·
+            </span>
+          )}
+          <LocalTime tz={current.tz} withZone />
+        </div>
         {/* Sizing a business up before dialling — is this one van or forty —
             is the question the number cannot answer. A new tab rather than
             the same one: leaving this page loses the queue's position. */}
@@ -1203,8 +1218,20 @@ export function Dialler({
                   }}
                   className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-[13px] transition-colors hover:bg-muted/50"
                 >
-                  <span className="min-w-0 flex-1 truncate font-semibold">
-                    {l.company ?? l.name ?? l.phone}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-semibold">
+                      {l.company ?? l.name ?? l.phone}
+                    </span>
+                    {/* The state under the name rather than beside the number:
+                        a caller scanning the queue is choosing who to ring
+                        next, and "Alaska" at 9am their time is the whole
+                        decision. Dropped entirely when unknown — see
+                        `QueueLead.state`. */}
+                    {placeShort(l) && (
+                      <span className="truncate text-[11px] font-medium text-muted-foreground">
+                        {placeShort(l)}
+                      </span>
+                    )}
                   </span>
                   <span className="shrink-0 tabular-nums text-muted-foreground">
                     {l.phone}

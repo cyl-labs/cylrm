@@ -2,11 +2,19 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AudioLines, Check, Copy, PhoneOutgoing, ShieldAlert } from "lucide-react";
+import {
+  AudioLines,
+  Check,
+  Copy,
+  MapPin,
+  PhoneOutgoing,
+  ShieldAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { BoardCard, CallOutcome, CallStage } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { RecordingSheet } from "@/components/calls/recording-sheet";
+import { placeShort } from "@/lib/place";
 import { useTouchDrag } from "@/components/kanban/use-touch-drag";
 import { dialableNumber } from "@/lib/phone";
 import { Badge } from "@/components/ui/badge";
@@ -328,6 +336,15 @@ export function CallBoard({
                   {c.name && c.company && (
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {c.name}
+                    </p>
+                  )}
+                  {/* Same field the dialler and the queue show, from the same
+                      helper, so one lead does not read three ways across the
+                      app. Absent rather than blank when unknown. */}
+                  {placeShort(c) && (
+                    <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-medium text-muted-foreground">
+                      <MapPin className="size-3 shrink-0" strokeWidth={2.2} />
+                      {placeShort(c)}
                     </p>
                   )}
 

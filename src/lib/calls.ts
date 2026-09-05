@@ -316,6 +316,25 @@ export type QueueLead = {
   title: string | null;
   email: string | null;
   website: string | null;
+  /**
+   * Where the business is, as the scrape recorded it.
+   *
+   * The caller needs this so they do not have to open with "where are you
+   * based?", which sounds like what it is — someone reading a list. Present on
+   * roughly four US leads in five and null on the rest, and **never inferred
+   * from the area code**: a number says where it was issued, not where the
+   * business is, and the scrape that carries these also carries a
+   * `flag_area_state_mismatch` on 802 rows precisely because the two disagree.
+   * A confidently wrong "so you're in Texas?" is worse than not mentioning it,
+   * which is the same rule `tz` follows for an unmapped area code.
+   *
+   * **US numbers only.** Singapore is one city on one clock and the UK is one
+   * zone, so a place there is a line of noise repeated on every card rather
+   * than something a caller acts on. The filter is in `leadColumns`, so every
+   * screen gets the same answer.
+   */
+  city: string | null;
+  state: string | null;
   attempts: number;
   lastOutcome: CallOutcome | null;
   lastCalledAt: string | null;
@@ -362,6 +381,21 @@ export type CallCategory = CallOutcome | "uncalled";
  *  sheet cannot drift into showing different fields for the same lead. */
 const leadColumns = sql`
   l.id, l.phone, l.name, l.company, l.title, l.email, l.website,
+  -- Where the business actually is, straight off the scrape. Read from
+  -- source_fields rather than promoted to columns because nothing queries or
+  -- sorts on it — it is one line of text on a card — and a jsonb read costs
+  -- nothing next to the joins already here. nullif() because the scrapes write
+  -- an empty string as often as they omit the key, and "" is not a place.
+  --
+  -- US numbers only, and that is the whole point rather than a limitation:
+  -- Singapore is one city on one clock, so naming it on every card is a line
+  -- of noise on every card. The UK is excluded on the same reasoning — one
+  -- zone, and nobody is deciding when to ring by it. Widening this is one
+  -- regex, but it should be earned by a market where the answer varies.
+  case when l.phone_key ~ '^1[0-9]{10}$'
+    then nullif(l.source_fields->>'city', '') end as city,
+  case when l.phone_key ~ '^1[0-9]{10}$'
+    then nullif(l.source_fields->>'state', '') end as state,
   l.dnc_status, l.dnc_checked_at,
   lc.outcome as last_outcome, lc.called_at as last_called_at,
   lc.callback_at, lc.notes as last_notes, lc.by_name as last_called_by,
@@ -379,6 +413,8 @@ function toLead(r: Row, dids: DidMap): QueueLead {
     title: (r.title as string | null) ?? null,
     email: (r.email as string | null) ?? null,
     website: (r.website as string | null) ?? null,
+    city: (r.city as string | null) ?? null,
+    state: (r.state as string | null) ?? null,
     attempts: n(r.attempts),
     lastOutcome: (r.last_outcome as CallOutcome | null) ?? null,
     lastCalledAt: r.last_called_at
