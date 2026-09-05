@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { dncBlockReason } from "@/lib/dnc";
 import { getCurrentUser } from "@/lib/session";
 import { dialCountry, e164 } from "@/lib/phone";
+import { STATE_TZ } from "@/lib/us-states";
 import {
   LEAD_HOURS_END,
   LEAD_HOURS_START,
@@ -114,12 +115,30 @@ const latestCall = sql`
  * rather than being guessed at, and is excluded when the caller asks for
  * leads they can ring now. Expects `call_lead` aliased as `l`.
  */
+const STATE_TZ_SQL = sql.join(
+  Object.entries(STATE_TZ).map(
+    ([name, tz]) => sql`when ${name} then ${tz}`,
+  ),
+  sql` `,
+);
+
 export const leadZone = sql`
   left join us_area_code ac
     on l.phone_key ~ '^1[0-9]{10}$'
    and ac.area_code = substr(l.phone_key, 2, 3)
   cross join lateral (
     select coalesce(
+      -- The address first, the number second. An area code says where a
+      -- number was issued and a business that moves states keeps its mobile,
+      -- so on the leads where the two disagree this is the half that is right.
+      -- Only unambiguous states are in the map — inside the correct state an
+      -- area code is the narrower answer, so the state may only overrule it
+      -- where the state has one zone and cannot be narrowed. See us-states.ts.
+      case when l.phone_key ~ '^1[0-9]{10}$'
+        then case lower(trim(coalesce(l.source_fields->>'state', '')))
+          ${STATE_TZ_SQL}
+        end
+      end,
       ac.tz,
       case
         when l.phone_key ~ '^65[0-9]{8}$' then 'Asia/Singapore'
