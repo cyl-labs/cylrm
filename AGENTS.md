@@ -911,6 +911,40 @@ deploy. There is no editor, no upload and no revision history, because the
 files are in git and that is the better history. A document whose file is
 deleted is removed from the table too.
 
+- **`audience: admins` in the front matter withholds a document from the
+  floor** (`sop_document.admin_only`, `2026-09-05-sop-admin-only.sql`). The
+  second axis, and unlike `region` it withholds rather than routes: `region`
+  decides *which* market reads a document, this decides whether the callers
+  read it at all. It exists for `procedure-closing-the-demo.md` — the demo
+  call, the ROI math and the commercial terms, which is a founder's job and
+  not a cold caller's. Keeping it out of their library is not tidiness: a
+  caller is paid $30 when a booked demo shows up, so a caller who starts
+  closing instead of booking is doing harder work for nothing.
+  - `listSopDocuments(region, isAdmin)` takes the flag **defaulting to false**,
+    so a call site that forgets it fails closed. `getSopDocument` is scoped the
+    same way, which is the only thing that makes hiding the row worth
+    anything — a founders-only slug typed into the address bar 404s.
+  - `getDiallerSop` filters `not admin_only` **unconditionally, admins
+    included**: that is the live-call panel, and founders-only material is read
+    before a demo rather than scanned mid-sentence. Nothing today is both a
+    script and founders-only, so it only ever matters as the fail-closed answer
+    if one is ever written.
+  - The seeder **throws on an unknown `audience`** rather than reading it as
+    "everyone" — a typo there would publish the founders' notes to the whole
+    floor, which is the one mistake this must not make quietly. It also names
+    the restricted documents in the deploy log.
+  - **Apply the migration before deploying**: `listSopDocuments` and
+    `getDiallerSop` both select the column, so without it the Scripts screen
+    and the dialler's script panel 500 — and `seed-sop.mjs` writes it, so the
+    deploy fails at its own publish step.
+  - The library labels those rows **Founders**. Every row an admin sees is one
+    only they can open, so the badge is not about access — it is so a founder
+    can tell which documents their callers cannot see before quoting one.
+- **One script and one objection sheet per region, enforced by a unique index**
+  (`sop_document_kind_region_idx`). So a second `kind: script` file for a
+  market is refused at publish time, not silently half-used: the voicemail
+  script is a `##` section inside the existing script, not a document of its
+  own. Procedures are exempt and there can be many.
 - **Region comes from the caller, not the lead.** `app_user.call_region`
   (`sg` | `us`), set by an admin on the Team screen. It was originally derived
   from the lead's phone number, which meant the library had to carry every

@@ -31,7 +31,11 @@ export default async function SopDocumentPage({
   const me = await getCurrentUser();
   // Scoped the same way the index is, so typing another region's slug into the
   // address bar gets the same not-found as a document that never existed.
-  const doc = await getSopDocument(slug, sopRegionFor(await callRegionOf(me?.id)));
+  const doc = await getSopDocument(
+    slug,
+    sopRegionFor(await callRegionOf(me?.id)),
+    me?.role === "admin",
+  );
   if (!doc) notFound();
 
   const showToc = doc.sections.length > TOC_THRESHOLD;

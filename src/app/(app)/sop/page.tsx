@@ -28,7 +28,8 @@ const KIND_ICON: Record<SopKind, typeof ScrollText> = {
 export default async function SopPage() {
   const me = await getCurrentUser();
   const region = await callRegionOf(me?.id);
-  const docs = await listSopDocuments(sopRegionFor(region));
+  const isAdmin = me?.role === "admin";
+  const docs = await listSopDocuments(sopRegionFor(region), isAdmin);
 
   return (
     <PageShell title="Scripts">
@@ -63,6 +64,15 @@ export default async function SopPage() {
                     {!region && d.region && (
                       <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                         {d.region === "sg" ? "Singapore" : "US"}
+                      </span>
+                    )}
+                    {/* Every row here is already one only a founder can open,
+                        so the label is not about access — it is so a founder
+                        can tell at a glance which documents their callers
+                        cannot see, before quoting one at somebody. */}
+                    {d.adminOnly && (
+                      <span className="shrink-0 rounded-[3px] bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.06em] text-primary">
+                        Founders
                       </span>
                     )}
                     <span className="shrink-0 text-[13px] tabular-nums text-muted-foreground">

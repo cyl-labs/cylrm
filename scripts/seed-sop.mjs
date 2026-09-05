@@ -47,7 +47,22 @@ function parse(raw, slug) {
   if (region && !["sg", "us"].includes(region)) {
     throw new Error(`${slug}: unknown region "${region}"`);
   }
-  return { slug, kind: meta.kind, region, title: meta.title, body: m[2].trim() };
+  // Spelled as an audience rather than a boolean so the file says who it is
+  // for. Only one value is understood, and anything else throws rather than
+  // being read as "everyone" — a typo here would publish the founders' notes
+  // to the whole floor, which is the one mistake this must not make quietly.
+  if (meta.audience && meta.audience !== "admins") {
+    throw new Error(`${slug}: unknown audience "${meta.audience}"`);
+  }
+  const adminOnly = meta.audience === "admins";
+  return {
+    slug,
+    kind: meta.kind,
+    region,
+    adminOnly,
+    title: meta.title,
+    body: m[2].trim(),
+  };
 }
 
 const sql = postgres(process.env.DATABASE_URL, { max: 1 });
@@ -62,11 +77,12 @@ try {
 
   for (const d of docs) {
     await sql`
-      insert into sop_document (slug, kind, region, title, body_md, updated_at)
-      values (${d.slug}, ${d.kind}, ${d.region}, ${d.title}, ${d.body}, now())
+      insert into sop_document (slug, kind, region, admin_only, title, body_md, updated_at)
+      values (${d.slug}, ${d.kind}, ${d.region}, ${d.adminOnly}, ${d.title}, ${d.body}, now())
       on conflict (slug) do update set
         kind = excluded.kind,
         region = excluded.region,
+        admin_only = excluded.admin_only,
         title = excluded.title,
         body_md = excluded.body_md,
         updated_at = now()
@@ -78,8 +94,16 @@ try {
     delete from sop_document where slug <> all(${slugs}) returning slug
   `;
 
+  // Named out loud: publishing something to the founders only is worth seeing
+  // in the deploy log, both ways round — a document that should be restricted
+  // and is not, and one that should not be and is.
+  const restricted = docs.filter((d) => d.adminOnly).map((d) => d.slug);
+
   console.log(
     `Published ${docs.length} document(s): ${slugs.join(", ")}` +
+      (restricted.length
+        ? `\nFounders only: ${restricted.join(", ")}`
+        : "") +
       (removed.length
         ? `\nRemoved ${removed.length} whose file is gone: ${removed
             .map((r) => r.slug)

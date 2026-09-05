@@ -62,6 +62,9 @@ export type SopDoc = {
   slug: string;
   kind: SopKind;
   region: SopRegion | null;
+  /** Founders only. Surfaced so the library can say so on the row — otherwise
+   *  a founder has no way to tell which documents their callers can see. */
+  adminOnly: boolean;
   title: string;
   updatedAt: string;
   sections: SopSection[];
@@ -74,6 +77,7 @@ type Row = {
   slug: string;
   kind: SopKind;
   region: SopRegion | null;
+  admin_only: boolean;
   title: string;
   body_md: string;
   updated_at: string;
@@ -169,6 +173,7 @@ function toDoc(r: Row): SopDoc {
     slug: r.slug,
     kind: r.kind,
     region: r.region,
+    adminOnly: r.admin_only,
     title: r.title,
     updatedAt: new Date(r.updated_at).toISOString(),
     introHtml: intro,
@@ -179,19 +184,25 @@ function toDoc(r: Row): SopDoc {
 /**
  * Every document this person may open.
  *
- * Filtered by the market they are set to work, not by the leads in front of
- * them: a caller works one market all day, and deriving it per lead meant the
- * library had to carry every region's document at once, labelled, so nobody
- * could tell at a glance which was theirs. Null means show everything, which
- * is what an admin reviewing both markets wants.
+ * Two filters, and they are different in kind. `region` routes: a caller works
+ * one market all day, and deriving it per lead meant the library had to carry
+ * every region's document at once, labelled, so nobody could tell at a glance
+ * which was theirs. Null means show everything, which is what an admin
+ * reviewing both markets wants.
+ *
+ * `isAdmin` withholds. It defaults to false so a call site that forgets it
+ * fails closed — a founder seeing one document too few is a puzzle, a caller
+ * seeing the commercial terms is the thing this exists to prevent.
  */
 export async function listSopDocuments(
   region: SopRegion | null,
+  isAdmin = false,
 ): Promise<SopDoc[]> {
   const rows = (await db.execute(sql`
-    select id, slug, kind, region, title, body_md, updated_at
+    select id, slug, kind, region, admin_only, title, body_md, updated_at
     from sop_document
-    ${region ? sql`where region is null or region = ${region}` : sql``}
+    where ${region ? sql`(region is null or region = ${region})` : sql`true`}
+      and ${isAdmin ? sql`true` : sql`not admin_only`}
     order by
       case kind when 'script' then 1 when 'objections' then 2 else 3 end,
       region nulls first,
@@ -200,12 +211,15 @@ export async function listSopDocuments(
   return rows.map(toDoc);
 }
 
-/** One document, scoped the same way the index is. */
+/** One document, scoped the same way the index is — so typing a founders-only
+ *  slug into the address bar gets the same not-found as one that never
+ *  existed, which is the only reason hiding the row is worth anything. */
 export async function getSopDocument(
   slug: string,
   region: SopRegion | null,
+  isAdmin = false,
 ): Promise<SopDoc | null> {
-  const all = await listSopDocuments(region);
+  const all = await listSopDocuments(region, isAdmin);
   return all.find((d) => d.slug === slug) ?? null;
 }
 
@@ -220,10 +234,17 @@ export async function getDiallerSop(region: SopRegion | null): Promise<{
   objections: SopSection[];
 }> {
   if (!region) return { script: [], objections: [] };
+  // `not admin_only` unconditionally, for admins too: this is the live-call
+  // panel, and founders-only material is reference read before a demo rather
+  // than something anybody scans mid-sentence. Nothing today is both a script
+  // and founders-only, so this only ever matters as the fail-closed answer if
+  // one is ever written.
   const rows = (await db.execute(sql`
-    select id, slug, kind, region, title, body_md, updated_at
+    select id, slug, kind, region, admin_only, title, body_md, updated_at
     from sop_document
-    where region = ${region} and kind in ('script', 'objections')
+    where region = ${region}
+      and kind in ('script', 'objections')
+      and not admin_only
   `)) as Row[];
   const docs = rows.map(toDoc);
   return {

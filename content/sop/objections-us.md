@@ -105,6 +105,37 @@ _(let them answer)_
 
 > **You say** Makes sense. That's exactly what I'd show you on the demo, how many you're actually losing there. Do you have 15 minutes this week to take a look?
 
+## Says they don't need it | If they say they don't get enough calls to justify it
+
+Do not argue the volume — you will lose. Low volume is often a visibility
+problem rather than a coverage one, so this turns the objection into a second
+reason to buy: they may be getting fewer calls *because* they are not showing
+as always open.
+
+> **You say** Are you listed 24 hours on Google, by chance?
+
+_(let them answer)_
+
+If they are not:
+
+> **You say** Yeah, that could be part of the reason. Google tends to rank businesses that are open 24 hours a little higher on Maps, especially for people searching later at night — it puts those ones near the top of the list.
+
+_(let them answer)_
+
+> **You say** Once you have an agent picking up, you can flip your hours to 24/7 on Google and you'd be right up there. So you might actually get more calls out of it, not just catch the ones you're missing now. That's one thing this lets you do that you can't really do without it. Do you have 15 minutes this week to take a look?
+
+## Says they don't need it | Prospect: "We only need it overnight, not for day calls."
+
+They have accepted the idea and are narrowing it, which is a good place to be.
+Do not argue the scope — widen it by naming the two moments a daytime call
+gets missed, both of which they will recognise.
+
+> **You say** That's fine, it can just do overnight. Out of curiosity though, do you find you miss any during the day too — when you're out on a job, or when someone rings while you're already on with another customer?
+
+_(let them answer)_
+
+> **You say** That's really all it is, a backup for when you can't get to the phone. It's not replacing you. That's exactly what I'd show you on the demo. Do you have 15 minutes this week to take a look?
+
 ## Price | Prospect: "How much is it? / What does it cost?"
 
 

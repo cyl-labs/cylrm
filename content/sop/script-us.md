@@ -34,6 +34,17 @@ _(let them answer)_
 
 _(let them answer)_
 
+## If it rings out to voicemail
+
+Leave one, every time. The number is logged as tried whether you speak or not,
+and a message is the only version of that call that can come back to you.
+
+Keep it short and do not pause for a callback close — there is nobody there to
+close. Plant the hook, say the number once at the end, slowly. Then log the
+call as **Voicemail**.
+
+> **You say** Hi, my name's [your name] and I'm a developer. I was calling to see whether you had anything in place other than voicemail for your after-hours and overflow calls. You might already know this, but around 80% of people who reach a voicemail just hang up and call the next company — so I've been helping other [their trade] businesses catch those with a voice agent that picks up instead. If that's useful, give me a call back on [your number]. Thanks!
+
 ## Their answer will be one of these three
 
 ### A

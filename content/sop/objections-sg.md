@@ -115,6 +115,18 @@ _(let them answer)_
 
 > **You say** Sounds like you're still getting those calls, just on WhatsApp instead of the phone. And I get it if the questions you get are pretty custom, this isn't about the chatbot answering everything for you. It's about responding and capturing the lead fast, before they go to someone else. We actually have forms built right into WhatsApp, so for something like a quote, the customer just fills that in themselves. You still handle the custom stuff, you just don't lose people to slow response time.
 
+## Says they don't need it | Prospect: "We only need it overnight, not for day calls."
+
+They have accepted the idea and are narrowing it, which is a good place to be.
+Do not argue the scope — widen it by naming the two moments a daytime call
+gets missed, both of which they will recognise.
+
+> **You say** That's fine, it can just do overnight. Out of curiosity though, do you find you miss any during the day too — when you're out on a job, or when someone rings while you're already on with another customer?
+
+_(let them answer)_
+
+> **You say** That's really all it is, a backup for when you can't get to the phone. It's not replacing you. That's exactly what I'd show you on the demo. Do you have 15 minutes this week to take a look?
+
 ## Price | Prospect: "How much is it? / What does it cost?"
 
 

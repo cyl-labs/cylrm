@@ -685,7 +685,9 @@ export const callDid = pgTable("call_did", {
  * Read-only in the app. Content lives as markdown under `content/sop/` and is
  * published by `scripts/seed-sop.mjs` on deploy — there is no editor and no
  * revision history, because the files are in git and that is the better
- * history. `region` is the only axis: 'sg' | 'us', or null for shared.
+ * history. Two axes: `region` ('sg' | 'us', null for shared) routes a document
+ * to the market that should read it, and `admin_only` withholds one from the
+ * floor entirely.
  */
 export const sopDocument = pgTable(
   "sop_document",
@@ -696,6 +698,11 @@ export const sopDocument = pgTable(
     slug: text("slug").notNull().unique(),
     kind: text("kind").notNull().$type<"script" | "objections" | "procedure">(),
     region: text("region").$type<"sg" | "us">(),
+    /** Founders only. The second axis, and unlike `region` it withholds rather
+     *  than routes: the closing procedure describes the demo call and the
+     *  commercial terms, which is not a cold caller's job. Set by writing
+     *  `audience: admins` in the file's front matter. */
+    adminOnly: boolean("admin_only").notNull().default(false),
     title: text("title").notNull(),
     bodyMd: text("body_md").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
