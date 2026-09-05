@@ -161,7 +161,7 @@ _(let them answer)_
 
 > **You say** I know the one you tried kind of sucked. I get it, I think a lot of them suck too… but what if there was a scenario where there was one that didn't suck?
 
-## Doubts it works | Prospect: "I don't want some robot voice / won't it sound fake?"
+## Doubts it works | Prospect: "I don't want some robot voice" / "It won't know my business"
 
 
 > **You say** Yeah, most of them do suck, I get that. But for us, most of the time people can't even tell it's a robot. And if you want, we can set it up so it's conditional too: your normal line rings first, and the agent only picks up if nobody answers after a few rings.
@@ -171,6 +171,19 @@ _(let them answer)_
 If they are still unsure:
 
 > **You say** There's over 10,000 voices to choose from, and I can customize everything to how you want it to sound.
+
+If they say their business is too specific, or that every job is different:
+
+> **You say** It's not guessing at your business — we build it a knowledge base from your services, your pricing, the questions you actually get, so it answers like somebody who works there. And anything it doesn't know, it takes their details and passes it straight to you, so you still get the lead.
+
+_(let them answer)_
+
+One in six prospects raises some version of this — "every situation is
+different", "it's not applicable to my business". They are not doubting that
+you built them a demo; they are doubting it can answer what their customers
+actually ask. The knowledge base is the answer to that, and the second half
+matters as much as the first: they do not have to believe it handles every
+question, only that nothing gets lost when it cannot.
 
 ## Already sorted | Prospect: "We already have something for that."
 
