@@ -12,11 +12,11 @@ and nothing on this page changes what earns that. If any of it starts leaking
 into the cold call, callers stop booking and start closing, and the way they
 are paid no longer matches the job.
 
-Adapted from the mentor's v3 framework. **Two commercial terms in here are his,
-not confirmed as ours** — the monthly price and the $1 trial. The caller sheet
-quotes "from $79 a month"; his runs at $199 with a $1 setup trial. Settle that
-before running this, and fix it in one place: this file and the Price objection
-on both sheets.
+The shape is adapted from the mentor's v3 framework; **the terms are ours, not
+his.** He quotes $199 a month and a $1 trial because he is established and can
+hold that price. We quote from $79 and the 30-day trial the callers already
+offer on both objection sheets. If the price moves it moves in two places —
+here, and the Price objection on each sheet.
 
 ## Before you dial the agent in
 
@@ -45,7 +45,7 @@ _(let them answer)_
 
 Their figures, never yours. The point is that they hear themselves say it.
 
-> **You say** So let's make it easy. Say it's four missed calls a week, average job is $500 — that's $2,000 a week, about $8,000 a month potentially slipping through the cracks. Our service starts around [monthly price].
+> **You say** So let's make it easy. Say it's four missed calls a week, average job is $500 — that's $2,000 a week, about $8,000 a month potentially slipping through the cracks. Our service starts as low as $79 a month.
 
 _(let them answer)_
 
@@ -60,13 +60,24 @@ it to keep current.
 
 ## The low risk close
 
-> **You say** What we'd normally do here is let you run it for a month free. We charge a dollar just to set up the billing account, but it's basically free. You'll see whether it actually picks up calls and brings in revenue, and after 30 days you decide whether to keep it.
+The 30-day trial, the same one the callers offer as a last resort — so a
+prospect who heard it on the cold call hears the same offer here, not a better
+one. Lead with the risk being theirs to lose, not with the price.
+
+> **You say** What we'd normally do here is let you run it for 30 days. You'll see whether it actually picks up calls and brings in work, and at the end of it you decide whether to keep it.
 
 _(let them answer)_
 
 If they are interested but hesitating:
 
-> **You say** It's the $1 trial. No real risk. I send over the doc, you fill it in like any other vendor paperwork, and you're on the hook for a dollar. You'll know the exact renewal date, it goes on your calendar, and if you cancel before then you're out a buck.
+> **You say** There's no real risk in it. I send over the doc, you fill it in like any other vendor paperwork, and you'll know the exact renewal date — it goes on your calendar. If it hasn't earned its keep by then, you cancel and that's that.
+
+_(let them answer)_
+
+His version charges a token $1 to open the billing account, so the trial ends
+in a decision rather than in silence. We do not do that today and this does not
+ask you to — but it is the one part of his close worth stealing later, if
+trials keep lapsing without an answer either way.
 
 ## Set onboarding expectations before they sign anything
 
