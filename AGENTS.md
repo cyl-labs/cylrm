@@ -977,10 +977,21 @@ deleted is removed from the table too.
   and that changes client-side.
 - The `o` hotkey is ignored while focus is in an input or textarea, or it would
   eat every "o" typed into the notes field.
-- **Qualification criteria are hard-coded in `dialler.tsx`**, not a document:
-  what earns a caller their fee should not be scrollable-past or editable by
-  accident. They are: owner or decision maker, interested, and a specific date
-  and time agreed.
+- **The dial card carries the booking procedure, not a checklist** (`HowToBook`
+  in `dialler.tsx`, was `QualificationCriteria` until 2026-09-05). It listed the
+  three things that make a booking count, which answered the wrong question: a
+  caller who has just heard "yes" needs to know what to do next. Both recorded
+  demos went wrong on the mechanics rather than the qualification — days offered
+  before the calendar was open, the time zone asked for *after* a day had been
+  proposed, then most of a minute of silence working it out mid-call. It is now
+  seven numbered steps in the order they are done, cut from the script's "Once
+  they say yes" section; if that section changes, change this with it.
+  - The old criteria are not lost: the first is step 1, because it is something
+    you *do* rather than something you have, and all three are restated in one
+    line at the foot, which is where the payroll bar belongs.
+  - Still hard-coded rather than a document, and still on the card rather than
+    behind a tap: what earns a caller their fee must not be scrollable-past or
+    editable by accident.
 
 ### Slack reporting (post-SOP)
 

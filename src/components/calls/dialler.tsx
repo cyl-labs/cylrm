@@ -339,57 +339,85 @@ function DialControls({
 }
 
 /**
- * What counts as a booked meeting.
+ * How to book, in the order it is done.
  *
- * On the card rather than behind a tap: it is the test every call is measured
- * against and the thing a caller is paid on, so it should never be something
- * anyone has to go and look up.
+ * This was a checklist of the three things that make a booking count, and it
+ * was answering the wrong question. A caller who has just heard "yes" does not
+ * need to be told the bar — they need to know what to do next, and the two
+ * recorded demos we have both went wrong on the mechanics rather than on the
+ * qualification: days offered before the calendar was open, the time zone
+ * asked for after a day had already been proposed, then the better part of a
+ * minute of silence working it out on the call.
  *
- * Every box is answered by a question the script actually asks — the first two
- * were added to section 03 for exactly this reason. A bar the script cannot
- * reach does not raise quality, it just moves the argument to payday.
+ * So it is now the procedure, numbered, in sequence. The old criteria are not
+ * lost — the first is step 1, because it is a thing you do rather than a thing
+ * you have, and all three are restated in one line at the foot, which is where
+ * the payroll bar belongs.
  *
- * A missed-calls threshold was on this list and came off: it made the caller
- * interrogate a prospect who had already agreed to meet, and a number nobody
- * verifies is not a qualification. Interest replaced it, judged on the call
- * and paired with a specific date and time — the part both sides can check.
+ * The steps are the script's "Once they say yes" section, cut to what fits
+ * beside a live call. If that section changes, change this with it.
  *
- * Hard-coded rather than a document, so what earns a caller their fee cannot
- * be scrolled past or edited by accident.
+ * On the card rather than behind a tap, and hard-coded rather than a document,
+ * for the same reason as before: this is what earns the fee and it must not be
+ * something anyone has to go and find.
  */
-function QualificationCriteria() {
-  const CRITERIA = [
-    "Owner or decision maker",
-    "Interested",
-    "Agreed a specific date and time",
+function HowToBook() {
+  const STEPS: React.ReactNode[] = [
+    <>
+      Are they the <span className="font-bold">owner or decision maker</span>?
+      Ask outright if you do not know.
+    </>,
+    <>
+      Tap <span className="font-bold">Demo booked</span> below first — it shows
+      which slots are free.
+    </>,
+    <>Take their name and best email. Read it back letter by letter.</>,
+    <>
+      Ask <span className="font-bold">what time zone they are in</span>. Never
+      work it out from their number.
+    </>,
+    <>
+      On Cal.com, switch the time zone to theirs. Every slot then reads in their
+      local time — <span className="font-bold">do not convert in your head</span>
+      .
+    </>,
+    <>
+      Offer two times on two different days, read off the slots in front of you.
+      Nothing sooner than two hours from now.
+    </>,
+    <>
+      Book it while they are still on the line, then confirm: invite in the next
+      minute, reminder the day before.
+    </>,
   ];
   return (
     <div className="mt-3 rounded-lg border border-dashed bg-muted/30 px-3.5 py-2.5">
       <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
-        Counts as booked
+        How to book
       </p>
-      <ul className="mt-1.5 flex flex-col gap-1">
-        {CRITERIA.map((c) => (
+      <ol className="mt-1.5 flex flex-col gap-1">
+        {STEPS.map((s, i) => (
           <li
-            key={c}
+            key={i}
             className="flex gap-2 text-[13px] leading-snug text-muted-foreground"
           >
-            {/* A printed box, not a control: nothing is stored and there is
-                nothing to tap while agreeing a time. The outcome button is
-                already the record that a meeting was booked. */}
-            <span aria-hidden className="text-muted-foreground/70">
-              &#9744;
+            <span
+              aria-hidden
+              className="shrink-0 font-bold tabular-nums text-muted-foreground/70"
+            >
+              {i + 1}
             </span>
-            <span>{c}</span>
+            <span className="min-w-0">{s}</span>
           </li>
         ))}
-      </ul>
-      {/* The criteria say whether it counts; this says how to finish it. Both
-          on the card because both are needed in the same thirty seconds, while
-          someone is still on the phone. */}
+      </ol>
+      {/* The steps say how; this says whether it counted. One line rather than
+          three boxes — it is the payroll bar, not a thing to work through. */}
       <p className="mt-2.5 border-t pt-2 text-[12px] leading-snug text-muted-foreground">
-        Before you hang up: get their email, confirm the day and time, then log
-        it as <span className="font-bold">Demo booked</span>.
+        Only counts if all three:{" "}
+        <span className="font-bold">decision maker</span>,{" "}
+        <span className="font-bold">interested</span>, and{" "}
+        <span className="font-bold">a specific date and time agreed</span>.
       </p>
     </div>
   );
@@ -1138,7 +1166,7 @@ export function Dialler({
           </p>
         )}
 
-        <QualificationCriteria />
+        <HowToBook />
 
         {liveHints && sections.length > 0 && (
           // Shown whenever the feature is on rather than only mid-call: it
