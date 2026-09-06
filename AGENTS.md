@@ -314,7 +314,13 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   not the screen: filtering the tiles by outcome would make "60% pickups" mean
   sixty per cent of the calls that were already pickups. It rebuilds the whole
   query string like `CallFilters` does, and navigates with `scroll: false`
-  since the table is well down the page.
+  since the table is well down the page. Headed **"Your calls"** on a caller's
+  own Stats, where the Who column is dropped — every row would say their name —
+  and it is the only place they can reach a recording of a dial that is not a
+  lead's most recent. `LogRecording` says **"Listen back"** beside the length
+  rather than the length alone: a bare "1:21" under a timestamp reads as
+  another timestamp, so the one thing on the row that does something had
+  nothing on it saying so.
 - **Stats default to today.** The window is a day-kind window, so the range
   picker must be given the parsed `?day=` rather than the resolved window, or
   it shows a date where it should say Today.
@@ -860,9 +866,15 @@ Employees sign in individually so every call has a name on it. The single shared
 - `/api/calls` stamps the session's user on POST. A **correction** (PATCH) deliberately leaves `user_id` alone: relabelling a mis-tap does not make someone else's dial yours.
 - `/team` is the management screen — admin-only for writes, enforced in the API rather than by hiding buttons. Deactivate rather than delete: the calls stay and so do the numbers. Two guards stop a lockout — the last active admin cannot be demoted or switched off, and nobody can switch themselves off. It is named Team, **not Accounts**: Accounts is the Gmail sending accounts on the email side.
 - **The row actions promote nobody** (2026-08-24). "Make admin" sat one click away in the row next to Rename and handed over every account including your own; the floor is staffed and nobody needs elevating. "Make caller" stayed, because it takes privilege away rather than granting it, and a new admin is still made deliberately by adding one with the role set. `PATCH /api/users/[id]` still accepts `role: "admin"` — the API was left alone, so this is a screen decision and reversible in one edit.
-- **Callers have no Stats either.** `/call-stats` is the floor's performance including everyone else's numbers, which is the admins' business. It is listed in `ADMIN_ONLY_CALL_PREFIXES` and kept separate from `EMAIL_PREFIXES` so the two reasons stay legible — one is a different product, the other is a permission — and `isAdminOnlyPath` covers both for the middleware. `linksFor` drops it from the caller's sidebar.
+- **`ADMIN_ONLY_CALL_PREFIXES` is the Scoreboard, Team and Payroll**, kept separate from `EMAIL_PREFIXES` so the two reasons stay legible — one is a different product, the other is a permission — with `isAdminOnlyPath` covering both for the middleware and `linksFor` dropping them from the caller's sidebar. `/call-stats` was on it until 2026-09-06; see below.
+- **`/call-stats` is two screens sharing one page** (2026-09-06). An admin gets the floor: everyone's calls, every niche, a person picker, a By-person table. A caller gets their own and nothing else, and the page is the whole control — `mine = me?.role !== "admin"` forces `personId` to themselves and passes `scopeId` to `getCallLists`/`getListStats` for the niches they may see. **Anything added to that screen has to take one or the other**, or it will quietly show a caller the floor.
+  - `?person=` is **not read at all** for a caller, and their own id is never written into a link (`personParam`): a scope that a query string can widen is not a scope, and a URL carrying a person id suggests it could carry somebody else's.
+  - Not a second screen at `/my-stats`, for the reason the quota bar counts through `getCallTotals`: two ways of counting a day puts two numbers in front of one caller, and the one they read had better be the one their pay is worked out from.
+  - It was closed to callers entirely until then, which cost the wrong thing. With the Scoreboard shut too (2026-09-03), the people doing the dialling had no way to see their own day, hear a call back, or check the pickup count they are paid on — none of which is anybody else's business to protect. The Scoreboard stays admin-only: what was withheld there is *everyone else's* numbers, and that is still the reasoning.
+  - The tile **labels are identical on both versions** and deliberately so — a caller is paid per fifty *pickups*, the word is on the Scoreboard and in Payroll, and a friendlier one here would cut their screen off from the figure they are paid on. Only the line underneath changes: ratios for an admin, plain words for a caller.
+- **A caller may hear their own calls.** `findVisibleRecording` in `src/lib/recordings.ts` is the one rule, shared by `/api/recordings/[id]` and the transcript routes — two copies of "may you hear this" is how the two end up disagreeing, and the one that is wrong is a proxy into the whole Telnyx account. Admins hear everything; a caller hears a call on a niche assigned to them, **a call they made** whoever holds that niche now, or **a keypad dial they placed**. The second matters because their Stats lists calls by who logged them, so a reassigned niche used to offer a Listen back button that 404s. The third fixed a real gap: the old query joined `call` alone, so every `keypad_call` recording was unplayable for admins too. Transcribing is open to callers as well — at about a cent for a three-minute dial the spend is not worth a permission.
 - **Callers have no access to the Email CRM.** `EMAIL_PREFIXES` / `isEmailPath` in `src/lib/workspace.ts` is the single list of email screens: the middleware bounces a non-admin off them to `/calls`, the switcher hides the workspace (and renders a plain label rather than a menu of one), and the unread-replies badge is zeroed so nothing lights up pointing at a screen they cannot open. Hiding the nav is not the control — a bookmark walks straight past it. `/api` is outside the middleware matcher, so every email route calls `denyIfNotEmailUser()` from `src/lib/session.ts` right after its session check; the calling routes, `/api/users`, `/api/cron` and the public `/u` deliberately do not.
-- Per-person numbers are on `/call-stats` ("By person", `getPersonStats`) and visible to everyone, and the spreadsheet has a "Called by" column reading the *latest* call's caller.
+- Per-person numbers are on `/call-stats` ("By person", `getPersonStats`), admins only since that table is the floor compared against itself, and the spreadsheet has a "Called by" column reading the *latest* call's caller.
 - Call lists carry an owner (`call_list.assigned_user_id`, `2026-08-13-call-list-owner.sql`), assigned from the call lists screen by an admin. **The owner is a lock, for callers.** It shipped as a label — anyone could work any niche — and that was reversed the same day, once real employees were about to get logins: an employee has no business in a niche that is not theirs, and fourteen of other people's made the screen a wall. A caller now sees only their own niches on the call lists screen, the dialler, the spreadsheet, the pipeline board and the callbacks diary, including the sidebar badge. Admins see everything and keep a Mine/Everyone toggle to narrow.
   - One helper does it: `callScope(me)` in `src/lib/session.ts` returns `undefined` for an admin and the user id for a caller, and every calling query takes it as `ownerId` and applies `ownedBy` (`src/lib/calls.ts`). A session with no user resolves to `-1`, so a bug upstream fails closed to an empty screen rather than open to the whole database. `getCallList` is scoped too, so a caller typing another team's list id into the URL gets the same not-found as a list that never existed.
   - **The consequence to remember: an unassigned niche is invisible to every caller.** Nobody is refused a call they can reach, but they cannot reach what is not theirs, so a new employee with nothing assigned sees an empty app. Assign before they start.
@@ -880,6 +892,20 @@ Replies were pull-only — nothing told you one had arrived. Now:
 ## Layout / responsive
 
 The app is used on phones as well as desktops. Conventions:
+
+- **Write every caller-facing screen for somebody who is not a software
+  person.** The floor did not choose this tool, will not read documentation for
+  it, and meets a new feature between calls — so a screen has to teach itself
+  on the way past. In practice: name a thing what it is from the reader's side
+  ("Your calls", not "Every call"); put a plain sentence under a heading saying
+  what the numbers counted, not the ratio an admin would read; label the
+  control rather than leaving an icon or a bare number to be guessed at; and
+  give every empty state a reason and a way out, because a screen of zeroes is
+  read as broken rather than as a day that has not started. It is the same
+  instinct as the dial card's booking steps — the answer is what to do next,
+  not a definition. Vocabulary that appears in Payroll or on the Scoreboard
+  ("pickup") stays as it is even where a friendlier word exists: a caller has
+  to be able to match what they read here with what they are paid.
 
 - The sidebar in `src/app/(app)/layout.tsx` is desktop-only (`hidden lg:flex`); below `lg` the same nav is a drawer (`src/components/mobile-nav.tsx`) whose trigger `PageShell` renders to the left of the page title, so a phone gets one header rather than two. `PageShell` is `async` because it counts unread replies and callbacks due for the drawer's badges.
 - Screen padding is `px-4 sm:px-6` (`sm:px-7` for the two `px-7` screens); filter controls are `w-full sm:w-<n>`. Tables stay tables and scroll inside their bordered container — no card-per-row rewrites.

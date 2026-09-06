@@ -322,11 +322,19 @@ export async function getOutcomeCounts(
  * `leads` and `worked` are lifetime figures and `calls` onwards are inside the
  * range, because "how much of this list is left" is not a question about the
  * last seven days. The column headings say so.
+ *
+ * `userId` and `ownerId` are different questions and a caller's own Stats sets
+ * both to themselves: one narrows the numbers to calls they made, the other
+ * narrows the rows to niches they hold. Without the second a caller would be
+ * handed every niche on the floor, most of them reading zero — the sizes and
+ * names of work that is not theirs, which is exactly what scoping the screen
+ * is for.
  */
 export async function getListStats(
   w: StatsWindow,
   listId?: number,
   userId?: number,
+  ownerId?: number,
 ): Promise<ListStat[]> {
   // Every call-level number is scoped to the person, including "worked":
   // filtered to one caller, that column has to mean leads *they* have rung,
@@ -358,6 +366,7 @@ export async function getListStats(
     ) ever on true
     left join call c on c.call_lead_id = l.id
     where ${listId ? sql`cl.id = ${listId}` : sql`true`}
+      ${ownerId === undefined ? sql`` : sql`and cl.assigned_user_id = ${ownerId}`}
     group by cl.id, cl.name
     order by cl.created_at desc, cl.id desc
   `)) as Row[];

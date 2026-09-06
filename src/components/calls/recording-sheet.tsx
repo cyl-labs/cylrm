@@ -160,6 +160,15 @@ export function RecordingSheet({
             // enough not to matter.
             onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
           />
+          {/* Nothing about a list of words says it is also a set of buttons,
+              and jumping to the moment something was said is most of why a
+              transcript is worth having. Under the player rather than above
+              the list, so it stays put while the words scroll. */}
+          {turns !== null && turns.length > 0 && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Tap any line below to play the call from that moment.
+            </p>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">

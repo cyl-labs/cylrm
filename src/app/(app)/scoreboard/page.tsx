@@ -66,9 +66,10 @@ const pct = (num: number, den: number) =>
  * your own, because that is the point — and because a leaderboard nobody else
  * appears on is just your own dashboard.
  *
- * Open to callers, unlike `/call-stats`. What is shown is the same thing every
- * person on it already knows about their own day, so there is nothing here to
- * keep from the people doing the work.
+ * Admin-only since 2026-09-03, which is the reverse of how it shipped — see
+ * `ADMIN_ONLY_CALL_PREFIXES` for why a leaderboard of one reads as a thin
+ * operation rather than a competition. A caller's own numbers are not what is
+ * being withheld: those are on `/call-stats`, which is scoped to them.
  */
 
 /**

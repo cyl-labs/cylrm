@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import type { TranscriptTurn } from "@/db/schema";
-import { callScope, getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
+import { findVisibleRecording } from "@/lib/recordings";
 import { transcribeUrl, transcriptionConfigured } from "@/lib/deepgram";
 import { recordingDownloadUrl } from "@/lib/telnyx";
 
@@ -18,8 +18,10 @@ import { recordingDownloadUrl } from "@/lib/telnyx";
  * reason — the first call spends money, which is not a thing a prefetch or a
  * link preview should be able to do.
  *
- * Scoped like the playback route: the id must already be in `call_recording`
- * and the call must be on a list this person can see.
+ * Scoped like the playback route, through the same `findVisibleRecording`. A
+ * caller can transcribe their own calls: at a cent or so for a three-minute
+ * dial the spend is not worth a permission, and reading back what was actually
+ * said is most of the value of listening to your own calls at all.
  */
 /**
  * The transcript already written for this recording, or null.
@@ -38,36 +40,16 @@ export async function GET(
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const rows = await findRecording(id, callScope(me));
-  if (rows.length === 0) {
+  const row = await findVisibleRecording(id, me);
+  if (!row) {
     return Response.json({ error: "Recording not found." }, { status: 404 });
   }
 
-  const row = rows[0];
   return Response.json(
-    row.transcript_text === null
+    row.transcriptText === null
       ? { text: null, turns: null }
-      : { text: row.transcript_text, turns: row.transcript_turns ?? [] },
+      : { text: row.transcriptText, turns: row.transcriptTurns ?? [] },
   );
-}
-
-/** Scoped exactly as playback is: the id must be in `call_recording`, and the
- *  call it belongs to must be on a list this person can see. */
-async function findRecording(id: string, ownerId: number | undefined) {
-  return (await db.execute(sql`
-    select r.recording_id, r.transcript_text, r.transcript_turns
-    from call_recording r
-    join call c on c.telnyx_session_id = r.call_session_id
-    join call_lead l on l.id = c.call_lead_id
-    join call_list cl on cl.id = l.call_list_id
-    where r.recording_id = ${id}
-      ${ownerId === undefined ? sql`` : sql`and cl.assigned_user_id = ${ownerId}`}
-    limit 1
-  `)) as {
-    recording_id: string;
-    transcript_text: string | null;
-    transcript_turns: TranscriptTurn[] | null;
-  }[];
 }
 
 export async function POST(
@@ -78,17 +60,16 @@ export async function POST(
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const rows = await findRecording(id, callScope(me));
+  const existing = await findVisibleRecording(id, me);
 
-  if (rows.length === 0) {
+  if (!existing) {
     return Response.json({ error: "Recording not found." }, { status: 404 });
   }
 
-  const existing = rows[0];
-  if (existing.transcript_text !== null) {
+  if (existing.transcriptText !== null) {
     return Response.json({
-      text: existing.transcript_text,
-      turns: existing.transcript_turns ?? [],
+      text: existing.transcriptText,
+      turns: existing.transcriptTurns ?? [],
       cached: true,
     });
   }

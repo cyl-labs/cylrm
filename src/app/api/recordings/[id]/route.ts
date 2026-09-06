@@ -1,6 +1,5 @@
-import { sql } from "drizzle-orm";
-import { db } from "@/db";
-import { callScope, getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
+import { findVisibleRecording } from "@/lib/recordings";
 import { recordingDownloadUrl } from "@/lib/telnyx";
 
 /**
@@ -10,9 +9,9 @@ import { recordingDownloadUrl } from "@/lib/telnyx";
  * nothing stores them. This mints a fresh one per play, which is why the link
  * on a lead still works a month later.
  *
- * The id must already be in `call_recording`, and the call it belongs to must
- * be on a list this person can see. Without that check this is a general proxy
- * into every recording on the Telnyx account for anyone with a login.
+ * Who may hear what is `findVisibleRecording`, shared with the transcript
+ * routes. Without a check of some kind this is a general proxy into every
+ * recording on the Telnyx account for anyone with a login.
  */
 export async function GET(
   _request: Request,
@@ -22,20 +21,7 @@ export async function GET(
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const ownerId = callScope(me);
-
-  const rows = (await db.execute(sql`
-    select r.recording_id
-    from call_recording r
-    join call c on c.telnyx_session_id = r.call_session_id
-    join call_lead l on l.id = c.call_lead_id
-    join call_list cl on cl.id = l.call_list_id
-    where r.recording_id = ${id}
-      ${ownerId === undefined ? sql`` : sql`and cl.assigned_user_id = ${ownerId}`}
-    limit 1
-  `)) as { recording_id: string }[];
-
-  if (rows.length === 0) {
+  if (!(await findVisibleRecording(id, me))) {
     return Response.json({ error: "Recording not found." }, { status: 404 });
   }
 

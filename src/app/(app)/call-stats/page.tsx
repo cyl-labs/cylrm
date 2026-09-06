@@ -17,6 +17,7 @@ import {
   CALL_LOG_LIMIT,
   type StatsWindow,
   type LogFilterValue,
+  type PersonStat,
 } from "@/lib/call-stats";
 import { DEFAULT_STATS_REGION, isStatsRegion } from "@/lib/stats-zones";
 import { CallCalendar } from "@/components/calls/call-calendar";
@@ -29,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { CallFilters } from "@/components/calls/call-filters";
 import { LogFilter } from "@/components/calls/log-filter";
 import { LogRecording } from "@/components/calls/log-recording";
-import { listTeam } from "@/lib/users";
+import { listTeam, type TeamMember } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,30 @@ const per100 = (num: number, den: number) =>
 
 const CARD = "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]";
 
+/**
+ * Two screens sharing one page, told apart by `mine`.
+ *
+ * An admin gets the floor: everyone's calls, every niche, a person picker and
+ * a By-person table. A caller gets exactly their own — their calls, their
+ * niches, and the recording of every dial they made — and nothing that would
+ * let them widen it. It was closed to callers entirely until 2026-09-06, which
+ * cost the wrong thing: with the Scoreboard shut as well, the people doing the
+ * dialling had no way to see their own day, hear a call back, or check a
+ * figure they are paid on. None of that is anybody else's business to protect.
+ *
+ * `mine` is the whole control and it is deliberately one flag, not a filter
+ * defaulted differently: `?person=` is not read at all for a caller, so the
+ * scope cannot be undone by a query string. Every query below takes `personId`
+ * — which is *them* — and the two that would otherwise reach past it are
+ * `getCallLists`/`getListStats`, which take `scopeId` for the niches they may
+ * see. **Anything added to this screen has to take one or the other**, or it
+ * will quietly show a caller the floor.
+ *
+ * Not a second screen at `/my-stats`, for the reason the quota bar counts
+ * through `getCallTotals`: two ways of counting a day puts two numbers in
+ * front of one caller, and the one they read had better be the one their pay
+ * is worked out from.
+ */
 export default async function CallStatsPage({
   searchParams,
 }: {
@@ -103,6 +128,11 @@ export default async function CallStatsPage({
   // saying which zone they mean for *this* look — including a link they were
   // sent, which should show what the sender was looking at.
   const me = await getCurrentUser();
+  // A session with no user resolves to a caller with an id nothing matches,
+  // exactly as `callScope` does: a bug upstream fails closed to an empty
+  // screen rather than open to the whole floor's numbers.
+  const mine = me?.role !== "admin";
+  const scopeId = mine ? (me?.id ?? -1) : undefined;
   const region = isStatsRegion(rawTz)
     ? rawTz
     : ((await statsRegionOf(me?.id)) ?? DEFAULT_STATS_REGION);
@@ -143,18 +173,34 @@ export default async function CallStatsPage({
           ? { from: dayBack(w.days - 1, zone.tz), to: todayInStatsTz(zone.tz) }
           : {};
 
-  const [allLists, team] = await Promise.all([getCallLists(), listTeam()]);
+  const [allLists, team] = await Promise.all([
+    getCallLists(scopeId),
+    // Not asked for at all on a caller's own screen: it is the roster, and the
+    // only thing this page wants it for is a picker they do not get.
+    mine ? Promise.resolve<TeamMember[]>([]) : listTeam(),
+  ]);
 
   // A `?person=` naming someone who has gone falls back to everyone, for the
   // same reason a stale `?list=` does: reporting zeroes would read as the
   // calling having stopped rather than as a filter pointing at nothing.
+  //
+  // For a caller it is not read at all. Their scope is who they are rather
+  // than a parameter, and the one thing a scoped screen must not have is a
+  // query string that widens it.
   const wantedPerson = Number(person);
-  const personId = team.some((t) => t.id === wantedPerson)
-    ? wantedPerson
-    : undefined;
+  const personId = mine
+    ? scopeId
+    : team.some((t) => t.id === wantedPerson)
+      ? wantedPerson
+      : undefined;
   // Deactivated people stay listed: their calls are still in the numbers and
   // last month's figures are a fair thing to go back and look at.
   const peopleOptions = team.map((t) => ({ id: t.id, name: t.name }));
+  // Their own id never goes into a link. It would be ignored on the way back
+  // in, and a URL carrying a person id suggests it could carry somebody
+  // else's.
+  const personParam: Record<string, string> =
+    !mine && personId ? { person: String(personId) } : {};
   // A `?list=` naming a niche that has gone falls back to all of them rather
   // than reporting zeroes as if the calling had stopped.
   const wanted = Number(list);
@@ -170,9 +216,14 @@ export default async function CallStatsPage({
   const [totals, outcomes, lists, monthDays, people, log] = await Promise.all([
     getCallTotals(w, listId, personId),
     getOutcomeCounts(w, listId, personId),
-    getListStats(w, listId, personId),
+    // `scopeId` as well as `personId`: one narrows the numbers to their calls,
+    // the other narrows the rows to their niches. Without the second a caller
+    // would be handed every niche on the floor, most of them reading zero.
+    getListStats(w, listId, personId, scopeId),
     getCallsByMonth(month, listId, personId, zone.tz),
-    getPersonStats(w, listId, personId),
+    // A breakdown by person, on a screen showing one person, is a table of one
+    // row saying what the tiles above it already say.
+    mine ? Promise.resolve<PersonStat[]>([]) : getPersonStats(w, listId, personId),
     getCallLog(w, listId, personId, outcome),
   ]);
 
@@ -194,29 +245,49 @@ export default async function CallStatsPage({
   });
   const callTime = (iso: string) => timeFormat.format(new Date(iso));
 
+  // The labels are the same six words on both versions of this screen, and
+  // deliberately so: a caller is paid per fifty *pickups*, the word is on the
+  // Scoreboard and in Payroll, and renaming it here to something friendlier
+  // would cut their own screen off from the one figure they are paid on. What
+  // changes is the line under it — an admin reads these as ratios, and a
+  // caller needs to be told in words what the number counted.
   const tiles = [
-    { label: "Calls logged", value: totals.calls, sub: "attempts, not leads" },
+    {
+      label: "Calls logged",
+      value: totals.calls,
+      sub: mine ? "every dial you made" : "attempts, not leads",
+    },
     {
       label: "Leads dialled",
       value: totals.leadsDialled,
-      sub: `${(totals.calls / (totals.leadsDialled || 1)).toFixed(1)} calls each`,
+      sub: mine
+        ? `businesses you rang, ${(totals.calls / (totals.leadsDialled || 1)).toFixed(1)} calls each`
+        : `${(totals.calls / (totals.leadsDialled || 1)).toFixed(1)} calls each`,
     },
     {
       label: "Pickups",
       value: totals.pickups,
-      sub: `${pct(totals.pickups, totals.calls)} of calls`,
+      sub: mine
+        ? `someone answered, ${pct(totals.pickups, totals.calls)} of your calls`
+        : `${pct(totals.pickups, totals.calls)} of calls`,
     },
     {
       label: "Demos booked",
       value: totals.demos,
-      sub: `${per100(totals.demos, totals.calls)} per 100 calls`,
+      sub: mine
+        ? "meetings you set up"
+        : `${per100(totals.demos, totals.calls)} per 100 calls`,
     },
-    { label: "Trials started", value: totals.trials, sub: "reached a trial" },
+    {
+      label: "Trials started",
+      value: totals.trials,
+      sub: mine ? "went on to a free trial" : "reached a trial",
+    },
     {
       label: "Won",
       value: totals.won,
       sub:
-        totals.won + totals.lost === 0
+        mine || totals.won + totals.lost === 0
           ? "contracts signed"
           : `${pct(totals.won, totals.won + totals.lost)} of decided`,
     },
@@ -226,14 +297,19 @@ export default async function CallStatsPage({
 
   return (
     <PageShell
-      title="Call stats"
+      // Said in the title rather than left to be worked out from the numbers:
+      // a caller opening a screen called Call stats would reasonably read it
+      // as the floor's and their own figures as everybody's.
+      title={mine ? "My stats" : "Call stats"}
       actions={
         <>
           <CallFilters
             lists={nicheOptions.map((l) => ({ id: l.id, name: l.name }))}
             listId={listId ?? "all"}
-            people={peopleOptions}
-            personId={personId ?? "all"}
+            // Undefined drops the picker entirely, and "all" keeps their own
+            // id out of every query string the filters rebuild.
+            people={mine ? undefined : peopleOptions}
+            personId={mine ? "all" : (personId ?? "all")}
             range={range}
             day={day}
             tz={region}
@@ -246,6 +322,50 @@ export default async function CallStatsPage({
       }
     >
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
+        {/* Said once, at the top, in three short sentences.
+            "Demos booked: 3" on a screen that might be the floor's is a
+            different number from the same tile on a screen that is definitely
+            yours; the calendar is the control people miss, because a grid of
+            dates does not look like a filter; and the last sentence is the
+            only thing that tells anyone the recordings are down there at all. */}
+        {mine && (
+          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-[13px] leading-relaxed">
+            <p>
+              These are{" "}
+              <span className="font-semibold">your own calls</span> and nobody
+              else&rsquo;s. It starts on today &mdash; tap any date on the
+              calendar below to see that day instead.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Scroll down to <span className="font-semibold">Your calls</span>{" "}
+              for the list of every one you made, where the calls you dialled
+              from the browser have a{" "}
+              <span className="font-semibold">Listen back</span> button.
+            </p>
+          </div>
+        )}
+
+        {/* A caller opening this at nine in the morning sees six zeroes, which
+            reads as a broken screen rather than as a day that has not started.
+            Said plainly, with the two ways out: another day, or the dialler. */}
+        {mine && totals.calls === 0 && (
+          <p className="text-[13px]">
+            <span className="font-semibold">No calls here yet.</span>{" "}
+            <span className="text-muted-foreground">
+              {w.kind === "day"
+                ? "Nothing was logged on this day."
+                : "Nothing was logged in this range."}{" "}
+              Pick a different date on the calendar below, or open{" "}
+            </span>
+            <Link
+              href="/calls"
+              className="font-semibold text-primary hover:underline"
+            >
+              Call lists
+            </Link>
+            <span className="text-muted-foreground"> to start dialling.</span>
+          </p>
+        )}
         {w.kind === "day" && (
           <p className="text-[13px] text-muted-foreground">
             Showing <span className="font-bold">{dayLabel(w.date)}</span> only,{" "}
@@ -311,7 +431,7 @@ export default async function CallStatsPage({
               <Link
                 href={`/call-stats?${new URLSearchParams({
                   ...(listId ? { list: String(listId) } : {}),
-                  ...(personId ? { person: String(personId) } : {}),
+                  ...personParam,
                   ...(day ? { day } : { range }),
                   ...(region !== DEFAULT_STATS_REGION ? { tz: region } : {}),
                   outcome: "outside_hours",
@@ -320,8 +440,11 @@ export default async function CallStatsPage({
               >
                 Show just those calls
               </Link>{" "}
-              in Every call below. The dialler hides these leads by default, so
-              a call here was placed either with{" "}
+              {/* Named as the card is actually headed on this version of the
+                  screen: a link pointing at "Every call" on a page whose table
+                  says "Your calls" is a link to something that is not there. */}
+              in {mine ? "Your calls" : "Every call"} below. The dialler hides
+              these leads by default, so a call here was placed either with{" "}
               <span className="font-semibold">Open now</span> switched off or
               from a callback booked for that time.
             </span>
@@ -341,8 +464,17 @@ export default async function CallStatsPage({
           <div className={CARD}>
             <div className="border-b border-border/60 px-5 py-3.5">
               <p className="text-sm font-extrabold tracking-[-0.01em]">
-                What the calls did
+                {mine ? "How your calls ended" : "What the calls did"}
               </p>
+              {/* An admin knows these bars are the outcome each call was
+                  logged as. A caller needs telling that this is the same menu
+                  they tap on the dial card, or the card reads as a second set
+                  of numbers rather than the same ones counted up. */}
+              {mine && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground/75">
+                  What you tapped at the end of each call.
+                </p>
+              )}
             </div>
             <div className="space-y-2.5 px-5 py-4">
               {outcomes.length === 0 ? (
@@ -386,7 +518,7 @@ export default async function CallStatsPage({
               // inside it lands in that month anyway.
               params={{
                 ...(listId ? { list: String(listId) } : {}),
-                ...(personId ? { person: String(personId) } : {}),
+                ...personParam,
                 ...(outcome ? { outcome } : {}),
                 ...(region !== DEFAULT_STATS_REGION ? { tz: region } : {}),
                 ...(day ? { day } : { range }),
@@ -400,9 +532,9 @@ export default async function CallStatsPage({
           </div>
         </div>
 
-        {/* By person. Hidden when there is only the one unattributed row —
-            before anyone has signed in and called, a table of one line
-            labelled "Not attributed" is noise. */}
+        {/* By person. Empty on a caller's own screen, and hidden when there is
+            only the one unattributed row — before anyone has signed in and
+            called, a table of one line labelled "Not attributed" is noise. */}
         {(people.length > 1 || people.some((p) => p.id !== null)) && (
           <div className={CARD}>
             <div className="border-b border-border/60 px-5 py-3.5">
@@ -475,13 +607,26 @@ export default async function CallStatsPage({
         <div className={CARD}>
           <div className="border-b border-border/60 px-5 py-3.5">
             <p className="text-sm font-extrabold tracking-[-0.01em]">
-              By list
+              {mine ? "Your niches" : "By list"}
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/75">
-              Leads and worked are lifetime; calls onwards are the selected
-              range.
+              {mine
+                ? "Leads is the size of the niche and worked is how many of them you have ever rung. Calls onwards are only the dates above."
+                : "Leads and worked are lifetime; calls onwards are the selected range."}
             </p>
           </div>
+          {/* A table of headings over nothing is the state a new caller lands
+              in, and an unassigned niche is invisible to them — so the screen
+              has to say that rather than look broken. See
+              `call_list.assigned_user_id`: nobody is refused a call they can
+              reach, but they cannot reach what is not theirs. */}
+          {lists.length === 0 ? (
+            <p className="px-5 py-8 text-center text-[13px] text-muted-foreground">
+              {mine
+                ? "No niches are assigned to you yet. Ask whoever runs the floor to put you on one, and your numbers will start showing up here."
+                : "No call lists yet. Import a CSV on the Call lists screen."}
+            </p>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead>
@@ -539,14 +684,16 @@ export default async function CallStatsPage({
               </tbody>
             </table>
           </div>
+          )}
         </div>
 
         {/* The tables above answer "how many". This one answers "which ones",
-            which is what you open when a number looks wrong. */}
+            which is what you open when a number looks wrong — and, for a
+            caller, it is the only place a recording can be played from. */}
         <div className={cn(CARD, "overflow-hidden")}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-3">
             <p className="text-sm font-extrabold tracking-[-0.01em]">
-              Every call
+              {mine ? "Your calls" : "Every call"}
             </p>
             <p className="text-[12px] text-muted-foreground">
               {log.length === CALL_LOG_LIMIT
@@ -561,7 +708,7 @@ export default async function CallStatsPage({
               <LogFilter
                 outcome={outcome ?? "all"}
                 listId={listId ?? "all"}
-                personId={personId ?? "all"}
+                personId={mine ? "all" : (personId ?? "all")}
                 range={range}
                 day={day}
                 tz={region}
@@ -590,7 +737,9 @@ export default async function CallStatsPage({
                     {[
                       `When (${zone.label})`,
                       "Their time",
-                      "Who",
+                      // Every row on a caller's own screen says their name, so
+                      // the column is one value repeated three hundred times.
+                      ...(mine ? [] : ["Who"]),
                       "Business",
                       "Niche",
                       "Logged as",
@@ -624,6 +773,7 @@ export default async function CallStatsPage({
                             recordingMs={c.recordingMs}
                             company={c.company}
                             callerName={c.by}
+                            mine={mine}
                           />
                         )}
                       </td>
@@ -660,9 +810,11 @@ export default async function CallStatsPage({
                           </span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2.5 font-semibold">
-                        {c.by}
-                      </td>
+                      {!mine && (
+                        <td className="whitespace-nowrap px-4 py-2.5 font-semibold">
+                          {c.by}
+                        </td>
+                      )}
                       <td className="px-4 py-2.5">
                         <span className="font-semibold">{c.company}</span>
                         {/* A keypad row whose business column is already the
