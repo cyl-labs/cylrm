@@ -593,6 +593,23 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   ready when a demo starts; a document that sent itself to the prospect the
   moment a caller pressed a button on the meetings screen would be the worst
   failure this could have.
+- **The effective date defaults to today, on the reader's own clock.** It was
+  the meeting's day until 2026-09-08, on the reasoning that an agreement is
+  entered into when it is signed — but that guessed wrong both ways: drafted
+  after the demo it carried a date already past, and drafted for a slot next
+  week it opened dated next week, which reads as a mistake on something
+  somebody is about to sign. The demo's own day is offered under the field as a
+  one-tap alternative, so nothing is lost.
+  - **Not the screen's `tz`.** That is the reporting zone off the timezone
+    picker — the US floor's clock — so a founder in Singapore reading the board
+    in Eastern got yesterday's date, which is exactly the off-by-one that makes
+    a date look broken. Everything else in that dialog is rendered in `tz`
+    because it describes the *meeting*; this describes the act of preparing the
+    document, so it follows the browser. Caught in testing at 1am Singapore,
+    which is the only clock where the two disagree visibly.
+  - Reading the wall clock is safe here and nowhere near a render: it happens
+    in the click that opens the dialog, so there is no server pass to disagree
+    with it.
 - **Prefilled and editable, not one press.** `call_lead.company` is a directory
   scrape, so it is a trading name where a contract wants the legal entity —
   "AK Auto Care" against "AK Auto Care LLC". A wrong party name on a signed

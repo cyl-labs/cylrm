@@ -134,9 +134,27 @@ export function PrepareContracts({
     setNicheName(tidy(meeting.niche) || tidy(meeting.listName));
     setSigneeName(meeting.attendeeName ?? "");
     setSigneeEmail(meeting.attendeeEmail ?? "");
-    // The meeting's own day, not today: these are drafted the day before as
-    // often as not, and the agreement is entered into when it is signed.
-    setEffectiveDate(dayOf(meeting.startAt, tz));
+    // Today — on the reader's own clock, deliberately not the screen's.
+    //
+    // It was the meeting's day until 2026-09-08, on the reasoning that an
+    // agreement is entered into when it is signed and these are drafted the day
+    // before. In practice that guessed wrong in both directions: a contract
+    // drafted after its meeting has passed carried a date already behind, and
+    // one drafted for a slot next week opened dated next week — which reads as
+    // a mistake on a document somebody is about to sign. The day it is prepared
+    // is the one thing that is never a guess.
+    //
+    // `tz` is the reporting zone off the timezone picker, which is the US floor's
+    // clock and not the clock of the person filling this in: a founder in
+    // Singapore reading the screen in Eastern got yesterday's date, which is the
+    // same off-by-one that makes a date look broken. Everything else here is
+    // rendered in `tz` because it describes the meeting; this describes the act
+    // of preparing the document, so it follows the browser.
+    //
+    // Reading the wall clock is safe *here* and nowhere near a render: this runs
+    // in the click that opens the dialog, so there is no server pass to disagree
+    // with.
+    setEffectiveDate(new Intl.DateTimeFormat("en-CA").format(new Date()));
     const already = drafted.find((c) => c.kind === "paid");
     if (already?.packageId) setPackageId(already.packageId as PackageId);
     if (already?.termId) setTermId(already.termId as TermId);
@@ -152,6 +170,10 @@ export function PrepareContracts({
   const commitment = commitmentCents(pkg, term);
   const wantsPaid = kinds.has("paid");
   const chosen = ALL_KINDS.filter((k) => kinds.has(k));
+  /** The demo's own day, offered under the date field as the one alternative
+   *  worth a tap. Derived rather than stored: it moves if the prospect
+   *  reschedules, and the dialog is mounted for every row on the screen. */
+  const meetingDay = dayOf(meeting.startAt, tz);
 
   async function submit() {
     setBusy(true);
@@ -488,6 +510,24 @@ export function PrepareContracts({
                 onChange={(e) => setEffectiveDate(e.target.value)}
                 className="sm:w-48"
               />
+              {/* Only when the two differ, which is most of the time and none
+                  of the time on the day itself. Says where the other candidate
+                  date is rather than making somebody go and look it up: this
+                  is drafted the day before as often as not, and the demo's own
+                  day is the one alternative anybody reaches for. */}
+              {meetingDay !== effectiveDate && (
+                <p className="text-[12px] text-muted-foreground">
+                  Today. The meeting is on{" "}
+                  <button
+                    type="button"
+                    onClick={() => setEffectiveDate(meetingDay)}
+                    className="font-semibold text-foreground underline underline-offset-2"
+                  >
+                    {meetingDay}
+                  </button>
+                  .
+                </p>
+              )}
             </div>
           </div>
 
