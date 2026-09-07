@@ -1228,6 +1228,32 @@ left the founders' account — the one account deliberately tied to no market �
 looking as though the business owned a single number: the API never had that
 restriction (`region && !did.startsWith(prefix)`), only the dropdown did.
 
+**A number somebody already holds is labelled, never hidden** (2026-09-07).
+`available` on that dropdown is the *reserved* flag from the numbers panel, not
+an assignment, so a number already being somebody's caller ID was offered with
+nothing saying so — handing one out twice took a single click and left no
+trace. That is exactly how the founders' account and a caller shared a number
+for a fortnight: both dialled out from it, and inbound calls to it rang
+whichever of the two `recordInbound`'s `where telnyx_did = $to and active limit
+1` returned first, which is unordered. `holderOf` in `team-manager.tsx` now
+prints "in use by <name>" on the item, `offerFor` sorts free numbers to the
+top, and picking a taken one asks first and says what breaks. Still allowed —
+a demo line two people dial from is a real thing to want — just never by
+accident. `telnyx-numbers.tsx` names **every** holder (`holders`, not `find`)
+and colours a shared row red, so an existing collision is findable at a glance
+rather than hidden behind whichever name `find` happened to return.
+
+**A number needs a connection, not just a DID.** Buying one and setting
+`telnyx_did` gets outbound working and leaves the person unreachable: inbound
+rings whatever is registered on the *connection* the number points at. The full
+wiring for a new number is three steps — create a credential connection
+(`cylrm-<name>`), point the number at it, then set `telnyx_connection_id` and
+`telnyx_did` on the person **while clearing `telnyx_credential_id`**. Copy the
+connection's settings off an existing one: the webhook URL is what carries
+recordings back, and `outbound_voice_profile_id` is where recording and the
+SG/US destination whitelist live. As of 2026-09-07 six accounts have a number,
+each on its own connection, and no number is held by two active people.
+
 A JWT's `exp` is exactly its parent credential's `expires_at`, so any token cache
 must expire at `min(cacheTtl, credentialExpiresAt)` — caching a token minted late
 in a credential's life for a flat period hands out one that is already dead.

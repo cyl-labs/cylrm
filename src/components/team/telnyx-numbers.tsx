@@ -49,6 +49,17 @@ export function TelnyxNumbers({
 
   const holder = (n: string) => team.find((t) => t.telnyxDid === n) ?? null;
 
+  /**
+   * Everyone ringing from this number, not just the first one found.
+   *
+   * Two people on one number is allowed but nearly always a mistake — both
+   * dial out from it and an inbound call can only ring one of them. `find`
+   * showed one name and made the other invisible, which is how the founders'
+   * account sat on a caller's number unnoticed. Naming both is what makes the
+   * state findable at a glance.
+   */
+  const holders = (n: string) => team.filter((t) => t.telnyxDid === n);
+
   async function saveLabel(phoneNumber: string, raw: string) {
     const label = raw.trim() === "" ? null : raw.trim();
     setEditing(null);
@@ -189,10 +200,25 @@ export function TelnyxNumbers({
                 <span
                   className={cn(
                     "ml-auto",
-                    who ? "font-semibold" : "text-muted-foreground",
+                    holders(n.phoneNumber).length > 1
+                      ? "font-bold text-destructive"
+                      : who
+                        ? "font-semibold"
+                        : "text-muted-foreground",
                   )}
+                  title={
+                    holders(n.phoneNumber).length > 1
+                      ? "Two people ring from this number. Inbound calls to it can only reach one of them."
+                      : undefined
+                  }
                 >
-                  {n.available ? (who ? who.name : "Nobody yet") : "Reserved"}
+                  {n.available
+                    ? holders(n.phoneNumber).length > 0
+                      ? holders(n.phoneNumber)
+                          .map((t) => t.name)
+                          .join(" + ")
+                      : "Nobody yet"
+                    : "Reserved"}
                 </span>
                 <Button
                   variant="ghost"

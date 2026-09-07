@@ -78,6 +78,31 @@ export function TeamManager({
    */
   const numbersFor = (region: string | null) =>
     region ? numbers.filter((n) => n.startsWith(PREFIX[region] ?? "+")) : numbers;
+
+  /**
+   * Who already rings from this number, ignoring the person being edited.
+   *
+   * The dropdown has always offered numbers somebody else holds — `available`
+   * is the reserved flag on the numbers panel, not an assignment — and said
+   * nothing about it, so handing one out twice took a single click and left no
+   * trace. That is how the founders' account and a caller ended up sharing a
+   * number for a fortnight: both dialled out from it, and inbound calls to it
+   * rang whichever of the two the database returned first.
+   *
+   * Same lookup `telnyx-numbers.tsx` uses for its own column, so the panel and
+   * the dropdown cannot disagree about whose a number is.
+   */
+  const holderOf = (phone: string, exceptId: number) =>
+    team.find((t) => t.telnyxDid === phone && t.id !== exceptId) ?? null;
+
+  /** Free numbers first. A taken one is still pickable — see the confirm — but
+   *  it should never be the first thing under the cursor. */
+  const offerFor = (region: string | null, exceptId: number) =>
+    [...numbersFor(region)].sort((a, b) => {
+      const ta = holderOf(a, exceptId) ? 1 : 0;
+      const tb = holderOf(b, exceptId) ? 1 : 0;
+      return ta - tb;
+    });
   const [adding, setAdding] = React.useState(false);
   /** The person whose password is being reset, if any. */
   const [resetting, setResetting] = React.useState<TeamMember | null>(null);
@@ -262,9 +287,26 @@ export function TeamManager({
                             // reads as one, so it says what is missing.
                             (!m.telnyxDid && numbersFor(m.callRegion).length === 0)
                           }
-                          onValueChange={(v) =>
-                            patch(m, { telnyxDid: v === NO_DID ? "" : v })
-                          }
+                          onValueChange={(v) => {
+                            // Sharing a number is allowed — a demo line one
+                            // person also dials from is a real thing to want —
+                            // but never by accident, and never without the
+                            // inbound half being said out loud. It is the part
+                            // that silently breaks.
+                            const held =
+                              v === NO_DID ? null : holderOf(v, m.id);
+                            if (
+                              held &&
+                              !confirm(
+                                `${v} is already ${held.name}'s caller ID.\n\n` +
+                                  `Give it to ${m.name} as well?\n\n` +
+                                  `Both would dial out from it, and an inbound call to it can only ring one of them — whichever the CRM finds first. Pick a free number instead unless you mean to share.`,
+                              )
+                            ) {
+                              return;
+                            }
+                            patch(m, { telnyxDid: v === NO_DID ? "" : v });
+                          }}
                         >
                           <SelectTrigger size="sm" className="w-44">
                             <SelectValue
@@ -288,11 +330,22 @@ export function TeamManager({
                                   {m.telnyxDid}
                                 </SelectItem>
                               )}
-                            {numbersFor(m.callRegion).map((n) => (
-                              <SelectItem key={n} value={n}>
-                                {n}
-                              </SelectItem>
-                            ))}
+                            {offerFor(m.callRegion, m.id).map((n) => {
+                              const held = holderOf(n, m.id);
+                              return (
+                                <SelectItem key={n} value={n}>
+                                  {n}
+                                  {/* Never hidden, only labelled: an admin
+                                      moving a number between two people has to
+                                      be able to see the one they are moving. */}
+                                  {held && (
+                                    <span className="text-muted-foreground">
+                                      in use by {held.name}
+                                    </span>
+                                  )}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       ) : (
