@@ -1117,6 +1117,57 @@ export const callMeetingFollowup = pgTable(
 );
 
 /**
+ * A contract drafted from the CRM into DocuSeal.
+ *
+ * Both agreements have to be filled in and waiting before a demo starts, and
+ * both were being typed by hand — business name, signee, date, and the whole
+ * fee table on the paid one. This is the CRM's memory of what it drafted, and
+ * deliberately not a copy of the document: DocuSeal owns that, and a second
+ * copy of a contract is a second copy that can disagree with the first.
+ *
+ * `fieldValues` is a snapshot for the same reason `payout` snapshots its rates.
+ * Raising a price must not rewrite what an agreement said on the day it was
+ * drafted, and this is the only record of that on our side.
+ */
+export const callContract = pgTable(
+  "call_contract",
+  {
+    id: serial("id").primaryKey(),
+    meetingId: integer("meeting_id")
+      .notNull()
+      .references(() => callMeeting.id, { onDelete: "cascade" }),
+    /** Nullable for the reason `call_meeting.callLeadId` is: an unlinked
+     *  booking still gets a contract, and is the one likeliest to be a real
+     *  enquiry off the public link. */
+    callLeadId: integer("call_lead_id").references(() => callLead.id, {
+      onDelete: "set null",
+    }),
+    /** Who drafted it. Never the signer — the signer is on the document. */
+    userId: integer("user_id").references(() => appUser.id),
+    kind: text("kind").notNull().$type<"trial" | "paid">(),
+    /** DocuSeal's identifiers, never a URL: the host lives in `DOCUSEAL_URL`,
+     *  so moving instances does not orphan every link ever written. */
+    submissionId: integer("submission_id").notNull(),
+    senderSlug: text("sender_slug").notNull(),
+    signerSlug: text("signer_slug").notNull(),
+    templateId: integer("template_id").notNull(),
+    /** Null on a trial, which has no package — its fee is in the template. */
+    packageId: text("package_id"),
+    termId: text("term_id"),
+    fieldValues: jsonb("field_values").$type<Record<string, string>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  // One trial and one paid agreement per meeting. A second press must not
+  // quietly mint a second contract at a different price.
+  (t) => [
+    uniqueIndex("call_contract_meeting_kind_idx").on(t.meetingId, t.kind),
+    index("call_contract_lead_idx").on(t.callLeadId),
+  ],
+);
+
+/**
  * A browser signed up for push notifications.
  *
  * Push rather than email for the meeting reminders: on a desktop it costs the

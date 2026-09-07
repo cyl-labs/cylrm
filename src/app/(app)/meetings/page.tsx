@@ -106,6 +106,12 @@ export default async function MeetingsPage({
           tz={zone.tz}
           zoneLabel={zone.label}
           showWho={me?.role === "admin"}
+          // The host a person clicks, which is not the one the server fetches
+          // from: in production the API is reached on localhost and the link
+          // has to be the public name. Empty hides the contract buttons.
+          signingBase={
+            process.env.DOCUSEAL_PUBLIC_URL ?? process.env.DOCUSEAL_URL ?? ""
+          }
         />
       </div>
     </PageShell>

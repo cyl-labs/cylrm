@@ -249,6 +249,15 @@ export type MeetingFollowupResult =
   | "rescheduled"
   | "cancelled";
 
+/** A contract already drafted into DocuSeal for a meeting. Carries the slug
+ *  rather than a URL, so moving instances does not orphan the links. */
+export type MeetingContract = {
+  kind: "trial" | "paid";
+  senderSlug: string;
+  packageId: string | null;
+  termId: string | null;
+};
+
 export type Meeting = {
   id: number;
   startAt: string;
@@ -267,6 +276,12 @@ export type Meeting = {
   company: string | null;
   phone: string | null;
   listName: string | null;
+  /** The trade, off the lead's list. Prefills "operates a ___ business" on a
+   *  contract, which is why it is the niche and not the list's name. */
+  niche: string | null;
+  /** What has already been drafted for this meeting. Empty is the normal
+   *  state; two rows means both agreements are waiting. */
+  contracts: MeetingContract[];
   /** Why this number may not be rung, or null. Blocks the clipboard as well
    *  as any dial button, exactly as it does everywhere else. */
   dncBlock: string | null;
@@ -317,6 +332,28 @@ const meetingSelect = sql`
   l.id as lead_id, l.company, l.name as lead_name, l.phone,
   l.dnc_status, l.dnc_checked_at,
   cl.name as list_name,
+  -- The niche rather than the list name: a split list is called "Movers.2",
+  -- which is a filing label, where the niche is the trade itself and so the
+  -- thing that reads correctly in "the Client operates a ___ business".
+  cl.niche as niche,
+  -- What has already been drafted for this meeting, so the row can offer the
+  -- contracts rather than a button that would mint a second copy. Aggregated
+  -- here rather than fetched per row: the screen renders every meeting at once
+  -- and a query each would be a query per booking.
+  (
+    select coalesce(
+      json_agg(
+        json_build_object(
+          'kind', c.kind,
+          'senderSlug', c.sender_slug,
+          'packageId', c.package_id,
+          'termId', c.term_id
+        ) order by c.kind
+      ),
+      '[]'::json
+    )
+    from call_contract c where c.meeting_id = m.id
+  ) as contracts,
   (select u.name from app_user u where u.id = bc.user_id) as booked_by,
   -- What was actually said on the call that won this meeting. Read before
   -- ringing to confirm, and before the demo itself: the caller who booked it
@@ -397,6 +434,10 @@ function toMeeting(r: Row): Meeting {
       null,
     phone,
     listName: (r.list_name as string | null) ?? null,
+    niche: (r.niche as string | null) ?? null,
+    // `json_agg` hands back parsed JSON through the driver; the coalesce in
+    // the query means this is never null, only empty.
+    contracts: (r.contracts as MeetingContract[] | null) ?? [],
     dncBlock: phone
       ? dncBlockReason(
           {

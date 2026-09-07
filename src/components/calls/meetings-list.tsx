@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
+import { PrepareContracts } from "@/components/calls/prepare-contracts";
 
 const FOLLOWUP_LABELS: Record<MeetingFollowupResult, string> = {
   confirmed: "Confirmed — they're coming",
@@ -114,6 +115,7 @@ export function MeetingsList({
   tz,
   zoneLabel,
   showWho = false,
+  signingBase = "",
 }: {
   meetings: Meeting[];
   /** The screen's clock, chosen on the server. Passed rather than read from
@@ -125,6 +127,9 @@ export function MeetingsList({
   /** Who booked it. Admins only, like the callbacks diary — a caller's own
    *  diary has their name on every row, which is noise. */
   showWho?: boolean;
+  /** DocuSeal's public host. Empty when it is not configured, which is what
+   *  hides the contract buttons rather than offering ones that cannot work. */
+  signingBase?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<number | null>(null);
@@ -347,6 +352,17 @@ export function MeetingsList({
                     <Video className="size-3.5" />
                     Meet link
                   </a>
+                )}
+                {/* Both agreements, drafted before the demo starts. Hidden
+                    entirely where DocuSeal is not configured, in the same
+                    spirit as the push toggle: a dead button on a screen
+                    somebody works from is worse than no button. */}
+                {signingBase && (
+                  <PrepareContracts
+                    meeting={m}
+                    tz={tz}
+                    signingBase={signingBase}
+                  />
                 )}
               </div>
             )}
