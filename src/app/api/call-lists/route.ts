@@ -4,6 +4,7 @@ import { appUser, callLead, callList } from "@/db/schema";
 import { csvToRecords, type CsvRecord } from "@/lib/csv";
 import { classifyPhone, e164, phoneKey } from "@/lib/calls";
 import { getCurrentUser } from "@/lib/session";
+import { partName } from "@/lib/list-name";
 import { websiteHref } from "@/lib/website";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -622,8 +623,9 @@ export async function POST(request: Request) {
             .insert(callList)
             .values({
               // Derived rather than typed per part, so the review screen can
-              // show exactly what will be created before it exists.
-              name: split > 1 ? `${trimmedName} ${i + 1}` : trimmedName,
+              // show exactly what will be created before it exists — through
+              // `partName`, which is the one place that rule lives.
+              name: split > 1 ? partName(trimmedName, i) : trimmedName,
               niche: nicheValue,
               region,
               assignedUserId: partOwners[i],

@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { partName } from "@/lib/list-name";
 import { cn } from "@/lib/utils";
 
 /**
@@ -666,7 +667,13 @@ export function CallImportDialog({
                                     className="flex flex-wrap items-center gap-2 text-[13px]"
                                   >
                                     <span className="min-w-0 flex-1 truncate">
-                                      {s.name.trim() || s.file.name} {i + 1}
+                                      {/* Through `partName`, not a template of
+                                          its own: this row's whole job is to
+                                          show what the importer will create. */}
+                                      {partName(
+                                        s.name.trim() || s.file.name,
+                                        i,
+                                      )}
                                       <span className="text-muted-foreground">
                                         {" "}
                                         · {size} leads

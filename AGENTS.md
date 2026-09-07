@@ -346,8 +346,13 @@ inbound handled.
     is on. A picker would only be a way to get it wrong.
 - **`split=N` turns one file into N lists**, so one niche can be handed to
   several callers — `partOwnerId` is sent once per part, in order, and each
-  list is named `<name> <i+1>`. Derived server-side rather than typed per part,
-  so the review screen can show exactly what will be created.
+  list is named by **`partName`** in `src/lib/list-name.ts`: `Movers.1`,
+  `Movers.2`. It was `<name> <i+1>` until 2026-09-07, and "Movers 2" reads as a
+  second unrelated niche where "Movers.2" reads as part two of one. Its own
+  db-free module because the importer and the review screen must produce the
+  same string and only one of them runs on the server — a second copy of the
+  rule is a preview that quietly stops matching what gets written. Existing
+  lists were **not** renamed; this is for splits made from now on.
   - **Rows are dealt round robin (`i % split`), never cut into contiguous
     blocks.** A scrape arrives sorted — by city, by rating, by whatever the
     directory ordered on — so slicing hands one caller every Alaska lead and
