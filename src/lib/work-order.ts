@@ -1,4 +1,6 @@
 import { cache } from "react";
+import { sql } from "drizzle-orm";
+import { db } from "@/db";
 import { countCallbacksDue } from "@/lib/calls";
 import { countMissedCalls } from "@/lib/inbound";
 import { callScope, type CurrentUser } from "@/lib/session";
@@ -58,3 +60,53 @@ export const getWorkOrder = cache(async function getWorkOrder(
     blockedBy: missed > 0 ? "missed" : callbacks > 0 ? "callbacks" : null,
   };
 });
+
+/**
+ * Whether this one lead *is* the work the gate is holding them to.
+ *
+ * Opening a single lead by id is not "starting on the lead lists" — it is how
+ * you work a missed call or an overdue callback, and both screens link
+ * straight into the dial card so the ring back can be placed from the browser
+ * and logged in one place. Refusing that would leave the two screens the gate
+ * exists to protect unable to reach the phone.
+ *
+ * A real check rather than a blanket "any `?lead=` is fine", so the gate keeps
+ * its meaning: it matches exactly the leads behind this person's own
+ * outstanding missed calls and their own due callbacks. Anything else still
+ * hits the wall.
+ */
+export async function isRequiredLead(
+  me: CurrentUser | null,
+  leadId: number,
+): Promise<boolean> {
+  if (!me) return false;
+  if (me.role === "admin") return true;
+
+  const [row] = (await db.execute(sql`
+    select exists (
+      -- A missed call to their own number, still owed a ring back.
+      select 1 from inbound_call ic
+      where ic.call_lead_id = ${leadId}
+        and ic.user_id = ${me.id}
+        and ic.answered_at is null
+        and ic.handled_at is null
+    ) or exists (
+      -- A callback due now, on a niche of theirs. Mirrors CALLBACK_DUE: one
+      -- with no time set counts, since it cannot be waited for.
+      select 1
+      from call_lead l
+      join call_list cl on cl.id = l.call_list_id
+      left join lateral (
+        select c.outcome, c.callback_at from call c
+        where c.call_lead_id = l.id
+        order by c.called_at desc, c.id desc limit 1
+      ) lc on true
+      where l.id = ${leadId}
+        and cl.assigned_user_id = ${me.id}
+        and lc.outcome = 'callback'
+        and (lc.callback_at is null or lc.callback_at <= now())
+    ) as required
+  `)) as { required: boolean }[];
+
+  return row?.required === true;
+}

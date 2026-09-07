@@ -1,5 +1,6 @@
 import { PageShell } from "@/components/page-shell";
 import { MeetingsList } from "@/components/calls/meetings-list";
+import { MeetingsExplainer } from "@/components/calls/meetings-explainer";
 import { PushToggle } from "@/components/calls/push-toggle";
 import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { PushGate } from "@/components/calls/push-gate";
@@ -78,6 +79,11 @@ export default async function MeetingsPage({
           for someone who has been told to look at it. */}
       <PushGate vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 sm:px-6">
+        {/* Above the list rather than at the foot of it: the question it
+            answers ("where did all this come from and what do I do?") is asked
+            on the way in, and shut by default so it costs one line of height
+            to everybody who already knows. */}
+        <MeetingsExplainer zoneName={zone.name} />
         {meetings.length > 0 && (
           <p className="text-[13px] text-muted-foreground">
             {toChase > 0 ? (

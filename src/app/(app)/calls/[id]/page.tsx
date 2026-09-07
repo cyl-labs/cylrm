@@ -15,7 +15,7 @@ import { sopRegionFor } from "@/lib/calls";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
 import { WorkGateScreen } from "@/components/calls/work-gate";
-import { getWorkOrder } from "@/lib/work-order";
+import { getWorkOrder, isRequiredLead } from "@/lib/work-order";
 import { cn } from "@/lib/utils";
 import { callScope, getCurrentUser } from "@/lib/session";
 
@@ -36,14 +36,17 @@ export default async function CallListPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string; open?: string }>;
+  searchParams: Promise<{ view?: string; open?: string; lead?: string }>;
 }) {
   const { id } = await params;
   const listId = Number(id);
   if (!Number.isInteger(listId)) notFound();
 
-  const { view, open } = await searchParams;
+  const { view, open, lead: rawLead } = await searchParams;
   const me = await getCurrentUser();
+  // One lead to open the card on, linked from Missed calls or the callbacks
+  // diary. It also decides whether the gate below lets this through.
+  const focusLeadId = Number.isInteger(Number(rawLead)) ? Number(rawLead) : null;
   // Missed calls, then callbacks, then this. See `lib/work-order.ts` for why
   // it refuses rather than reminds, and why refusing is safe.
   const work = await getWorkOrder(me);
@@ -84,10 +87,17 @@ export default async function CallListPage({
   // is owed — but only on a niche that actually has one due, or the caller is
   // waved through to an empty tab and left to work out why. Missed calls admit
   // no exception: there is no tab in here that returns one.
+  //
+  // A `?lead=` naming the very lead they are being held to is waved through —
+  // that link is how Missed calls and the callbacks diary reach the dial card,
+  // and refusing it would leave the two screens the gate exists to protect
+  // unable to get to the phone. Checked against the database rather than
+  // trusted, so it opens exactly one lead and is not a way round anything.
   const gated =
-    work.blockedBy === "missed" ||
-    (work.blockedBy === "callbacks" &&
-      !(filter === "callbacks" && list.callbacksDue > 0));
+    (work.blockedBy === "missed" ||
+      (work.blockedBy === "callbacks" &&
+        !(filter === "callbacks" && list.callbacksDue > 0))) &&
+    !(focusLeadId !== null && (await isRequiredLead(me, focusLeadId)));
 
   if (gated && work.blockedBy) {
     return (
@@ -219,8 +229,13 @@ export default async function CallListPage({
                 // and a caller presses it twice before believing it. Shown
                 // struck through rather than hidden, so the tab they normally
                 // use has not silently vanished.
+                // Never the tab you are already on: a struck-through label
+                // over the list you are looking at reads as a fault. That is
+                // the case a `?lead=` link lands in.
                 const locked =
-                  work.blockedBy !== null && f.key !== "callbacks";
+                  work.blockedBy !== null &&
+                  f.key !== "callbacks" &&
+                  f.key !== filter;
                 if (locked) {
                   return (
                     <span
@@ -381,6 +396,9 @@ export default async function CallListPage({
             script={sop.script}
             objections={sop.objections}
         leads={leads}
+        // The lead a link asked for, opened on rather than left to be found in
+        // "Up next". Null once it has been worked, so the queue resumes.
+        focusLeadId={focusLeadId}
         truncated={leads.length >= CALL_QUEUE_LIMIT}
         readOnly={filter === "closed"}
         // Callers only, matching who the SOP asks to post: a founder's own

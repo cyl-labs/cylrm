@@ -254,6 +254,40 @@ opening a niche to check something is not somebody skipping their callbacks.
   lists — the nav reads top to bottom as the shift does, because that is where
   the rule is learned. A sidebar listing them in a different order to the one
   enforced would be teaching the wrong one.
+- **`?lead=<id>` is waved through when it names the very lead they are held
+  to** (`isRequiredLead`). Missed calls and the callbacks diary both link into
+  the dial card, and refusing that would leave the two screens the gate exists
+  to protect unable to reach the phone. It is a real check against the database
+  — this person's own outstanding missed calls and their own due callbacks —
+  never a blanket "any `?lead=` is fine", so it opens exactly one lead and is
+  not a way round anything. The tab you are on is never struck through, which
+  is the case that link lands in.
+
+### Missed calls log an outcome, not a tick
+
+`PATCH /api/inbound-calls/[id]` takes an optional `outcome` (plus `notes` and
+`callbackAt`) and, in one transaction, writes the `call` row **and** marks the
+inbound handled.
+
+- **Ringing somebody back is a call and ends the same ways as any other**, so
+  the row offers the dial card's own menu (`CALL_TIME_OUTCOMES`) with a notes
+  box, picked-then-confirmed exactly as the dial card does it — one tap next to
+  another was the whole gesture there once, and a mis-tap became a call in the
+  record. "Mark as rung back" recorded that a finger had been lifted and
+  nothing about what was said.
+- **Both halves are done server-side** rather than as two requests, so
+  "outcome logged" and "no longer owed a ring back" cannot come apart. The
+  failure to avoid is the reverse one: a row cleared off the screen with no
+  call behind it.
+- **A row whose number matches no lead keeps the plain "Mark as rung back"** —
+  there is nothing to log a call against, and the API refuses an outcome for
+  one. That row is also the likeliest to be a genuine new enquiry, so it must
+  stay clearable.
+- **"Open lead" goes to the dial card, never the spreadsheet**
+  (`/calls/<listId>?view=all&lead=<id>`). The grid is a different tool with a
+  different shape and a caller sent there mid-shift has to work out where they
+  have landed. `view=all` so the lead is present whatever state it is in;
+  `InboundCall` carries `listId` and `attempts` for this.
 - **Scoreboard** puts the top three on a podium: rendered 2, 1, 3 across so the
   winner is centre and tallest, which is the only arrangement that reads as a
   podium rather than a chart. Gold, silver and bronze are written out rather
@@ -505,6 +539,17 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
 - Times render in that one zone with the prospect's own alongside it when it
   differs — `attendees[].timeZone` comes free on the booking, and the SOP used
   to make a caller work it out by hand.
+- **The screen explains itself** (`meetings-explainer.tsx`, 2026-09-07). Every
+  other screen in the app is filled in by somebody; this one fills itself in —
+  times arrive from Cal.com, rows appear on their own, notifications go out on
+  a schedule nobody set — which is the whole point of it and also exactly why
+  it reads as unexplained magic. A collapsed `<details>` above the list covers
+  where the meetings come from, that the phone number in the booking notes is
+  the link back to the lead, the two reminder offsets and the quiet-hours
+  window, that push is per browser and has to be switched on, and what a
+  confirmation call is for. Shut by default and a server component, so it costs
+  one line of height and no bundle. **If `REMINDER_OFFSETS` or the quiet hours
+  move, that copy moves with them** — it names the numbers.
 - Unset `CAL_API_KEY` means an empty screen and nothing else changes, in the
   same spirit as `lib/notify.ts`: the sync reports why it did nothing rather
   than throwing, so a cron tick never fails on a feature that is not switched

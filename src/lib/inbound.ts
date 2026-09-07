@@ -39,6 +39,12 @@ export type InboundCall = {
   company: string | null;
   leadName: string | null;
   listName: string | null;
+  /** The niche it sits in, so "Open lead" can land on the dial card for it
+   *  rather than on the spreadsheet. Null exactly when `leadId` is. */
+  listId: number | null;
+  /** Tries already logged against the lead, so the outcome menu can say which
+   *  attempt this one is — the same thing the callbacks diary shows. */
+  attempts: number;
   /** Why this number may not be rung, or null — the same block the dialler
    *  and the callbacks diary apply, so a screening result cannot be walked
    *  past just because the prospect rang first. */
@@ -65,7 +71,8 @@ export async function getInboundCalls(
       h.name as handled_by,
       l.id as lead_id, l.company, l.name as lead_name,
       l.dnc_status, l.dnc_checked_at,
-      cl.name as list_name
+      cl.name as list_name, cl.id as list_id,
+      (select count(*) from call c where c.call_lead_id = l.id) as attempts
     from inbound_call ic
     left join app_user u on u.id = ic.user_id
     left join app_user h on h.id = ic.handled_by
@@ -101,6 +108,8 @@ export async function getInboundCalls(
       company: (r.company as string | null) ?? null,
       leadName: (r.lead_name as string | null) ?? null,
       listName: (r.list_name as string | null) ?? null,
+      listId: r.list_id === null ? null : Number(r.list_id),
+      attempts: Number(r.attempts ?? 0),
       dncBlock: dncBlockReason(
         {
           dncStatus: (r.dnc_status as "clean" | "listed" | null) ?? null,

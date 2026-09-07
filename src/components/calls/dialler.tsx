@@ -675,6 +675,7 @@ function CallForm({
 
 export function Dialler({
   leads,
+  focusLeadId = null,
   script,
   objections,
   calBookingUrl,
@@ -690,6 +691,11 @@ export function Dialler({
   panelLeft: initialPanel = "objections",
 }: {
   leads: QueueLead[];
+  /** A lead to open on, from a `?lead=` link — Missed calls and the callbacks
+   *  diary both point here so the ring back can be placed and logged in the
+   *  one place. It only seeds the first card; working it hands the queue back
+   *  to its own order. */
+  focusLeadId?: number | null;
   /** The caller's own script and objection sheet, already rendered. One
    *  market, decided by who is signed in rather than by the lead, so nothing
    *  switches while a call is in progress. */
@@ -742,7 +748,13 @@ export function Dialler({
 
   // A lead picked out of the list below jumps the queue. Cleared as soon as it
   // is worked, so the order resumes where it was.
-  const [pickedId, setPickedId] = React.useState<number | null>(null);
+  //
+  // Seeded from `?lead=` so a link out of Missed calls or the callbacks diary
+  // lands on that lead's card rather than on whatever happens to be first.
+  // Initial state only, deliberately: once it is worked the queue is the
+  // queue again, and re-reading the URL would drag the caller back to a lead
+  // they have finished with.
+  const [pickedId, setPickedId] = React.useState<number | null>(focusLeadId);
 
   // Owned here rather than by the lead card, so the drawer outlives a change
   // of lead — and, once dialling is in the browser, an active call.
