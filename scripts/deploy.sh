@@ -40,8 +40,14 @@ fi
 # Restarting the app does NOT drop a call in progress — the audio runs from the
 # browser straight to Telnyx and never passes through this server. What it does
 # break is the request that saves the outcome when they hang up, and whatever
-# page they are looking at. So this refuses rather than warns: a lost
-# disposition is a call that happened and cannot be proved.
+# page they are looking at: a lost disposition is a call that happened and
+# cannot be proved.
+#
+# The check that matters therefore happens beside the restart, not here — see
+# "Restarting". This one is a courtesy so a busy floor is known before a
+# minute of building, and it only warns: refusing here is what taught somebody
+# to poll for a gap between two calls and then run the deploy into it, which is
+# how a restart landed eleven seconds into a call on 2026-09-07.
 #
 # Asked of the database over the SSH connection we already have, rather than of
 # /api/presence, so no shell script needs a credential. Freshness window must
@@ -49,15 +55,8 @@ fi
 say "Checking whether anyone is on a call"
 LIVE="$(ssh "$HOST" "docker exec cylrm-db psql -U cylrm cylrm -tAc \"select string_agg(name || ' (' || extract(epoch from (now() - on_call_since))::int || 's)', ', ') from app_user where on_call_since is not null and presence_at > now() - interval '45 seconds'\"" 2>/dev/null || true)"
 if [[ -n "${LIVE//[[:space:]]/}" ]]; then
-  if [[ "${FORCE_DEPLOY:-}" == "1" ]]; then
-    echo "WARNING: on a call right now — $LIVE. FORCE_DEPLOY=1, shipping anyway."
-  else
-    echo "ERROR: someone is on a call right now — $LIVE"
-    echo "The call itself would survive a restart, but the outcome they log at"
-    echo "the end of it may not save. Wait for them to hang up and re-run."
-    echo "To ship regardless: FORCE_DEPLOY=1 ./scripts/deploy.sh"
-    exit 1
-  fi
+  echo "on a call right now — $LIVE"
+  echo "Building and shipping anyway; the restart waits for a clear moment."
 else
   echo "nobody on a call"
 fi
@@ -113,8 +112,84 @@ ssh "$HOST" "cd $REMOTE && node --env-file=.env scripts/seed-sop.mjs"
 say "Publishing area codes"
 ssh "$HOST" "cd $REMOTE && node --env-file=.env scripts/seed-area-codes.mjs"
 
+# The check has to be in the same breath as the restart.
+#
+# It used to run once at the top, and then the build, the rsync and the seeds
+# took the better part of a minute before anything restarted — so a call that
+# started inside that window was never seen. That is not theoretical: on
+# 2026-09-07 the guard passed on an empty read at 16:55:5x and pm2 restarted at
+# 16:56:24, eleven seconds into a call that had begun at 16:56:13.
+#
+# So the query and `pm2 restart` are one remote shell: nothing but a few
+# milliseconds separates "nobody is mid-call" from the restart, where before
+# there was a build and a network round trip. A floor dialling continuously has
+# no long quiet moment — only the seconds between one call and the next — and
+# this waits for one of those rather than asking a person to find it by hand.
+#
+# Exit 9 means somebody is on a call and nothing was touched. The check fails
+# open, exactly as the one above does: if psql cannot be reached the app is in
+# worse trouble than a restart.
+restart_when_clear() {
+  ssh "$HOST" FORCE="${FORCE_DEPLOY:-}" bash -s <<'REMOTE'
+set -uo pipefail
+if [ "${FORCE:-}" != "1" ]; then
+  live="$(docker exec cylrm-db psql -U cylrm cylrm -tAc "select coalesce(string_agg(name || ' (' || extract(epoch from (now() - on_call_since))::int || 's)', ', '), '') from app_user where on_call_since is not null and presence_at > now() - interval '45 seconds'" 2>/dev/null || echo "")"
+  if [ -n "${live//[[:space:]]/}" ]; then
+    echo "BUSY $live"
+    exit 9
+  fi
+fi
+pm2 restart crm crm-worker
+REMOTE
+}
+
 say "Restarting"
-ssh "$HOST" "pm2 restart crm crm-worker"
+if [[ "${FORCE_DEPLOY:-}" == "1" ]]; then
+  echo "FORCE_DEPLOY=1 — restarting without waiting for a clear line."
+fi
+# Long enough to sit through a call and the one after it; a deploy that waits
+# forever is one nobody watches. On timeout the files are already shipped and
+# the app is still on the old build, which is why that is said out loud.
+WAIT_SECONDS="${RESTART_WAIT_SECONDS:-600}"
+DEADLINE=$((SECONDS + WAIT_SECONDS))
+POLL_SECONDS=5
+# Polled every few seconds and reported far less often: a gap between two calls
+# is seconds long, so the polling has to be tight, but the same line printed
+# 120 times reads as a hang rather than as waiting.
+SAY_EVERY=6
+TICK=0
+while true; do
+  set +e
+  OUT="$(restart_when_clear 2>&1)"
+  CODE=$?
+  set -e
+
+  if [[ "$CODE" == "0" ]]; then
+    echo "$OUT"
+    break
+  fi
+  if [[ "$CODE" != "9" ]]; then
+    echo "$OUT"
+    echo "ERROR: could not restart. The new files are on the droplet and the"
+    echo "app is still running the old build — re-run once this is sorted."
+    exit 1
+  fi
+
+  if (( SECONDS >= DEADLINE )); then
+    echo "ERROR: still on a call after ${WAIT_SECONDS}s — ${OUT#BUSY }"
+    echo "Did not restart. The new files ARE on the droplet but the app is"
+    echo "still running the old build, so re-run this to finish."
+    echo "Longer wait: RESTART_WAIT_SECONDS=1800 ./scripts/deploy.sh"
+    echo "To restart regardless: FORCE_DEPLOY=1 ./scripts/deploy.sh"
+    exit 1
+  fi
+
+  if (( TICK % SAY_EVERY == 0 )); then
+    echo "waiting for a clear line — ${OUT#BUSY } — $(( (DEADLINE - SECONDS) / 60 ))m left"
+  fi
+  TICK=$((TICK + 1))
+  sleep "$POLL_SECONDS"
+done
 
 say "Smoke test"
 sleep 5

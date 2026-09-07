@@ -1573,6 +1573,27 @@ npm run dev
 DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docuseal — 1 vCPU, 2GB; do NOT run `next build` there, build locally and rsync `.next`):
 
 - **Deploy with `./scripts/deploy.sh`** (or the `/deploy` slash command; `--dry-run` to preview). It warns on uncommitted/unpushed work, checks SSH, builds locally, rsyncs, reinstalls deps on the droplet only when `package-lock.json` changed, restarts PM2, and smoke-tests the login page. There is no CI and no git checkout on the droplet — deploys are push-from-laptop and only happen when a person asks.
+- **The restart waits for a gap between calls, and the check lives in the same
+  remote shell as `pm2 restart`.** A restart does not drop a call — the audio
+  runs browser-to-Telnyx — but it can lose the outcome logged at the end of one,
+  which is a call that happened and cannot be proved.
+  - It used to check once at the top and then build, rsync and seed for the
+    better part of a minute before restarting, so a call that *started* inside
+    that window was never seen. On 2026-09-07 the guard passed on an empty read
+    and pm2 restarted eleven seconds into a call. The query and the restart are
+    now one `ssh … bash -s`, so milliseconds separate them instead of a build.
+  - **The check at the top only warns now.** Refusing there is what taught
+    somebody to poll for a gap between two calls and run the deploy into it —
+    the exact failure above. It exists to save a wasted build, nothing more.
+  - A floor dialling continuously has no quiet moment, only the seconds between
+    one call and the next, so the restart polls every 5s for up to
+    `RESTART_WAIT_SECONDS` (600) and reports every 30s. On timeout it exits 1
+    **with the files already shipped and the app still on the old build** — the
+    message says so, because that half-state is invisible otherwise.
+    `FORCE_DEPLOY=1` skips the wait entirely.
+  - Both checks **fail open**: an unreachable psql restarts anyway, on the
+    grounds that a droplet whose database cannot be reached has a worse problem
+    than a restart.
 - Code lives at `/root/crm`; the script's shipping step is
   `rsync -az --delete --exclude /node_modules --exclude .git --exclude ".env*" --exclude .claude ./ root@178.128.28.158:/root/crm/`
   after a local `npm run build`, then `pm2 restart crm crm-worker`.
