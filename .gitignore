@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated handouts (scripts/export-sop.mjs). Derived from content/sop/,
+# so committing them would be a second copy to keep in step - which is the
+# problem the exporter exists to solve.
+/handouts/

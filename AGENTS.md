@@ -1435,3 +1435,28 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
 - HTTP/3 is disabled in Caddy (`protocols h1 h2` global option) — h3 was flaky on this droplet; leave it off.
 - `sendGmail()` honors `GMAIL_SMTP_HOST` / `GMAIL_SMTP_PORT` / `GMAIL_SMTP_INSECURE=1` env overrides so dev tests can point at a local SMTP sink (see the smtp-server pattern in Phase 4's verification). Never set these in prod.
 - **DigitalOcean blocks ALL outbound SMTP from the droplet (ports 25, 465, 587); IMAP 993 is open.** That's why account verification/polling use IMAP and outbound switched to the Gmail API over HTTPS (DO ticket #12611746 became moot). Do not reintroduce SMTP sending. Do not assume `smtp.gmail.com` is reachable from prod.
+
+### Printable handouts
+
+`node scripts/export-sop.mjs [slug…]` renders the SOP markdown into
+standalone HTML under `handouts/` (gitignored — it is derived). Open one in
+Chrome and print to PDF; the print stylesheet is what the page is designed
+around, so what comes out matches the screen.
+
+- **It exists because the handouts were a hand-made copy.** Two PDFs were
+  being sent to interviewees, who have no CRM account to read `/sop` in, and a
+  hand-made copy of a document that changes weekly is wrong within a
+  fortnight: the price had moved to $99, the objection sheet had grown from
+  twelve entries to twenty and been regrouped into families, and the booking
+  half of the script had been rewritten around time zones. None of it had
+  reached the PDFs.
+- **`audience: admins` is never exported, even when named explicitly** — it
+  refuses loudly rather than skipping quietly, since somebody who asked for a
+  slug by name is expecting a file. These go to people outside the company;
+  `procedure-closing-the-demo` is the ROI maths and the commercial terms.
+- **Section splitting, the `Family | Title` split and the branch rule mirror
+  `toSections` in `src/lib/sop.ts`.** If that changes, this changes: a handout
+  that numbers or groups differently from the screen a caller works off is two
+  documents claiming to be one.
+- It writes no PDF itself. That means shipping a headless browser or a PDF
+  library to a repo that has neither, to save one Cmd-P.
