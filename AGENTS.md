@@ -208,6 +208,52 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   there is one place to change a rule. Same wall `components/calls/outcome.ts`
   was built to get around: `lib/calls.ts` imports the Postgres client.
 - The Call CRM's other screens: **Callbacks** (`/callbacks`) is the diary — every lead whose latest outcome is `callback`, across all lists, overdue first. `countCallbacksDue` feeds a sidebar badge and is `cache()`d because the sidebar and `PageShell` both ask while rendering one page, the same reason `countUnreadReplies` is.
+
+### The work order: missed calls, then callbacks, then lists
+
+`src/lib/work-order.ts` decides it; the dialler and the Call lists screen enforce
+it; `components/calls/work-gate.tsx` is what a caller sees instead. Callers
+only — admins are never blocked, since they are not on the rota and a founder
+opening a niche to check something is not somebody skipping their callbacks.
+
+- **The order is the value of the work, not a preference.** Somebody who rang
+  us and got no answer is the warmest lead of the day and goes cold in hours; a
+  callback is a promise with a time on it. A fresh lead is neither — and is
+  also the easiest of the three to start on, which is exactly why it was always
+  what got started on. The badges said so for months and were forgotten anyway,
+  so this refuses the queue rather than pointing at it.
+- **There is deliberately no skip, and that is only safe because neither stage
+  can trap anybody.** A missed call clears by being marked as rung back; a
+  callback clears by logging any outcome on it, "No answer" included. Both are
+  actions the caller takes themselves on a screen one tap away. **If either
+  stage ever gains a state its owner cannot clear, this becomes a lockout and
+  needs an escape hatch that day.** The one already in view: `dncBlockReason`
+  can refuse a number, so switching `DNC_ENFORCE` on would make a screened
+  callback unclearable — handle that before enforcing DNC.
+- **The Callbacks tab stays open during stage two**, and opening a list with no
+  `?view=` lands there rather than on the wall. It has to: the diary can log an
+  outcome but cannot dial, so the dialler's Callbacks tab is where a browser
+  caller actually rings one. Allowed only on a niche that *has* one due, or
+  they are waved through to an empty tab and left to work out why. Missed calls
+  admit no exception — no tab in the dialler returns one.
+- The counts are `countMissedCalls` and `countCallbacksDue`, the same two the
+  sidebar badges read, never queries of their own: a wall disagreeing with the
+  badge beside it reads as a bug. Both are already `cache()`d, so the gate
+  costs nothing per render.
+- It gates the **dialler only**. The spreadsheet and the pipeline board can
+  still log a call, and are deliberately left alone — they are reference
+  screens rather than a queue, and blocking every way to touch a lead would
+  turn a nudge into a cage.
+- It **re-checks on every navigation**, and the dialler calls `router.refresh()`
+  after each logged outcome — so a missed call arriving at 2pm interrupts the
+  queue at the next logged call rather than waiting for tomorrow. That is
+  intended: a prospect who just rang is the best lead of the day. Nothing is
+  lost by it, since the queue is derived server-side and already-called leads
+  do not come back.
+- **The sidebar order is part of the feature.** Missed calls, Callbacks, Call
+  lists — the nav reads top to bottom as the shift does, because that is where
+  the rule is learned. A sidebar listing them in a different order to the one
+  enforced would be teaching the wrong one.
 - **Scoreboard** puts the top three on a podium: rendered 2, 1, 3 across so the
   winner is centre and tallest, which is the only arrangement that reads as a
   podium rather than a chart. Gold, silver and bronze are written out rather

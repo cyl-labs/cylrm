@@ -14,6 +14,8 @@ import { callRegionOf, canUseLiveHints, dialMethodOf, panelLeftOf } from "@/lib/
 import { sopRegionFor } from "@/lib/calls";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
+import { WorkGateScreen } from "@/components/calls/work-gate";
+import { getWorkOrder } from "@/lib/work-order";
 import { cn } from "@/lib/utils";
 import { callScope, getCurrentUser } from "@/lib/session";
 
@@ -42,7 +44,14 @@ export default async function CallListPage({
 
   const { view, open } = await searchParams;
   const me = await getCurrentUser();
-  const filter: CallQueueFilter = isFilter(view) ? view : "queue";
+  // Missed calls, then callbacks, then this. See `lib/work-order.ts` for why
+  // it refuses rather than reminds, and why refusing is safe.
+  const work = await getWorkOrder(me);
+  // Landed on the tab that is the work, rather than on a wall, when what is
+  // owed is callbacks and this niche has some: one fewer tap between a caller
+  // and the thing they are being made to do.
+  const fallback: CallQueueFilter = work.blockedBy === "callbacks" ? "callbacks" : "queue";
+  const filter: CallQueueFilter = isFilter(view) ? view : fallback;
   // Only leads it is business hours for, where they are.
   //
   // On by default since 2026-08-31. It shipped off, on the reasoning that a
@@ -70,6 +79,31 @@ export default async function CallListPage({
 
   const list = await getCallList(listId, callScope(me));
   if (!list) notFound();
+
+  // The Callbacks tab is stage two, so it stays open while callbacks are what
+  // is owed — but only on a niche that actually has one due, or the caller is
+  // waved through to an empty tab and left to work out why. Missed calls admit
+  // no exception: there is no tab in here that returns one.
+  const gated =
+    work.blockedBy === "missed" ||
+    (work.blockedBy === "callbacks" &&
+      !(filter === "callbacks" && list.callbacksDue > 0));
+
+  if (gated && work.blockedBy) {
+    return (
+      <PageShell title={list.name}>
+        <WorkGateScreen
+          stage={work.blockedBy}
+          count={work.blockedBy === "missed" ? work.missed : work.callbacks}
+          listCallbacksHref={
+            work.blockedBy === "callbacks" && list.callbacksDue > 0
+              ? `/calls/${listId}?view=callbacks`
+              : undefined
+          }
+        />
+      </PageShell>
+    );
+  }
 
   // One market's script and objections, decided by who is signed in rather
   // than by the lead in front of them, so nothing switches mid-call.
@@ -179,20 +213,40 @@ export default async function CallListPage({
 
           <div className="mt-3 flex items-center gap-2">
             <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
-              {FILTERS.map((f) => (
-                <Link
-                  key={f.key}
-                  href={`/calls/${listId}?view=${f.key}${callableNow ? "" : "&open=0"}`}
-                  className={cn(
-                    "shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
-                    f.key === filter
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  {f.label}
-                </Link>
-              ))}
+              {FILTERS.map((f) => {
+                // Reachable only when this page is: a tab that navigates
+                // straight into the wall is a button whose job is to say no,
+                // and a caller presses it twice before believing it. Shown
+                // struck through rather than hidden, so the tab they normally
+                // use has not silently vanished.
+                const locked =
+                  work.blockedBy !== null && f.key !== "callbacks";
+                if (locked) {
+                  return (
+                    <span
+                      key={f.key}
+                      title="Missed calls and callbacks come first"
+                      className="shrink-0 cursor-not-allowed rounded-lg px-3 py-1.5 text-[13px] font-semibold text-muted-foreground/40 line-through"
+                    >
+                      {f.label}
+                    </span>
+                  );
+                }
+                return (
+                  <Link
+                    key={f.key}
+                    href={`/calls/${listId}?view=${f.key}${callableNow ? "" : "&open=0"}`}
+                    className={cn(
+                      "shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
+                      f.key === filter
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {f.label}
+                  </Link>
+                );
+              })}
             </nav>
             {/* The reason this exists: a caller starting at 10pm Singapore can
                 ring the US east coast, where it is 10am, but must not be
@@ -235,6 +289,24 @@ export default async function CallListPage({
               <span className="hidden sm:inline">Spreadsheet</span>
             </Link>
           </div>
+
+          {/* Why the other tabs are struck through. Reaching this line means
+              the caller is doing their callbacks on the one tab still open, so
+              what they need is the reason and the finish line, not the rule
+              again. */}
+          {work.blockedBy === "callbacks" && (
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                Callbacks first.
+              </span>{" "}
+              The rest of this niche opens once the{" "}
+              <span className="font-semibold text-foreground">
+                {work.callbacks}
+              </span>{" "}
+              you owe {work.callbacks === 1 ? "is" : "are"} done — logging an
+              outcome is what clears one, and No answer counts.
+            </p>
+          )}
 
           {/* What the toggle actually did. The tiles above count the whole
               niche and do not move, so without this the button is the only

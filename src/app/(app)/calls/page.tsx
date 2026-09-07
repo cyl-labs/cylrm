@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, PhoneCall } from "lucide-react";
+import { ChevronRight, Lock, PhoneCall } from "lucide-react";
 import { getCallLists, type CallListSummary } from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { listTeam, statsRegionOf } from "@/lib/users";
@@ -14,6 +14,8 @@ import { CallImportDialog } from "@/components/calls/call-import-dialog";
 import { ListAssignment } from "@/components/calls/list-assignment";
 import { ListActions } from "@/components/calls/list-actions";
 import { ListRegion } from "@/components/calls/list-region";
+import { WorkGateBanner } from "@/components/calls/work-gate";
+import { getWorkOrder } from "@/lib/work-order";
 import { REGION_LABELS, REGION_ORDER } from "@/components/calls/region";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -34,6 +36,11 @@ export default async function CallsPage({
     getCallLists(callScope(me)),
     listTeam(),
   ]);
+
+  // Missed calls, then callbacks, then these. Said here as well as enforced on
+  // the dialler: finding out a card is locked by pressing it teaches the rule
+  // worse than being told before the press.
+  const work = await getWorkOrder(me);
 
   const myLists = all.filter((l) => l.assignedUserId === me?.id);
   // Admins default to the whole floor — that is the job — and can narrow to
@@ -105,6 +112,15 @@ export default async function CallsPage({
       }
     >
       <div className="px-4 py-5 sm:px-6">
+        {work.blockedBy && (
+          <WorkGateBanner
+            stage={work.blockedBy}
+            count={
+              work.blockedBy === "missed" ? work.missed : work.callbacks
+            }
+            className="mb-4"
+          />
+        )}
         {report && (
           <DailyReportCard
             name={report.name}
@@ -162,6 +178,7 @@ export default async function CallsPage({
                       l={l}
                       people={people}
                       isAdmin={isAdmin}
+                      locked={work.blockedBy !== null}
                     />
                   ))}
                 </ul>
@@ -171,7 +188,13 @@ export default async function CallsPage({
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {lists.map((l) => (
-              <ListCard key={l.id} l={l} people={people} isAdmin={isAdmin} />
+              <ListCard
+                key={l.id}
+                l={l}
+                people={people}
+                isAdmin={isAdmin}
+                locked={work.blockedBy !== null}
+              />
             ))}
           </ul>
         )}
@@ -230,10 +253,15 @@ function ListCard({
   l,
   people,
   isAdmin,
+  locked = false,
 }: {
   l: CallListSummary;
   people: { id: number; name: string; active: boolean }[];
   isAdmin: boolean;
+  /** Missed calls or callbacks are owed, so the queue behind this card is
+   *  shut. Rendered as a card that is plainly not a link rather than one that
+   *  looks live and then refuses — the banner above says why. */
+  locked?: boolean;
 }) {
   // The bar tracks the queue emptying, not leads touched once.
   // "35 of 40 worked" over a screen that then asked for 21 more
@@ -268,18 +296,7 @@ function ListCard({
           />
         )}
       </div>
-      <Link
-        href={`/calls/${l.id}`}
-        // `h-full` is what keeps the row's bottom edges level. The
-        // grid stretches the <li> to the tallest card in the row,
-        // but the card is this <a>, which without it keeps its own
-        // height and leaves the shorter one floating in dead
-        // space. Cards differ in height honestly — a list with
-        // calls against it carries tags and a callbacks badge that
-        // an untouched one has nothing to put in — so they are
-        // levelled rather than made identical.
-        className="flex h-full flex-col rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40"
-      >
+      <CardShell listId={l.id} locked={locked}>
         {/* Room for the controls pinned to that corner — without it a long
             niche name runs underneath them. Wider now there are two. */}
         <div className="flex items-start gap-2 pr-40">
@@ -287,6 +304,12 @@ function ListCard({
             <p className="truncate font-bold tracking-[-0.01em]">
               {l.name}
             </p>
+            {locked && (
+              <p className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-semibold text-destructive">
+                <Lock className="size-3" strokeWidth={2.4} />
+                Locked until the work above is done
+              </p>
+            )}
             {l.niche && (
               <p className="truncate text-[13px] text-muted-foreground">
                 {l.niche}
@@ -361,7 +384,47 @@ function ListCard({
             <Badge variant="outline">{l.ruledOut} ruled out</Badge>
           )}
         </div>
-      </Link>
+      </CardShell>
     </li>
+  );
+}
+
+/**
+ * The card's outer element: a link normally, a plain box while the queue
+ * behind it is shut.
+ *
+ * Split in two rather than a Link with a dead href, because the difference has
+ * to be visible before the press — `h-full` is what keeps a row's bottom edges
+ * level, so both carry it, and only the live one carries a hover state. A card
+ * that lights up under the cursor and then refuses is the version of this that
+ * gets read as a bug.
+ */
+function CardShell({
+  listId,
+  locked,
+  children,
+}: {
+  listId: number;
+  locked: boolean;
+  children: React.ReactNode;
+}) {
+  const shell = "flex h-full flex-col rounded-xl border p-4";
+  if (locked) {
+    return (
+      <div
+        aria-disabled="true"
+        className={cn(shell, "cursor-not-allowed border-dashed bg-muted/30")}
+      >
+        {children}
+      </div>
+    );
+  }
+  return (
+    <Link
+      href={`/calls/${listId}`}
+      className={cn(shell, "bg-card transition-colors hover:bg-muted/40")}
+    >
+      {children}
+    </Link>
   );
 }

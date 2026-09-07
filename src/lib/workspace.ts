@@ -66,11 +66,16 @@ export const WORKSPACES: Workspace[] = [
     initial: "C",
     home: "/calls",
     links: [
-      { href: "/calls", label: "Call lists", icon: PhoneCall },
-      { href: "/callbacks", label: "Callbacks", icon: PhoneForwarded },
-      // Beside Callbacks because it is the same job from the other side: a
-      // promise they made rather than one we did, worked the same way.
+      // The first three are in the order a caller is required to work them —
+      // see `lib/work-order.ts`, which refuses a lead queue until the two
+      // above it are clear. The nav is where that order is learned, so it
+      // reads top to bottom as the shift does; a sidebar listing them in a
+      // different order to the one enforced would be teaching the wrong rule.
       { href: "/missed-calls", label: "Missed calls", icon: PhoneMissed },
+      // Beside Missed calls because it is the same job from the other side: a
+      // promise we made rather than one they did, worked the same way.
+      { href: "/callbacks", label: "Callbacks", icon: PhoneForwarded },
+      { href: "/calls", label: "Call lists", icon: PhoneCall },
       // Next to Callbacks because it is read the same way — a diary opened at
       // the start of a shift and worked top to bottom.
       { href: "/meetings", label: "Meetings", icon: CalendarClock },
