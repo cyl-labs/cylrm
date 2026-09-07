@@ -204,6 +204,29 @@ export const panelLeftOf = cache(
   },
 );
 
+/**
+ * The number this person rings from, assigned to them on the Team screen.
+ *
+ * Read for the sake of the screens that have to *tell them* what it is — the
+ * script's voicemail line and the Call lists header — rather than for dialling,
+ * which goes through `getDids`. Kept here beside the other per-person reads,
+ * and `cache()`d for the reason `callRegionOf` is: a number handed out on Team
+ * should land on their next page load rather than their next login.
+ *
+ * Trimmed to null when unset, so a call site has one empty case to handle
+ * instead of also guarding against a row of spaces.
+ */
+export const callerNumberOf = cache(
+  async (userId: number | null | undefined): Promise<string | null> => {
+    if (!userId) return null;
+    const [row] = await db
+      .select({ did: appUser.telnyxDid })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.did?.trim() || null;
+  },
+);
+
 /** How this person places calls. Cached for the same reason callRegionOf is. */
 export const dialMethodOf = cache(
   async (userId: number | null | undefined): Promise<"browser" | "handset"> => {

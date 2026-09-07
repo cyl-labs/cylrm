@@ -1159,6 +1159,43 @@ deleted is removed from the table too.
   - The library labels those rows **Founders**. Every row an admin sees is one
     only they can open, so the badge is not about access — it is so a founder
     can tell which documents their callers cannot see before quoting one.
+- **`[your number]` is filled in with the number assigned to whoever is
+  reading** (`SopFill` in `src/lib/sop.ts`, `callerNumberOf` in `lib/users.ts`,
+  `spokenNumber` in `lib/phone.ts`). It is the one thing in the script a caller
+  cannot look up: the number is set on Team, which is admin-only, it only ever
+  appears on somebody else's handset, and the voicemail line asks them to read
+  it out on every unanswered call — so the script was telling them to say a
+  number nobody had ever told them. A caller asked; that is what this is.
+  - **Substituted on the markdown, not the rendered HTML.** Everything a
+    section carries — the HTML, the spoken half, the drawer's search text — is
+    derived from that one string, so filling in there is the only way all of
+    them can agree. The value goes in wrapped in a `data-fill` span that
+    `SopProse` marks (bold, dotted underline, never wrapped mid-number): it has
+    to read as *their* number rather than as an example left in by mistake.
+  - Filled on the document page, the dialler and the Keypad. `/api/objection-
+    hint` deliberately is not: it returns a category and a title, no words to
+    say, and filling would mean another read per cache miss for nothing.
+  - **An unassigned number leaves the placeholder standing** rather than
+    dropping it — "[your number]" is visibly a blank where a sentence that
+    simply stops is not. The Call lists screen says the same thing in words:
+    `components/calls/your-number.tsx` labels the number for anybody who has
+    one, and tells a caller who does not to ask an admin, which is the
+    diagnosis for a script still showing the placeholder. Shown to every
+    caller and to admins only when they have a number, since an admin reading
+    "ask an admin" is a card pointing at itself.
+  - **The printable handouts keep the placeholders.** `scripts/export-sop.mjs`
+    renders the same markdown for interviewees, who have no account and no
+    number, which is why this is a step in the app rather than something baked
+    in at publish time.
+  - `spokenNumber` groups the digits — "+1 907 659 2550" — because this is the
+    one place a number is *said* rather than dialled. It is the opposite of
+    `dialableNumber`, which strips the country code for a keypad: the prospect
+    is ringing back from their own phone, so the international form is the one
+    that works from wherever they are. Only shapes the app can read are
+    grouped; a UK national part is left unbroken, since the grouping varies by
+    range and a wrongly-chunked number reads as a different one.
+  - `[your name]` and `[their trade]` are not filled today. A caller knows
+    their own name, and the trade belongs to the lead rather than to them.
 - **An objection handle must be a `##` branch, never a `###` sub-beat.** A
   `###` never becomes a section of its own, so on the dial card it renders as a
   small muted heading *inside* the parent step's expansion, directly above a

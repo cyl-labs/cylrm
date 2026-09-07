@@ -4,8 +4,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { SopProse } from "@/components/sop/sop-prose";
 import { getCurrentUser } from "@/lib/session";
-import { callRegionOf } from "@/lib/users";
+import { callerNumberOf, callRegionOf } from "@/lib/users";
 import { sopRegionFor } from "@/lib/calls";
+import { spokenNumber } from "@/lib/phone";
 import { getSopDocument } from "@/lib/sop";
 import { cn } from "@/lib/utils";
 
@@ -31,10 +32,16 @@ export default async function SopDocumentPage({
   const me = await getCurrentUser();
   // Scoped the same way the index is, so typing another region's slug into the
   // address bar gets the same not-found as a document that never existed.
+  //
+  // The script is read as this person's own, so "[your number]" is filled in
+  // with the number assigned to them — the one thing in it they have no way to
+  // look up.
+  const did = await callerNumberOf(me?.id);
   const doc = await getSopDocument(
     slug,
     sopRegionFor(await callRegionOf(me?.id)),
     me?.role === "admin",
+    { number: did ? spokenNumber(did) : null },
   );
   if (!doc) notFound();
 

@@ -10,8 +10,15 @@ import {
   type CallQueueFilter,
 } from "@/lib/calls";
 import { getDiallerSop } from "@/lib/sop";
-import { callRegionOf, canUseLiveHints, dialMethodOf, panelLeftOf } from "@/lib/users";
+import {
+  callerNumberOf,
+  callRegionOf,
+  canUseLiveHints,
+  dialMethodOf,
+  panelLeftOf,
+} from "@/lib/users";
 import { sopRegionFor } from "@/lib/calls";
+import { spokenNumber } from "@/lib/phone";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
 import { WorkGateScreen } from "@/components/calls/work-gate";
@@ -126,9 +133,15 @@ export default async function CallListPage({
   const dialMethod = await dialMethodOf(me?.id);
   const sopRegion =
     sopRegionFor(await callRegionOf(me?.id)) ?? sopRegionFor(list.region);
+  // The voicemail line ends "give me a call back on [your number]", and mid-call
+  // is the worst moment to discover you do not know what that is. Filled in
+  // with the number assigned to whoever is signed in.
+  const myNumber = await callerNumberOf(me?.id);
   const [leads, sop, split] = await Promise.all([
     getCallQueue(listId, filter, callableNow),
-    getDiallerSop(sopRegion),
+    getDiallerSop(sopRegion, {
+      number: myNumber ? spokenNumber(myNumber) : null,
+    }),
     // Both halves. The tiles above are list-wide by design and never move, so
     // without these the toggle changes one small badge and reads as broken —
     // and one number alone reads as "135 are being shown" when 194 are.

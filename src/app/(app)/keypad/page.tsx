@@ -8,6 +8,7 @@ import { callRegionOf, canUseKeypad, canUseLiveHints } from "@/lib/users";
 import { getDiallerSop } from "@/lib/sop";
 import { sopRegionFor } from "@/lib/calls";
 import { getKeypadLines, getSavedLines } from "@/lib/calls";
+import { spokenNumber } from "@/lib/phone";
 
 export const dynamic = "force-dynamic";
 
@@ -61,9 +62,16 @@ export default async function KeypadPage() {
   // what `getDiallerSop(null)` returns, reads as the feature being broken
   // rather than as a setting.
   const mine = sopRegionFor(await callRegionOf(me?.id));
+  // Same fill the dialler does: the script's voicemail line names the number
+  // this person rings from, which is the row already read above.
+  const fill = {
+    number: row?.telnyx_did?.trim()
+      ? spokenNumber(row.telnyx_did.trim())
+      : null,
+  };
   const [us, sg] = await Promise.all([
-    mine === "sg" ? null : getDiallerSop("us"),
-    mine === "us" ? null : getDiallerSop("sg"),
+    mine === "sg" ? null : getDiallerSop("us", fill),
+    mine === "us" ? null : getDiallerSop("sg", fill),
   ]);
   const sheets = [
     us ? { key: "us" as const, label: "US", ...us } : null,

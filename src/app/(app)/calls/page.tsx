@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ChevronRight, Lock, PhoneCall } from "lucide-react";
 import { getCallLists, type CallListSummary } from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
-import { listTeam, statsRegionOf } from "@/lib/users";
+import { callerNumberOf, listTeam, statsRegionOf } from "@/lib/users";
+import { spokenNumber } from "@/lib/phone";
 import {
   getCallTotals,
   statsZone,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/call-stats";
 import { PageShell } from "@/components/page-shell";
 import { DailyReportCard } from "@/components/calls/slack-post";
+import { YourNumber } from "@/components/calls/your-number";
 import { CallImportDialog } from "@/components/calls/call-import-dialog";
 import { ListAssignment } from "@/components/calls/list-assignment";
 import { ListActions } from "@/components/calls/list-actions";
@@ -54,6 +56,14 @@ export default async function CallsPage({
   // nobody for anything, the same reason they are off the Scoreboard.
   const report =
     me && me.role === "caller" ? await dailyReport(me.id, me.name) : null;
+
+  // The number this person rings from, labelled where they start the day.
+  // Callers always — "not assigned yet" is the answer that explains why their
+  // script still says "[your number]", so hiding it would hide the diagnosis.
+  // Admins only when they have one: an admin reading "ask an admin" is a card
+  // pointing at itself, and Team is one click away for them anyway.
+  const myNumber = await callerNumberOf(me?.id);
+  const showNumber = me?.role === "caller" || myNumber !== null;
 
   // One section per market, plus whatever nobody has filed yet. Empty folders
   // are dropped rather than left as a heading with nothing under it, so the
@@ -120,6 +130,9 @@ export default async function CallsPage({
             }
             className="mb-4"
           />
+        )}
+        {showNumber && (
+          <YourNumber number={myNumber ? spokenNumber(myNumber) : null} />
         )}
         {report && (
           <DailyReportCard

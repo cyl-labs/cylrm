@@ -91,6 +91,13 @@ export function SopProse({
         "[&_p>strong]:font-bold [&_li>strong]:font-bold",
         "[&_a]:underline [&_a]:underline-offset-2",
         "[&_hr]:my-6 [&_hr]:border-border",
+        // A placeholder the app filled in — the caller's own number, in place
+        // of "[your number]". Marked because it has to read as *theirs* rather
+        // than as an example somebody forgot to change, and never broken
+        // across two lines: a phone number split mid-digit-run is a number
+        // read out wrong.
+        "[&_[data-fill]]:whitespace-nowrap [&_[data-fill]]:font-bold [&_[data-fill]]:tabular-nums",
+        "[&_[data-fill]]:underline [&_[data-fill]]:decoration-dotted [&_[data-fill]]:underline-offset-4",
         // A fenced block is a form to copy out verbatim, the Slack templates
         // being the only ones today, so the line breaks in it are the content
         // and must survive. Wrapped rather than scrolled: a caller reading

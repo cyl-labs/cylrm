@@ -83,6 +83,59 @@ type Row = {
   updated_at: string;
 };
 
+/**
+ * What the app knows about the person reading, filled into the script's
+ * placeholders.
+ *
+ * The scripts are written with `[your number]` in the voicemail line, which is
+ * exactly the thing a caller cannot look up: the number they ring from lives on
+ * the Team screen, in an account they cannot open. Asked out loud often enough
+ * that answering it in the script is cheaper than answering it again.
+ *
+ * Optional throughout, and an absent value leaves its placeholder standing —
+ * "[your number]" is at least visibly a blank to be filled, where a silently
+ * dropped one reads as a sentence that simply stops.
+ */
+export type SopFill = {
+  /** The caller's own number, already grouped for reading aloud — see
+   *  `spokenNumber`. Null for somebody who has not been assigned one. */
+  number?: string | null;
+};
+
+/** The tokens the content files use. Written out here rather than derived, so
+ *  a placeholder can be added to a script without this quietly filling in
+ *  something nobody asked it to. */
+const FILL_TOKENS: { token: RegExp; of: (fill: SopFill) => string | null }[] = [
+  { token: /\[your number\]/gi, of: (f) => f.number?.trim() || null },
+];
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * Substitute the placeholders, on the markdown rather than the rendered HTML.
+ *
+ * Everything a section carries — the HTML, the spoken half, the search text —
+ * is derived from this one string, so filling in here is the only way all of
+ * them can agree. The value goes in wrapped in a `data-fill` span, which
+ * markdown passes through untouched and `SopProse` styles: a caller has to be
+ * able to see that the number in the sentence is theirs and not an example.
+ *
+ * Note what is deliberately *not* filled: `scripts/export-sop.mjs` renders the
+ * same markdown into the printable handouts, which go to interviewees who have
+ * no account and no number. Those keep the placeholder, which is why this is a
+ * step in the app rather than something baked in at publish time.
+ */
+function applyFill(md: string, fill: SopFill | undefined): string {
+  if (!fill) return md;
+  return FILL_TOKENS.reduce((out, { token, of }) => {
+    const value = of(fill);
+    return value
+      ? out.replace(token, `<span data-fill>${escapeHtml(value)}</span>`)
+      : out;
+  }, md);
+}
+
 const stripTags = (html: string) =>
   html
     .replace(/<[^>]*>/g, " ")
@@ -166,8 +219,8 @@ function toSections(md: string): { intro: string; sections: SopSection[] } {
   };
 }
 
-function toDoc(r: Row): SopDoc {
-  const { intro, sections } = toSections(r.body_md);
+function toDoc(r: Row, fill?: SopFill): SopDoc {
+  const { intro, sections } = toSections(applyFill(r.body_md, fill));
   return {
     id: r.id,
     slug: r.slug,
@@ -197,6 +250,7 @@ function toDoc(r: Row): SopDoc {
 export async function listSopDocuments(
   region: SopRegion | null,
   isAdmin = false,
+  fill?: SopFill,
 ): Promise<SopDoc[]> {
   const rows = (await db.execute(sql`
     select id, slug, kind, region, admin_only, title, body_md, updated_at
@@ -208,7 +262,7 @@ export async function listSopDocuments(
       region nulls first,
       title
   `)) as Row[];
-  return rows.map(toDoc);
+  return rows.map((r) => toDoc(r, fill));
 }
 
 /** One document, scoped the same way the index is — so typing a founders-only
@@ -218,8 +272,9 @@ export async function getSopDocument(
   slug: string,
   region: SopRegion | null,
   isAdmin = false,
+  fill?: SopFill,
 ): Promise<SopDoc | null> {
-  const all = await listSopDocuments(region, isAdmin);
+  const all = await listSopDocuments(region, isAdmin, fill);
   return all.find((d) => d.slug === slug) ?? null;
 }
 
@@ -229,7 +284,10 @@ export async function getSopDocument(
  * One region, resolved server-side from the caller, so nothing has to be
  * chosen or switched while a call is in progress.
  */
-export async function getDiallerSop(region: SopRegion | null): Promise<{
+export async function getDiallerSop(
+  region: SopRegion | null,
+  fill?: SopFill,
+): Promise<{
   script: SopSection[];
   objections: SopSection[];
 }> {
@@ -246,7 +304,7 @@ export async function getDiallerSop(region: SopRegion | null): Promise<{
       and kind in ('script', 'objections')
       and not admin_only
   `)) as Row[];
-  const docs = rows.map(toDoc);
+  const docs = rows.map((r) => toDoc(r, fill));
   return {
     script: docs.find((d) => d.kind === "script")?.sections ?? [],
     objections: docs.find((d) => d.kind === "objections")?.sections ?? [],

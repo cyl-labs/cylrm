@@ -227,3 +227,48 @@ export function dialCountry(raw: string): DialCountry | null {
   const kind = classifyPhone(raw);
   return kind === "sg" || kind === "us" || kind === "gb" ? kind : null;
 }
+
+/**
+ * The number as somebody says it out loud: "+1 907 659 2550".
+ *
+ * The one place a number has to be *spoken* rather than dialled is the
+ * voicemail line in the script — "give me a call back on …" — and a caller ID
+ * is stored E.164, which is eleven or twelve unbroken digits. Read off a screen
+ * mid-call that is where a digit gets dropped, so it is chunked here the way
+ * the country writes it.
+ *
+ * Deliberately not `dialableNumber`: that answers "what do I key in", strips
+ * the country code and puts a trunk prefix on. This is the opposite — the
+ * prospect is ringing back from their own phone, so the international form
+ * with its plus is the one that works from wherever they are.
+ *
+ * Only the shapes the app can actually read are grouped. Anything else is
+ * handed back as written: inventing a grouping for a country whose conventions
+ * are not encoded here would put a wrongly-chunked number in somebody's mouth,
+ * which is worse than an unchunked one.
+ */
+export function spokenNumber(raw: string): string {
+  const trimmed = raw.trim();
+  const d = trimmed.replace(/\D/g, "");
+
+  switch (classifyPhone(trimmed)) {
+    case "us":
+      return d.length === 11
+        ? `+1 ${d.slice(1, 4)} ${d.slice(4, 7)} ${d.slice(7)}`
+        : trimmed;
+    case "sg":
+      // Eight digits is how a Singaporean says their own number; ten is that
+      // with the country code, which is how it is stored.
+      if (d.length === 8) return `${d.slice(0, 4)} ${d.slice(4)}`;
+      return d.length === 10 ? `+65 ${d.slice(2, 6)} ${d.slice(6)}` : trimmed;
+    case "gb": {
+      // UK grouping varies by number range — 020 7946 0958 against 07911
+      // 123456 — and getting it wrong reads as a different number. The country
+      // code is split off, which is unambiguous, and the rest left alone.
+      const national = gbNational(d);
+      return national ? `+44 ${national}` : trimmed;
+    }
+    default:
+      return trimmed;
+  }
+}
