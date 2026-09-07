@@ -14,8 +14,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -35,7 +37,19 @@ import {
   type TermId,
 } from "@/lib/packages";
 
+type ContractKind = "trial" | "paid";
+
+const ALL_KINDS: readonly ContractKind[] = ["trial", "paid"];
+
 const KIND_LABEL = { trial: "Trial", paid: "Paid" } as const;
+
+/** What each one is, said plainly next to its checkbox. The paid one names the
+ *  package so that ticking it is visibly the thing the dropdowns below are
+ *  for. */
+const KIND_BLURB = {
+  trial: "30-day trial · USD 1",
+  paid: "Monthly retainer",
+} as const;
 
 /**
  * Draft both agreements for a booked demo.
@@ -85,6 +99,11 @@ export function PrepareContracts({
     "phone_professional",
   );
   const [termId, setTermId] = React.useState<TermId>("monthly");
+  /** Which agreements this press should draft. Both is the common case — the
+   *  whole point is to walk into a demo with either one ready — but a prospect
+   *  going straight to paid needs no trial, and re-opening the dialog to add
+   *  the second one must not offer the first again. */
+  const [kinds, setKinds] = React.useState<Set<ContractKind>>(new Set());
 
   function reset() {
     setBusinessName(meeting.company ?? "");
@@ -101,12 +120,18 @@ export function PrepareContracts({
     const already = drafted.find((c) => c.kind === "paid");
     if (already?.packageId) setPackageId(already.packageId as PackageId);
     if (already?.termId) setTermId(already.termId as TermId);
+    // Whatever is still missing, ticked. Opening this on a meeting that
+    // already has a trial offers the paid one alone rather than making
+    // somebody untick a box to avoid a no-op.
+    setKinds(new Set(ALL_KINDS.filter((k) => !has(k))));
   }
 
   const pkg = packageById(packageId)!;
   const term = termById(termId)!;
   const monthly = monthlyCents(pkg, term);
   const commitment = commitmentCents(pkg, term);
+  const wantsPaid = kinds.has("paid");
+  const chosen = ALL_KINDS.filter((k) => kinds.has(k));
 
   async function submit() {
     setBusy(true);
@@ -122,7 +147,7 @@ export function PrepareContracts({
           effectiveDate,
           packageId,
           termId,
-          kinds: ["trial", "paid"],
+          kinds: chosen,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -139,8 +164,8 @@ export function PrepareContracts({
       const made = (data.contracts ?? []).filter((c) => !c.existing).length;
       toast.success(
         made === 0
-          ? "Both agreements were already drafted."
-          : `${made === 2 ? "Both agreements" : "One agreement"} ready for ${businessName}. Nothing was sent.`,
+          ? "Nothing new — those agreements were already drafted."
+          : `${made === 2 ? "Both agreements" : `The ${chosen[0]} agreement`} ready for ${businessName}. Nothing was sent.`,
       );
       setOpen(false);
       router.refresh();
@@ -194,6 +219,49 @@ export function PrepareContracts({
           </DialogHeader>
 
           <div className="flex flex-col gap-3">
+            {/* First, because it decides what the rest of the form is for:
+                with only the trial ticked, the package below is not asked. */}
+            <div className="flex flex-col gap-2 rounded-lg border p-3">
+              {ALL_KINDS.map((k) => {
+                const done = has(k);
+                return (
+                  <label
+                    key={k}
+                    className={cn(
+                      "flex items-start gap-2.5 text-[13px]",
+                      done ? "opacity-60" : "cursor-pointer",
+                    )}
+                  >
+                    <Checkbox
+                      checked={done || kinds.has(k)}
+                      // Already drafted: shown ticked and locked, so the row
+                      // reads as a summary of what exists rather than as an
+                      // offer to make a second one at a different price.
+                      disabled={done}
+                      onCheckedChange={(v) =>
+                        setKinds((prev) => {
+                          const next = new Set(prev);
+                          if (v) next.add(k);
+                          else next.delete(k);
+                          return next;
+                        })
+                      }
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="font-semibold">
+                        {KIND_LABEL[k]} agreement
+                      </span>
+                      <span className="text-muted-foreground">
+                        {" · "}
+                        {done ? "already drafted" : KIND_BLURB[k]}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="businessName">Business name</Label>
               <Input
@@ -258,61 +326,68 @@ export function PrepareContracts({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="package">Package</Label>
-                <Select
-                  value={packageId}
-                  onValueChange={(v) => setPackageId(v as PackageId)}
-                >
-                  <SelectTrigger id="package">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PACKAGES.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="term">Commitment</Label>
-                <Select
-                  value={termId}
-                  onValueChange={(v) => setTermId(v as TermId)}
-                >
-                  <SelectTrigger id="term">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TERMS.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* Only the paid agreement has a fee table. Asking for a package
+                while drafting a trial would be asking a question the document
+                has no blank for. */}
+            {wantsPaid && (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="package">Package</Label>
+                    <Select
+                      value={packageId}
+                      onValueChange={(v) => setPackageId(v as PackageId)}
+                    >
+                      <SelectTrigger id="package">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PACKAGES.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="term">Commitment</Label>
+                    <Select
+                      value={termId}
+                      onValueChange={(v) => setTermId(v as TermId)}
+                    >
+                      <SelectTrigger id="term">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TERMS.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-            {/* What the paid agreement will actually say, before it says it.
-                A price typed into a contract by a machine still wants reading
-                once by the person whose deal it is. */}
-            <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-[13px]">
-              <p className="font-semibold">
-                ${money(monthly)} / month
-                {pkg.minutes === null
-                  ? " · unlimited minutes"
-                  : ` · ${pkg.minutes} minutes, then $${money(pkg.overageCents)}/min`}
-              </p>
-              <p className="mt-0.5 text-muted-foreground">
-                {commitment === null
-                  ? "Month to month — either side can end it on 7 days' notice."
-                  : `Minimum term ${term.minimumTerm} · $${money(commitment)} over the term.`}
-              </p>
-            </div>
+                {/* What the paid agreement will actually say, before it says
+                    it. A price typed into a contract by a machine still wants
+                    reading once by the person whose deal it is. */}
+                <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-[13px]">
+                  <p className="font-semibold">
+                    ${money(monthly)} / month
+                    {pkg.minutes === null
+                      ? " · unlimited minutes"
+                      : ` · ${pkg.minutes} minutes, then $${money(pkg.overageCents)}/min`}
+                  </p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    {commitment === null
+                      ? "Month to month — either side can end it on 7 days' notice."
+                      : `Minimum term ${term.minimumTerm} · $${money(commitment)} over the term.`}
+                  </p>
+                </div>
+              </>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="effectiveDate">Effective date</Label>
@@ -334,9 +409,18 @@ export function PrepareContracts({
             >
               Cancel
             </Button>
-            <Button onClick={submit} disabled={busy || !businessName.trim()}>
+            <Button
+              onClick={submit}
+              disabled={busy || !businessName.trim() || chosen.length === 0}
+            >
               {busy && <Loader2 className="size-4 animate-spin" />}
-              {busy ? "Drafting…" : "Draft both"}
+              {busy
+                ? "Drafting…"
+                : chosen.length === 2
+                  ? "Draft both"
+                  : chosen.length === 1
+                    ? `Draft the ${chosen[0]}`
+                    : "Nothing selected"}
             </Button>
           </DialogFooter>
         </DialogContent>
