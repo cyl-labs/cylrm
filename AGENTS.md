@@ -580,6 +580,97 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   takes ~10s on a cold connection — the window in which somebody can press
   twice is exactly the window in which the first request is still going.
 
+### Contracts (DocuSeal)
+
+Both agreements — the 30-day trial and the paid retainer — are drafted from the
+meeting row into DocuSeal, filled in and unsent. `src/lib/docuseal.ts` is the
+client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
+`components/calls/prepare-contracts.tsx` the dialog, `POST
+/api/meetings/[id]/contracts` the route. Schema in `2026-09-07-call-contract.sql`.
+
+- **Nothing is emailed, and that is the feature rather than a detail.**
+  `send_email: false` on every submission. The contracts exist so they are
+  ready when a demo starts; a document that sent itself to the prospect the
+  moment a caller pressed a button on the meetings screen would be the worst
+  failure this could have.
+- **Prefilled and editable, not one press.** `call_lead.company` is a directory
+  scrape, so it is a trading name where a contract wants the legal entity —
+  "AK Auto Care" against "AK Auto Care LLC". A wrong party name on a signed
+  agreement is worse than the typing this removes, so every value goes in front
+  of somebody first. The empty-business-name check is in the route as well as
+  the button, because a disabled button is not a validation.
+- **The prices are in `lib/packages.ts`, never in the templates.** A template
+  holds the wording, the CRM holds the numbers: changing a price is then one
+  line rather than somebody opening two documents in an editor and getting one
+  of them wrong. Db-free for the reason `payroll-rates.ts` is — the dialog is a
+  client component and has to render amounts. Discounts are integer cents, so
+  250_00 at 15% off is exactly 212_50 rather than 212.49999999999997.
+- **The unlimited plan bills overage at $0.00, not a dash.** Its clause reads
+  "Unlimited minutes per month included. Minutes beyond this are billed at USD
+  0.00 per minute" — slightly odd to read, exactly true, and it means Call
+  Commander needs no template of its own. A dash would leave a broken sentence
+  on a document somebody signs.
+- **A discounted term is a clause, not only a price.** Section 4 of the paid
+  agreement is written around the three exact strings `minimum_term` can hold:
+  "None" leaves it month-to-month on 7 days' notice, and anything else locks
+  the client in and makes the balance of the term fall due on early
+  termination. The contract originally said "month to month… terminate at any
+  time on 7 days' notice" with no minimum-term wording at all, which made the
+  15% and 25% discounts unenforceable — a 12-month Call Commander is $18,000.
+  **If a term is ever added to `TERMS`, that clause has to be read again.**
+- **Template creation has no API on the open-source build.** `POST
+  /templates/pdf`, `/templates/html` and `/templates/docx` all 404 there and
+  answer on the hosted service — they are Pro. So the two templates are laid
+  out by hand in the editor once and addressed by id from
+  `DOCUSEAL_TEMPLATE_TRIAL` / `_PAID`, which is configuration rather than a
+  constant so that rebuilding one is an env change and not a deploy. No
+  defaults: a wrong default would draft against somebody else's document, and
+  this instance holds another business's contracts.
+- **Fields are addressed by name, and an unnamed field cannot be filled.** The
+  editor shows "Text Field 1" for a field with no name, which reads exactly
+  like a name and is not one — the API returns `name: ''` for it. Every blank
+  the CRM fills must be named in the editor: `effective_date`, `business_name`,
+  `niche_name`, and on the paid one `retainer`, `minutes_included`,
+  `overage_rate`, `minimum_term`. Verify with `GET /api/templates/{id}` rather
+  than by eye.
+- **Roles must stay `First Party` (Cyl Labs) and `Second Party` (the client).**
+  DocuSeal attaches fields by role name, and a renamed role produces a document
+  with every field assigned to nobody rather than an error — so
+  `createSubmission` refuses outright when both roles do not come back.
+- **`DOCUSEAL_URL` and `DOCUSEAL_PUBLIC_URL` are different values and must
+  stay that way.** The API is reached at `http://localhost:3001` from the
+  droplet; a link built from that is dead in every browser. Only slugs are
+  stored, never URLs, so moving instances does not orphan every link ever
+  written.
+- **One trial and one paid agreement per meeting**, enforced by a unique index
+  on `(meeting_id, kind)` *and* by a read before drafting. The read is the
+  load-bearing half: the index would fire after DocuSeal had already made a
+  duplicate document, which is the expensive part. A second press hands back
+  what exists rather than minting a second contract at a different price.
+- **`field_values` is a snapshot**, exactly as `payout` snapshots its rates.
+  Raising a price must not rewrite what an agreement said on the day it was
+  drafted, and this is the only record of that on our side.
+- Drafting is sequential and each row is written the moment its document is
+  made, so a failure part-way leaves a real contract the screen can show plus a
+  message — better than a document in DocuSeal the CRM has no record of.
+- **Self-hosted, so it is free and unmetered.** The hosted docuseal.com wants
+  $20/month for a Pro seat plus $0.20 per document signed via API, and stamps
+  everything "Developer Sandbox" until you pay. The trade-off taken knowingly:
+  self-hosted signs with a self-signed certificate rather than a trusted one.
+- **DocuSeal has no PDF until a document is signed.** Before that there is only
+  the prefilled link. If a file is wanted in hand beforehand, the sender signs
+  their side first and downloads the part-signed copy.
+- The instance at `sign.cyllabs.com` is shared with the maid agency (account
+  "wilnor lavett", ~55 live client contracts, a second admin). Signup is
+  disabled, so there is no separate workspace: the CRM's templates live in a
+  **Cyl Labs** folder alongside the agency's, and the API token can see both.
+  Anything scripted against that token must therefore name the templates it
+  touches rather than iterating the account.
+- Unset config means the buttons do not render at all, in the same spirit as
+  the push toggle and `lib/notify.ts` — a dead button on a screen somebody
+  works from is worse than no button. `docusealConfigError()` names whichever
+  value is missing.
+
 ### Callback digest
 
 One notification a day per person: "3 callbacks due today", opening
