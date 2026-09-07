@@ -65,27 +65,6 @@ export type DraftResult =
   | { ok: true; contracts: DraftedContract[] }
   | { ok: false; error: string; contracts: DraftedContract[] };
 
-/** A trade reads better lowercase in the middle of a sentence — the contract
- *  says "the Client operates a ___ business", and niches are filed as "Movers"
- *  or "Aircon Servicing SG". The market suffix goes too: it is a filing label,
- *  not part of what the business does. Only a default; the dialog can override
- *  it, and does whenever the niche is not a noun that fits the sentence. */
-export function tidyNiche(niche: string | null): string {
-  if (!niche) return "";
-  return niche
-    .replace(/\s+(SG|US|GB|UK)$/i, "")
-    .trim()
-    .toLowerCase();
-}
-
-/** The date on the contract, as a plain calendar date in the reader's own
- *  clock. Never `new Date().toISOString()`: the droplet runs UTC, so a demo at
- *  9am Singapore would be drafted with yesterday's date on it. */
-export function contractDate(at: Date, tz: string): string {
-  // en-CA gives YYYY-MM-DD, which is what DocuSeal's date field wants.
-  return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(at);
-}
-
 /**
  * Draft the agreements that do not exist yet.
  *

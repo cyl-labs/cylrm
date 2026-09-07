@@ -88,7 +88,11 @@ export function PrepareContracts({
 
   function reset() {
     setBusinessName(meeting.company ?? "");
-    setNicheName(tidy(meeting.niche));
+    // The niche first, the list's name second. Plenty of lists carry no niche
+    // — two of the three meetings on the live screen — and the name is the
+    // same trade with filing on the end of it, so it is a better starting
+    // point than an empty box.
+    setNicheName(tidy(meeting.niche) || tidy(meeting.listName));
     setSigneeName(meeting.attendeeName ?? "");
     setSigneeEmail(meeting.attendeeEmail ?? "");
     // The meeting's own day, not today: these are drafted the day before as
@@ -217,6 +221,20 @@ export function PrepareContracts({
               <p className="text-[12px] text-muted-foreground">
                 Reads as &ldquo;the Client operates a {nicheName || "___"}{" "}
                 business&rdquo;.
+                {/* Where the guess came from, in full and untidied. A list is
+                    called "Junk Removal 1.1" — the trade plus the filing — so
+                    naming it is what tells somebody what to type when the
+                    niche is empty or the tidied version reads badly. */}
+                {meeting.listName && (
+                  <>
+                    {" "}
+                    They&rsquo;re on{" "}
+                    <span className="font-semibold text-foreground">
+                      {meeting.listName}
+                    </span>
+                    .
+                  </>
+                )}
               </p>
             </div>
 
@@ -327,16 +345,32 @@ export function PrepareContracts({
   );
 }
 
-/** Mirrors `tidyNiche` on the server. Two copies of one rule is normally the
- *  wrong answer, but the server module imports the Postgres client and this is
- *  a client component — the same wall `outcome.ts` and `phone.ts` were built to
- *  get around. It is only a default: whatever is in the box is what is sent. */
-function tidy(niche: string | null): string {
-  if (!niche) return "";
-  return niche
-    .replace(/\s+(SG|US|GB|UK)$/i, "")
-    .trim()
-    .toLowerCase();
+/**
+ * A niche or list name, as the trade alone.
+ *
+ * The contract says "the Client operates a ___ business", and lists are named
+ * for filing as much as for the trade: "Movers SG", "Movers.1", "Junk Removal
+ * 1.1". The market and the part number are both filing, so both come off, and
+ * it loops because a name can carry one of each. Lowercase because it lands
+ * mid-sentence.
+ *
+ * Only ever a default. The field is editable and the hint under it names the
+ * list in full, since a tidied guess is worth less than knowing where it came
+ * from — "Junk Removal 1.1" tells you to type "junk removal" even when this
+ * gets it wrong.
+ */
+function tidy(value: string | null): string {
+  if (!value) return "";
+  let s = value.trim();
+  let prev = "";
+  while (s !== prev) {
+    prev = s;
+    s = s
+      .replace(/[\s.]*\d+(?:\.\d+)*$/, "")
+      .replace(/[\s.]+(SG|US|GB|UK)$/i, "")
+      .trim();
+  }
+  return s.toLowerCase();
 }
 
 /** The meeting's calendar day in the screen's zone. `toISOString` would answer
