@@ -626,6 +626,27 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   constant so that rebuilding one is an env change and not a deploy. No
   defaults: a wrong default would draft against somebody else's document, and
   this instance holds another business's contracts.
+- **Template *layout* can be changed over the API even though creation cannot.**
+  `PUT /api/templates/{id}` with a `fields` array answers 200 on the
+  open-source build — it is `POST /templates/pdf|html|docx` that is Pro. Fetch
+  the template, patch the one area, and send **all** the fields back: that is
+  what was tested, and a partial array has not been. Verify with a re-fetch
+  that the field count and both role names survived, and keep the original JSON
+  until you have.
+  - Used on 2026-09-07 to fix `cyllabs_date` on the trial, which sat 0.0124 of
+    page height — half a field — below `client_date`, so the box straddled the
+    printed rule and the value rendered through the line. The signature and
+    name rows were pixel-aligned, which is what made it obvious the date was
+    the odd one; the paid template was already correct.
+  - **A submission snapshots the layout, so fixing a template does not move
+    anything already drafted.** Measured, not assumed: after the fix the open
+    document's signing page still served the old y, while a fresh submission
+    off the same template served the new one. A layout fix therefore reaches
+    people only through discard-and-redraft.
+  - Both templates render every date **DD/MM/YYYY**, which a US signer reads as
+    the wrong month — "08/09/2026" is 8 September to us and 9 August to them.
+    Left alone deliberately: it is wording on a document somebody signs, not a
+    bug to quietly flip.
 - **Fields are addressed by name, and an unnamed field cannot be filled.** The
   editor shows "Text Field 1" for a field with no name, which reads exactly
   like a name and is not one — the API returns `name: ''` for it. Every blank
