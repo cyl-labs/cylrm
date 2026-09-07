@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { FileSignature, ExternalLink, Loader2 } from "lucide-react";
+import {
+  ChevronDown,
+  Eye,
+  FileSignature,
+  ExternalLink,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { Meeting } from "@/lib/meetings";
 import { Button } from "@/components/ui/button";
@@ -15,6 +22,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -69,6 +82,7 @@ export function PrepareContracts({
   meeting,
   tz,
   signingBase,
+  canDiscard = false,
 }: {
   meeting: Meeting;
   /** The screen's clock, so the effective date is the date where the reader
@@ -80,10 +94,16 @@ export function PrepareContracts({
    *  server-side fetch and a dead link in a browser. Empty means DocuSeal is
    *  not configured, and the button says so instead of failing on the press. */
   signingBase: string;
+  /** Whether to offer throwing a draft away. Admins only — drafting is
+   *  recoverable and this is the recovery, but it takes the CRM's only pointer
+   *  to a document with it, and these prices are a founder's call anyway. */
+  canDiscard?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  /** Which agreement the confirm dialog is asking about, or null. */
+  const [discarding, setDiscarding] = React.useState<ContractKind | null>(null);
 
   const drafted = meeting.contracts;
   const has = (k: "trial" | "paid") => drafted.some((c) => c.kind === k);
@@ -176,22 +196,92 @@ export function PrepareContracts({
     }
   }
 
+  /**
+   * Throw one draft away so a corrected one can be drafted.
+   *
+   * The server does the checking — a signed agreement is refused there, and
+   * DocuSeal is archived before the row goes — so this only has to say what
+   * came back. 409 is the signed case and reads as a rule rather than a fault.
+   */
+  async function discard(kind: ContractKind) {
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/meetings/${meeting.id}/contracts?kind=${kind}`,
+        { method: "DELETE" },
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not discard that agreement.");
+        return;
+      }
+      setDiscarding(null);
+      toast.success(
+        `${KIND_LABEL[kind]} agreement discarded. Draft it again whenever you are ready.`,
+      );
+      router.refresh();
+    } catch {
+      toast.error("Could not discard that agreement: network error.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       {/* Already drafted: the links, not the button. Pressing again would only
           hand back what exists, and a row that offers "Prepare" over a finished
-          contract reads as though the first press did nothing. */}
+          contract reads as though the first press did nothing.
+
+          The chip opens our own copy, which is the one to open at the demo
+          since Cyl Labs signs first. What the client will see, and undoing a
+          draft that came out wrong, sit in the menu beside it — one level in,
+          the way a mis-tapped outcome is corrected one level in from logging
+          one. */}
       {drafted.map((c) => (
-        <a
+        <span
           key={c.kind}
-          href={`${signingBase}/s/${c.senderSlug}`}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center gap-1.5 rounded-md border border-success/40 bg-success/5 px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-success/10"
+          className="inline-flex items-stretch overflow-hidden rounded-md border border-success/40 bg-success/5"
         >
-          <ExternalLink className="size-3.5" />
-          {KIND_LABEL[c.kind]} agreement
-        </a>
+          <a
+            href={`${signingBase}/s/${c.senderSlug}`}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-success/10"
+          >
+            <ExternalLink className="size-3.5" />
+            {KIND_LABEL[c.kind]} agreement
+          </a>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`More for the ${c.kind} agreement`}
+              className="inline-flex items-center border-l border-success/40 px-1.5 transition-colors hover:bg-success/10"
+            >
+              <ChevronDown className="size-3.5" strokeWidth={2.4} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem asChild>
+                <a
+                  href={`${signingBase}/s/${c.signerSlug}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  <Eye className="size-3.5" />
+                  See the client&rsquo;s copy
+                </a>
+              </DropdownMenuItem>
+              {canDiscard && (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => setDiscarding(c.kind)}
+                >
+                  <Trash2 className="size-3.5" />
+                  Discard and start again
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </span>
       ))}
 
       {(!has("trial") || !has("paid")) && (
@@ -421,6 +511,49 @@ export function PrepareContracts({
                   : chosen.length === 1
                     ? `Draft the ${chosen[0]}`
                     : "Nothing selected"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Asked before it happens, and says what it does rather than warning in
+          the abstract: the usual reason to reach for this is a wrong business
+          name or the wrong package, where the honest answer is "it goes and you
+          draft another one". The one thing worth naming out loud is that a
+          signed document is not thrown away — the server refuses it, and
+          somebody about to press this should know that before they worry. */}
+      <Dialog
+        open={discarding !== null}
+        onOpenChange={(v) => !v && setDiscarding(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Discard the {discarding ? KIND_LABEL[discarding].toLowerCase() : ""}{" "}
+              agreement?
+            </DialogTitle>
+            <DialogDescription>
+              It is archived in DocuSeal and taken off this meeting, so you can
+              prepare a corrected one. Nothing has been sent to{" "}
+              {meeting.attendeeName || "the client"} either way — and if they
+              have already signed it, nothing is discarded.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDiscarding(null)}
+              disabled={busy}
+            >
+              Keep it
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => discarding && discard(discarding)}
+              disabled={busy}
+            >
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              {busy ? "Discarding…" : "Discard it"}
             </Button>
           </DialogFooter>
         </DialogContent>

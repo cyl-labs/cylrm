@@ -1,6 +1,7 @@
 import { callScope, getCurrentUser } from "@/lib/session";
 import { getMeeting } from "@/lib/meetings";
 import {
+  discardContracts,
   draftContracts,
   type ContractKind,
   type DraftInput,
@@ -110,4 +111,63 @@ export async function POST(
     return Response.json({ error: result.error, contracts }, { status: 502 });
   }
   return Response.json({ ok: true, contracts });
+}
+
+/**
+ * Discard a drafted agreement so a corrected one can be drafted.
+ *
+ * Admin-only, unlike drafting. Making a document is recoverable — this is the
+ * recovery — where throwing one away takes the CRM's only pointer to it with
+ * it, and the prices on these are a founder's decision in the first place.
+ *
+ * `?kind=` names one agreement; without it both go, which is the "I got the
+ * whole thing wrong" case. A signed document is refused rather than discarded —
+ * see `discardContracts`.
+ */
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const me = await getCurrentUser();
+  if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.role !== "admin") {
+    return Response.json(
+      { error: "Discarding a contract is admin-only." },
+      { status: 403 },
+    );
+  }
+
+  const id = Number((await params).id);
+  if (!Number.isInteger(id)) {
+    return Response.json({ error: "Invalid meeting." }, { status: 400 });
+  }
+
+  const meeting = await getMeeting(id, callScope(me));
+  if (!meeting) {
+    return Response.json({ error: "Meeting not found." }, { status: 404 });
+  }
+
+  const wanted = new URL(request.url).searchParams.get("kind");
+  if (wanted !== null && !KINDS.includes(wanted as ContractKind)) {
+    return Response.json({ error: "Unknown agreement." }, { status: 400 });
+  }
+
+  const result = await discardContracts(
+    id,
+    wanted === null ? undefined : [wanted as ContractKind],
+  );
+
+  if (!result.ok) {
+    // A refusal is not always a fault: a signed agreement being left alone is
+    // the rule working, and nothing to discard is a stale screen. Branching on
+    // `reason` rather than on the message text, which is the trap the Drizzle
+    // constraint-name gotcha documents.
+    const status =
+      result.reason === "signed" ? 409 : result.reason === "nothing" ? 404 : 502;
+    return Response.json(
+      { error: result.error, discarded: result.discarded },
+      { status },
+    );
+  }
+  return Response.json({ ok: true, discarded: result.discarded });
 }

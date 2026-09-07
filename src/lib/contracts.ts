@@ -19,11 +19,13 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  archiveSubmission,
   createSubmission,
   docusealConfigError,
   PAID_TEMPLATE_ID,
   SENDER_ROLE,
   SIGNER_ROLE,
+  submissionState,
   TRIAL_TEMPLATE_ID,
 } from "@/lib/docuseal";
 import { contractValues, packageById, termById } from "@/lib/packages";
@@ -185,4 +187,110 @@ export async function draftContracts(
   }
 
   return { ok: true, contracts: made };
+}
+
+export type DiscardResult =
+  | { ok: true; discarded: ContractKind[] }
+  /** `reason` is what the caller branches on. The refusals here are not all
+   *  faults — a signed agreement being left alone is the rule working — and
+   *  reading that back out of the message text is the trap the Drizzle
+   *  constraint-name gotcha documents. */
+  | {
+      ok: false;
+      reason: "signed" | "nothing" | "failed";
+      error: string;
+      discarded: ContractKind[];
+    };
+
+/**
+ * Throw a drafted agreement away so it can be drafted again.
+ *
+ * Drafting is deliberately once-only — the unique index and the read before it
+ * exist so a second press cannot mint a second contract at a different price —
+ * and that leaves one gap: a document drafted with the wrong business name, the
+ * wrong package or the wrong signee had no way back. Correcting it meant
+ * opening DocuSeal, which is a shared instance holding another business's
+ * contracts. So this is the correction, one level in from the button, the same
+ * way a mis-tapped call outcome is corrected rather than logged again.
+ *
+ * Two rules make it safe to offer at all:
+ *
+ * - **A signed agreement is never discarded.** DocuSeal is asked first, and any
+ *   signature at all refuses the whole thing. At that point the document is not
+ *   a draft, it is the deal, and this row is the only thing on our side that
+ *   points at where it lives.
+ * - **DocuSeal is archived before the row goes, never after.** The row is what
+ *   makes a document findable; dropping it first would leave a filled-in
+ *   contract live on a shared instance with nothing naming it.
+ *
+ * Sequential, and reporting what it managed, for the reason `draftContracts`
+ * is: a partial result is a real state and the screen has to be able to show
+ * it.
+ */
+export async function discardContracts(
+  meetingId: number,
+  kinds?: ContractKind[],
+): Promise<DiscardResult> {
+  const configError = docusealConfigError();
+  if (configError) {
+    return { ok: false, reason: "failed", error: configError, discarded: [] };
+  }
+
+  const rows = (await db.execute(sql`
+    select kind, submission_id
+    from call_contract where meeting_id = ${meetingId}
+    order by kind
+  `)) as unknown as Record<string, unknown>[];
+
+  const wanted = rows
+    .map((r) => ({
+      kind: r.kind as ContractKind,
+      submissionId: Number(r.submission_id),
+    }))
+    .filter((r) => !kinds || kinds.includes(r.kind));
+
+  if (wanted.length === 0) {
+    return {
+      ok: false,
+      reason: "nothing",
+      error: "There is nothing drafted to discard.",
+      discarded: [],
+    };
+  }
+
+  const discarded: ContractKind[] = [];
+  for (const { kind, submissionId } of wanted) {
+    try {
+      const state = await submissionState(submissionId);
+      if (state.signedBy.length > 0) {
+        return {
+          ok: false,
+          reason: "signed",
+          error: `The ${kind} agreement has already been signed by ${state.signedBy.join(" and ")}. Signed documents are left alone — archive it in DocuSeal if you really mean to.`,
+          discarded,
+        };
+      }
+      if (!state.missing) await archiveSubmission(submissionId);
+      await db.execute(sql`
+        delete from call_contract
+        where meeting_id = ${meetingId} and kind = ${kind}
+      `);
+      discarded.push(kind);
+    } catch (err) {
+      // Reaching DocuSeal is what makes both rules above true, so failing to
+      // reach it keeps the row. A record pointing at a live document beats a
+      // live document nothing points at.
+      return {
+        ok: false,
+        reason: "failed",
+        error:
+          err instanceof Error
+            ? err.message
+            : `Could not discard the ${kind} agreement.`,
+        discarded,
+      };
+    }
+  }
+
+  return { ok: true, discarded };
 }

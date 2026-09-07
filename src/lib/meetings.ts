@@ -254,6 +254,10 @@ export type MeetingFollowupResult =
 export type MeetingContract = {
   kind: "trial" | "paid";
   senderSlug: string;
+  /** The client's own link. Carried so the screen can open the document as
+   *  they will see it — the sender's link shows Cyl Labs' side, which is not
+   *  what anybody wants to check before sending one out. */
+  signerSlug: string;
   packageId: string | null;
   termId: string | null;
 };
@@ -346,6 +350,7 @@ const meetingSelect = sql`
         json_build_object(
           'kind', c.kind,
           'senderSlug', c.sender_slug,
+          'signerSlug', c.signer_slug,
           'packageId', c.package_id,
           'termId', c.term_id
         ) order by c.kind

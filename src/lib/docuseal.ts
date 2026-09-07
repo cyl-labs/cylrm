@@ -86,11 +86,8 @@ export type CreatedSubmission = {
   signerSlug: string;
 };
 
-async function call<T>(
-  path: string,
-  init?: RequestInit & { body?: string },
-): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
+const send = (path: string, init?: RequestInit & { body?: string }) =>
+  fetch(`${API}${path}`, {
     ...init,
     headers: {
       "X-Auth-Token": TOKEN!,
@@ -99,6 +96,12 @@ async function call<T>(
     },
     cache: "no-store",
   });
+
+async function call<T>(
+  path: string,
+  init?: RequestInit & { body?: string },
+): Promise<T> {
+  const res = await send(path, init);
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(
@@ -153,3 +156,72 @@ export async function createSubmission(
 
 /** The link a person opens. Built from the public host, never the API base. */
 export const signingUrl = (slug: string) => `${PUBLIC}/s/${slug}`;
+
+export type SubmissionState = {
+  /** DocuSeal no longer has it: archived there, or deleted by hand. The end
+   *  state a discard asks for already holds, so this is not a failure. */
+  missing: boolean;
+  /** Everybody who has already signed, by name. Non-empty means the document
+   *  is a record of an agreement rather than a draft, and must not be thrown
+   *  away because somebody wants to redo the numbers. */
+  signedBy: string[];
+};
+
+type SubmissionResponse = {
+  archived_at?: string | null;
+  submitters?: {
+    name?: string | null;
+    email?: string | null;
+    role?: string | null;
+    completed_at?: string | null;
+  }[];
+};
+
+/**
+ * What has happened to a submission since it was drafted.
+ *
+ * Asked before discarding one, and the answer that matters is whether anybody
+ * has signed. A draft nobody has touched is disposable; the same document with
+ * a signature on it is the agreement itself, and the CRM row is the only thing
+ * on our side pointing at where it lives.
+ */
+export async function submissionState(
+  submissionId: number,
+): Promise<SubmissionState> {
+  const res = await send(`/api/submissions/${submissionId}`);
+  if (res.status === 404) return { missing: true, signedBy: [] };
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(
+      `DocuSeal GET /api/submissions/${submissionId} failed: ${res.status} ${detail.slice(0, 300)}`,
+    );
+  }
+  const body = (await res.json()) as SubmissionResponse;
+  return {
+    missing: Boolean(body.archived_at),
+    signedBy: (body.submitters ?? [])
+      .filter((s) => s.completed_at)
+      .map((s) => s.name || s.email || s.role || "someone"),
+  };
+}
+
+/**
+ * Archive a submission — DocuSeal's own word for deleting one.
+ *
+ * Done before the CRM forgets the contract, never after: a document left live
+ * on a shared instance with nothing pointing at it is the failure the drafting
+ * side already guards against, one step further along. A 404 means somebody
+ * archived it by hand, which is the state this asks for, so it passes.
+ */
+export async function archiveSubmission(submissionId: number): Promise<void> {
+  const res = await send(`/api/submissions/${submissionId}`, {
+    method: "DELETE",
+  });
+  if (res.status === 404) return;
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(
+      `DocuSeal DELETE /api/submissions/${submissionId} failed: ${res.status} ${detail.slice(0, 300)}`,
+    );
+  }
+}

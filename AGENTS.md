@@ -647,6 +647,31 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   load-bearing half: the index would fire after DocuSeal had already made a
   duplicate document, which is the expensive part. A second press hands back
   what exists rather than minting a second contract at a different price.
+- **A draft can be discarded and drafted again** — `DELETE
+  /api/meetings/[id]/contracts?kind=`, `discardContracts` in `lib/contracts.ts`,
+  behind the ⌄ menu on the drafted-contract chip. Once-only drafting left one
+  gap: a document made with the wrong business name, package or signee had no
+  way back, and correcting it meant opening a DocuSeal instance shared with
+  another business. This is the correction, one level in from the button, the
+  way a mis-tapped call outcome is corrected one level in from logging one.
+  - **A signed agreement is never discarded.** DocuSeal is asked first
+    (`submissionState`) and any signature at all refuses the whole thing: at
+    that point the document is the deal, not a draft, and the row is our only
+    pointer to where it lives. Refused with `reason: "signed"` → 409, branched
+    on rather than read out of the message text — the trap the Drizzle
+    constraint-name gotcha documents.
+  - **Archived in DocuSeal before the row goes, never after**, and an
+    unreachable DocuSeal keeps the row. A record pointing at a live document
+    beats a live document nothing points at, which is the same failure the
+    drafting side guards against one step earlier. A 404 from either call
+    passes: somebody archived it by hand, which is the state being asked for.
+  - **Admin-only**, unlike drafting, which is open to whoever owns the meeting.
+    Making a document is recoverable; this is the recovery.
+- **The chip's menu also opens the client's copy** (`signer_slug`, now carried
+  on `MeetingContract`). The chip itself is our own link, which is the one to
+  open at the demo since Cyl Labs signs first — but that is not what the
+  prospect sees, and checking a document before it goes out means looking at
+  their side of it.
 - **`field_values` is a snapshot**, exactly as `payout` snapshots its rates.
   Raising a price must not rewrite what an agreement said on the day it was
   drafted, and this is the only record of that on our side.

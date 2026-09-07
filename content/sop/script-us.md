@@ -43,7 +43,7 @@ Keep it short and do not pause for a callback close — there is nobody there to
 close. Plant the hook, say the number once at the end, slowly. Then log the
 call as **Voicemail**.
 
-> **You say** Hi, my name's [your name] and I'm a developer. I was calling to see whether you had anything in place other than voicemail for your after-hours and overflow calls. You might already know this, but around 80% of people who reach a voicemail just hang up and call the next company — so I've been helping other [their trade] businesses catch those with a voice agent that picks up instead. If that's useful, give me a call back on [your number]. Thanks!
+> **You say** Hi, this is [your name]. I'm calling to see if you have anything in place for after-hours or overflow calls besides voicemail. I help [their trade] businesses capture missed calls with a voice agent that answers instead. If that's something you'd be interested in, give me a call back at [your number]. Thanks!
 
 ## Their answer will be one of these three
 

@@ -362,6 +362,11 @@ export function MeetingsList({
                     meeting={m}
                     tz={tz}
                     signingBase={signingBase}
+                    // Same flag the "who booked it" line runs on: an admin.
+                    // Drafting is open to whoever owns the meeting; undoing a
+                    // draft is not, since it takes our only pointer to a real
+                    // document with it.
+                    canDiscard={showWho}
                   />
                 )}
               </div>
