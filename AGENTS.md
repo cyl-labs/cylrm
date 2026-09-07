@@ -734,6 +734,47 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   works from is worse than no button. `docusealConfigError()` names whichever
   value is missing.
 
+#### DocuSeal cannot send email, and the signed copy goes out through n8n
+
+- **DocuSeal's own mailer is dead on this droplet and always was.** It is a
+  Rails app that only speaks SMTP, and DigitalOcean blocks outbound 25/465/587
+  — the same block that put the CRM's own sending on the Gmail API over HTTPS.
+  Measured 2026-09-07: 587 and 465 time out to Gmail *and* to Brevo, 443 is
+  fine, and **2525 is open**. Its UI still says "email has been sent", because
+  it reports the job being enqueued; the delivery then fails in Sidekiq with
+  `Net::OpenTimeout` and retries for hours. Both its saved config and n8n's
+  `SMTP account` credential point at `smtp.gmail.com`, and Gmail has no 2525,
+  so no port change can rescue either.
+- **So the signed copy is drafted by n8n instead**, workflow `wRYXrubaxm4DyhHp`
+  ("DocuSeal — signed contract to draft"): DocuSeal `submission.completed`
+  webhook → n8n → download the signed PDF → **Gmail draft**. It uses the
+  `Gmail account` OAuth2 credential (`JIWet4sNdSpj3tDs`) that fourteen other
+  live workflows already send with, so there is no new account, no new service
+  on the droplet and no new thing to keep alive.
+- **A draft, never a send.** The contract sits in Gmail with the PDF attached
+  until a person presses send, which is the same rule `send_email: false`
+  encodes on the drafting side: nothing reaches a client because a machine
+  decided it should.
+- **The template filter is a safety control, not tidiness.** Our two templates
+  live in DocuSeal account 1 — *the maid agency's*, 63 templates and 90
+  submissions — and a webhook is registered per account, so without the
+  `OURS = [70, 71]` check every contract they sign would have its PDF pulled
+  into a Cyl Labs mailbox. Anything else is answered **200 "ignored"**, not an
+  error: a 4xx makes DocuSeal retry ten times with backoff for a document that
+  was never ours. **If a template id ever changes, change it there too.**
+- Guarded by a shared secret in `X-Docuseal-Secret` — the n8n webhook URL is
+  public. The value lives in two places only: the workflow's Code node and
+  `webhook_urls.secret` (a headers hash — `SendWebhookRequest` merges it
+  straight into the request). Not in this repo.
+- Verified end to end on 2026-09-07: no secret → 403; the agency's template →
+  ignored before any download; ours → 923 kB PDF fetched and a draft created;
+  and a genuine DocuSeal-fired event arrived with the header intact, whose
+  `documents` was empty because only one party had signed — so it correctly
+  drafted nothing rather than mailing an empty shell.
+- The retrying SMTP jobs were left alone deliberately. That configuration is on
+  an account shared with another business, and their DocuSeal email is as
+  broken as ours for the same reason; changing it is not ours to do.
+
 ### Callback digest
 
 One notification a day per person: "3 callbacks due today", opening
