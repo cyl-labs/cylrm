@@ -2,7 +2,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { callLead, callList } from "@/db/schema";
 import { classifyPhone, e164, phoneKey } from "@/lib/calls";
-import { getSession } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
 import { websiteHref } from "@/lib/website";
 
 /** The lead's own fields — the ones a scrape can get wrong. Everything else on
@@ -30,8 +30,13 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await getSession();
-  if (!session.loggedIn) {
+  // `getCurrentUser`, not the cookie's `loggedIn` flag: that flag is written
+  // at sign-in and stays true for the thirty days the cookie lives, so a
+  // person switched off on Monday could still edit leads from the session
+  // already in their pocket. `/api` is outside the middleware matcher, so this
+  // is the only guard there is.
+  const me = await getCurrentUser();
+  if (!me) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

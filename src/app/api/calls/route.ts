@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { call, callLead } from "@/db/schema";
-import { getCurrentUser, getSession } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
 import { parseCallbackAt } from "@/lib/call-time";
 
 const OUTCOMES = [
@@ -22,8 +22,13 @@ const isOutcome = (v: unknown): v is Outcome =>
   typeof v === "string" && (OUTCOMES as readonly string[]).includes(v);
 
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session.loggedIn) {
+  // `getCurrentUser`, not the cookie's `loggedIn` flag: that flag is written at
+  // sign-in and stays true for the thirty days the cookie lives, so a person
+  // switched off on Monday could still write calls from the session already in
+  // their pocket. This route is outside the middleware matcher, so it is the
+  // only guard there is.
+  const me = await getCurrentUser();
+  if (!me) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -92,13 +97,11 @@ export async function POST(request: Request) {
 
   // Who dialled. The session is the only source for this — a client-supplied
   // user id would let anyone log calls against a colleague's name.
-  const user = await getCurrentUser();
-
   const [row] = await db
     .insert(call)
     .values({
       callLeadId: leadId,
-      userId: user?.id ?? null,
+      userId: me.id,
       // Written only by the browser dialler. Null on every handset call,
       // which is all of them until a DID exists. The session id is what
       // `call_recording` joins on; the duration is the browser's timer, and
@@ -146,8 +149,13 @@ async function latestCallFor(leadId: number) {
  * category is set on a number nobody has rung.
  */
 export async function PATCH(request: Request) {
-  const session = await getSession();
-  if (!session.loggedIn) {
+  // `getCurrentUser`, not the cookie's `loggedIn` flag: that flag is written at
+  // sign-in and stays true for the thirty days the cookie lives, so a person
+  // switched off on Monday could still write calls from the session already in
+  // their pocket. This route is outside the middleware matcher, so it is the
+  // only guard there is.
+  const me = await getCurrentUser();
+  if (!me) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -193,7 +201,7 @@ export async function PATCH(request: Request) {
       .insert(call)
       .values({
         callLeadId: leadId,
-        userId: (await getCurrentUser())?.id ?? null,
+        userId: me.id,
         outcome: body.outcome,
         callbackAt,
       })
@@ -219,8 +227,13 @@ export async function PATCH(request: Request) {
  * state it was in. Only the latest call goes, so earlier history survives.
  */
 export async function DELETE(request: Request) {
-  const session = await getSession();
-  if (!session.loggedIn) {
+  // `getCurrentUser`, not the cookie's `loggedIn` flag: that flag is written at
+  // sign-in and stays true for the thirty days the cookie lives, so a person
+  // switched off on Monday could still write calls from the session already in
+  // their pocket. This route is outside the middleware matcher, so it is the
+  // only guard there is.
+  const me = await getCurrentUser();
+  if (!me) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

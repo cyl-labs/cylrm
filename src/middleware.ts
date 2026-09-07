@@ -1,6 +1,9 @@
 import { getIronSession } from "iron-session";
 import { NextResponse, type NextRequest } from "next/server";
-import { sessionOptions, type SessionData } from "@/lib/session";
+// From `session-config`, not `session`: this runs on the edge runtime and
+// `session.ts` reads `app_user` to check the account is still switched on, so
+// importing it here would drag the Postgres client into the middleware bundle.
+import { sessionOptions, type SessionData } from "@/lib/session-config";
 import { isAdminOnlyPath } from "@/lib/workspace";
 
 export async function middleware(request: NextRequest) {

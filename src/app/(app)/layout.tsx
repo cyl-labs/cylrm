@@ -3,7 +3,7 @@ import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
 import { countMissedCalls } from "@/lib/inbound";
 import { countMeetingsToChaseFor } from "@/lib/meetings";
-import { callScope, getCurrentUser } from "@/lib/session";
+import { callScope, getCurrentUser, isSwitchedOff } from "@/lib/session";
 import { canUseKeypad, dialMethodOf } from "@/lib/users";
 import { LinePresence } from "@/components/calls/line-presence";
 import { InboundListener } from "@/components/calls/inbound-listener";
@@ -19,6 +19,40 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const me = await getCurrentUser();
+
+  // Switched off since they last signed in. `getCurrentUser` has already
+  // returned null, so every query below would come back empty and every route
+  // 401 — the access is gone either way. This exists so what they see says so,
+  // rather than an app with nothing in it, which reads as a fault worth
+  // ringing somebody about.
+  //
+  // Not a redirect to /login: the middleware bounces anyone carrying a session
+  // off that page, so it would loop. Clearing the cookie is the way out, and
+  // that is the POST below.
+  if (!me && (await isSwitchedOff())) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-background px-6">
+        <div className="w-full max-w-sm rounded-xl border bg-card p-6 text-center">
+          <h1 className="text-base font-extrabold tracking-[-0.01em]">
+            This account has been switched off
+          </h1>
+          <p className="mt-2 text-[13px] text-muted-foreground">
+            Your access to the CRM has ended. If you think that is a mistake,
+            speak to whoever runs the floor.
+          </p>
+          <form method="post" action="/api/logout" className="mt-5">
+            <button
+              type="submit"
+              className="h-10 w-full rounded-lg bg-primary text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Log out
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   // Callers cannot open Replies, so an unread count would light a badge on
   // the drawer that leads nowhere they are allowed to go.
   const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
