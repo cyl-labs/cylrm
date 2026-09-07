@@ -14,7 +14,7 @@ are paid no longer matches the job.
 
 The shape is adapted from the mentor's v3 framework; **the terms are ours, not
 his.** He quotes $199 a month and a $1 trial because he is established and can
-hold that price. We quote from $79 and the 30-day trial the callers already
+hold that price. We quote from $99 and the 30-day trial the callers already
 offer on both objection sheets. If the price moves it moves in two places —
 here, and the Price objection on each sheet.
 
@@ -45,7 +45,7 @@ _(let them answer)_
 
 Their figures, never yours. The point is that they hear themselves say it.
 
-> **You say** So let's make it easy. Say it's four missed calls a week, average job is $500 — that's $2,000 a week, about $8,000 a month potentially slipping through the cracks. Our service starts as low as $79 a month.
+> **You say** So let's make it easy. Say it's four missed calls a week, average job is $500 — that's $2,000 a week, about $8,000 a month potentially slipping through the cracks. Our service starts as low as $99 a month.
 
 _(let them answer)_
 

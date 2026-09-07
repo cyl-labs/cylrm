@@ -130,7 +130,7 @@ _(let them answer)_
 ## Price | Prospect: "How much is it? / What does it cost?"
 
 
-> **You say** It depends on your call volume, but it starts as low as $79 a month. On the demo we can show you exactly where you'd land once we know how many calls you're getting.
+> **You say** It depends on your call volume, but it starts as low as $99 a month. On the demo we can show you exactly where you'd land once we know how many calls you're getting.
 
 _(let them answer)_
 
@@ -179,7 +179,7 @@ _(let them answer)_
 
 _(let them answer)_
 
-> **You say** Got it. Ours depends on your call volume and starts as low as $79 a month, so it's more affordable than most services out there. Do you have 15 minutes this week to take a look?
+> **You say** Got it. Ours depends on your call volume and starts as low as $99 a month, so it's more affordable than most services out there. Do you have 15 minutes this week to take a look?
 
 If they are unhappy with it, skip the price question — that is already your opening:
 
