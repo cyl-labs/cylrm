@@ -66,6 +66,18 @@ type CallLineValue = {
    * back on mount and opens on the right card.
    */
   activeLeadId: number | null;
+  /**
+   * The lead the *last* call was to, live or just finished.
+   *
+   * Kept after the call ends, where `activeLeadId` is cleared, because the
+   * outcome is logged after hanging up and may be logged somewhere else
+   * entirely — the callbacks diary can now be reached mid-call without dropping
+   * anything, so that is exactly what people do. Without this the diary posts
+   * an outcome with no session id, Telnyx's recording joins to nothing, and the
+   * call has no "Listen back" and no transcript for ever. Cleared only when the
+   * next call is dialled.
+   */
+  lastLeadId: number | null;
   /** Called by the dialler as it dials a lead. */
   setActiveLead: (leadId: number | null) => void;
   /** Whether a line exists at all: a browser dialler with a number of their
@@ -113,6 +125,7 @@ export function CallLineProvider({
   const line = useTelnyxCall(REMOTE_AUDIO_ID, enabled && leader, SECOND_AUDIO_ID);
 
   const [activeLeadId, setActiveLeadId] = React.useState<number | null>(null);
+  const [lastLeadId, setLastLeadId] = React.useState<number | null>(null);
 
   const firstLeg = React.useRef<Leg | null>(null);
   const secondLeg = React.useRef<Leg | null>(null);
@@ -193,7 +206,14 @@ export function CallLineProvider({
       line,
       live: enabled && leader,
       activeLeadId,
-      setActiveLead: setActiveLeadId,
+      lastLeadId,
+      setActiveLead: (leadId) => {
+        setActiveLeadId(leadId);
+        // Whose call the line is carrying, for as long as the line remembers
+        // its session id — which is until the next dial, or until the dial card
+        // resets it after logging there.
+        if (leadId !== null) setLastLeadId(leadId);
+      },
       startLeg: (meta) => {
         firstLeg.current = { ...meta, sessionId: null, seconds: 0 };
       },
@@ -201,7 +221,7 @@ export function CallLineProvider({
         secondLeg.current = { ...meta, addedToCall: true, sessionId: null, seconds: 0 };
       },
     }),
-    [line, enabled, leader, activeLeadId],
+    [line, enabled, leader, activeLeadId, lastLeadId],
   );
 
   return (

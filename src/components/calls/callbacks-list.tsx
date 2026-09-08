@@ -8,6 +8,7 @@ import type { CallbackLead, CallOutcome } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { dialableNumber } from "@/lib/phone";
 import { CallBackButton } from "@/components/calls/call-back-button";
+import { useCallLine } from "@/components/calls/call-line";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -113,6 +114,9 @@ export function CallbacksList({
   showWho?: boolean;
 }) {
   const router = useRouter();
+  // The app-wide line, so an outcome logged here can carry the call that was
+  // just placed from the dial card — see `log` below.
+  const { line, lastLeadId } = useCallLine();
   // Rung and logged: dropped from the list at once, because the whole point of
   // this screen is that it empties as the afternoon goes on.
   const [logged, setLogged] = React.useState<Set<number>>(new Set());
@@ -122,11 +126,29 @@ export function CallbacksList({
   async function log(lead: CallbackLead, outcome: CallOutcome) {
     const who = lead.company ?? lead.name ?? lead.phone;
     setLogged((p) => new Set(p).add(lead.id));
+    // If the browser just rang this lead, the outcome carries the call with it.
+    //
+    // This diary could not dial until the line moved into the layout, so an
+    // outcome logged here never had a session id to send. Now that a caller can
+    // ring from the dial card and come back here to log it — which is the flow
+    // the "Call them" button invites — leaving it out orphans the recording:
+    // Telnyx has the audio, nothing in the CRM points at it, and the call gets
+    // no "Listen back" and no transcript, permanently.
+    //
+    // Only when the line's last call was to *this* lead. Anything else would
+    // staple one call's recording onto another lead's outcome, which is worse
+    // than having none.
+    const mine = lastLeadId === lead.id;
     try {
       const res = await fetch("/api/calls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callLeadId: lead.id, outcome }),
+        body: JSON.stringify({
+          callLeadId: lead.id,
+          outcome,
+          telnyxSessionId: mine ? (line.sessionId ?? undefined) : undefined,
+          durationSeconds: mine ? line.seconds || undefined : undefined,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
