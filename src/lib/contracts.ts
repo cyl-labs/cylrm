@@ -29,6 +29,7 @@ import {
   TRIAL_TEMPLATE_ID,
 } from "@/lib/docuseal";
 import { contractValues, packageById, termById } from "@/lib/packages";
+import { pushConfigured, pushToUser } from "@/lib/push";
 
 /** Who signs for Cyl Labs, and the DocuSeal account the drafts land in.
  *  Configuration rather than constants: the signatory is a person who can
@@ -187,6 +188,124 @@ export async function draftContracts(
   }
 
   return { ok: true, contracts: made };
+}
+
+export type SignedResult = {
+  /** False when no contract carries that submission id — a document drafted
+   *  before this table existed, or one belonging to the other business on the
+   *  shared DocuSeal instance. Reported rather than thrown: the caller is a
+   *  webhook, and a 404 it retries ten times helps nobody. */
+  matched: boolean;
+  /** True only the first time. A webhook that arrives twice must not push a
+   *  second notification about the same signature. */
+  firstTime: boolean;
+  kind?: ContractKind;
+  company?: string | null;
+  meetingId?: number;
+  /** How many browsers were told. */
+  notified?: number;
+};
+
+/**
+ * Record that the client signed, and tell somebody.
+ *
+ * The one event in this feature worth knowing about, and until now the CRM
+ * never heard it: a chip read "Trial agreement" whether it was untouched or
+ * fully executed, and DocuSeal could not say otherwise because its mailer
+ * cannot send from this droplet.
+ *
+ * Called by the n8n workflow that already receives `submission.completed` — the
+ * same one that drafts the signed copy into Gmail — so there is one path for
+ * "this got signed" rather than two that can disagree.
+ */
+export async function markContractSigned(
+  submissionId: number,
+  signedAt: Date,
+): Promise<SignedResult> {
+  // `signed_at is null` in the update is what makes a repeated webhook cheap:
+  // the row is only written once, and `returning` tells us whether this call
+  // was the one that did it.
+  const rows = (await db.execute(sql`
+    update call_contract c
+    set signed_at = ${signedAt.toISOString()}
+    where c.submission_id = ${submissionId} and c.signed_at is null
+    returning c.id, c.kind, c.meeting_id
+  `)) as unknown as Record<string, unknown>[];
+
+  if (rows.length === 0) {
+    // Either it is already recorded, or it is not ours at all. Tell those two
+    // apart so a webhook for somebody else's document is visibly not an error.
+    const [existing] = (await db.execute(sql`
+      select id, kind, meeting_id from call_contract
+      where submission_id = ${submissionId}
+    `)) as unknown as Record<string, unknown>[];
+    return existing
+      ? {
+          matched: true,
+          firstTime: false,
+          kind: existing.kind as ContractKind,
+          meetingId: Number(existing.meeting_id),
+        }
+      : { matched: false, firstTime: false };
+  }
+
+  const row = rows[0];
+  const kind = row.kind as ContractKind;
+  const meetingId = Number(row.meeting_id);
+
+  const [meeting] = (await db.execute(sql`
+    select coalesce(l.company, l.name, m.attendee_name) as who,
+           cl.assigned_user_id as owner_id
+    from call_meeting m
+    left join call_lead l on l.id = m.call_lead_id
+    left join call_list cl on cl.id = l.call_list_id
+    where m.id = ${meetingId}
+  `)) as unknown as Record<string, unknown>[];
+
+  const company = (meeting?.who as string | null) ?? null;
+  const notified = await announceSigned(
+    kind,
+    company,
+    meeting?.owner_id === null || meeting?.owner_id === undefined
+      ? null
+      : Number(meeting.owner_id),
+  );
+
+  return { matched: true, firstTime: true, kind, company, meetingId, notified };
+}
+
+/**
+ * Push it to whoever should care.
+ *
+ * The niche's owner if it has one, and the founders either way — unlike a
+ * meeting reminder, which is one person's job to act on, a signed contract is
+ * the business's news. Best effort: a notification that fails to send must not
+ * fail the webhook and leave DocuSeal retrying a signature we have already
+ * recorded.
+ */
+async function announceSigned(
+  kind: ContractKind,
+  company: string | null,
+  ownerId: number | null,
+): Promise<number> {
+  if (!pushConfigured()) return 0;
+
+  const rows = (await db.execute(sql`
+    select id from app_user where active and (role = 'admin' or id = ${ownerId ?? -1})
+  `)) as unknown as Record<string, unknown>[];
+
+  const label = kind === "trial" ? "trial agreement" : "paid agreement";
+  let sent = 0;
+  for (const r of rows) {
+    sent += await pushToUser(Number(r.id), {
+      title: "Contract signed",
+      body: `${company ?? "A client"} signed the ${label}.`,
+      url: "/meetings",
+      // Its own tag, so this never replaces an unread meeting reminder.
+      tag: "contract-signed",
+    }).catch(() => 0);
+  }
+  return sent;
 }
 
 export type DiscardResult =

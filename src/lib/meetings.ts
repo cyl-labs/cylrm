@@ -260,6 +260,10 @@ export type MeetingContract = {
   signerSlug: string;
   packageId: string | null;
   termId: string | null;
+  /** When the client signed, or null. Recorded by `/api/contracts/signed` off
+   *  the DocuSeal webhook — the chip is otherwise identical whether a contract
+   *  is untouched or fully executed. */
+  signedAt: string | null;
 };
 
 export type Meeting = {
@@ -352,7 +356,8 @@ const meetingSelect = sql`
           'senderSlug', c.sender_slug,
           'signerSlug', c.signer_slug,
           'packageId', c.package_id,
-          'termId', c.term_id
+          'termId', c.term_id,
+          'signedAt', c.signed_at
         ) order by c.kind
       ),
       '[]'::json

@@ -1155,6 +1155,11 @@ export const callContract = pgTable(
     packageId: text("package_id"),
     termId: text("term_id"),
     fieldValues: jsonb("field_values").$type<Record<string, string>>(),
+    /** When the **client** signed. Null until then, and null on every row that
+     *  predates the webhook — Cyl Labs signing its own side first is routine
+     *  and is deliberately not recorded here, since a chip claiming "signed"
+     *  for our own signature would announce a deal that has not happened. */
+    signedAt: timestamp("signed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

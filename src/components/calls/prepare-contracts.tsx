@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  Check,
   ChevronDown,
   Copy,
   Eye,
@@ -105,6 +106,8 @@ export function PrepareContracts({
   const [busy, setBusy] = React.useState(false);
   /** Which agreement the confirm dialog is asking about, or null. */
   const [discarding, setDiscarding] = React.useState<ContractKind | null>(null);
+  /** Which chip just copied its link. */
+  const [copied, setCopied] = React.useState<ContractKind | null>(null);
 
   const drafted = meeting.contracts;
   const has = (k: "trial" | "paid") => drafted.some((c) => c.kind === k);
@@ -222,11 +225,14 @@ export function PrepareContracts({
   /** The client's signing link, onto the clipboard. Copied rather than only
    *  opened because it has to reach them somehow, and DocuSeal cannot send it:
    *  its mailer is blocked on this droplet, so it goes by whatever channel the
-   *  client is already being spoken to on. */
-  async function copyClientLink(url: string) {
+   *  client is already being spoken to on — usually the Google Meet chat, with
+   *  them on the call. Confirmed on the chip rather than in a toast, so the
+   *  thing that just changed is the thing you were looking at. */
+  async function copyClientLink(kind: ContractKind, url: string) {
     try {
       await navigator.clipboard.writeText(url);
-      toast.success("Client's signing link copied. Send it however you like.");
+      setCopied(kind);
+      setTimeout(() => setCopied((k) => (k === kind ? null : k)), 1800);
     } catch {
       toast.error("Could not copy. Open the link and copy it from the bar.");
     }
@@ -279,15 +285,28 @@ export function PrepareContracts({
           key={c.kind}
           className="inline-flex items-stretch overflow-hidden rounded-md border border-success/40 bg-success/5"
         >
-          <a
-            href={`${signingBase}/s/${c.senderSlug}`}
-            target="_blank"
-            rel="noreferrer noopener"
+          {/* The default press copies the client's link, because that is what
+              happens most: the link is pasted into the Google Meet chat while
+              the prospect is on the call. Opening either copy is a step you
+              take once, so both sit in the menu. Nothing else can deliver this
+              link — DocuSeal's mailer cannot send from this droplet. */}
+          <button
+            type="button"
+            onClick={() => copyClientLink(c.kind, `${signingBase}/s/${c.signerSlug}`)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-success/10"
           >
-            <ExternalLink className="size-3.5" />
-            {KIND_LABEL[c.kind]} agreement
-          </a>
+            {copied === c.kind ? (
+              <Check className="size-3.5" strokeWidth={2.6} />
+            ) : (
+              <Copy className="size-3.5" />
+            )}
+            {copied === c.kind ? "Link copied" : `${KIND_LABEL[c.kind]} agreement`}
+            {c.signedAt && (
+              <span className="ml-0.5 rounded-[3px] bg-success/20 px-1 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]">
+                signed
+              </span>
+            )}
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label={`More for the ${c.kind} agreement`}
@@ -312,13 +331,23 @@ export function PrepareContracts({
                   Open the client&rsquo;s signing page
                 </a>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => copyClientLink(`${signingBase}/s/${c.signerSlug}`)}
-              >
-                <Copy className="size-3.5" />
-                Copy the link to send them
+              {/* Ours: the one to open at the demo, since Cyl Labs signs
+                  first. A step you take once, which is why it is in here and
+                  the client's link is the press. */}
+              <DropdownMenuItem asChild>
+                <a
+                  href={`${signingBase}/s/${c.senderSlug}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  <ExternalLink className="size-3.5" />
+                  Open our copy to sign
+                </a>
               </DropdownMenuItem>
-              {canDiscard && (
+              {/* Not offered once the client has signed: the server refuses it,
+                  and a menu item that exists only to produce an error message
+                  is worse than no menu item. */}
+              {canDiscard && !c.signedAt && (
                 <DropdownMenuItem
                   variant="destructive"
                   onSelect={() => setDiscarding(c.kind)}
