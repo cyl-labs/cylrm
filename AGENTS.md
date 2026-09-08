@@ -406,9 +406,19 @@ inbound handled.
   rather than the length alone: a bare "1:21" under a timestamp reads as
   another timestamp, so the one thing on the row that does something had
   nothing on it saying so.
-- **Stats default to today.** The window is a day-kind window, so the range
-  picker must be given the parsed `?day=` rather than the resolved window, or
-  it shows a date where it should say Today.
+- **Stats default to the last seven days** (2026-09-08; it was today until
+  then). A single day is too thin to read: one caller's morning is a handful of
+  rows, a day with an appointment in it looks like a collapse, and every ratio
+  swings on a couple of calls. A week is the smallest window the numbers mean
+  anything over, and it is the period pay is worked out on. Two consequences
+  worth knowing: the `CALL_LOG_LIMIT` (300) cap on "Every call" now bites
+  routinely rather than rarely — the header says so when it does — and the
+  caller-facing explainer names the default out loud, so it moves if the
+  default does. **The Scoreboard still opens on today** and is deliberately
+  left alone: it is a leaderboard for the shift, not a report.
+  - The window is a day-kind window when a single day *is* chosen, so the range
+    picker must be given the parsed `?day=` rather than the resolved window, or
+    it shows a date where it should say Today.
 - **The reporting zone is a picker, not a constant** (2026-08-29). Stats and
   the Scoreboard both carry it; it decides which day a call counts as, what the
   calendar's cells hold, what "Today" resolves to, and the times in the call

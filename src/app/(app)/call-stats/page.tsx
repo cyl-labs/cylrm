@@ -150,9 +150,16 @@ export default async function CallStatsPage({
   // range that happens to resolve to a single day, and reading the window
   // back made the control show a date where it should say Today.
   const day = isDay(rawDay) ? rawDay : undefined;
-  // Today by default. The question this screen gets asked most is "how is the
-  // floor doing right now", and a month of history answered a different one.
-  const range = raw && RANGE_KEYS.has(raw) ? raw : "today";
+  // The last seven days by default.
+  //
+  // It was today, on the reasoning that "how is the floor doing right now" is
+  // the question this screen gets asked most. In practice a single day is too
+  // thin to read anything off: one caller's morning is a handful of rows, a
+  // day with a dentist appointment in it looks like a collapse, and every
+  // ratio on the page swings on a couple of calls. A week is the smallest
+  // window where the numbers mean something, and it is also the period pay is
+  // worked out over. Today is still one tap away in the picker.
+  const range = raw && RANGE_KEYS.has(raw) ? raw : "7";
   const w = windowFor(range, day, zone.tz);
 
   // The calendar's own month. It follows the window unless the arrows have
@@ -333,8 +340,8 @@ export default async function CallStatsPage({
             <p>
               These are{" "}
               <span className="font-semibold">your own calls</span> and nobody
-              else&rsquo;s. It starts on today &mdash; tap any date on the
-              calendar below to see that day instead.
+              else&rsquo;s. It starts on the last seven days &mdash; tap any
+              date on the calendar below to see just that day.
             </p>
             <p className="mt-1 text-muted-foreground">
               Scroll down to <span className="font-semibold">Your calls</span>{" "}
