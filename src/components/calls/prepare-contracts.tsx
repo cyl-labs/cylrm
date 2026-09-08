@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
+  Copy,
   Eye,
   FileSignature,
   ExternalLink,
@@ -218,6 +219,19 @@ export function PrepareContracts({
     }
   }
 
+  /** The client's signing link, onto the clipboard. Copied rather than only
+   *  opened because it has to reach them somehow, and DocuSeal cannot send it:
+   *  its mailer is blocked on this droplet, so it goes by whatever channel the
+   *  client is already being spoken to on. */
+  async function copyClientLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Client's signing link copied. Send it however you like.");
+    } catch {
+      toast.error("Could not copy. Open the link and copy it from the bar.");
+    }
+  }
+
   /**
    * Throw one draft away so a corrected one can be drafted.
    *
@@ -282,6 +296,12 @@ export function PrepareContracts({
               <ChevronDown className="size-3.5" strokeWidth={2.4} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
+              {/* The client's own link — the page they sign on, not a preview
+                  of it. It was labelled "See the client's copy", which read as
+                  a read-only look at our document and hid the fact that this is
+                  the thing you send them. Nothing else in the app can produce
+                  it: DocuSeal cannot email it (its SMTP is blocked here), so
+                  copying it and sending it yourself is the whole route. */}
               <DropdownMenuItem asChild>
                 <a
                   href={`${signingBase}/s/${c.signerSlug}`}
@@ -289,8 +309,14 @@ export function PrepareContracts({
                   rel="noreferrer noopener"
                 >
                   <Eye className="size-3.5" />
-                  See the client&rsquo;s copy
+                  Open the client&rsquo;s signing page
                 </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => copyClientLink(`${signingBase}/s/${c.signerSlug}`)}
+              >
+                <Copy className="size-3.5" />
+                Copy the link to send them
               </DropdownMenuItem>
               {canDiscard && (
                 <DropdownMenuItem
