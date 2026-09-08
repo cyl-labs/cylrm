@@ -17,6 +17,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { defaultCallbackAt } from "@/lib/call-time";
 import { cn } from "@/lib/utils";
 
 /** Callbacks are Singapore appointments, and the zone is pinned for the same
@@ -120,10 +124,33 @@ export function CallbacksList({
   // Rung and logged: dropped from the list at once, because the whole point of
   // this screen is that it empties as the afternoon goes on.
   const [logged, setLogged] = React.useState<Set<number>>(new Set());
+  /**
+   * Picked but not yet saved.
+   *
+   * The menu used to write the outcome on the tap, which left nowhere to say
+   * what was actually said — so a caller rang somebody, learned something worth
+   * knowing, and had only seven words of enum to record it with. The next
+   * person to open the row got no handover at all.
+   *
+   * Confirmed rather than logged on the tap for the second reason the dial card
+   * confirms: one tap next to another was the whole gesture, and a mis-tap
+   * became a call in the record that had to be found and corrected later.
+   */
+  const [picked, setPicked] = React.useState<{
+    leadId: number;
+    outcome: CallOutcome;
+    notes: string;
+    callbackAt: string;
+  } | null>(null);
 
   const rows = leads.filter((l) => !logged.has(l.id));
 
-  async function log(lead: CallbackLead, outcome: CallOutcome) {
+  async function log(
+    lead: CallbackLead,
+    outcome: CallOutcome,
+    notes: string,
+    callbackAt: string,
+  ) {
     const who = lead.company ?? lead.name ?? lead.phone;
     setLogged((p) => new Set(p).add(lead.id));
     // If the browser just rang this lead, the outcome carries the call with it.
@@ -146,6 +173,10 @@ export function CallbacksList({
         body: JSON.stringify({
           callLeadId: lead.id,
           outcome,
+          notes: notes.trim() || undefined,
+          // Ringing back a callback often sets another one: they asked for a
+          // better time. Sent only then, like the dial card does.
+          callbackAt: outcome === "callback" ? callbackAt : undefined,
           telnyxSessionId: mine ? (line.sessionId ?? undefined) : undefined,
           durationSeconds: mine ? line.seconds || undefined : undefined,
         }),
@@ -160,6 +191,7 @@ export function CallbacksList({
         });
         return;
       }
+      setPicked(null);
       toast.success(
         `${OUTCOME_LABELS[outcome]}: ${who}, attempt ${lead.attempts + 1}`,
       );
@@ -277,7 +309,17 @@ export function CallbacksList({
                 <DropdownMenuContent align="start">
                   <DropdownMenuLabel>Attempt {l.attempts + 1}</DropdownMenuLabel>
                   {(Object.keys(OUTCOME_LABELS) as CallOutcome[]).map((o) => (
-                    <DropdownMenuItem key={o} onSelect={() => log(l, o)}>
+                    <DropdownMenuItem
+                      key={o}
+                      onSelect={() =>
+                        setPicked({
+                          leadId: l.id,
+                          outcome: o,
+                          notes: "",
+                          callbackAt: defaultCallbackAt(),
+                        })
+                      }
+                    >
                       {OUTCOME_LABELS[o]}
                     </DropdownMenuItem>
                   ))}
@@ -289,6 +331,64 @@ export function CallbacksList({
                 </span>
               )}
             </div>
+
+            {/* What was said, before it is written down. Opens under the row
+                that was tapped rather than in a dialog: the notes from the last
+                call are a few lines above, and reading them while writing the
+                next one is the whole point of a diary. */}
+            {picked?.leadId === l.id && (
+              <div className="mt-3 rounded-lg border bg-background p-3">
+                <p className="text-[13px] font-bold">
+                  {OUTCOME_LABELS[picked.outcome]}
+                </p>
+                <Textarea
+                  autoFocus
+                  value={picked.notes}
+                  onChange={(e) =>
+                    setPicked({ ...picked, notes: e.target.value })
+                  }
+                  placeholder="What did they say? (optional)"
+                  className="mt-2 min-h-[64px]"
+                />
+                {/* A callback that ends in another callback needs the new time,
+                    or it comes back into the diary due immediately. */}
+                {picked.outcome === "callback" && (
+                  <div className="mt-2 space-y-1.5">
+                    <label
+                      htmlFor={`cb-${l.id}`}
+                      className="text-[12px] font-semibold"
+                    >
+                      Call back at (Singapore time)
+                    </label>
+                    <Input
+                      id={`cb-${l.id}`}
+                      type="datetime-local"
+                      value={picked.callbackAt}
+                      onChange={(e) =>
+                        setPicked({ ...picked, callbackAt: e.target.value })
+                      }
+                    />
+                  </div>
+                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      log(l, picked.outcome, picked.notes, picked.callbackAt)
+                    }
+                  >
+                    Log it
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPicked(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
           </li>
         );
       })}

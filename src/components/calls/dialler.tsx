@@ -56,7 +56,7 @@ import { LEAD_HOURS_LABEL } from "@/lib/call-hours";
 import { placeLabel, placeShort } from "@/lib/place";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { LocalTime } from "@/components/calls/local-time";
-import { callTzDate } from "@/lib/call-time";
+import { callTzDate, defaultCallbackAt } from "@/lib/call-time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -425,19 +425,6 @@ function HowToBook() {
       </p>
     </div>
   );
-}
-
-/**
- * Tomorrow at 10am Singapore time.
- *
- * Built from the Singapore date rather than the browser's, because the server
- * reads whatever this field holds as Singapore time — the two have to mean the
- * same thing, or the default alone would shift the appointment.
- */
-function defaultCallbackAt() {
-  const sgToday = new Date(`${callTzDate()}T00:00:00Z`);
-  sgToday.setUTCDate(sgToday.getUTCDate() + 1);
-  return `${sgToday.toISOString().slice(0, 10)}T10:00`;
 }
 
 function relative(iso: string | null) {

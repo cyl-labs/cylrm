@@ -320,6 +320,9 @@ export type Meeting = {
     result: MeetingFollowupResult;
     at: string;
     byName: string | null;
+    /** What the chase call turned up. The result alone carries none of it —
+     *  "moved to another time" does not say to when, or why. */
+    notes: string | null;
   } | null;
 };
 
@@ -391,7 +394,7 @@ const meetingSelect = sql`
     order by cr.id limit 1
   ) as recording_ms,
   f.result as followup_result, f.created_at as followup_at,
-  f.by_name as followup_by
+  f.by_name as followup_by, f.notes as followup_notes
 `;
 
 /** The chase state, as one expression: four screens must not disagree about
@@ -412,7 +415,7 @@ const needsChase = (tz: string) => sql`
  *  `for_start_at` so a rescheduled meeting comes back onto the list. */
 const latestFollowup = sql`
   left join lateral (
-    select fu.id, fu.result, fu.created_at,
+    select fu.id, fu.result, fu.created_at, fu.notes,
       (select u.name from app_user u where u.id = fu.user_id) as by_name
     from call_meeting_followup fu
     where fu.meeting_id = m.id and fu.for_start_at = m.start_at
@@ -474,6 +477,7 @@ function toMeeting(r: Row): Meeting {
           result: r.followup_result as MeetingFollowupResult,
           at: iso(r.followup_at)!,
           byName: (r.followup_by as string | null) ?? null,
+          notes: (r.followup_notes as string | null) ?? null,
         }
       : null,
   };

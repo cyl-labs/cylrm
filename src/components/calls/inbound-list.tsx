@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CALL_TIME_OUTCOMES, OUTCOME_LABELS } from "@/components/calls/outcome";
-import { callTzDate } from "@/lib/call-time";
+import { callTzDate, defaultCallbackAt } from "@/lib/call-time";
 import { dialableNumber } from "@/lib/phone";
 import type { InboundCall } from "@/lib/inbound";
 import type { CallOutcome } from "@/lib/calls";
@@ -50,14 +50,6 @@ function ago(iso: string): string {
 
 function mmss(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-/** Ten tomorrow morning, Singapore time — the same default the dial card
- *  offers, so a callback set from here lands where one set there would. */
-function defaultCallbackAt(): string {
-  const sgToday = new Date(`${callTzDate()}T00:00:00Z`);
-  sgToday.setUTCDate(sgToday.getUTCDate() + 1);
-  return `${sgToday.toISOString().slice(0, 10)}T10:00`;
 }
 
 function CopyNumber({ phone, blocked }: { phone: string; blocked: string | null }) {

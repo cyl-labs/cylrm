@@ -22,6 +22,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
@@ -134,6 +136,19 @@ export function MeetingsList({
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<number | null>(null);
+  /**
+   * Picked but not yet logged.
+   *
+   * A chase call is where the awkward detail turns up — they want to move it,
+   * the decision maker will not be there, they asked for the deck first — and
+   * the result on its own carries none of it. The founder taking the demo reads
+   * this row and nothing else beforehand.
+   */
+  const [picked, setPicked] = React.useState<{
+    meetingId: number;
+    result: MeetingFollowupResult;
+    notes: string;
+  } | null>(null);
 
   const format = React.useMemo(
     () =>
@@ -167,19 +182,24 @@ export function MeetingsList({
     [tz],
   );
 
-  async function log(meeting: Meeting, result: MeetingFollowupResult) {
+  async function log(
+    meeting: Meeting,
+    result: MeetingFollowupResult,
+    notes: string,
+  ) {
     setBusy(meeting.id);
     try {
       const res = await fetch(`/api/meetings/${meeting.id}/followup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ result }),
+        body: JSON.stringify({ result, notes: notes.trim() || undefined }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? "Could not log the follow-up.");
         return;
       }
+      setPicked(null);
       toast.success(
         `${FOLLOWUP_DONE[result]}: ${meeting.company ?? meeting.attendeeName ?? "meeting"}`,
       );
@@ -303,6 +323,15 @@ export function MeetingsList({
               </p>
             )}
 
+            {/* What that chase turned up. Shown like the booking notes rather
+                than folded away: the founder walking into the demo reads this
+                row and nothing else. */}
+            {m.followup?.notes && (
+              <p className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/50 px-3 py-2 text-[13px]">
+                {m.followup.notes}
+              </p>
+            )}
+
             {m.needsChase && !m.followup && (
               <p className="mt-2 text-[13px] font-semibold text-destructive">
                 Ring them to confirm.
@@ -341,7 +370,12 @@ export function MeetingsList({
                     {(
                       Object.keys(FOLLOWUP_LABELS) as MeetingFollowupResult[]
                     ).map((r) => (
-                      <DropdownMenuItem key={r} onSelect={() => log(m, r)}>
+                      <DropdownMenuItem
+                        key={r}
+                        onSelect={() =>
+                          setPicked({ meetingId: m.id, result: r, notes: "" })
+                        }
+                      >
                         {FOLLOWUP_LABELS[r]}
                       </DropdownMenuItem>
                     ))}
@@ -384,6 +418,43 @@ export function MeetingsList({
                     canDiscard={showWho}
                   />
                 )}
+              </div>
+            )}
+
+            {/* What the chase call turned up, before it is logged. Under the
+                row rather than in a dialog, so the booking notes and the time
+                stay readable while it is written. */}
+            {picked?.meetingId === m.id && (
+              <div className="mt-3 rounded-lg border bg-background p-3">
+                <p className="text-[13px] font-bold">
+                  {FOLLOWUP_LABELS[picked.result]}
+                </p>
+                <Textarea
+                  autoFocus
+                  value={picked.notes}
+                  onChange={(e) =>
+                    setPicked({ ...picked, notes: e.target.value })
+                  }
+                  placeholder="Anything the demo should know? (optional)"
+                  className="mt-2 min-h-[64px]"
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={busy === m.id}
+                    onClick={() => log(m, picked.result, picked.notes)}
+                  >
+                    {busy === m.id ? "Saving…" : "Log it"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === m.id}
+                    onClick={() => setPicked(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
             )}
 
