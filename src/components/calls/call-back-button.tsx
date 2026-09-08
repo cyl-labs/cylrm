@@ -20,6 +20,14 @@ import { cn } from "@/lib/utils";
  * `view=all` so the lead is present whatever state it is in, and `lead=` to
  * open that one — the same shape the missed-calls row uses, and one the work
  * gate lets through when the lead is genuinely owed (`isRequiredLead`).
+ *
+ * `open=0` turns the business-hours filter off, and that is not a shortcut. The
+ * filter exists to shape a *queue* — to stop somebody being handed Honolulu at
+ * half past three in the morning — where this link names one lead that a person
+ * has deliberately asked for. A callback promised for 8am their time, or a
+ * meeting an hour from now, is exactly the call that should be made outside the
+ * window, and without this the dialler would answer "Everyone here is asleep"
+ * and hide the one lead that was asked for.
  */
 export function CallBackButton({
   listId,
@@ -34,7 +42,7 @@ export function CallBackButton({
 }) {
   return (
     <Link
-      href={`/calls/${listId}?view=all&lead=${leadId}`}
+      href={`/calls/${listId}?view=all&open=0&lead=${leadId}`}
       className={cn(
         // The primary action on the row: this is the thing the screen exists
         // to get somebody to do, where copying a number is the fallback for
