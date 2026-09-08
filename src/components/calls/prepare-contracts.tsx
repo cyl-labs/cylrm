@@ -574,9 +574,10 @@ export function PrepareContracts({
             </DialogTitle>
             <DialogDescription>
               It is archived in DocuSeal and taken off this meeting, so you can
-              prepare a corrected one. Nothing has been sent to{" "}
-              {meeting.attendeeName || "the client"} either way — and if they
-              have already signed it, nothing is discarded.
+              prepare a corrected one. Your own signature does not stop this —
+              only {meeting.attendeeName || "the client"} signing does, and then
+              nothing is discarded. If you have already sent them the link, it
+              stops working.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

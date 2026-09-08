@@ -262,11 +262,15 @@ export async function discardContracts(
   for (const { kind, submissionId } of wanted) {
     try {
       const state = await submissionState(submissionId);
-      if (state.signedBy.length > 0) {
+      // Only the client's signature refuses. Ours does not: signing our own
+      // side first is how a PDF is got in hand before a demo, and treating that
+      // as final made every prepared contract permanent the moment it was made
+      // ready — which is the opposite of what this feature is for.
+      if (state.clientSigned) {
         return {
           ok: false,
           reason: "signed",
-          error: `The ${kind} agreement has already been signed by ${state.signedBy.join(" and ")}. Signed documents are left alone — archive it in DocuSeal if you really mean to.`,
+          error: `The ${kind} agreement has already been signed by ${state.signedBy.join(" and ")}. A contract the client has signed is left alone — archive it in DocuSeal if you really mean to.`,
           discarded,
         };
       }

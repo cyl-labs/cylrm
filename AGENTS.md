@@ -692,12 +692,20 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   way back, and correcting it meant opening a DocuSeal instance shared with
   another business. This is the correction, one level in from the button, the
   way a mis-tapped call outcome is corrected one level in from logging one.
-  - **A signed agreement is never discarded.** DocuSeal is asked first
-    (`submissionState`) and any signature at all refuses the whole thing: at
-    that point the document is the deal, not a draft, and the row is our only
-    pointer to where it lives. Refused with `reason: "signed"` → 409, branched
+  - **A contract the *client* has signed is never discarded** — and only the
+    client's signature counts. DocuSeal is asked first (`submissionState`,
+    telling submitters apart by role rather than email, since both are the same
+    account on a test contract). Refused with `reason: "signed"` → 409, branched
     on rather than read out of the message text — the trap the Drizzle
     constraint-name gotcha documents.
+    - It shipped refusing on *any* signature and that was wrong within the
+      hour: Cyl Labs signs its own side as a matter of course, because DocuSeal
+      renders no PDF until something is signed, so a founder who prepared a
+      contract properly could then never correct it. A document only we have
+      signed is still a draft — nothing has been emailed from it and the other
+      party has never seen it.
+    - What discarding does cost, and the dialog now says so: a signing link
+      already passed to the client stops working.
   - **Archived in DocuSeal before the row goes, never after**, and an
     unreachable DocuSeal keeps the row. A record pointing at a live document
     beats a live document nothing points at, which is the same failure the

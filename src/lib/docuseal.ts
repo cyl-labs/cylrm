@@ -161,9 +161,19 @@ export type SubmissionState = {
   /** DocuSeal no longer has it: archived there, or deleted by hand. The end
    *  state a discard asks for already holds, so this is not a failure. */
   missing: boolean;
-  /** Everybody who has already signed, by name. Non-empty means the document
-   *  is a record of an agreement rather than a draft, and must not be thrown
-   *  away because somebody wants to redo the numbers. */
+  /**
+   * The **client** has signed — the only signature that turns a draft into an
+   * agreement, and so the only one that may refuse a discard.
+   *
+   * Deliberately not "anybody has signed", which is what this shipped as and
+   * was wrong within the hour: Cyl Labs signs its own side first as a matter of
+   * course — it is the only way to get a PDF in hand before a demo, since
+   * DocuSeal renders none until something is signed — so that rule made every
+   * prepared contract permanent the moment it was made ready. Our own signature
+   * on a document nothing has been sent from is still a draft.
+   */
+  clientSigned: boolean;
+  /** Who has signed, by name, for the message. */
   signedBy: string[];
 };
 
@@ -180,16 +190,23 @@ type SubmissionResponse = {
 /**
  * What has happened to a submission since it was drafted.
  *
- * Asked before discarding one, and the answer that matters is whether anybody
- * has signed. A draft nobody has touched is disposable; the same document with
- * a signature on it is the agreement itself, and the CRM row is the only thing
- * on our side pointing at where it lives.
+ * Asked before discarding one, and the answer that matters is whether **the
+ * client** has signed. A document only we have signed is still a draft: nothing
+ * has been emailed from it (`send_email: false`) and the other party has never
+ * seen it. Once they have signed, it is the agreement itself and this row is
+ * the only thing on our side pointing at where it lives.
+ *
+ * Told apart by role rather than by email address, because those two are the
+ * same account on a test contract and roles are load-bearing here anyway —
+ * `createSubmission` refuses a template whose roles have been renamed.
  */
 export async function submissionState(
   submissionId: number,
 ): Promise<SubmissionState> {
   const res = await send(`/api/submissions/${submissionId}`);
-  if (res.status === 404) return { missing: true, signedBy: [] };
+  if (res.status === 404) {
+    return { missing: true, clientSigned: false, signedBy: [] };
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(
@@ -197,11 +214,11 @@ export async function submissionState(
     );
   }
   const body = (await res.json()) as SubmissionResponse;
+  const signed = (body.submitters ?? []).filter((s) => s.completed_at);
   return {
     missing: Boolean(body.archived_at),
-    signedBy: (body.submitters ?? [])
-      .filter((s) => s.completed_at)
-      .map((s) => s.name || s.email || s.role || "someone"),
+    clientSigned: signed.some((s) => s.role === SIGNER_ROLE),
+    signedBy: signed.map((s) => s.name || s.email || s.role || "someone"),
   };
 }
 
