@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { CallbackLead, CallOutcome } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { dialableNumber } from "@/lib/phone";
+import { CallBackButton } from "@/components/calls/call-back-button";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -238,6 +239,13 @@ export function CallbacksList({
             )}
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
+              {/* First, and the only thing on the row that reaches the phone.
+                  Copying the number and dialling it on the Keypad was what
+                  people did instead, which hides the company while they talk
+                  and drops the call on the way back here. */}
+              {!l.dncBlock && (
+                <CallBackButton listId={l.listId} leadId={l.id} />
+              )}
               <CopyNumber phone={l.phone} blocked={l.dncBlock} />
               <DropdownMenu>
                 <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted">

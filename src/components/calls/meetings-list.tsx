@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
+import { CallBackButton } from "@/components/calls/call-back-button";
 
 const FOLLOWUP_LABELS: Record<MeetingFollowupResult, string> = {
   confirmed: "Confirmed — they're coming",
@@ -310,6 +311,20 @@ export function MeetingsList({
 
             {!cancelled && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
+                {/* Straight to the dial card — the only screen with the
+                    number, the business, the booking notes and the outcome
+                    buttons in one place. Copying the number onto the Keypad
+                    instead leaves a caller talking to a number with no idea
+                    who it is, and coming back here afterwards drops the call.
+                    Absent on an unlinked booking, which belongs to no niche
+                    and so has no dialler to open. */}
+                {m.listId !== null && m.leadId !== null && !m.dncBlock && (
+                  <CallBackButton
+                    listId={m.listId}
+                    leadId={m.leadId}
+                    label="Call to confirm"
+                  />
+                )}
                 {m.phone && (
                   <CopyNumber phone={m.phone} blocked={m.dncBlock} />
                 )}

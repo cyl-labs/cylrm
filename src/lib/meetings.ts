@@ -283,6 +283,10 @@ export type Meeting = {
   leadId: number | null;
   company: string | null;
   phone: string | null;
+  /** The niche's id, so a row can link straight into the dial card for this
+   *  lead. Null on an unlinked booking, which belongs to no list — and so has
+   *  no dialler to open. */
+  listId: number | null;
   listName: string | null;
   /** The trade, off the lead's list. Prefills "operates a ___ business" on a
    *  contract, which is why it is the niche and not the list's name. */
@@ -339,6 +343,7 @@ const meetingSelect = sql`
   m.attendee_name, m.attendee_email, m.attendee_tz, m.meeting_url,
   l.id as lead_id, l.company, l.name as lead_name, l.phone,
   l.dnc_status, l.dnc_checked_at,
+  cl.id as list_id,
   cl.name as list_name,
   -- The niche rather than the list name: a split list is called "Movers.2",
   -- which is a filing label, where the niche is the trade itself and so the
@@ -443,6 +448,7 @@ function toMeeting(r: Row): Meeting {
       (r.lead_name as string | null) ||
       null,
     phone,
+    listId: r.list_id === null || r.list_id === undefined ? null : n(r.list_id),
     listName: (r.list_name as string | null) ?? null,
     niche: (r.niche as string | null) ?? null,
     // `json_agg` hands back parsed JSON through the driver; the coalesce in

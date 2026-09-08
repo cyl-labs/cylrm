@@ -33,6 +33,18 @@ export async function POST(
 ) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Founders only, like the rest of the commercial side. A contract carries
+  // the prices, the minimum term and the client's legal name — the same
+  // material `procedure-closing-the-demo` is withheld from the floor for, and
+  // for the same reason: a caller is paid to book demos, not to close them.
+  // Enforced here as well as by not rendering the button, since `/api` is
+  // outside the middleware matcher and a hidden button is not a permission.
+  if (me.role !== "admin") {
+    return Response.json(
+      { error: "Contracts are admin-only." },
+      { status: 403 },
+    );
+  }
 
   const id = Number((await params).id);
   if (!Number.isInteger(id)) {

@@ -108,9 +108,18 @@ export default async function MeetingsPage({
           showWho={me?.role === "admin"}
           // The host a person clicks, which is not the one the server fetches
           // from: in production the API is reached on localhost and the link
-          // has to be the public name. Empty hides the contract buttons.
+          // has to be the public name. Empty hides the contract buttons —
+          // which is how the floor is kept out of them entirely. A contract
+          // carries the prices, the minimum term and the client's legal name,
+          // the same material `procedure-closing-the-demo` is withheld for.
+          // The route refuses a caller too; this is only what stops a dead
+          // button appearing on a screen they work from.
           signingBase={
-            process.env.DOCUSEAL_PUBLIC_URL ?? process.env.DOCUSEAL_URL ?? ""
+            me?.role === "admin"
+              ? (process.env.DOCUSEAL_PUBLIC_URL ??
+                process.env.DOCUSEAL_URL ??
+                "")
+              : ""
           }
         />
       </div>
