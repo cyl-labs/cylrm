@@ -1650,6 +1650,48 @@ the SDP, so neither far end sees anything happen.
   — the layouts and the state machine are checked, the mixed audio itself needs
   two handsets and a demo line to hear.
 
+### The line lives in the layout, so a call survives a page change
+
+`CallLineProvider` (`components/calls/call-line.tsx`) is mounted in
+`(app)/layout.tsx` and owns the one `useTelnyxCall` for the whole app. The
+dialler, the Keypad and `InboundListener` all consume it through `useCallLine()`.
+
+- **Why it moved (2026-09-08).** The dialler and the Keypad each mounted their
+  own line, and a client navigation unmounts a page — so the hook's cleanup hung
+  up. Inbound was never affected, because that listener has always been in the
+  layout: a layout survives route changes and a page does not, which is the
+  whole fix. What it cost in practice was worse than the bug sounds: a caller
+  ringing a callback copied the number onto the Keypad (no dial button on the
+  diary), talked to a business whose name was not on the screen, and dropped the
+  call by navigating back to log the outcome.
+- **`useClaimLine` no longer decides who holds the line — only who draws it.**
+  There is one registration now, so the flag exists to stop the layout's banner
+  and call bar rendering on top of a screen showing its own. Do not read it as
+  "this screen owns the phone" again. The cross-tab election in
+  `line-presence.tsx` is untouched and still the thing that stops two SIP
+  registrations forking one invite.
+- **The Keypad's leg logging moved into the provider**, and that is load-bearing
+  rather than tidy: a `keypad_call` row is written when a leg *ends*, and a call
+  now outlives the screen it was placed from. Left in the Keypad, navigating
+  away mid-call would have filed a truncated duration and then never filed the
+  real one. The Keypad hands the leg over at dial time (`startLeg`).
+- **`activeLeadId` is why an outcome cannot land on the wrong business.**
+  Returning to the dialler mid-call re-mounts it with no memory of which lead
+  was picked, so it opened on the top of the queue — a different prospect — while
+  the caller was still talking to the last one. The provider remembers whose
+  call is up and the dial card opens on them; it beats `?lead=` for the same
+  reason.
+- **A call on a non-calling screen gets a bar** (bottom centre: timer, mute,
+  hang up). Without it, surviving navigation would mean a live call with no way
+  to end it short of finding the way back.
+- One pair of `<audio>` elements for the app, in the provider. Each screen had
+  its own only because each held its own line.
+- **Verified structurally, not on a live call**: the provider's instance is
+  identical across navigations to Callbacks, Meetings, Keypad and Call lists,
+  and remounts on a full reload. The audio path, hold and merge still want a
+  real call through two handsets. Rollback point is the tag
+  `pre-call-provider`.
+
 Not built and not optional before volume dialling: a recorded-line announcement
 in the opener (recording is per-profile, so there is no per-call toggle and no
 beep), a retention period, and Singapore DNC scrubbing.

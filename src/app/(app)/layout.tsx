@@ -7,6 +7,7 @@ import { callScope, getCurrentUser, isSwitchedOff } from "@/lib/session";
 import { canUseKeypad, dialMethodOf } from "@/lib/users";
 import { LinePresence } from "@/components/calls/line-presence";
 import { InboundListener } from "@/components/calls/inbound-listener";
+import { CallLineProvider } from "@/components/calls/call-line";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { NavLinks } from "@/components/nav-links";
@@ -74,6 +75,11 @@ export default async function AppLayout({
 
   return (
     <LinePresence>
+    {/* The phone lives here, above every screen, because a page unmounts on
+        navigation and a layout does not — which is why a call used to die the
+        moment somebody left the dialler. `reachable` is the whole condition:
+        a browser dialler with a number of their own. */}
+    <CallLineProvider enabled={reachable}>
     <div className="flex min-h-svh">
       {/* Below `lg` this is a drawer instead — see `MobileNav`, whose trigger
           sits in the page header. */}
@@ -114,11 +120,12 @@ export default async function AppLayout({
       </aside>
       <main className="min-w-0 flex-1 bg-background">{children}</main>
       <Toaster />
-      {/* Registers on every screen except the two that hold a line of their
-          own, so a prospect ringing back reaches somebody wherever they are in
-          the workspace rather than only on the dialler. */}
-      {reachable && <InboundListener enabled />}
+      {/* Draws the call on every screen that is not a calling screen: a
+          prospect ringing back, and a call still in progress after somebody
+          has navigated away from the dial card. */}
+      {reachable && <InboundListener />}
     </div>
+    </CallLineProvider>
     </LinePresence>
   );
 }

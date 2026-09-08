@@ -31,10 +31,8 @@ import { ObjectionDrawer } from "@/components/sop/objection-drawer";
 import { IncomingCall } from "@/components/calls/incoming-call";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
 import { useClaimLine, useLineLeader } from "@/components/calls/line-presence";
-import {
-  useTelnyxCall,
-  type TelnyxLine,
-} from "@/components/calls/use-telnyx-call";
+import { useCallLine } from "@/components/calls/call-line";
+import { type TelnyxLine } from "@/components/calls/use-telnyx-call";
 import {
   LinePair,
   MergeControls,
@@ -69,8 +67,6 @@ import { cn } from "@/lib/utils";
  * them here would mean six buttons on a phone for things that never happen
  * while the phone is at your ear.
  */
-const REMOTE_AUDIO_ID = "cylrm-remote-audio";
-const SECOND_AUDIO_ID = "cylrm-second-audio";
 
 const KEEP: CallOutcome[] = ["no_answer", "voicemail", "gatekeeper", "callback"];
 const CLOSE: CallOutcome[] = ["demo_booked", "not_interested", "bad_number"];
@@ -181,6 +177,9 @@ function DialControls({
   // the line is taken, because the alternative is a dial card that renders
   // nothing and explains nothing.
   const holder = useLineLeader();
+  // Recorded as the call starts, so coming back to the dialler mid-call opens
+  // on this lead rather than on whoever is top of the queue.
+  const { setActiveLead } = useCallLine();
 
   // Nothing at all, not even the fallback line. Telling someone who always
   // dials from their own phone that there is "no caller ID yet" is an apology
@@ -221,7 +220,12 @@ function DialControls({
     return (
       <Button
         className="mt-2 h-12 w-full text-[15px]"
-        onClick={() => line.dial(lead.dialTo!, lead.dialFrom!)}
+        onClick={() => {
+          // Whose call this is, so returning to the dialler mid-call opens on
+          // them rather than on whoever is top of the queue.
+          setActiveLead(lead.id);
+          line.dial(lead.dialTo!, lead.dialFrom!);
+        }}
       >
         <PhoneCall data-icon="inline-start" />
         Call
@@ -754,7 +758,21 @@ export function Dialler({
   // Initial state only, deliberately: once it is worked the queue is the
   // queue again, and re-reading the URL would drag the caller back to a lead
   // they have finished with.
-  const [pickedId, setPickedId] = React.useState<number | null>(focusLeadId);
+  // The phone itself, from the layout rather than from this screen. That is
+  // what stops leaving the dialler — to log a callback, to read the notes —
+  // hanging up on the person being spoken to.
+  //
+  // Claimed so the layout's own call bar stands down while the dial card is
+  // showing. That flag no longer decides who *holds* the line, there being one:
+  // only who draws it, which is what stops one call being offered twice.
+  useClaimLine(canDialFromBrowser);
+  const { line, activeLeadId } = useCallLine();
+
+  // A call already up wins over the `?lead=` link: if somebody is mid-call and
+  // has navigated back here, the card they need is the one they are talking to.
+  const [pickedId, setPickedId] = React.useState<number | null>(
+    activeLeadId ?? focusLeadId,
+  );
 
   // Owned here rather than by the lead card, so the drawer outlives a change
   // of lead — and, once dialling is in the browser, an active call.
@@ -776,20 +794,6 @@ export function Dialler({
       return next;
     });
   }, []);
-  // One line for the whole session, held here so changing lead or refreshing
-  // after an outcome cannot drop a call in progress.
-  // Claimed before the line is taken, so this tab is already outranking any
-  // tab that is merely listening by the time the election is decided.
-  useClaimLine(canDialFromBrowser);
-  // The phone lives in one tab per browser. A calling screen outranks a
-  // listening one, so opening the dialler here takes the line off a forgotten
-  // background tab rather than being refused it.
-  const leader = useLineLeader();
-  const line = useTelnyxCall(
-    REMOTE_AUDIO_ID,
-    canDialFromBrowser && leader,
-    SECOND_AUDIO_ID,
-  );
 
   // Held here for the same reason the line is: `DialControls` is keyed on
   // whether a call is up and `CallForm` is keyed per lead, so either would
@@ -1306,8 +1310,6 @@ export function Dialler({
       {drawers}
       {/* The far end's audio has to land somewhere. One element for the whole
           dialler, never inside the lead card, which remounts per number. */}
-      <audio id={REMOTE_AUDIO_ID} autoPlay />
-      <audio id={SECOND_AUDIO_ID} autoPlay />
     </div>
   );
 }
