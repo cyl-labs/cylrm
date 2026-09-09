@@ -79,11 +79,18 @@ Reckon **two minutes a call**. Their missed calls a week times nine is close
 enough to the minutes they need in a month, and it is arithmetic you can do
 while they are still talking.
 
-| Missed calls a week | Minutes a month | Package |
+| Missed calls a week | Minutes a month | Where they land |
 | --- | --- | --- |
-| up to 8 | under 75 | Ring Rookie |
-| 9 to 26 | 75 to 225 | Phone Professional |
-| 27 or more | over 225 | Call Commander |
+| up to 8 | under 75 | Ring Rookie — it covers them outright |
+| 9 to 26 | 75 to 225 | Ring Rookie is the cheaper bill, Phone Professional the steadier one |
+| 27 to 360 | 225 to 3,100 | Phone Professional |
+| more than 360 | over 3,100 | Call Commander |
+
+**Call Commander is a call centre's plan, not a busy tradesman's.** At $2,000 it
+only beats Phone Professional past roughly 3,100 minutes a month — about 360
+missed calls a week. Somebody missing thirty a week belongs on Phone
+Professional at about $270, and quoting them two thousand is how you lose a deal
+you had already won.
 
 > **You say** You said about four a week — that's roughly 35 minutes a month, so you'd be on Ring Rookie at $100. Against the $8,000 we just worked out, it's a bit over one per cent of what's currently walking out the door.
 
@@ -93,10 +100,14 @@ _(let them answer)_
 Ring Rookie plus overage is cheaper than Phone Professional the whole way to 225
 minutes and exactly level there — 150 minutes costs $175 on Ring Rookie against
 $250 on Phone Professional. What the bigger package actually buys at those
-volumes is a bill that does not move, and the cheaper 60-cent rate once they go
-past 225. Say that plainly. A prospect who does the sum afterwards and finds
-they were pushed up a tier has caught you overselling, and you will not get that
-back.
+volumes is a bill that does not move, and the cheaper 60-cent rate beyond 225.
+Say that plainly: the pitch for the bigger plan is a steady bill, not a smaller
+one. A prospect who does the sum afterwards and finds they were pushed up a tier
+has caught you overselling, and you will not get that back.
+
+The calculator at the top of this page does all of this while they talk — their
+calls a week and their average job, and it prints what each package would cost
+at that volume.
 
 
 ### The term discounts, when price is the sticking point

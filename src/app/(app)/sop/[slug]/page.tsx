@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { SopProse } from "@/components/sop/sop-prose";
+import { PricingCalculator } from "@/components/sop/pricing-calculator";
 import { getCurrentUser } from "@/lib/session";
 import { callerNumberOf, callRegionOf } from "@/lib/users";
 import { sopRegionFor } from "@/lib/calls";
@@ -11,6 +12,11 @@ import { getSopDocument } from "@/lib/sop";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+/** The one document with numbers to work out mid-call. Matched by slug rather
+ *  than by a marker in the markdown: one document needs it, and a placeholder
+ *  in the content files would be a second syntax for authors to know. */
+const CALCULATOR_SLUG = "procedure-closing-the-demo";
 
 /** Long enough that finding a section by scrolling stops being reasonable. */
 const TOC_THRESHOLD = 6;
@@ -149,6 +155,17 @@ export default async function SopDocumentPage({
           {/* A readable measure: prose past roughly 70 characters a line is
               hard to scan, and this is read under pressure. */}
           <article className="min-w-0 max-w-[68ch] flex-1">
+            {/* The demo's arithmetic, on the one document that asks for it.
+                Above the words rather than buried at the step that needs it:
+                a founder mid-demo is scrolling for a line to say, and a
+                calculator they have to find is one they do the sum without.
+                The page is already founders-only — this document is
+                `audience: admins` — so nothing extra guards it. */}
+            {doc.slug === CALCULATOR_SLUG && (
+              <div className="mb-6">
+                <PricingCalculator />
+              </div>
+            )}
             {doc.introHtml && (
               <SopProse
                 html={doc.introHtml}
