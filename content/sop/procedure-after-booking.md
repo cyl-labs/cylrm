@@ -63,7 +63,7 @@ take both options with it.
 If neither suits, offer two more. Two at a time, always. Do not open it up again.
 
 Read both times off the open slots in front of you, never from memory.
-Nothing sooner than two hours from now: Cal.com will not accept it.
+Nothing sooner than seven hours from now: Cal.com will not accept it.
 
 Say the time back to them once more before you hang up, in their zone.
 
@@ -118,7 +118,7 @@ Every meeting gets a confirmation call. This is the cheapest thing you will do
 all day: a booked demo nobody rang is the one that quietly does not turn up,
 and a meeting that does not happen pays you nothing.
 
-> **You say** Hi [name], it's [your name] from Cyllabs — just confirming we're still on for [day] at [time] your time?
+> **You say** Hi [name], it's [your name] from Cyllabs — just confirming we're still on for [day] at [time] [in the morning/afternoon] your time?
 
 Say the day and the time back to them in **their** zone; the screen shows it,
 so there is nothing to work out. If they cannot make it, move it there and

@@ -150,9 +150,20 @@ _(let them answer)_
 
 Read the times off the open slots in front of you. Never from memory.
 
+### Say the time back with AM or PM
+
+> **You say** So that is [Wednesday] at [five thirty] [in the morning], your time. Is that right?
+
+_(let them answer)_
+
+"Five thirty" on its own is two appointments twelve hours apart. It has already
+cost a demo: the prospect asked for half five in the morning, the booking went
+in for half five in the evening, and nobody caught it — the time was said back
+three times and neither half of the day was ever spoken out loud.
+
 Book the slot you just agreed, while they are still on the phone.
 
-**Nothing sooner than two hours from now.** If they want it right away, agree
+**Nothing sooner than seven hours from now.** If they want it right away, agree
 the earliest slot it offers.
 
 > **You say** Done. You will get a calendar invite in the next minute with a Google Meet link, and a reminder the day before. See you [day] at [time] your time.

@@ -1368,6 +1368,24 @@ deleted is removed from the table too.
   and that changes client-side.
 - The `o` hotkey is ignored while focus is in an input or textarea, or it would
   eat every "o" typed into the notes field.
+- **The minimum booking notice is a number in four places and Cal.com owns the
+  truth.** The demo event type requires **7 hours** (it was 8 until 2026-09-09).
+  Both scripts, `procedure-after-booking.md` and `HowToBook` in `dialler.tsx`
+  all state it, and all four said "two hours" for months — which is how a caller
+  agreed a slot the calendar would not accept. **If it changes on Cal.com,
+  change those four.**
+  - It is what blocked the fix on 2026-09-09: a demo agreed for 5:30am Pacific
+    could not be rebooked at 22:00 the evening before, because the slot was 7½
+    hours out and the rule then demanded 8. The event's availability was never
+    the problem, which is worth knowing before anyone goes looking at working
+    hours again.
+- **Say the time back with AM or PM.** Added to both scripts and the dial card
+  after a booking went in twelve hours out: the prospect asked for 5:30 in the
+  morning, the caller repeated "5:30 Pacific" three times without ever saying
+  which half of the day, and booked the evening. The recording is the evidence
+  it was heard correctly and written down wrong. A reschedule on Cal.com creates
+  a **new booking with a new uid** and cancels the old, so the CRM shows both
+  until the cancelled one's slot passes — that is the sync working, not a bug.
 - **The dial card carries the booking procedure, not a checklist** (`HowToBook`
   in `dialler.tsx`, was `QualificationCriteria` until 2026-09-05). It listed the
   three things that make a booking count, which answered the wrong question: a

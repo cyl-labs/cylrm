@@ -387,7 +387,13 @@ function HowToBook() {
     </>,
     <>
       Offer two times on two different days, read off the slots in front of you.
-      Nothing sooner than two hours from now.
+      Nothing sooner than seven hours from now.
+    </>,
+    <>
+      Say the time back with{" "}
+      <span className="font-bold">&ldquo;in the morning&rdquo;</span> or{" "}
+      <span className="font-bold">&ldquo;in the afternoon&rdquo;</span>.
+      &ldquo;Five thirty&rdquo; is two appointments twelve hours apart.
     </>,
     <>
       Book it while they are still on the line, then confirm: invite in the next
