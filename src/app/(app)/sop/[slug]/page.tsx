@@ -13,10 +13,17 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-/** The one document with numbers to work out mid-call. Matched by slug rather
- *  than by a marker in the markdown: one document needs it, and a placeholder
- *  in the content files would be a second syntax for authors to know. */
-const CALCULATOR_SLUG = "procedure-closing-the-demo";
+/**
+ * Where the demo calculator goes, written in the content rather than here.
+ *
+ * A line reading `[calculator]` in the markdown is replaced by the component,
+ * so the person editing the document decides where it sits — it started at the
+ * top of the page and belonged next to the sum it does. Left unhandled the
+ * marker renders as its own literal text, which is the failure mode to want: a
+ * misplaced or misspelled one is visible on the page rather than silently
+ * dropping the calculator.
+ */
+const CALCULATOR_MARKER = "[calculator]";
 
 /** Long enough that finding a section by scrolling stops being reasonable. */
 const TOC_THRESHOLD = 6;
@@ -155,17 +162,6 @@ export default async function SopDocumentPage({
           {/* A readable measure: prose past roughly 70 characters a line is
               hard to scan, and this is read under pressure. */}
           <article className="min-w-0 max-w-[68ch] flex-1">
-            {/* The demo's arithmetic, on the one document that asks for it.
-                Above the words rather than buried at the step that needs it:
-                a founder mid-demo is scrolling for a line to say, and a
-                calculator they have to find is one they do the sum without.
-                The page is already founders-only — this document is
-                `audience: admins` — so nothing extra guards it. */}
-            {doc.slug === CALCULATOR_SLUG && (
-              <div className="mb-6">
-                <PricingCalculator />
-              </div>
-            )}
             {doc.introHtml && (
               <SopProse
                 html={doc.introHtml}
@@ -234,7 +230,22 @@ export default async function SopDocumentPage({
                         s.title
                       )}
                     </h2>
-                    <SopProse html={s.html} className="mt-3" />
+                    <SopProse
+                      html={s.html.replace(
+                        `<p>${CALCULATOR_MARKER}</p>`,
+                        "",
+                      )}
+                      className="mt-3"
+                    />
+                    {/* Beside the arithmetic it does, not at the top of the
+                        page: a founder mid-demo is reading the line they are
+                        about to say, and a calculator anywhere else is one they
+                        scroll past and do the sum without. */}
+                    {s.html.includes(CALCULATOR_MARKER) && (
+                      <div className="mt-4">
+                        <PricingCalculator />
+                      </div>
+                    )}
                   </section>
                 );
               });

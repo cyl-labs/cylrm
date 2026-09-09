@@ -57,6 +57,8 @@ Stop there and let the number sit. Do not name a price in the same breath: the
 whole point of the arithmetic is that they say the loss out loud first, so that
 whatever you quote next is measured against it.
 
+[calculator]
+
 ## Now put the packages in front of them
 
 Quote the packages, not the trial. The trial is what you reach for when they
