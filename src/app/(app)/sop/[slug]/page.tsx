@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileDown } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { SopProse } from "@/components/sop/sop-prose";
 import { PricingCalculator } from "@/components/sop/pricing-calculator";
@@ -59,6 +59,9 @@ export default async function SopDocumentPage({
   if (!doc) notFound();
 
   const showToc = doc.sections.length > TOC_THRESHOLD;
+  // Founders only, and only for a document that may leave the building.
+  const canExport =
+    me?.role === "admin" && !doc.adminOnly && Boolean(process.env.GOTENBERG_URL);
 
   // Consecutive sections sharing a heading become one collapsible chapter.
   // Built here rather than inline so the anchor index stays the section's
@@ -77,13 +80,29 @@ export default async function SopDocumentPage({
   return (
     <PageShell title={doc.title}>
       <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
-        <Link
-          href="/sop"
-          className="inline-flex items-center gap-1 text-[13px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ChevronLeft className="size-3.5" strokeWidth={2.4} />
-          All scripts
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href="/sop"
+            className="inline-flex items-center gap-1 text-[13px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ChevronLeft className="size-3.5" strokeWidth={2.4} />
+            All scripts
+          </Link>
+          {/* The handout, for somebody with no CRM account — an interviewee,
+              mostly. Founders only, and never offered on a founders-only
+              document: those carry the prices and the ROI maths, and the route
+              refuses them too. Absent rather than dead when no PDF service is
+              configured, the same rule the contract buttons follow. */}
+          {canExport && (
+            <a
+              href={`/api/sop/${doc.slug}/pdf`}
+              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
+            >
+              <FileDown className="size-3.5" strokeWidth={2.2} />
+              Export as PDF
+            </a>
+          )}
+        </div>
 
         <div className="mt-4 gap-8 lg:flex">
           {showToc && (

@@ -1783,6 +1783,25 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
 
 ### Printable handouts
 
+**Founders get an "Export as PDF" button on each SOP document**
+(`/api/sop/[slug]/pdf`), which posts the handout HTML to the **Gotenberg
+already running on the droplet** — a container that turns HTML into PDF and
+nothing else, on `localhost:3002`, shared with the other apps there. Config is
+`GOTENBERG_URL`; unset means no button and nothing else changes, the same rule
+the contract buttons follow. That is why no PDF library was added: this box has
+2GB of RAM and one that could render a page was already on it.
+
+- **The renderer moved to `src/lib/handout.mjs`** so the button and the script
+  cannot drift into two different documents. Plain ESM rather than TypeScript
+  because `scripts/export-sop.mjs` runs under bare node with no build step.
+- **`audience: admins` is refused by the route as well as the script**, and for
+  a founder too. These files exist to be sent to people outside the company;
+  the screen and Cmd-P are still there for anything else.
+- The button never renders on a founders-only document, so the refusal is a
+  backstop rather than the control — but `/api` is outside the middleware
+  matcher, so the route checks the role itself.
+
+
 `node scripts/export-sop.mjs [slug…]` renders the SOP markdown into
 standalone HTML under `handouts/` (gitignored — it is derived). Open one in
 Chrome and print to PDF; the print stylesheet is what the page is designed
