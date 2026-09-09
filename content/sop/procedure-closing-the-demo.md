@@ -64,20 +64,40 @@ hesitate — leading with it gives away the ask before they have refused it, and
 a prospect who has just agreed they are losing $8,000 a month does not need to
 be talked down to a free month.
 
+Show them all three, then recommend one. Which one is not a judgement call: it
+comes out of the minutes, and the sum is below the table.
+
 | Package | Minutes | Price | Over that |
 | --- | --- | --- | --- |
 | Ring Rookie | 75 | $100 / month | $1.00 a minute |
 | Phone Professional | 225 | $250 / month | $0.60 a minute |
 | Call Commander | Unlimited | $2,000 / month | — |
 
-**Lead with Phone Professional.** It is the middle one, it is what most of these
-businesses actually need, and naming it first makes Ring Rookie read as the
-cheaper option rather than the starting one. Go to Ring Rookie only for somebody
-genuinely small; Call Commander only for somebody with a call centre's volume.
+### Work out their minutes, then name the package
 
-> **You say** Based on what you've just told me, you'd be on Phone Professional — that's 225 minutes a month at $250, and anything over that is 60 cents a minute. Set against the $8,000 we just talked about, it's about three per cent of what's currently going out the door.
+Reckon **two minutes a call**. Their missed calls a week times nine is close
+enough to the minutes they need in a month, and it is arithmetic you can do
+while they are still talking.
+
+| Missed calls a week | Minutes a month | Package |
+| --- | --- | --- |
+| up to 8 | under 75 | Ring Rookie |
+| 9 to 26 | 75 to 225 | Phone Professional |
+| 27 or more | over 225 | Call Commander |
+
+> **You say** You said about four a week — that's roughly 35 minutes a month, so you'd be on Ring Rookie at $100. Against the $8,000 we just worked out, it's a bit over one per cent of what's currently walking out the door.
 
 _(let them answer)_
+
+**Do not talk somebody up a tier on price; the arithmetic will not back you up.**
+Ring Rookie plus overage is cheaper than Phone Professional the whole way to 225
+minutes and exactly level there — 150 minutes costs $175 on Ring Rookie against
+$250 on Phone Professional. What the bigger package actually buys at those
+volumes is a bill that does not move, and the cheaper 60-cent rate once they go
+past 225. Say that plainly. A prospect who does the sum afterwards and finds
+they were pushed up a tier has caught you overselling, and you will not get that
+back.
+
 
 ### The term discounts, when price is the sticking point
 
