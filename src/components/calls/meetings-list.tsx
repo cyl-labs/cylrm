@@ -36,6 +36,19 @@ const FOLLOWUP_LABELS: Record<MeetingFollowupResult, string> = {
   cancelled: "They cancelled",
 };
 
+/**
+ * The answer given on Payroll, as the meeting row says it.
+ *
+ * "Invalid" is not a gentler no-show — it says the booking was never a real
+ * question (a duplicate, a test, one logged against the wrong lead) — so it
+ * reads as neither kept nor missed.
+ */
+const ATTENDANCE_LABEL = {
+  showed_up: "They showed up",
+  no_show: "No show",
+  invalid: "Not a real booking",
+} as const;
+
 /** What a logged chase reads as afterwards. Shorter than the menu labels,
  *  which are written as the answer to "how did the call go". */
 const FOLLOWUP_DONE: Record<MeetingFollowupResult, string> = {
@@ -265,6 +278,23 @@ export function MeetingsList({
                     variant={m.needsChase ? "destructive" : "secondary"}
                   >
                     {when(m.startAt)}
+                  </Badge>
+                )}
+                {/* Answered on Payroll: this meeting is finished business, and
+                    a row that looks like every other one reads as work still
+                    owed. Said here rather than replacing the countdown, because
+                    when it happened is still worth seeing. */}
+                {m.attendance && (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      m.attendance === "showed_up" &&
+                        "border-success/40 text-success",
+                      m.attendance === "no_show" &&
+                        "border-destructive/40 text-destructive",
+                    )}
+                  >
+                    {ATTENDANCE_LABEL[m.attendance]}
                   </Badge>
                 )}
                 {m.listName && (

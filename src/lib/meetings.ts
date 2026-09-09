@@ -294,6 +294,17 @@ export type Meeting = {
   /** What has already been drafted for this meeting. Empty is the normal
    *  state; two rows means both agreements are waiting. */
   contracts: MeetingContract[];
+  /**
+   * Whether somebody has recorded that this demo happened — the answer given on
+   * Payroll, which is where the $30 attendance fee is decided.
+   *
+   * Read here so the row can say it. The two are separate records on purpose:
+   * this diary is fed by Cal.com, and "did they turn up" is a founder's
+   * judgement that no calendar can make. But a meeting that has been answered
+   * is finished business, and a row that looks identical to an unanswered one
+   * reads as work still owed.
+   */
+  attendance: "showed_up" | "no_show" | "invalid" | null;
   /** Why this number may not be rung, or null. Blocks the clipboard as well
    *  as any dial button, exactly as it does everywhere else. */
   dncBlock: string | null;
@@ -394,7 +405,18 @@ const meetingSelect = sql`
     order by cr.id limit 1
   ) as recording_ms,
   f.result as followup_result, f.created_at as followup_at,
-  f.by_name as followup_by, f.notes as followup_notes
+  f.by_name as followup_by, f.notes as followup_notes,
+  -- Whether a founder has answered "did they turn up" on Payroll.
+  --
+  -- Only an answer recorded *after* this meeting began can be about it: a lead
+  -- re-booked after a no-show carries the old answer, and stamping it on the
+  -- new booking would report a meeting as missed before it had happened.
+  -- Latest first, so a corrected answer wins.
+  (
+    select a.status from call_demo_attendance a
+    where a.call_lead_id = l.id and a.marked_at >= m.start_at
+    order by a.marked_at desc limit 1
+  ) as attendance
 `;
 
 /** The chase state, as one expression: four screens must not disagree about
@@ -451,6 +473,7 @@ function toMeeting(r: Row): Meeting {
       (r.lead_name as string | null) ||
       null,
     phone,
+    attendance: (r.attendance as Meeting["attendance"]) ?? null,
     listId: r.list_id === null || r.list_id === undefined ? null : n(r.list_id),
     listName: (r.list_name as string | null) ?? null,
     niche: (r.niche as string | null) ?? null,
