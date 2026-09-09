@@ -91,6 +91,16 @@ export function SopProse({
         "[&_p>strong]:font-bold [&_li>strong]:font-bold",
         "[&_a]:underline [&_a]:underline-offset-2",
         "[&_hr]:my-6 [&_hr]:border-border",
+        // Tables. The pricing in the closing procedure is the only thing that
+        // is genuinely a grid — three packages against three terms — and read
+        // as a list it stops being comparable, which is the whole reason to
+        // show it. Scrolls inside its own box on a phone rather than pushing
+        // the page sideways, the rule the rest of the app follows.
+        "[&_table]:mt-3.5 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto",
+        "[&_table]:border-collapse [&_table]:text-[13px]",
+        "[&_th]:whitespace-nowrap [&_th]:border-b [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-bold",
+        "[&_td]:border-b [&_td]:border-border/60 [&_td]:px-2.5 [&_td]:py-1.5",
+        "[&_tbody_tr:last-child_td]:border-b-0",
         // A placeholder the app filled in — the caller's own number, in place
         // of "[your number]". Marked because it has to read as *theirs* rather
         // than as an example somebody forgot to change, and never broken
