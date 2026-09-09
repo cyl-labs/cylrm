@@ -632,6 +632,14 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   of them wrong. Db-free for the reason `payroll-rates.ts` is — the dialog is a
   client component and has to render amounts. Discounts are integer cents, so
   250_00 at 15% off is exactly 212_50 rather than 212.49999999999997.
+  - **`procedure-closing-the-demo.md` quotes the same figures**, so a founder can
+    read them off the screen mid-demo, and the two must move together: a founder
+    quoting one number while the agreement says another is the failure worth
+    preventing. That document says where they came from.
+  - Unresolved and flagged rather than quietly changed: both objection sheets
+    still answer "how much" with **"as low as $99 a month"** while Ring Rookie is
+    $100. It is what the floor has been saying for months, so it is a pricing
+    decision rather than a typo to fix in passing.
 - **The unlimited plan bills overage at $0.00, not a dash.** Its clause reads
   "Unlimited minutes per month included. Minutes beyond this are billed at USD
   0.00 per minute" — slightly odd to read, exactly true, and it means Call
