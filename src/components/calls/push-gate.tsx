@@ -130,7 +130,7 @@ export function PushGate({ vapidKey }: { vapidKey?: string }) {
             </p>
             <p className="text-[13px] text-muted-foreground">
               Until then, check this screen yourself at the start of every
-              shift — anything in red is a meeting to ring and confirm.
+              shift — it lists what is booked, soonest first.
             </p>
             <Button onClick={close} className="w-full">
               Continue to Meetings
@@ -144,15 +144,15 @@ export function PushGate({ vapidKey }: { vapidKey?: string }) {
                 Turn on meeting reminders
               </DialogTitle>
               <DialogDescription>
-                Every booked demo needs a confirmation call the day before or
-                on the day. A meeting nobody rang is the one that quietly does
-                not turn up.
+                A demo booked a week ago is an easy one to be caught out by.
+                This tells you when one is coming so you are not surprised by
+                it — nobody has to remember to check.
               </DialogDescription>
             </DialogHeader>
             <p className="text-[13px] text-muted-foreground">
-              Once a day, this browser will tell you how many meetings are
-              waiting on a call. Nothing to install — your browser will ask you
-              to allow it.
+              This browser will tell you the day before a demo, and again four
+              hours before it starts. Nothing to install — your browser will ask
+              you to allow it.
             </p>
             <div className="flex flex-col gap-2">
               <Button onClick={turnOn} disabled={busy} className="w-full">

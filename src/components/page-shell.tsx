@@ -1,7 +1,7 @@
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
 import { countMissedCalls } from "@/lib/inbound";
-import { countMeetingsToChaseFor } from "@/lib/meetings";
+import { countMeetingsWaitingFor } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { MobileNav } from "@/components/mobile-nav";
 import { QuotaBar } from "@/components/calls/quota-bar";
@@ -25,7 +25,7 @@ export async function PageShell({
   // Scoped by the number that was rung, not by niche ownership: an inbound
   // call is addressed to a person.
   const missed = await countMissedCalls(me);
-  const meetings = await countMeetingsToChaseFor(me);
+  const meetings = await countMeetingsWaitingFor(me);
   // Callers only: the founders set the quota rather than owing it, the same
   // reason they are off the Scoreboard and off the payroll confirm list. A
   // caller can only ever be on a Call CRM screen, so there is no workspace to
@@ -41,7 +41,7 @@ export async function PageShell({
         unreadReplies={unread}
         callbacksDue={callbacks}
         missedCalls={missed}
-        meetingsToChase={meetings}
+        meetingsWaiting={meetings}
       />
         <h1 className="text-lg font-extrabold tracking-[-0.02em] sm:text-xl">
           {title}

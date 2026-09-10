@@ -85,8 +85,9 @@ asking you. The time itself is read off Cal.com, so that part is not on you.
 ## What happens automatically
 
 Cal.com sends the calendar invite with the Google Meet link within a minute of
-booking, and a reminder the day before. The booking email comes through to us
-at the same time, so nothing depends on you remembering.
+booking, then reminds them again a day before and an hour before. The booking
+email comes through to us at the same time, so nothing depends on you
+remembering — and neither does the prospect turning up.
 
 The meeting also appears on your **Meetings** screen in the CRM within a few
 minutes, with the time already on it. You never type it in anywhere.
@@ -104,45 +105,60 @@ checks the inbox. See *Reporting in Slack*.
 Make it the first thing you do, the same as Callbacks. **Meetings** lists every
 demo you have booked, soonest first, in your time and in theirs.
 
-The number beside Meetings in the sidebar is how many are waiting on you.
-Anything the screen has marked in red is a meeting **today or tomorrow that
-nobody has confirmed yet** — that is your list, and you work it before you
-start dialling. When the number is gone you are done.
+The number beside Meetings in the sidebar is what is coming within a day, plus
+anything waiting on a call from you. Open the screen and it tells you which.
 
 You do not have to remember which meetings are coming up, and you should not
 try to. Open the screen.
 
-## Ring them the day before, or on the day
+## Do not ring them to confirm
 
-Every meeting gets a confirmation call. This is the cheapest thing you will do
-all day: a booked demo nobody rang is the one that quietly does not turn up,
-and a meeting that does not happen pays you nothing.
+**We stopped making confirmation calls.** A prospect who agreed to a slot has
+not forgotten it, and ringing to ask whether they are still coming hands them an
+easy moment to say no — which is the opposite of what the call is for. Cal.com
+emails them a reminder a day before and another an hour before, so it is covered
+without us.
 
-> **You say** Hi [name], it's [your name] from Cyllabs — just confirming we're still on for [day] at [time] [in the morning/afternoon] your time?
+So a booked demo is left as scheduled. Nothing on the Meetings screen asks you
+to ring anybody beforehand, and nothing counts against you for not doing it.
 
-Say the day and the time back to them in **their** zone; the screen shows it,
-so there is nothing to work out. If they cannot make it, move it there and
-then rather than letting it become a no-show.
+**The reminder you get is for you.** The notification a day before, and again
+four hours before, says a demo is coming so you are not surprised by one. It is
+not a cue to pick up the phone.
 
-Then log it on the meeting itself — **Log the follow-up** on that row:
+## After the meeting, it gets logged
 
-- **Confirmed** — they said yes. The row goes quiet.
-- **No answer** — you tried and got nobody. Try again later in the day.
-- **Moved to another time** — rebook it on Cal.com. The new time comes back on
-  its own and the meeting reappears to be confirmed again.
-- **They cancelled** — done, and tell us.
+Once a demo has started, the row grows a **Log what happened** button and a
+founder answers it: **they showed up**, **no show**, or **not a real booking**.
+That is the same answer your pay is worked out from, so it is recorded once and
+in one place.
 
-A confirmation call is not a dial in your numbers and it is not an extra
-outcome on the lead. It does not change what you are paid; it protects the
-meeting you have already earned.
+Until it is answered, nothing else happens on that row. The answer is what
+decides whether there is a call to make.
 
 ## If they do not show up
 
-Ring them and rebook. **You get two of those.** After the second miss it is
-lost, and it stops counting toward your pay.
+**This is the follow-up call worth making.** The row turns red and stays on your
+Meetings screen for a week, marked to ring back.
 
-Tell us when a lead reaches that point. Lost is a founder's outcome and is not
-on your list of options, so it is not something you can close off yourself.
+Ring them, **ask what happened**, and **rebook it while you have them**. Somebody
+who agreed to a slot and then missed it is warm — it is usually something
+ordinary, and a new time fixes it. Say the new time back to them the way you did
+the first one.
+
+Then log the ring back on the row, whichever way it went. That is what takes it
+off your list.
+
+- **Rebooked** — you agreed a new time. Put it in Cal.com; it comes back on this
+  screen by itself.
+- **No answer** — try again. It stays on your list.
+- **Spoke to them, rebooking later** — they will come back to you. Write when.
+- **Not rebooking** — say so, and add the reason they gave.
+
+**You get two misses.** After the second one it is lost, and it stops counting
+toward your pay. Tell us when a lead reaches that point: Lost is a founder's
+outcome and is not on your list of options, so it is not something you can close
+off yourself.
 
 ## When you get paid
 

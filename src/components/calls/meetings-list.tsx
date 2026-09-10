@@ -6,6 +6,7 @@ import {
   Check,
   CalendarX2,
   ChevronRight,
+  ClipboardCheck,
   Copy,
   PhoneOutgoing,
   ShieldAlert,
@@ -29,11 +30,19 @@ import { LogRecording } from "@/components/calls/log-recording";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
 import { CallBackButton } from "@/components/calls/call-back-button";
 
-const FOLLOWUP_LABELS: Record<MeetingFollowupResult, string> = {
-  confirmed: "Confirmed — they're coming",
-  no_answer: "No answer",
-  rescheduled: "Moved to another time",
-  cancelled: "They cancelled",
+/**
+ * How the ring back after a missed demo ended.
+ *
+ * The four stored values are unchanged — they were written for a confirmation
+ * call that no longer happens — so this is only the words on the menu. Ask the
+ * reason, then rebook: "Rebooked" is the answer this call is trying to reach,
+ * which is why it is first.
+ */
+const RING_BACK_LABELS: Record<MeetingFollowupResult, string> = {
+  rescheduled: "Rebooked — new time agreed",
+  no_answer: "No answer — try again",
+  confirmed: "Spoke to them, rebooking later",
+  cancelled: "Not rebooking",
 };
 
 /**
@@ -43,19 +52,24 @@ const FOLLOWUP_LABELS: Record<MeetingFollowupResult, string> = {
  * question (a duplicate, a test, one logged against the wrong lead) — so it
  * reads as neither kept nor missed.
  */
+/** The three answers, taken off the Meeting type rather than imported from
+ *  `lib/payroll` — that module loads the Postgres client, and this is a client
+ *  component. The same wall `components/calls/outcome.ts` exists for. */
+type DemoStatus = NonNullable<Meeting["attendance"]>;
+
 const ATTENDANCE_LABEL = {
   showed_up: "They showed up",
   no_show: "No show",
   invalid: "Not a real booking",
 } as const;
 
-/** What a logged chase reads as afterwards. Shorter than the menu labels,
+/** What a logged ring back reads as afterwards. Shorter than the menu labels,
  *  which are written as the answer to "how did the call go". */
 const FOLLOWUP_DONE: Record<MeetingFollowupResult, string> = {
-  confirmed: "Confirmed",
+  confirmed: "Spoke to them",
   no_answer: "No answer",
-  rescheduled: "Being moved",
-  cancelled: "Cancelled by them",
+  rescheduled: "Rebooked",
+  cancelled: "Not rebooking",
 };
 
 /**
@@ -152,7 +166,7 @@ export function MeetingsList({
   /**
    * Picked but not yet logged.
    *
-   * A chase call is where the awkward detail turns up — they want to move it,
+   * The ring back is where the awkward detail turns up — they want to move it,
    * the decision maker will not be there, they asked for the deck first — and
    * the result on its own carries none of it. The founder taking the demo reads
    * this row and nothing else beforehand.
@@ -194,6 +208,40 @@ export function MeetingsList({
     },
     [tz],
   );
+
+  /**
+   * Say what happened at the meeting.
+   *
+   * The same record Payroll writes, keyed on the booking call, so an answer
+   * given on this screen and one given there cannot disagree — and the $30
+   * attendance fee is decided once, wherever somebody happened to be standing.
+   * Admins only for that reason: a caller marking their own booking as having
+   * shown up would be signing off their own commission.
+   */
+  async function mark(meeting: Meeting, status: DemoStatus) {
+    if (meeting.bookingCallId === null) return;
+    setBusy(meeting.id);
+    try {
+      const res = await fetch("/api/payroll/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callId: meeting.bookingCallId, status }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Could not save that.");
+        return;
+      }
+      toast.success(
+        `${ATTENDANCE_LABEL[status]}: ${meeting.company ?? meeting.attendeeName ?? "meeting"}`,
+      );
+      router.refresh();
+    } catch {
+      toast.error("Could not save that: network error.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function log(
     meeting: Meeting,
@@ -246,8 +294,12 @@ export function MeetingsList({
             className={cn(
               "rounded-xl border bg-card p-3.5 sm:p-4",
               // The server's answer, so the border cannot differ between the
-              // HTML and the hydration.
-              m.needsChase && "border-destructive/40",
+              // HTML and the hydration. It marks what is nearly here, not work
+              // owed — there is no confirmation call to owe any more.
+              m.startingSoon && "border-primary/40",
+              // The only row on this screen that is work owed, so it is the
+              // only one that shouts.
+              m.needsRingBack && "border-destructive/40",
               cancelled && "opacity-70",
             )}
           >
@@ -275,7 +327,7 @@ export function MeetingsList({
                   // render and the hydration — same note as the board.
                   <Badge
                     suppressHydrationWarning
-                    variant={m.needsChase ? "destructive" : "secondary"}
+                    variant={m.startingSoon ? "default" : "secondary"}
                   >
                     {when(m.startAt)}
                   </Badge>
@@ -323,6 +375,20 @@ export function MeetingsList({
               )}
             </p>
 
+            {/* The one call this screen asks for, and the reason it is worth
+                making is written on it: somebody who agreed to a slot and then
+                missed it is warm, and the reason is usually something ordinary
+                that a new time fixes. Written as what to say rather than as a
+                status, like the dial card's booking steps. */}
+            {m.needsRingBack && (
+              <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[13px]">
+                <span className="font-bold">They did not turn up.</span> Ring
+                them, ask what happened, and put a new time in while you have
+                them. Log it below either way — that is what takes this off your
+                list.
+              </p>
+            )}
+
             {m.leadId === null && (
               // Never hidden. A booking we could not attach to a lead is the
               // one most likely to be forgotten, and saying so is how it gets
@@ -338,7 +404,9 @@ export function MeetingsList({
                 <span
                   className={cn(
                     "font-semibold",
-                    m.followup.result === "confirmed" && "text-success",
+                    // Rebooked is the win here, not "confirmed" — that value
+                    // belonged to the confirmation call this replaced.
+                    m.followup.result === "rescheduled" && "text-success",
                     (m.followup.result === "cancelled" ||
                       m.followup.result === "no_answer") &&
                       "text-destructive",
@@ -353,7 +421,7 @@ export function MeetingsList({
               </p>
             )}
 
-            {/* What that chase turned up. Shown like the booking notes rather
+            {/* What that call turned up. Shown like the booking notes rather
                 than folded away: the founder walking into the demo reads this
                 row and nothing else. */}
             {m.followup?.notes && (
@@ -362,11 +430,6 @@ export function MeetingsList({
               </p>
             )}
 
-            {m.needsChase && !m.followup && (
-              <p className="mt-2 text-[13px] font-semibold text-destructive">
-                Ring them to confirm.
-              </p>
-            )}
 
             {!cancelled && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -377,28 +440,68 @@ export function MeetingsList({
                     who it is, and coming back here afterwards drops the call.
                     Absent on an unlinked booking, which belongs to no niche
                     and so has no dialler to open. */}
+                {/* What happened at the demo, logged where the demo is —
+                    rather than only on Payroll, which a founder opens on a
+                    Friday. It is the answer the ring back hangs off: nothing
+                    can ask anybody to chase a no-show until somebody has said
+                    it was one. Offered from the moment it starts, since that is
+                    when it is either happening or not. */}
+                {showWho && m.started && m.bookingCallId !== null && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      disabled={busy === m.id}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors disabled:opacity-50",
+                        m.attendance
+                          ? "border hover:bg-muted"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90",
+                      )}
+                    >
+                      <ClipboardCheck className="size-3.5" />
+                      {m.attendance ? "Change it" : "Log what happened"}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuLabel>Did they turn up?</DropdownMenuLabel>
+                      {(
+                        Object.keys(ATTENDANCE_LABEL) as DemoStatus[]
+                      ).map((sVal) => (
+                        <DropdownMenuItem
+                          key={sVal}
+                          onSelect={() => mark(m, sVal)}
+                        >
+                          {ATTENDANCE_LABEL[sVal]}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
                 {m.listId !== null && m.leadId !== null && !m.dncBlock && (
                   <CallBackButton
                     listId={m.listId}
                     leadId={m.leadId}
-                    label="Call to confirm"
+                    label={m.needsRingBack ? "Ring them back" : "Call them"}
                   />
                 )}
                 {m.phone && (
                   <CopyNumber phone={m.phone} blocked={m.dncBlock} />
                 )}
+                {/* Only after a missed demo. There is nothing to log before
+                    one: Cal.com tells the prospect it is coming, the sync
+                    brings a cancellation or a new time back on its own, and
+                    what happened at the meeting is the button above. */}
+                {m.needsRingBack && (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     disabled={busy === m.id}
                     className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
                   >
                     <PhoneOutgoing className="size-3.5" />
-                    {m.followup ? "Log another" : "Log the follow-up"}
+                    Log the ring back
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
                     <DropdownMenuLabel>How did it go?</DropdownMenuLabel>
                     {(
-                      Object.keys(FOLLOWUP_LABELS) as MeetingFollowupResult[]
+                      Object.keys(RING_BACK_LABELS) as MeetingFollowupResult[]
                     ).map((r) => (
                       <DropdownMenuItem
                         key={r}
@@ -406,11 +509,12 @@ export function MeetingsList({
                           setPicked({ meetingId: m.id, result: r, notes: "" })
                         }
                       >
-                        {FOLLOWUP_LABELS[r]}
+                        {RING_BACK_LABELS[r]}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                )}
                 {/* The same sheet the call log opens: audio, and a transcript
                     whose turns seek it. Made on request in there, not here. */}
                 {m.recordingId && (
@@ -458,13 +562,13 @@ export function MeetingsList({
               </div>
             )}
 
-            {/* What the chase call turned up, before it is logged. Under the
-                row rather than in a dialog, so the booking notes and the time
-                stay readable while it is written. */}
+            {/* What the call turned up, before it is logged. Under the row
+                rather than in a dialog, so the booking notes and the time stay
+                readable while it is written. */}
             {picked?.meetingId === m.id && (
               <div className="mt-3 rounded-lg border bg-background p-3">
                 <p className="text-[13px] font-bold">
-                  {FOLLOWUP_LABELS[picked.result]}
+                  {RING_BACK_LABELS[picked.result]}
                 </p>
                 <Textarea
                   autoFocus
@@ -472,7 +576,7 @@ export function MeetingsList({
                   onChange={(e) =>
                     setPicked({ ...picked, notes: e.target.value })
                   }
-                  placeholder="Anything the demo should know? (optional)"
+                  placeholder="What did they say? New time, if you set one. (optional)"
                   className="mt-2 min-h-[64px]"
                 />
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -495,18 +599,6 @@ export function MeetingsList({
               </div>
             )}
 
-            {/*
-              What was said on the call that won the meeting.
-              Collapsed, because the demo is the thing on this screen and the
-              history is what you open when you are about to walk into one —
-              usually a founder taking a demo booked by somebody else, for whom
-              these notes are the entire handover.
-
-              A native `details`, so it opens before hydration and needs no
-              state on a list that can be long. Nothing here is fetched on
-              open: it rides along with the meeting, which is cheap because a
-              transcript only exists when somebody already paid for one.
-            */}
             {/*
               The notes from the call that won the meeting.
               Collapsed, because the demo is the thing on this screen and the

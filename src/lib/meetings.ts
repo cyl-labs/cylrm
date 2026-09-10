@@ -142,7 +142,7 @@ function best(a: Candidate | undefined, b: Candidate): Candidate {
  * Runs on the worker's five-minute tick. Every booking is upserted on its
  * Cal.com uid, so the same meeting seen three hundred times a day stays one
  * row, and a reschedule is a change to `start_at` rather than a new row —
- * which is what re-arms the chase, since a follow-up is recorded against the
+ * which is what re-arms the reminders, since each is recorded against the
  * time it was made for.
  */
 export async function syncMeetings(): Promise<MeetingSyncResult> {
@@ -322,35 +322,73 @@ export type Meeting = {
   recordingMs: number | null;
 
   /**
-   * Owed a chase call: the meeting is today or tomorrow in this screen's
-   * clock, it has not been called off, and nobody has chased it *for this
-   * time*. A reschedule moves the time and so re-arms it by itself.
+   * The call that booked it, when the meeting is linked to one.
+   *
+   * What "did they turn up" is recorded against — the same key Payroll uses, so
+   * an answer given here and one given there are the same record rather than
+   * two that can disagree.
    */
-  needsChase: boolean;
+  bookingCallId: number | null;
+  /** Already begun. Decided by the database's clock rather than the browser's:
+   *  a control that appears on one and not the other is a hydration error. */
+  started: boolean;
+  /**
+   * Starts within a day, in this screen's clock.
+   *
+   * It used to mean "ring them to confirm"; nobody does that any more, so it
+   * only means the demo is nearly here — something coming, not work owed.
+   */
+  startingSoon: boolean;
+  /**
+   * They did not turn up, and nobody has rung them back.
+   *
+   * The only work this screen asks for. Cleared by logging the follow-up,
+   * whatever it turned out to be.
+   */
+  needsRingBack: boolean;
   followup: {
     result: MeetingFollowupResult;
     at: string;
     byName: string | null;
-    /** What the chase call turned up. The result alone carries none of it —
+    /** What the follow-up turned up. The result alone carries none of it —
      *  "moved to another time" does not say to when, or why. */
     notes: string | null;
   } | null;
 };
 
 /**
- * How far ahead a meeting starts being chased.
+ * How soon a meeting counts as "coming up" for the badge.
  *
- * One day, so the rule reads exactly as it was given: ring them the day
- * before or on the day itself. Counted in calendar days in the reader's own
- * clock rather than in hours, because "tomorrow" is what a person acts on —
- * a flat 24-hour window would leave a 5pm meeting tomorrow unflagged all of
- * this morning, which is precisely when there is time to make the call.
+ * This used to be the chase window: every booking got a confirmation call the
+ * day before. That is gone (2026-09-11). The floor's argument against it was
+ * the right one — a prospect who agreed to a slot has not forgotten it, and
+ * ringing to ask whether they are still coming hands them an easy moment to say
+ * no. Cal.com already emails them a reminder; we stopped adding a phone call on
+ * top of it.
+ *
+ * What is left is a count of what is about to happen, which is the thing a
+ * founder actually wants from a diary — not a queue of calls owed.
  */
-const CHASE_DAYS_AHEAD = 1;
+const SOON_DAYS_AHEAD = 1;
 
 /** Meetings that have started are kept on the screen for this long, so the
  *  one at 10am is still there at noon when somebody wonders how it went. */
 const KEEP_AFTER_START_HOURS = 12;
+
+/**
+ * How long a missed demo stays on the diary asking to be rung back.
+ *
+ * This is the one follow-up call left, and it is deliberately the opposite end
+ * of the meeting from the one we removed: chasing somebody *before* a demo
+ * hands them a moment to say no, while ringing after they did not turn up is
+ * the warmest call of the week — they agreed to a slot four days ago and then
+ * something happened. Ask what, and rebook it on the spot.
+ *
+ * A week, because after that "you missed our call on Tuesday" is a stranger
+ * ringing about nothing. It also bounds the list: a no-show nobody ever rang
+ * would otherwise sit on the screen forever.
+ */
+const NO_SHOW_RING_DAYS = 7;
 
 const meetingSelect = sql`
   m.id, m.start_at, m.end_at, m.status, m.title,
@@ -384,10 +422,13 @@ const meetingSelect = sql`
     from call_contract c where c.meeting_id = m.id
   ) as contracts,
   (select u.name from app_user u where u.id = bc.user_id) as booked_by,
-  -- What was actually said on the call that won this meeting. Read before
-  -- ringing to confirm, and before the demo itself: the caller who booked it
-  -- is often not the founder taking it, and the notes are the only handover
-  -- there is.
+  -- The booking call itself. Attendance is keyed on it (one answer per
+  -- booking, one fee per business), so the row cannot record what happened at
+  -- the meeting without it.
+  bc.id as booking_call_id,
+  -- What was actually said on the call that won this meeting. Read before the
+  -- demo: the caller who booked it is often not the founder taking it, and the
+  -- notes are the only handover there is.
   bc.notes as booking_notes,
   bc.called_at as booked_at,
   -- Its recording, so the meeting card can offer the same "listen back" the
@@ -419,9 +460,57 @@ const meetingSelect = sql`
   ) as attendance
 `;
 
-/** The chase state, as one expression: four screens must not disagree about
- *  what is owed, the same reason `CALLBACK_DUE` is written once. */
-const needsChase = (tz: string) => sql`
+/**
+ * Starting within a day and still on.
+ *
+ * Deliberately says nothing about whether anybody has confirmed it: there is no
+ * confirmation call any more, so an unconfirmed meeting is not work owed. It is
+ * simply a meeting that has not happened yet.
+ */
+/**
+ * Missed, and nobody has rung them back yet.
+ *
+ * Three facts, and all three have to hold: a founder answered "no show" on
+ * Payroll for a booking that had already started, and no follow-up has been
+ * logged against this meeting's *current* time. That last clause is what takes
+ * the row off the list — logging the ring back is the only way to clear it,
+ * which is the same mechanism the callbacks diary clears on.
+ *
+ * `for_start_at` rather than any follow-up, for the reason it exists: a
+ * prospect who no-shows and rebooks arrives as a new booking, and a stale
+ * follow-up must not answer for a meeting it was not made about.
+ */
+const needsRingBack = sql`coalesce(
+  m.status = 'accepted'
+  and m.start_at < now()
+  and m.start_at > now() - make_interval(days => ${NO_SHOW_RING_DAYS}::int)
+  and (
+    select a.status from call_demo_attendance a
+    where a.call_lead_id = l.id and a.marked_at >= m.start_at
+    order by a.marked_at desc limit 1
+  ) = 'no_show'
+  -- Only the lead's latest booking asks. Attendance is recorded per business
+  -- rather than per meeting, so a prospect who has booked three times carries
+  -- one "no show" answer that every one of those rows would otherwise claim —
+  -- live proof on KR Services, which asked to be rung back twice for a single
+  -- missed demo. It also closes the row the moment a new time is agreed: once
+  -- something later is on the calendar there is nothing left to ring about,
+  -- whether or not anybody logged the call that arranged it.
+  and not exists (
+    select 1 from call_meeting m2
+    where m2.call_lead_id = m.call_lead_id
+      and m2.id <> m.id
+      and m2.status = 'accepted'
+      and m2.start_at > m.start_at
+  )
+  and not exists (
+    select 1 from call_meeting_followup fu
+    where fu.meeting_id = m.id and fu.for_start_at = m.start_at
+  ),
+  false
+)`;
+
+const startingSoon = (tz: string) => sql`
   m.status = 'accepted'
   and m.start_at > now()
   -- The cast on the parameter is load-bearing. A bare placeholder makes
@@ -429,11 +518,10 @@ const needsChase = (tz: string) => sql`
   -- -- because Postgres cannot tell an integer's worth of days from an
   -- interval when neither side of the operator says which it is.
   and (m.start_at at time zone ${tz})::date
-      <= (now() at time zone ${tz})::date + ${CHASE_DAYS_AHEAD}::int
-  and f.id is null
+      <= (now() at time zone ${tz})::date + ${SOON_DAYS_AHEAD}::int
 `;
 
-/** The latest chase made against the meeting's *current* time. Pinned to
+/** The latest follow-up made against the meeting's *current* time. Pinned to
  *  `for_start_at` so a rescheduled meeting comes back onto the list. */
 const latestFollowup = sql`
   left join lateral (
@@ -494,7 +582,10 @@ function toMeeting(r: Row): Meeting {
     bookingNotes: (r.booking_notes as string | null) ?? null,
     recordingId: (r.recording_id as string | null) ?? null,
     recordingMs: r.recording_ms === null ? null : Number(r.recording_ms),
-    needsChase: r.needs_chase === true,
+    bookingCallId: r.booking_call_id === null ? null : n(r.booking_call_id),
+    started: r.started === true,
+    startingSoon: r.starting_soon === true,
+    needsRingBack: r.needs_ring_back === true,
     followup: r.followup_result
       ? {
           result: r.followup_result as MeetingFollowupResult,
@@ -520,10 +611,18 @@ export async function getMeetings(
   tz: string = "America/New_York",
 ): Promise<Meeting[]> {
   const rows = (await db.execute(sql`
-    select ${meetingSelect}, (${needsChase(tz)}) as needs_chase
+    select ${meetingSelect},
+      (m.start_at <= now()) as started,
+      (${startingSoon(tz)}) as starting_soon,
+      (${needsRingBack}) as needs_ring_back
     from call_meeting m
     ${joins}
-    where m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS})
+    where (
+        m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS})
+        -- A missed demo outstays the twelve hours: it is the one call worth
+        -- making, and a row that vanished overnight is a call nobody makes.
+        or (${needsRingBack})
+      )
       and (m.status = 'accepted' or m.start_at > now())
       ${ownedBy(ownerId)}
     order by m.start_at asc, m.id asc
@@ -533,18 +632,24 @@ export async function getMeetings(
 }
 
 /**
- * How many chases are owed — the sidebar badge.
+ * What the Meetings badge counts: demos nearly here, plus no-shows to ring back.
+ *
+ * Two different things under one number, which is worth being deliberate about.
+ * A badge that counted only what is coming would never say a call was owed, and
+ * the missed demo — the one call the floor agreed is worth making — is exactly
+ * the thing that gets forgotten if nothing points at it. Both are answered by
+ * opening the screen, which is all a badge asks anybody to do.
  *
  * Cached for the reason `countCallbacksDue` and `countUnreadReplies` are: the
  * sidebar and `PageShell` both ask while rendering one page.
  */
-export const countMeetingsToChase = cache(
+export const countMeetingsWaiting = cache(
   async (ownerId?: number, tz: string = "America/New_York"): Promise<number> => {
     const [row] = (await db.execute(sql`
       select count(m.id) as n
       from call_meeting m
       ${joins}
-      where (${needsChase(tz)}) ${ownedBy(ownerId)}
+      where ((${startingSoon(tz)}) or (${needsRingBack})) ${ownedBy(ownerId)}
     `)) as Row[];
     return n(row?.n);
   },
@@ -558,13 +663,13 @@ export const countMeetingsToChase = cache(
  * duplication that ends with two screens disagreeing about what day it is.
  * The counting query underneath is `cache()`d, so this costs one round trip.
  */
-export async function countMeetingsToChaseFor(
+export async function countMeetingsWaitingFor(
   me: CurrentUser | null,
 ): Promise<number> {
   const zone = statsZone(
     (await statsRegionOf(me?.id)) ?? (await callRegionOf(me?.id)),
   );
-  return countMeetingsToChase(callScope(me), zone.tz);
+  return countMeetingsWaiting(callScope(me), zone.tz);
 }
 
 /* ------------------------------------------------------------------ *
@@ -696,9 +801,13 @@ export async function sendMeetingReminders(
   const byId = new Map(subscribers.map((u) => [n(u.id), u]));
   const admins = subscribers.filter((u) => u.role === "admin").map((u) => n(u.id));
 
-  // Unconfirmed meetings still ahead of us. A confirmed one needs no nudge,
-  // and `latestFollowup` is pinned to the current start_at, so a rescheduled
-  // meeting counts as unconfirmed again — which is the intent.
+  // Every meeting still ahead of us that has not been called off.
+  //
+  // It used to skip any meeting with a follow-up logged against it, because a
+  // confirmed meeting needed no chasing. There is no chasing now — this is a
+  // heads-up that a demo is coming — so a note somebody wrote about a prospect
+  // must not silence it. A cancelled booking drops out on `status`, which is
+  // the only reason left to say nothing.
   const meetings = (await db.execute(sql`
     select m.id, m.start_at,
       coalesce(l.company, l.name, m.attendee_name) as who,
@@ -706,10 +815,8 @@ export async function sendMeetingReminders(
     from call_meeting m
     left join call_lead l on l.id = m.call_lead_id
     left join call_list cl on cl.id = l.call_list_id
-    ${latestFollowup}
     where m.status = 'accepted'
       and m.start_at > now()
-      and f.id is null
   `)) as Row[];
 
   const result = { ...empty, considered: meetings.length };
@@ -722,7 +829,7 @@ export async function sendMeetingReminders(
 
     // Whose meeting it is, and who to tell if that fails.
     //
-    // The owner of the niche first: the chase call is their job. Everything
+    // The owner of the niche first: it is their demo. Everything
     // else falls to the admins — an unassigned niche, an unlinked booking, or
     // an owner who has simply never turned reminders on. That last case is the
     // one worth spelling out: a caller who never pressed the button would
@@ -762,7 +869,11 @@ export async function sendMeetingReminders(
 
       const deliveries = await pushToUser(userId, {
         title: `${(m.who as string | null) ?? "A meeting"} — ${whenPhrase(startAt, zone.tz, now)}`,
-        body: "Ring them to confirm they are still coming.",
+        // A heads-up, not an instruction. Cal.com emails the prospect their own
+        // reminder 24 hours and an hour before, so this one exists only so the
+        // demo does not arrive as a surprise on our side — and telling somebody
+        // to ring would put back the confirmation call we deliberately dropped.
+        body: "Coming up. Nothing to do — Cal.com has reminded them.",
         url: "/meetings",
         // Tagged per meeting, so two different meetings stack as two
         // notifications while a repeat about one replaces itself.
@@ -784,7 +895,11 @@ export async function getMeeting(
   ownerId?: number,
 ): Promise<Meeting | null> {
   const rows = (await db.execute(sql`
-    select ${meetingSelect}, false as needs_chase
+    -- Neither flag is computed here: this reads one meeting for a write path
+    -- (the follow-up route), which asks whether the row exists and who owns it,
+    -- never how it should be drawn on the diary.
+    select ${meetingSelect}, false as started, false as starting_soon,
+      false as needs_ring_back
     from call_meeting m
     ${joins}
     where m.id = ${id} ${ownedBy(ownerId)}

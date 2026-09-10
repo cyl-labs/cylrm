@@ -25,7 +25,7 @@ export function MobileNav({
   unreadReplies = 0,
   callbacksDue = 0,
   missedCalls = 0,
-  meetingsToChase = 0,
+  meetingsWaiting = 0,
 }: {
   /** Decides whether the drawer offers the Email CRM at all. */
   role: "admin" | "caller" | undefined;
@@ -34,7 +34,7 @@ export function MobileNav({
   unreadReplies?: number;
   callbacksDue?: number;
   missedCalls?: number;
-  meetingsToChase?: number;
+  meetingsWaiting?: number;
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -49,12 +49,12 @@ export function MobileNav({
             trigger carries the fact that something is waiting. */}
         {(unreadReplies > 0 ||
           callbacksDue > 0 ||
-          meetingsToChase > 0 ||
+          meetingsWaiting > 0 ||
           missedCalls > 0) && (
           <span
             className={cn(
               "absolute right-1.5 top-1.5 size-2 rounded-full",
-              callbacksDue > 0 || meetingsToChase > 0 || missedCalls > 0
+              callbacksDue > 0 || meetingsWaiting > 0 || missedCalls > 0
                 ? "bg-destructive"
                 : "bg-primary",
             )}
@@ -83,7 +83,7 @@ export function MobileNav({
             unreadReplies={unreadReplies}
             callbacksDue={callbacksDue}
             missedCalls={missedCalls}
-            meetingsToChase={meetingsToChase}
+            meetingsWaiting={meetingsWaiting}
           />
         </div>
         <div className="mt-auto px-2.5 pb-3.5">

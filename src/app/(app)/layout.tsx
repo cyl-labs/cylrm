@@ -2,7 +2,7 @@ import { LogOut } from "lucide-react";
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
 import { countMissedCalls } from "@/lib/inbound";
-import { countMeetingsToChaseFor } from "@/lib/meetings";
+import { countMeetingsWaitingFor } from "@/lib/meetings";
 import { callScope, getCurrentUser, isSwitchedOff } from "@/lib/session";
 import { canUseKeypad, dialMethodOf } from "@/lib/users";
 import { LinePresence } from "@/components/calls/line-presence";
@@ -61,7 +61,7 @@ export default async function AppLayout({
   // Scoped by the number that was rung, not by niche ownership: an inbound
   // call is addressed to a person.
   const missed = await countMissedCalls(me);
-  const meetings = await countMeetingsToChaseFor(me);
+  const meetings = await countMeetingsWaitingFor(me);
   const keypad = await canUseKeypad(me?.id, me?.role);
 
   // Whether this person can be rung back at all: they need a number of their
@@ -96,7 +96,7 @@ export default async function AppLayout({
           unreadReplies={unread}
           callbacksDue={callbacks}
           missedCalls={missed}
-          meetingsToChase={meetings}
+          meetingsWaiting={meetings}
         />
         <div className="mt-auto px-2.5 pb-3.5">
           {/* Who you are, above the way out. The floor shares machines, and

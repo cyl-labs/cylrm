@@ -14,7 +14,7 @@ const isResult = (v: unknown): v is MeetingFollowupResult =>
   typeof v === "string" && (RESULTS as readonly string[]).includes(v);
 
 /**
- * Log the chase call made before a meeting.
+ * Log the ring back made after a missed meeting.
  *
  * Writes no `call` row, and that is deliberate: another `demo_booked` call
  * would put the lead on payroll's confirm list a second time for one meeting,
@@ -22,7 +22,7 @@ const isResult = (v: unknown): v is MeetingFollowupResult =>
  * answer — and it would re-date the lead's state, which every board derives
  * from the latest call.
  *
- * The consequence to know: a chase does not count toward the caller's pickups
+ * The consequence to know: this does not count toward the caller's pickups
  * or appear in the Stats call counts. It is a confirmation of work already
  * paid for on attendance, not a new dial.
  */
@@ -60,7 +60,7 @@ export async function POST(
     -- for_start_at is copied straight off the row rather than sent back from
     -- the browser, and this is not tidiness: a timestamp that has been through
     -- JavaScript carries milliseconds, the column carries microseconds, and
-    -- the equality the chase state is decided by then never matches. Every
+    -- the equality the ring-back state is decided by then never matches. Every
     -- meeting would sit there asking to be confirmed however many times it
     -- had been. Reading it here also means a reschedule landing between the
     -- render and this request stamps the slot that is really booked.

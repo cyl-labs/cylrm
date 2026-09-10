@@ -480,12 +480,12 @@ inbound handled.
 - Aggregates in `getCallLists` count `l.id`, not `*`: a list whose leads are all cross-list duplicates joins to nothing, and `count(*)` scores the LEFT JOIN's phantom NULL row as an uncalled lead — that read "-1 of 0 worked" before it was fixed.
 - Each lead carries the company's `website`, surfaced as a link on the spreadsheet (its own editable column, with the open-in-a-tab icon stopping the click before it reaches the cell) and as a button under the number on the dial card. The data was always there — the importer keeps every raw CSV column, and `website` was in `source_fields` on 599 of 679 leads — so `2026-08-13-call-lead-website.sql` promotes it to a column and backfills it. Parsing lives in `src/lib/website.ts`, off the database because both callers are client components: a bare domain gets `https://` prepended rather than being dropped, and anything that will not parse as http(s) returns null so no button is offered. That last part is not tidiness — the value came off a scraped page, and `javascript:` in an href runs on click. `source_url` / `provenance_url` are deliberately not aliases: they point at the directory listing the scraper used, not the company.
 
-## Meetings and confirmation calls (Call CRM)
+## Meetings (Call CRM)
 
 `/meetings` is the diary of booked demos, built to be read exactly as
 `/callbacks` is — opened at the start of a shift and worked top to bottom.
 Queries in `src/lib/meetings.ts`, the Cal.com client in `src/lib/cal.ts`,
-screen under `src/app/(app)/meetings/`, sync at `/api/cron/meetings`, chase
+screen under `src/app/(app)/meetings/`, sync at `/api/cron/meetings`, ring-back
 logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql`.
 
 - **The meeting time comes from Cal.com and nobody types it.** The CRM knew a
@@ -523,34 +523,77 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   time passed. `past` is excluded because it would re-upsert the hundred most
   recent finished meetings on every one of the day's 288 ticks; a one-off
   backfill of history is that array plus one word.
-- **A chase is `call_meeting_followup`, not a `call` row.** Logging one as
+### Nobody rings to confirm a demo (2026-09-11)
+
+The screen used to run on a chase: every booking due within a day turned red
+and asked for a confirmation call, and `call_meeting_followup` was that call's
+record. **That is gone, at the floor's own argument** — a prospect who agreed to
+a slot has not forgotten it, and ringing to ask whether they are still coming
+hands them an easy moment to say no. Cal.com's own workflows already email them
+24 hours and 1 hour before ("Demo reminder - 24h" / "- 1h" on that account), so
+the job was being done twice, once by the party with nothing to lose by it.
+
+What replaced it, and the shape to keep:
+
+- **The one follow-up call is after a miss, not before the meeting.** Somebody
+  who booked and then did not turn up is the warmest call of the week: ask what
+  happened, rebook while you have them. `needsRingBack` in `lib/meetings.ts` is
+  that state and the only thing on the screen that is work owed.
+- **What happened at the meeting is logged on the meeting row**, by an admin,
+  through `POST /api/payroll/attendance` — the same record Payroll writes, keyed
+  on the booking `call_id`. Not a second table and not a second answer: the $30
+  fee is decided once, wherever somebody happened to be standing when they
+  answered. Admin-only for the obvious reason — a caller marking their own
+  booking as having shown up is signing off their own commission.
+- **`needsRingBack` requires the lead's *latest* accepted booking.** Attendance
+  is recorded per business (one fee per lead), so one "no show" answer is
+  visible to every meeting row that lead has — KR Services asked to be rung back
+  twice for one missed demo before this clause landed. It also closes the row
+  the moment a later booking exists, which is right: once a new time is on the
+  calendar there is nothing to ring about, logged or not.
+- **`for_start_at` is what clears it, and it re-arms on a reschedule.** A
+  follow-up is recorded against the meeting time it was made *for*, and the
+  screen compares that to the booking's current `start_at`. It is written by a
+  `select … from call_meeting` inside the insert rather than sent from the
+  browser, and that is not tidiness: a timestamp round-tripped through
+  JavaScript carries milliseconds where the column carries microseconds, the
+  equality never matches, and the row never goes quiet. Do not "simplify" it
+  back to a value from the client.
+- **A follow-up is `call_meeting_followup`, not a `call` row.** Logging one as
   another `demo_booked` call would put the lead on payroll's confirm list a
   second time for one meeting — where the partial unique index on `showed_up`
   would then refuse the duplicate an answer — and would re-date the lead's
   state, which every board derives from the latest call. Same reasoning that
   keeps `call_demo_attendance` out of the outcome enum. **The consequence to
-  know: a confirmation call does not count toward pickups or appear in the
-  Stats call counts.** That is defensible while the fee is paid on attendance
-  and a chase protects a meeting already earned, but it is the thing to revisit
-  if chasing ever becomes a large part of the day.
-- **`for_start_at` re-arms the chase after a reschedule.** A follow-up is
-  recorded against the meeting time it was made *for*, and the screen compares
-  that to the booking's current `start_at` — so a prospect moving the meeting
-  brings the row back by itself. It is written by a `select … from call_meeting`
-  inside the insert rather than sent from the browser, and that is not
-  tidiness: a timestamp round-tripped through JavaScript carries milliseconds
-  where the column carries microseconds, the equality never matches, and every
-  meeting sits there asking to be confirmed however many times it has been.
-  Caught in testing; do not "simplify" it back to a value from the client.
-- **Chase window is calendar days in the reader's own clock**, not a flat 24
-  hours: `(start_at at time zone tz)::date <= (now() at time zone tz)::date + 1`.
-  The rule is "the day before or the day itself", and an hours-based window
-  leaves a 5pm meeting tomorrow unflagged all of this morning — precisely when
-  there is time to make the call. The parameter needs an explicit `::int`, or
-  Postgres cannot tell days from an interval and fails with "operator is not
-  unique: date + unknown". The zone resolves `stats_region` → `call_region` →
-  Eastern, the same order Stats uses so the two screens cannot disagree about
-  what day something is on.
+  know: a ring back does not count toward pickups or appear in the Stats call
+  counts.**
+- **The four stored `result` values are unchanged** (`confirmed`, `no_answer`,
+  `rescheduled`, `cancelled`) — they were named for the confirmation call — so
+  `RING_BACK_LABELS` in `meetings-list.tsx` is the vocabulary anybody actually
+  reads. `rescheduled` is the win here, not `confirmed`; the colours follow that.
+- **The badge counts two different things** (`countMeetingsWaiting`): demos
+  starting within a day, plus no-shows waiting on a ring back. A badge that only
+  counted what was coming would never say a call was owed, which is the exact
+  thing that gets forgotten.
+- **The push reminders stayed, and are ours.** 24h and 4h before, to the browser
+  of whoever owns the niche — a heads-up so a demo does not arrive as a
+  surprise, explicitly *not* a cue to ring ("Coming up. Nothing to do — Cal.com
+  has reminded them."). Nothing the CRM sends ever reaches the prospect; that is
+  Cal.com's job and it does it. The sender also stopped skipping meetings with a
+  follow-up logged against them: a note somebody wrote must not silence a
+  heads-up now that it means something else.
+- **SMS to the prospect was asked for and deliberately not built** — "hold the
+  text, actually texting them, just a reminder for now". If it is ever revisited,
+  note that it is the same move as the confirmation call from the prospect's
+  side.
+
+- **The "within a day" window is calendar days in the reader's own clock**, not
+  a flat 24 hours: `(start_at at time zone tz)::date <= (now() at time zone
+  tz)::date + 1`. The parameter needs an explicit `::int`, or Postgres cannot
+  tell days from an interval and fails with "operator is not unique: date +
+  unknown". The zone resolves `stats_region` → `call_region` → Eastern, the same
+  order Stats uses so the two screens cannot disagree about what day something
+  is on.
 - Times render in that one zone with the prospect's own alongside it when it
   differs — `attendees[].timeZone` comes free on the booking, and the SOP used
   to make a caller work it out by hand.
@@ -561,15 +604,15 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   it reads as unexplained magic. A collapsed `<details>` above the list covers
   where the meetings come from, that the phone number in the booking notes is
   the link back to the lead, the two reminder offsets and the quiet-hours
-  window, that push is per browser and has to be switched on, and what a
-  confirmation call is for. Shut by default and a server component, so it costs
-  one line of height and no bundle. **If `REMINDER_OFFSETS` or the quiet hours
+  window, that push is per browser and has to be switched on, and what the ring
+  back after a no-show is for. Shut by default and a server component, so it
+  costs one line of height and no bundle. **If `REMINDER_OFFSETS` or the quiet hours
   move, that copy moves with them** — it names the numbers.
 - Unset `CAL_API_KEY` means an empty screen and nothing else changes, in the
   same spirit as `lib/notify.ts`: the sync reports why it did nothing rather
   than throwing, so a cron tick never fails on a feature that is not switched
   on. The key can therefore be added before or after the deploy.
-- **The migration cannot.** `countMeetingsToChaseFor` is called by the app
+- **The migration cannot.** `countMeetingsWaitingFor` is called by the app
   layout to draw the sidebar badge, so a missing `call_meeting` table is not a
   broken Meetings screen — it is every screen in the app returning 500.
   **Apply `2026-08-30-call-meeting.sql` before deploying the code**, the same

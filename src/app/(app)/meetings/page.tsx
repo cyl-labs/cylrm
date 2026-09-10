@@ -55,7 +55,8 @@ export default async function MeetingsPage({
 
   const meetings = await getMeetings(callScope(me), zone.tz);
   // The database's clock decided this, not this render's.
-  const toChase = meetings.filter((m) => m.needsChase).length;
+  const soon = meetings.filter((m) => m.startingSoon).length;
+  const ringBack = meetings.filter((m) => m.needsRingBack).length;
   const cancelled = meetings.filter((m) => m.status === "cancelled").length;
 
   return (
@@ -86,16 +87,27 @@ export default async function MeetingsPage({
         <MeetingsExplainer zoneName={zone.name} />
         {meetings.length > 0 && (
           <p className="text-[13px] text-muted-foreground">
-            {toChase > 0 ? (
+            {/* Mostly what is coming, not what is owed: nobody rings to confirm
+                any more — a prospect who booked has not forgotten, and asking
+                them to reconfirm only offers them a way out, which is what
+                Cal.com's own reminder emails already cover. The one exception
+                is said first, because it is the only line here that is a job. */}
+            {ringBack > 0 && (
               <>
                 <span className="font-bold text-destructive">
-                  {toChase} to confirm
+                  {ringBack} to ring back
                 </span>
-                {meetings.length > toChase &&
-                  `, ${meetings.length - toChase} further out`}
+                {" · "}
+              </>
+            )}
+            {soon > 0 ? (
+              <>
+                <span className="font-bold">{soon} within a day</span>
+                {meetings.length > soon &&
+                  `, ${meetings.length - soon} further out`}
               </>
             ) : (
-              `${meetings.length} booked, none needing a call yet`
+              `${meetings.length} booked, nothing in the next day`
             )}
             {cancelled > 0 && `, ${cancelled} cancelled`}. Times are{" "}
             {zone.name} time.

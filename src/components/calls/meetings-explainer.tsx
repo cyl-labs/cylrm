@@ -107,35 +107,37 @@ export function MeetingsExplainer({
           <p className="mt-1 text-muted-foreground">
             A meeting on your niche goes to you. If you have never turned
             reminders on, it goes to the founders instead &mdash; so nothing is
-            ever missed entirely, but the person who has to make the call is not
-            the one being told.
+            ever missed entirely, but the person whose demo it is is not the one
+            being told.
           </p>
         </section>
 
         <section>
           <h3 className="font-bold">What you are being asked to do</h3>
           <p className="mt-1 text-muted-foreground">
-            A meeting in red needs a{" "}
+            Nothing before a demo. This screen is a diary, not a queue:{" "}
             <span className="font-semibold text-foreground">
-              confirmation call
-            </span>{" "}
-            &mdash; ring the prospect and check they are still coming. That is
-            the whole job of this screen. Log what happened with{" "}
-            <span className="font-semibold text-foreground">
-              Log the follow-up
-            </span>{" "}
-            and the row goes quiet.
+              we do not ring prospects to confirm
+            </span>
+            . Somebody who booked a slot has not forgotten it, and asking them
+            to reconfirm only offers them a way out. Cal.com emails them a
+            reminder a day before and again an hour before.
           </p>
           <p className="mt-1 text-muted-foreground">
-            A confirmation call is deliberately{" "}
-            <span className="font-semibold text-foreground">not</span> logged as
-            a call on the lead, so it does not count toward your calls or
-            pickups. It protects a demo you have already earned.
+            Once a meeting has started, a founder logs{" "}
+            <span className="font-semibold text-foreground">
+              what happened
+            </span>{" "}
+            on the row &mdash; showed up, no show, or not a real booking. That
+            is the same answer Payroll pays on, so it is recorded once.
           </p>
           <p className="mt-1 text-muted-foreground">
-            If they move the meeting, it comes back asking to be confirmed
-            again, because the time you confirmed is no longer the time it
-            happens.
+            <span className="font-semibold text-foreground">
+              A no show is the one call worth making.
+            </span>{" "}
+            The row turns red and stays for a week: ring them, ask what
+            happened, and put a new time in while you have them. Logging that
+            call is what takes the row off your list.
           </p>
         </section>
       </div>
