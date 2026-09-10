@@ -421,7 +421,14 @@ export function MeetingsList({
                     callerName={m.bookedBy ?? "Caller"}
                   />
                 )}
-                {m.meetingUrl && (
+                {/* Founders only, and not for tidiness: this is a one-tap join
+                    into a live client demo. A caller is paid when a booked demo
+                    shows up and the demo itself is deliberately none of their
+                    business — the same reason `procedure-closing-the-demo` is
+                    withheld from them. The failure to avoid is not a caller
+                    reading something they should not; it is one wandering into
+                    a founder's call while a prospect is on the line. */}
+                {showWho && m.meetingUrl && (
                   <a
                     href={m.meetingUrl}
                     target="_blank"
