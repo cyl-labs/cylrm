@@ -115,8 +115,19 @@ export function PricingCalculator() {
           <p className="mt-3.5 text-[13px] leading-relaxed">
             About{" "}
             <span className="font-bold">{Math.round(callsMonthly)} calls</span> a
-            month, so roughly{" "}
-            <span className="font-bold tabular-nums">{minutes} minutes</span>.
+            month{" "}
+            {/* Said out loud because 10 a week reading as 43 a month looks
+                like a bug otherwise. 52 weeks over 12 months is 4.33, not 4 —
+                rounding to 4 loses a month of calls across a year. */}
+            <span className="text-muted-foreground">
+              ({calls} × {WEEKS_PER_MONTH} weeks)
+            </span>
+            , so roughly{" "}
+            <span className="font-bold tabular-nums">{minutes} minutes</span>{" "}
+            <span className="text-muted-foreground">
+              (at {MINUTES_PER_CALL} min a call)
+            </span>
+            .
             {hasTicket && (
               <>
                 {" "}
@@ -139,6 +150,10 @@ export function PricingCalculator() {
                 <tr className="border-b">
                   <th className="px-2 py-1.5 text-left font-bold">Package</th>
                   <th className="px-2 py-1.5 text-left font-bold">Included</th>
+                  {/* The included minutes mean nothing to a prospect; the
+                      number of calls they cover is the thing they can check
+                      against their own week. */}
+                  <th className="px-2 py-1.5 text-left font-bold">Covers</th>
                   <th className="px-2 py-1.5 text-left font-bold">
                     At {minutes} min
                   </th>
@@ -177,12 +192,31 @@ export function PricingCalculator() {
                       <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
                         {pkg.minutes === null ? "unlimited" : `${pkg.minutes} min`}
                       </td>
+                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
+                        {pkg.minutes === null ? (
+                          "any volume"
+                        ) : (
+                          <>
+                            {Math.floor(pkg.minutes / MINUTES_PER_CALL)} calls
+                            <span className="text-muted-foreground/70">
+                              {" "}
+                              (~
+                              {Math.floor(
+                                pkg.minutes / MINUTES_PER_CALL / WEEKS_PER_MONTH,
+                              )}
+                              /wk)
+                            </span>
+                          </>
+                        )}
+                      </td>
                       <td className="px-2 py-1.5 tabular-nums">
                         ${money(cents)}
                         {over > 0 && (
+                          // The rate, not just the fact of an overrun: "29 over"
+                          // says nothing about whether the next tier is cheaper.
                           <span className="text-muted-foreground">
                             {" "}
-                            ({over} over)
+                            ({over} over @ ${money(pkg.overageCents)}/min)
                           </span>
                         )}
                       </td>
