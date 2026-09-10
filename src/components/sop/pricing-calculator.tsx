@@ -139,6 +139,12 @@ export function PricingCalculator() {
               </>
             )}
           </p>
+          {/* Why 4.33 and not 4, because it reads as a typo until you see
+              where it comes from — and getting it wrong moves people a tier. */}
+          <p className="mt-1 text-[12px] text-muted-foreground">
+            A month is {WEEKS_PER_MONTH} weeks, not 4: the year is 52 weeks, and
+            multiplying by four counts only 48 of them.
+          </p>
 
           {/* Every package at their volume, not just the recommended one. A
               founder who quotes the middle tier to somebody using 100 minutes
