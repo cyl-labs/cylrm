@@ -84,7 +84,7 @@ _(let them answer, then carry on below)_
 
 ## The close
 
-> **You say** My goal wasn't to sell you anything today. I actually built out a demo for your business — I'm really just trying to see if what we build can help you get more customers. I was hoping to find a time where I could call you and put the agent on the line, so you can hear it take a call.
+> **You say** My goal wasn't to sell you anything today. I actually built out a demo for your business — I'm really just trying to see if what we build can help you get more customers. I was hoping to get you a time where my team can call you and put the agent on the line, so you can hear it take a call.
 
 _(let them answer)_
 
@@ -93,6 +93,27 @@ about *this call*, not about the company. We sell voice agents; of course we
 do. What you are promising is narrow and you can keep it: they listen to the
 thing, and then they say yes or no. No strings, nothing to sign, no second
 call they did not agree to.
+
+
+## If they ask to do it right now
+
+> **Prospect** Can't we just do it now? / I've got five minutes.
+
+This is a good sign, not an objection. Sound pleased, and still say no.
+
+> **You say** I'd love to, but the team that runs these books up in advance — and I want your agent set up for [their trade] before we call, so you're hearing one that knows your business rather than a generic one. Soonest I can get you is [day] at [time]. Does that work?
+
+Two reasons it is a no, and neither is negotiable:
+
+- **The demo is not yours to run.** You book it, a founder takes it. Putting the
+  agent on the line yourself means running the whole close — the pricing, the
+  packages, the trial — which is a different job and not the one you are paid
+  for.
+- **The calendar will not take it.** Cal.com refuses anything inside seven
+  hours, so there is no slot to give them even if you wanted to.
+
+**Never offer to check.** "Let me see if someone is free" only ends with you
+back on the phone saying no, having made it sound possible.
 
 ## Only if they say you are selling them something
 
@@ -156,7 +177,7 @@ Book the slot you just agreed, while they are still on the phone.
 **Nothing sooner than seven hours from now.** If they want it right away, agree
 the earliest slot it offers.
 
-> **You say** Done. You will get a calendar invite in the next minute, and a reminder the day before. I will call you on this number. See you [day] at [time].
+> **You say** Done. You will get a calendar invite in the next minute, and a reminder the day before. We will call you on this number. See you [day] at [time].
 
 Then come back and log the call as **Demo booked**.
 
