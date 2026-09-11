@@ -63,6 +63,18 @@ export function TeamManager({
 }) {
   const router = useRouter();
   const iAmOwner = team.some((t) => t.id === meId && t.isOwner);
+  /**
+   * Whether the switched-off accounts are showing.
+   *
+   * They are folded away by default because there are more of them than there
+   * are people working — ten against six — and a screen where most rows are
+   * former staff is one where the row you came to change is hard to find.
+   * Deleting them is not the alternative: their calls, payouts and numbers all
+   * hang off those rows, which is why switching off exists at all.
+   */
+  const [showOff, setShowOff] = React.useState(false);
+  const off = team.filter((m) => !m.active).length;
+  const shown = showOff ? team : team.filter((m) => m.active);
   const numbers = accountNumbers
     .filter((n) => n.available)
     .map((n) => n.phoneNumber);
@@ -181,7 +193,7 @@ export function TeamManager({
                   </td>
                 </tr>
               ) : (
-                team.map((m) => (
+                shown.map((m) => (
                   <tr
                     key={m.id}
                     className={cn(
@@ -511,6 +523,21 @@ export function TeamManager({
                     </td>
                   </tr>
                 ))
+              )}
+              {off > 0 && (
+                <tr>
+                  <td colSpan={9} className="px-4 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowOff((v) => !v)}
+                      className="text-[13px] font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                    >
+                      {showOff
+                        ? `Hide ${off} switched off`
+                        : `Show ${off} switched off`}
+                    </button>
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

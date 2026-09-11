@@ -4,6 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Select,
   SelectContent,
+  SelectGroup,
+  SelectLabel,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -47,8 +49,10 @@ export function CallFilters({
 }: {
   lists: { id: number; name: string }[];
   listId: number | "all";
-  /** Omitted on screens with no per-person view. Only Stats has one. */
-  people?: { id: number; name: string }[];
+  /** Omitted on screens with no per-person view. Only Stats has one.
+   *  `active` is optional so an older call site keeps working; without it
+   *  everybody is treated as current, which is the safe way round. */
+  people?: { id: number; name: string; active?: boolean }[];
   personId?: number | "all";
   /** Omitted on screens with no date range, like the board. */
   range?: string;
@@ -116,11 +120,31 @@ export function CallFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Everyone</SelectItem>
-            {people.map((u) => (
-              <SelectItem key={u.id} value={String(u.id)}>
-                {u.name}
-              </SelectItem>
-            ))}
+            {people
+              .filter((u) => u.active !== false)
+              .map((u) => (
+                <SelectItem key={u.id} value={String(u.id)}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            {/* People who have left keep their entry, because their calls are
+                still in every number on the screen and last month is a fair
+                thing to go back and look at. They are penned behind a heading
+                instead: there are more of them than there are callers, and a
+                picker where half the names cannot work today is one nobody
+                reads to the bottom of. */}
+            {people.some((u) => u.active === false) && (
+              <SelectGroup>
+                <SelectLabel>No longer here</SelectLabel>
+                {people
+                  .filter((u) => u.active === false)
+                  .map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+              </SelectGroup>
+            )}
           </SelectContent>
         </Select>
       )}

@@ -202,8 +202,14 @@ export default async function CallStatsPage({
       ? wantedPerson
       : undefined;
   // Deactivated people stay listed: their calls are still in the numbers and
-  // last month's figures are a fair thing to go back and look at.
-  const peopleOptions = team.map((t) => ({ id: t.id, name: t.name }));
+  // last month's figures are a fair thing to go back and look at. `active`
+  // rides along so the picker can pen them behind a heading rather than
+  // mixing ten former callers in with the six working today.
+  const peopleOptions = team.map((t) => ({
+    id: t.id,
+    name: t.name,
+    active: t.active,
+  }));
   // Their own id never goes into a link. It would be ignored on the way back
   // in, and a URL carrying a person id suggests it could carry somebody
   // else's.
