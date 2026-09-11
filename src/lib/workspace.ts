@@ -12,6 +12,7 @@ import {
   Send,
   ShieldCheck,
   Table2,
+  Receipt,
   Trophy,
   Users,
   Wallet,
@@ -90,6 +91,9 @@ export const WORKSPACES: Workspace[] = [
       // gets opened.
       { href: "/team", label: "Team", icon: ShieldCheck },
       { href: "/payroll", label: "Payroll", icon: Wallet },
+      // Beside Payroll, which is the other half of the same question: that one
+      // is what the people cost, this is what the phones do.
+      { href: "/spend", label: "Spend", icon: Receipt },
     ],
   },
 ];
@@ -140,7 +144,14 @@ export const EMAIL_PREFIXES = [
  * permission — `app_user.keypad_access`, granted per person — so it lives in
  * `KEYPAD_PREFIX` below instead. Admins keep it by being admins.
  */
-export const ADMIN_ONLY_CALL_PREFIXES = ["/scoreboard", "/team", "/payroll"];
+export const ADMIN_ONLY_CALL_PREFIXES = [
+  "/scoreboard",
+  "/team",
+  "/payroll",
+  // The account balance and every line's usage — the same material Payroll is
+  // closed for, and a screen where one caller can read another's minutes.
+  "/spend",
+];
 
 /**
  * The Keypad, which is granted per person rather than by role.
@@ -222,6 +233,7 @@ const CALL_PREFIXES = [
   "/call-stats",
   "/team",
   "/payroll",
+  "/spend",
   "/keypad",
 ];
 

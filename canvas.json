@@ -1,0 +1,16 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1180, "title": "Spend" },
+    { "file": "States.dc.html", "x": 1560, "y": 0, "w": 1000, "h": 640, "title": "States" }
+  ],
+  "annotations": [
+    {
+      "id": "data-note",
+      "x": 1560,
+      "y": 720,
+      "w": 380,
+      "text": "Every figure is real — Telnyx usage reports for 12 Aug – 11 Sep, and the CRM's own call counts for the same window.\n\nThe $17.40 total is the corrected one: an earlier pull stopped at 20 rows and read $9.87."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
