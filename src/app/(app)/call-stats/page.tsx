@@ -26,6 +26,7 @@ import { getCurrentUser } from "@/lib/session";
 import { statsRegionOf } from "@/lib/users";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { PageShell } from "@/components/page-shell";
+import { DismissibleNotice } from "@/components/calls/dismissible-notice";
 import { cn } from "@/lib/utils";
 import { CallFilters } from "@/components/calls/call-filters";
 import { LogFilter } from "@/components/calls/log-filter";
@@ -421,7 +422,13 @@ export default async function CallStatsPage({
             counting them in either half would be a guess presented as a
             figure. */}
         {totals.outsideHours > 0 && (
-          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-[13px]">
+          // Dismissable, and keyed on the count: this reports a thirty-day
+          // window, so most of what it flags is history nobody can act on —
+          // 48 of the current 74 were dialled by two callers who have since
+          // left. Putting it away hides that number and nothing else; the next
+          // out-of-hours call changes the count and brings it straight back.
+          <DismissibleNotice id="outside-hours" signature={totals.outsideHours}>
+          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 pr-9 text-[13px]">
             <span className="font-bold text-destructive">
               {totals.outsideHours.toLocaleString()}{" "}
               {totals.outsideHours === 1 ? "call was" : "calls were"} placed
@@ -456,6 +463,7 @@ export default async function CallStatsPage({
               from a callback booked for that time.
             </span>
           </p>
+          </DismissibleNotice>
         )}
 
         {totals.badNumbers > 0 && (

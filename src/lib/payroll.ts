@@ -366,3 +366,30 @@ export function byWeek(payouts: PayoutRecord[]) {
     totalCents: rows.reduce((sum, r) => sum + r.totalCents, 0),
   }));
 }
+
+/**
+ * Demos that actually happened in a window, for the Spend screen.
+ *
+ * Counted off `call_demo_attendance` rather than the outcome enum, because
+ * "did they turn up" is a founder's judgement and lives nowhere else — the
+ * same record the $30 is paid on, so a cost-per-attended-demo figure and the
+ * fee it is compared against are answering from one source.
+ *
+ * Dated by the booking call, not by when somebody got round to marking it: an
+ * attendance confirmed a fortnight late belongs to the week the demo was in,
+ * or the cost per demo moves every time a founder clears the confirm list.
+ *
+ * **It lags by design.** A demo that happened yesterday and has not been
+ * marked yet is not counted, so this number only ever rises for a past window.
+ * The screen says so rather than presenting it as final.
+ */
+export async function countShowedUpDemos(days: number): Promise<number> {
+  const [row] = (await db.execute(sql`
+    select count(*) as n
+    from call_demo_attendance a
+    join "call" c on c.id = a.call_id
+    where a.status = 'showed_up'
+      and c.called_at >= now() - make_interval(days => ${days}::int)
+  `)) as Record<string, unknown>[];
+  return Number(row?.n ?? 0);
+}

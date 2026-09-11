@@ -1,8 +1,12 @@
+import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { RefreshSpend } from "@/components/calls/refresh-spend";
 import { getSpend, SPEND_DAYS } from "@/lib/telnyx-usage";
 import { getCallTotals } from "@/lib/call-stats";
+import { countShowedUpDemos } from "@/lib/payroll";
+import { usdToSgd } from "@/lib/fx";
 import { MEETING_CENTS, pickupBonusCents } from "@/lib/payroll-rates";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -24,27 +28,80 @@ export const dynamic = "force-dynamic";
  * with the last time you looked is a cost with no matching benefit.
  */
 
-/** Money, the way an invoice writes it. Sub-cent figures keep their precision
- *  rather than rounding to $0.00, which reads as free. */
-function money(n: number, places = 2) {
-  return `$${n.toLocaleString("en-US", {
-    minimumFractionDigits: places,
-    maximumFractionDigits: places,
-  })}`;
+/**
+ * Money, in whichever currency the screen is set to.
+ *
+ * Built per render rather than as a module constant because it closes over the
+ * rate. Every figure that comes off Telnyx is USD underneath; the symbol is
+ * never omitted, so a converted screen cannot be mistaken for a dollar one in
+ * a screenshot.
+ */
+function formatter(symbol: string, rate: number) {
+  const money = (n: number, places = 2) =>
+    `${symbol}${(n * rate).toLocaleString("en-US", {
+      minimumFractionDigits: places,
+      maximumFractionDigits: places,
+    })}`;
+  return {
+    money,
+    // Per-unit costs are fractions of a cent, so they get three places —
+    // $0.015 is the answer, $0.02 is a rounding of it and $0.00 is a lie.
+    unit: (n: number) => (n > 0 ? money(n, 3) : "—"),
+  };
 }
 
-/** Per-unit costs are fractions of a cent, so they get three places — $0.015
- *  is the answer, $0.02 is a rounding of it and $0.00 is a lie. */
-const unit = (n: number) => (n > 0 ? money(n, 3) : "—");
+/** A filter chip, the shape the rest of the calling screens use. */
+function Chip({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      className={cn(
+        "rounded-md border px-2.5 py-1 text-[12px] font-semibold transition-colors",
+        active
+          ? "border-primary/40 bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-muted",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
 
 const CARD =
   "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]";
 
-export default async function SpendPage() {
-  const [spend, totals] = await Promise.all([
+export default async function SpendPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ currency?: string; demos?: string }>;
+}) {
+  const params = await searchParams;
+  // Both toggles live in the URL rather than in a preference, like every other
+  // filter on the calling side: a link then carries what its sender was
+  // looking at, and there is no stored setting to disagree with the screen.
+  const inSgd = params.currency === "sgd";
+  const byAttendance = params.demos === "showed";
+
+  const [spend, totals, showedUp, fx] = await Promise.all([
     getSpend(),
     getCallTotals({ kind: "rolling", days: SPEND_DAYS }),
+    countShowedUpDemos(SPEND_DAYS),
+    inSgd ? usdToSgd() : Promise.resolve(null),
   ]);
+
+  // Asked for Singapore dollars and the rate would not come: stay in USD
+  // rather than inventing one, and say so below.
+  const rate = inSgd ? fx : null;
+  const { money, unit } = formatter(rate ? "S$" : "$", rate?.rate ?? 1);
 
   if (spend.skipped === "unconfigured") {
     return (
@@ -67,7 +124,8 @@ export default async function SpendPage() {
   // quiet month must render "—" rather than Infinity.
   const perCall = totals.calls > 0 ? spend.total / totals.calls : 0;
   const perPickup = totals.pickups > 0 ? spend.total / totals.pickups : 0;
-  const perDemo = totals.demos > 0 ? spend.total / totals.demos : 0;
+  const demoCount = byAttendance ? showedUp : totals.demos;
+  const perDemo = demoCount > 0 ? spend.total / demoCount : 0;
 
   // What the floor accrued over the same window, so the telephony figure is
   // read in proportion rather than in isolation. Pickups pay per whole block,
@@ -92,6 +150,61 @@ export default async function SpendPage() {
             </span>{" "}
             <span className="text-muted-foreground">
               These are the last figures we pulled. Press Refresh to try again.
+            </span>
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              Show in
+            </span>
+            <Chip href="/spend" active={!inSgd}>
+              USD
+            </Chip>
+            <Chip href="/spend?currency=sgd" active={inSgd}>
+              SGD
+            </Chip>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              Cost per demo
+            </span>
+            <Chip
+              href={inSgd ? "/spend?currency=sgd" : "/spend"}
+              active={!byAttendance}
+            >
+              Booked
+            </Chip>
+            <Chip
+              href={
+                inSgd ? "/spend?currency=sgd&demos=showed" : "/spend?demos=showed"
+              }
+              active={byAttendance}
+            >
+              Showed up
+            </Chip>
+          </div>
+        </div>
+
+        {/* Said wherever a converted figure appears, never assumed: the bill is
+            in US dollars and this screen is the only place that is not
+            obvious. */}
+        {inSgd && rate && (
+          <p className="text-[12px] text-muted-foreground">
+            Converted from US dollars at{" "}
+            <span className="font-semibold tabular-nums text-foreground">
+              1 USD = {rate.rate.toFixed(4)} SGD
+            </span>
+            , taken {rate.at}. Telnyx bills in USD.
+          </p>
+        )}
+        {inSgd && !rate && (
+          <p className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-2.5 text-[13px]">
+            <span className="font-bold">Showing US dollars.</span>{" "}
+            <span className="text-muted-foreground">
+              The exchange rate could not be fetched, and a made-up rate on a
+              bill is worse than the currency it was billed in.
             </span>
           </p>
         )}
@@ -157,13 +270,15 @@ export default async function SpendPage() {
 
           <div className={`${CARD} px-4 py-3`}>
             <p className="text-xs font-semibold text-muted-foreground">
-              Per booked demo
+              {byAttendance ? "Per demo that showed" : "Per booked demo"}
             </p>
             <p className="mt-1 text-2xl font-extrabold tabular-nums tracking-[-0.02em]">
               {perDemo > 0 ? money(perDemo) : "—"}
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/75">
-              {totals.demos} booked
+              {byAttendance
+                ? `${showedUp} turned up`
+                : `${totals.demos} booked`}
             </p>
           </div>
         </div>
@@ -400,6 +515,14 @@ export default async function SpendPage() {
           </div>
         </div>
 
+        {byAttendance && (
+          <p className="text-[12px] text-muted-foreground">
+            &ldquo;Showed up&rdquo; counts the demos a founder has marked as
+            attended on Payroll, dated by the call that booked them. A demo
+            nobody has answered for yet is not in it, so this figure only ever
+            falls as the confirm list is worked through.
+          </p>
+        )}
         <p className="text-[12px] text-muted-foreground/75">
           Figures come from Telnyx&rsquo;s own usage reports, cached for an hour
           — press Refresh to pull them again. Deepgram transcription is billed
