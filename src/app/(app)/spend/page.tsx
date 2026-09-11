@@ -200,8 +200,12 @@ export default async function SpendPage() {
 
           <div className="mt-3.5 flex gap-2.5">
             <div className="flex w-8 shrink-0 flex-col justify-between text-right text-[11px] tabular-nums text-muted-foreground/75">
-              <span>{money(busiest, busiest < 1 ? 2 : 0)}</span>
-              <span>{money(busiest / 2, busiest < 1 ? 2 : 0)}</span>
+              {/* The real maximum, not a round number above it: the top bar
+                  touches this line, so a label reading $3 over a $2.61 bar is
+                  simply wrong. Two places until the numbers get big enough
+                  that the cents are noise. */}
+              <span>{money(busiest, busiest < 10 ? 2 : 0)}</span>
+              <span>{money(busiest / 2, busiest < 10 ? 2 : 0)}</span>
               <span>$0</span>
             </div>
             <div className="min-w-0 flex-1">
