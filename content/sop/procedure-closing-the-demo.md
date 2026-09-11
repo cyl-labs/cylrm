@@ -22,6 +22,34 @@ contracts are actually drafted from.** That file is the source of truth: if a
 price moves there, it moves here and in the Price objection on each sheet, or a
 caller quotes one number and the agreement says another.
 
+## Ring them at the scheduled time, never before
+
+**Do not ring ahead to check they are ready.** A call fifteen minutes before the
+demo is an invitation to say "actually, now's not great" — you have handed them
+a way out of a meeting they had already agreed to. The same reason nobody
+confirms a booking the day before any more: Cal.com reminds them, and every
+extra touch before the demo is a chance for it to come apart.
+
+So ring **at the time, on the minute**, and open as though the demo is already
+running — because it is.
+
+> **You say** Hi [name], it's [your name] from Cyl Labs — I've got the agent on the other line waiting for us. Give me two seconds and I'll bring it in.
+
+That line does two things. It says the meeting has started rather than asking
+whether it can, and it puts something live on the other end, which is much
+harder to postpone than a conversation.
+
+**How to actually bring it in**, from the lead's dial card:
+
+1. Call them from the dial card as normal.
+2. Press **Add call** and pick the agent's line from the list.
+3. Press **Merge calls**. You can press it while it is still ringing — it fires
+   the moment the agent answers, which matters because the agent starts talking
+   as soon as it picks up.
+
+Both legs are recorded, as always. Keep the tab open: closing it drops both
+calls.
+
 ## Before you dial the agent in
 
 Set expectations first, or a generic demo gets judged as the finished product.
