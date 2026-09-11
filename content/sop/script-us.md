@@ -84,7 +84,7 @@ _(let them answer, then carry on below)_
 
 ## The close
 
-> **You say** My goal wasn't to sell you anything today. I actually built out a demo for your business — I'm really just trying to see if what we build can help you get more customers. I was hoping to find a time where we could do a quick Google Meet.
+> **You say** My goal wasn't to sell you anything today. I actually built out a demo for your business — I'm really just trying to see if what we build can help you get more customers. I was hoping to find a time where I could call you and put the agent on the line, so you can hear it take a call.
 
 _(let them answer)_
 
@@ -166,7 +166,7 @@ Book the slot you just agreed, while they are still on the phone.
 **Nothing sooner than seven hours from now.** If they want it right away, agree
 the earliest slot it offers.
 
-> **You say** Done. You will get a calendar invite in the next minute with a Google Meet link, and a reminder the day before. See you [day] at [time] your time.
+> **You say** Done. You will get a calendar invite in the next minute, and a reminder the day before. I will call you on this number. See you [day] at [time] your time.
 
 Then come back and log the call as **Demo booked**.
 

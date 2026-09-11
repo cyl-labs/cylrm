@@ -84,10 +84,16 @@ asking you. The time itself is read off Cal.com, so that part is not on you.
 
 ## What happens automatically
 
-Cal.com sends the calendar invite with the Google Meet link within a minute of
-booking, then reminds them again a day before and an hour before. The booking
-email comes through to us at the same time, so nothing depends on you
-remembering — and neither does the prospect turning up.
+Cal.com sends the calendar invite within a minute of booking, then reminds
+them again a day before and an hour before. The booking email comes through to
+us at the same time, so nothing depends on you remembering — and neither does
+the prospect turning up.
+
+**The demo is a phone call, not a video call.** We ring the number on the
+booking at the agreed time and put the agent on the line, so they hear it answer
+the way their own customers would. There is no link for them to click and
+nothing for them to install — which is also why the booking form asks for the
+best number to call, prefilled with the one you are speaking to them on.
 
 The meeting also appears on your **Meetings** screen in the CRM within a few
 minutes, with the time already on it. You never type it in anywhere.

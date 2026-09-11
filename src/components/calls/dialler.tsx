@@ -560,6 +560,14 @@ function CallForm({
               href={`${calBookingUrl}?${new URLSearchParams({
                 ...(contact.trim() ? { name: contact.trim() } : {}),
                 ...(email.trim() ? { email: email.trim() } : {}),
+                // The demo is a phone call now, so Cal.com asks for a number
+                // and it is a required field. Prefilled with the one you are
+                // already speaking to them on: a caller retyping eleven digits
+                // mid-call is a typo waiting to happen, and this is the number
+                // the demo gets dialled on. E.164, which is what the booking
+                // has to carry — `phone` is written the way the market writes
+                // it and can be missing its country code.
+                ...(lead.dialTo ? { attendeePhoneNumber: lead.dialTo } : {}),
                 notes: `${lead.company ?? lead.phone} (${lead.phone})`,
               }).toString()}`}
               target="_blank"

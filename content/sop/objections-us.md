@@ -65,7 +65,7 @@ _(let them answer)_
 ## Brushing you off | Prospect: "Just send me an email / send me info."
 
 
-> **You say** I can send something over, but you'll get more out of hearing it. I built a demo for your business, so we do a quick Google Meet and the agent takes a call live. Do you have 15 minutes this week to check it out?
+> **You say** I can send something over, but you'll get more out of hearing it. I built a demo for your business, so I just call you and put the agent on the line — you hear it take a call live. Do you have 15 minutes this week to check it out?
 
 ## Brushing you off | Prospect: "We're too busy / it's our busy season."
 
