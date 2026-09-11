@@ -170,22 +170,39 @@ async function lineOwners(): Promise<Map<string, string>> {
   );
 }
 
+/**
+ * Every connection's name, whatever kind it is.
+ *
+ * Two endpoints, because Telnyx splits them and neither lists the other:
+ * `/connections` covers the credential and FQDN connections the callers dial
+ * from, and `/call_control_applications` covers the rest. Asking only the
+ * first left `portal-conference-bridge` — another app on the same account,
+ * and a busy one — showing as "Line 6317", which reads as a mystery rather
+ * than as somebody else's traffic.
+ *
+ * Names are matched off the raw text rather than parsed objects for the same
+ * reason the usage reports are: a 19-digit id does not survive `JSON.parse`.
+ */
 async function connectionNames(): Promise<Map<string, string>> {
-  try {
-    const text = await get("/credential_connections?page[size]=100");
-    const names = new Map<string, string>();
-    // Matched off the raw text for the same reason the reports are: the ids do
-    // not survive JSON.parse. Both field orders appear in the wild.
-    for (const m of text.matchAll(/"id":"(\d+)"[^}]*?"connection_name":"([^"]+)"/g))
-      names.set(m[1], m[2]);
-    for (const m of text.matchAll(/"connection_name":"([^"]+)"[^}]*?"id":"(\d+)"/g))
-      if (!names.has(m[2])) names.set(m[2], m[1]);
-    return names;
-  } catch {
-    // Best effort. A line labelled by its id is worse than one labelled by
-    // name and far better than a screen that failed to load.
-    return new Map();
+  const names = new Map<string, string>();
+  const scan = (text: string, field: string) => {
+    const a = new RegExp(`"id":"(\\d+)"[^}]*?"${field}":"([^"]+)"`, "g");
+    const b = new RegExp(`"${field}":"([^"]+)"[^}]*?"id":"(\\d+)"`, "g");
+    for (const m of text.matchAll(a)) if (!names.has(m[1])) names.set(m[1], m[2]);
+    for (const m of text.matchAll(b)) if (!names.has(m[2])) names.set(m[2], m[1]);
+  };
+  for (const [path, field] of [
+    ["/connections?page[size]=200", "connection_name"],
+    ["/call_control_applications?page[size]=200", "application_name"],
+  ] as const) {
+    try {
+      scan(await get(path), field);
+    } catch {
+      // Best effort per endpoint: one unreachable list should cost a few
+      // labels, never the screen.
+    }
   }
+  return names;
 }
 
 async function pull(): Promise<Spend> {

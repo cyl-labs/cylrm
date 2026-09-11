@@ -79,6 +79,22 @@ function Chip({
 const CARD =
   "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]";
 
+/**
+ * What each line on the bill actually is.
+ *
+ * Written from the reader's side rather than Telnyx's: nobody opening this
+ * screen knows that "sip-trunking" is the leg to the prospect and "webrtc" is
+ * the caller's own, and the two being separate charges for one phone call is
+ * the single most confusing thing here.
+ */
+const PRODUCT_NOTE: Record<string, string> = {
+  "sip-trunking": "the leg from us to the prospect",
+  webrtc: "the caller's own leg, browser to Telnyx",
+  recording: "every call is recorded, charged by the minute",
+  "number-lookup": "checking whether a number can receive texts",
+  messaging: "texts to prospects, once the carrier approves us",
+};
+
 export default async function SpendPage({
   searchParams,
 }: {
@@ -360,9 +376,20 @@ export default async function SpendPage({
         <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
           {/* Where it goes */}
           <div className={`${CARD} overflow-hidden`}>
-            <p className="px-4 pt-3.5 pb-2.5 text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground sm:px-5">
-              Where it goes
-            </p>
+            <div className="px-4 pt-3.5 pb-2.5 sm:px-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+                Where it goes
+              </p>
+              {/* A heading is not an explanation. These are Telnyx's product
+                  names translated once, here, so nobody has to hold the
+                  mapping in their head. */}
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                The bill, split by what you were charged for. One browser call
+                bills twice &mdash; the leg out to the prospect and the
+                caller&rsquo;s own &mdash; and the recording of it is charged
+                separately again.
+              </p>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[13px]">
                 <thead>
@@ -397,6 +424,10 @@ export default async function SpendPage({
                             }
                           >
                             {p.label}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {PRODUCT_NOTE[p.id] ?? ""}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
@@ -439,9 +470,16 @@ export default async function SpendPage({
 
           {/* Who spends it */}
           <div className={`${CARD} overflow-hidden`}>
-            <p className="px-4 pt-3.5 pb-2.5 text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground sm:px-5">
-              Who spends it
-            </p>
+            <div className="px-4 pt-3.5 pb-2.5 sm:px-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+                Who spends it
+              </p>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                The calls out, by which line placed them. A line with a name
+                and no person is not a caller &mdash; it is a shared or
+                left-over line, or another app on the same Telnyx account.
+              </p>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[13px]">
                 <thead>
