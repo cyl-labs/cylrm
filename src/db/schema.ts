@@ -467,6 +467,9 @@ export const appUser = pgTable("app_user", {
    *  reads one clock, and neither answer should move the other. Payroll never
    *  reads it — see the migration. */
   statsRegion: text("stats_region").$type<"sg" | "us" | "gb">(),
+  /** When this person last said they had seen the out-of-hours calls. The
+   *  banner on Stats counts only calls after it — see 2026-09-12-hours-ack.sql. */
+  hoursAckAt: timestamp("hours_ack_at", { withTimezone: true }),
   /** The founders' account. Another admin cannot demote it, switch it off or
    *  reset its password: being trusted with Stats and the team is a different
    *  thing from being able to lock the business out of its own CRM. */

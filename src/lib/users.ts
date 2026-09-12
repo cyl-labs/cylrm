@@ -138,6 +138,25 @@ export const statsRegionOf = cache(
 );
 
 /**
+ * When this person last said they had seen the out-of-hours calls.
+ *
+ * Null means never, which is the right first answer: the banner then shows the
+ * current backlog once and clears for good. Read from the database like the two
+ * above rather than carried on the session, since it changes while somebody is
+ * signed in — pressing the button is exactly that.
+ */
+export const hoursAckOf = cache(
+  async (userId: number | null | undefined): Promise<Date | null> => {
+    if (!userId) return null;
+    const [row] = await db
+      .select({ at: appUser.hoursAckAt })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.at ?? null;
+  },
+);
+
+/**
  * Whether this person may open the Keypad.
  *
  * Admins always may — the column is the grant to everyone else, and storing

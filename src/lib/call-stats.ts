@@ -46,6 +46,16 @@ export type CallTotals = {
    *  over the calls whose zone is known, so it is a fraction of `zoneKnown`
    *  and not of `calls`. */
   outsideHours: number;
+  /**
+   * Of those, the ones placed since this reader last acknowledged them.
+   *
+   * The banner counts these and nothing else, which is what makes it a
+   * worklist rather than a permanent fixture: a rolling window means calls
+   * from weeks ago, by callers who have since left, kept it on screen for
+   * ever and a genuinely new one changed a number nobody read any more.
+   * Equal to `outsideHours` when the reader has never acknowledged any.
+   */
+  outsideHoursNew: number;
   /** Calls whose number maps to a zone at all: the honest denominator for the
    *  figure above. Toll-free numbers and area codes with no row belong to no
    *  place, and calling those out of hours would be a guess. */
@@ -256,6 +266,9 @@ export async function getCallTotals(
   w: StatsWindow,
   listId?: number,
   userId?: number,
+  /** This reader's watermark, from `app_user.hours_ack_at`. Optional so every
+   *  existing call site is unaffected; absent means nothing is acknowledged. */
+  hoursAckAt?: Date | null,
 ): Promise<CallTotals> {
   const [row] = (await db.execute(sql`
     select
@@ -274,6 +287,14 @@ export async function getCallTotals(
       -- three calls made out of hours, and counting it once would read as a
       -- single slip rather than a habit.
       count(*) filter (where z.tz is not null and not ${withinLeadHours(sql`c.called_at`)}) as outside_hours,
+      count(*) filter (
+        where z.tz is not null
+          and not ${withinLeadHours(sql`c.called_at`)}
+          -- A null watermark leaves every one of them unseen, which is the
+          -- right first answer for an account that has never pressed it.
+          and (${hoursAckAt ?? null}::timestamptz is null
+            or c.called_at > ${hoursAckAt ?? null}::timestamptz)
+      ) as outside_hours_new,
       count(*) filter (where z.tz is not null) as zone_known
     from call c
     -- Joined for the zone alone. call_lead_id is not null and the lateral
@@ -293,6 +314,7 @@ export async function getCallTotals(
     lost: n(row?.lost),
     badNumbers: n(row?.bad_numbers),
     outsideHours: n(row?.outside_hours),
+    outsideHoursNew: n(row?.outside_hours_new),
     zoneKnown: n(row?.zone_known),
   };
 }

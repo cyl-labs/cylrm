@@ -23,10 +23,10 @@ import { DEFAULT_STATS_REGION, isStatsRegion } from "@/lib/stats-zones";
 import { CallCalendar } from "@/components/calls/call-calendar";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
 import { getCurrentUser } from "@/lib/session";
-import { statsRegionOf } from "@/lib/users";
+import { hoursAckOf, statsRegionOf } from "@/lib/users";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { PageShell } from "@/components/page-shell";
-import { DismissibleNotice } from "@/components/calls/dismissible-notice";
+import { AckHours } from "@/components/calls/ack-hours";
 import { cn } from "@/lib/utils";
 import { CallFilters } from "@/components/calls/call-filters";
 import { LogFilter } from "@/components/calls/log-filter";
@@ -228,7 +228,7 @@ export default async function CallStatsPage({
   );
 
   const [totals, outcomes, lists, monthDays, people, log] = await Promise.all([
-    getCallTotals(w, listId, personId),
+    getCallTotals(w, listId, personId, await hoursAckOf(me?.id)),
     getOutcomeCounts(w, listId, personId),
     // `scopeId` as well as `personId`: one narrows the numbers to their calls,
     // the other narrows the rows to their niches. Without the second a caller
@@ -427,23 +427,25 @@ export default async function CallStatsPage({
             toll-free numbers and unmapped area codes belong to no place, and
             counting them in either half would be a guess presented as a
             figure. */}
-        {totals.outsideHours > 0 && (
-          // Dismissable, and keyed on the count: this reports a thirty-day
-          // window, so most of what it flags is history nobody can act on —
-          // 48 of the current 74 were dialled by two callers who have since
-          // left. Putting it away hides that number and nothing else; the next
-          // out-of-hours call changes the count and brings it straight back.
-          <DismissibleNotice id="outside-hours" signature={totals.outsideHours}>
-          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 pr-9 text-[13px]">
+        {/* Counts only what this reader has not acknowledged, which is what
+            keeps it a worklist. Before that it reported the whole rolling
+            window, so calls from weeks ago by callers who have since left kept
+            it on screen permanently — and a genuinely new one arriving just
+            moved a number nobody was reading any more. "Got it" moves the
+            watermark; the calls themselves keep their flag in the log. */}
+        {totals.outsideHoursNew > 0 && (
+          <div className="flex flex-wrap items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <p className="min-w-0 flex-1 text-[13px]">
             <span className="font-bold text-destructive">
-              {totals.outsideHours.toLocaleString()}{" "}
-              {totals.outsideHours === 1 ? "call was" : "calls were"} placed
+              {totals.outsideHoursNew.toLocaleString()} new{" "}
+              {totals.outsideHoursNew === 1 ? "call was" : "calls were"} placed
               outside {LEAD_HOURS_LABEL} where the prospect is
             </span>
             <span className="text-muted-foreground">
               {" "}
-              ({pct(totals.outsideHours, totals.zoneKnown)} of the{" "}
-              {totals.zoneKnown.toLocaleString()} whose timezone we know).{" "}
+              {totals.outsideHours > totals.outsideHoursNew
+                ? `(${totals.outsideHours.toLocaleString()} in this range altogether; the rest you have already seen). `
+                : `(${pct(totals.outsideHours, totals.zoneKnown)} of the ${totals.zoneKnown.toLocaleString()} whose timezone we know). `}
               {/* Straight to the rows rather than "they are marked below":
                   finding 35 red cells in three hundred rows is the work this
                   sentence was creating. The filter is on the table, so the
@@ -469,7 +471,8 @@ export default async function CallStatsPage({
               from a callback booked for that time.
             </span>
           </p>
-          </DismissibleNotice>
+          <AckHours count={totals.outsideHoursNew} />
+          </div>
         )}
 
         {totals.badNumbers > 0 && (
