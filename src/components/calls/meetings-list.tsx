@@ -8,6 +8,8 @@ import {
   ChevronRight,
   ClipboardCheck,
   Copy,
+  ExternalLink,
+  Globe,
   PhoneOutgoing,
   ShieldAlert,
   Video,
@@ -15,6 +17,7 @@ import {
 import { toast } from "sonner";
 import type { Meeting, MeetingFollowupResult } from "@/lib/meetings";
 import { dialableNumber } from "@/lib/phone";
+import { websiteHref, websiteLabel } from "@/lib/website";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -315,6 +318,27 @@ export function MeetingsList({
                     .filter(Boolean)
                     .join(" · ") || "No contact on the booking"}
                 </p>
+                {/* What the business actually does, which the booking notes
+                    cannot answer and a founder wants thirty seconds before
+                    the call. A new tab: leaving this page would drop a live
+                    line. Only rendered through `websiteHref`, which admits
+                    http(s) and nothing else — this value came off a scraped
+                    page, and `javascript:` in an href runs on click. */}
+                {websiteHref(m.website) && (
+                  <a
+                    href={websiteHref(m.website)!}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="mt-0.5 inline-flex max-w-full items-center gap-1 text-[13px] font-semibold text-primary hover:underline"
+                  >
+                    <Globe className="size-3.5 shrink-0" strokeWidth={2.2} />
+                    <span className="truncate">{websiteLabel(m.website)}</span>
+                    <ExternalLink
+                      className="size-3 shrink-0 text-muted-foreground"
+                      strokeWidth={2.2}
+                    />
+                  </a>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 {cancelled ? (

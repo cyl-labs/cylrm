@@ -283,6 +283,10 @@ export type Meeting = {
   leadId: number | null;
   company: string | null;
   phone: string | null;
+  /** The company's own site, when the scrape found one. Rendered only through
+   *  `websiteHref`, which admits http(s) and nothing else — this came off a
+   *  scraped page, and `javascript:` in an href runs on click. */
+  website: string | null;
   /** The niche's id, so a row can link straight into the dial card for this
    *  lead. Null on an unlinked booking, which belongs to no list — and so has
    *  no dialler to open. */
@@ -395,6 +399,10 @@ const meetingSelect = sql`
   m.attendee_name, m.attendee_email, m.attendee_tz, m.meeting_url,
   l.id as lead_id, l.company, l.name as lead_name, l.phone,
   l.dnc_status, l.dnc_checked_at,
+  -- Read before a demo rather than during a cold call: "what do they actually
+  -- do" is the question the booking notes cannot answer, and a founder walking
+  -- into a call has thirty seconds to look.
+  l.website,
   cl.id as list_id,
   cl.name as list_name,
   -- The niche rather than the list name: a split list is called "Movers.2",
@@ -561,6 +569,7 @@ function toMeeting(r: Row): Meeting {
       (r.lead_name as string | null) ||
       null,
     phone,
+    website: (r.website as string | null) ?? null,
     attendance: (r.attendance as Meeting["attendance"]) ?? null,
     listId: r.list_id === null || r.list_id === undefined ? null : n(r.list_id),
     listName: (r.list_name as string | null) ?? null,
