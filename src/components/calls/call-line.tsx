@@ -29,6 +29,18 @@ import { useTelnyxCall, type TelnyxLine } from "./use-telnyx-call";
  *  dialler and the Keypad each had their own, which was only ever necessary
  *  because each held its own line. */
 export const REMOTE_AUDIO_ID = "cylrm-remote-audio";
+
+/**
+ * How long a finished call's session id is still offered to whoever logs it.
+ *
+ * Generous on purpose: the outcome is typed after hanging up, sometimes after
+ * wandering off to the callbacks diary, and the case this exists for was
+ * logged 37 minutes late. The memory is replaced by the next dial, so the
+ * window is the *second* guard rather than the only one — it is here to stop a
+ * session from this morning being attached to something typed this afternoon
+ * on a tab nobody reloaded.
+ */
+const SESSION_MEMORY_MS = 2 * 60 * 60_000;
 export const SECOND_AUDIO_ID = "cylrm-second-audio";
 
 /**
@@ -78,6 +90,21 @@ type CallLineValue = {
    * next call is dialled.
    */
   lastLeadId: number | null;
+  /**
+   * The session id of the call just made to this lead, if it is still the last
+   * one the line carried.
+   *
+   * `line.sessionId` is live state and goes the moment the call ends, so an
+   * outcome logged even a minute later posted no session and the recording
+   * joined to nothing — a real call with no "Listen back" for ever. It is not a
+   * rare path: a demo booked on 11 September was logged 37 minutes after the
+   * call, and 28 calls in a fortnight went the same way.
+   *
+   * Safe to fall back to because it is keyed on the lead AND replaced by the
+   * next dial: logging lead A after ringing lead B asks for A, gets B's id in
+   * the record, and is refused. The window is belt and braces on top of that.
+   */
+  sessionFor: (leadId: number) => { sessionId: string; seconds: number } | null;
   /** Called by the dialler as it dials a lead. */
   setActiveLead: (leadId: number | null) => void;
   /** Whether a line exists at all: a browser dialler with a number of their
@@ -130,6 +157,20 @@ export function CallLineProvider({
   const firstLeg = React.useRef<Leg | null>(null);
   const secondLeg = React.useRef<Leg | null>(null);
 
+  /**
+   * The last lead call this line carried, kept after it ends.
+   *
+   * A ref rather than state: nothing renders from it, and a setState on every
+   * frame of a live call to record the same session id would be a re-render
+   * per second of every screen under the provider.
+   */
+  const finished = React.useRef<{
+    leadId: number;
+    sessionId: string;
+    seconds: number;
+    at: number;
+  } | null>(null);
+
   // File a leg and forget it. Best effort, like the presence heartbeat: a
   // history row that fails to save is worth nothing next to interrupting
   // somebody mid-conversation, and `keepalive` is what lets the request outlive
@@ -174,6 +215,17 @@ export function CallLineProvider({
       secondLeg.current.sessionId = line.secondSessionId;
       secondLeg.current.seconds = line.second.seconds;
     }
+    // Remembered while the call is up, so it survives the hook clearing its
+    // own state on hangup. Stamped with the time it was last seen live, which
+    // is what the staleness window below is measured from.
+    if (activeLeadId !== null && line.sessionId) {
+      finished.current = {
+        leadId: activeLeadId,
+        sessionId: line.sessionId,
+        seconds: line.seconds,
+        at: Date.now(),
+      };
+    }
   });
 
   // A line that has ended. Declared after the effect above so it runs second in
@@ -207,6 +259,12 @@ export function CallLineProvider({
       live: enabled && leader,
       activeLeadId,
       lastLeadId,
+      sessionFor: (leadId) => {
+        const f = finished.current;
+        if (!f || f.leadId !== leadId) return null;
+        if (Date.now() - f.at > SESSION_MEMORY_MS) return null;
+        return { sessionId: f.sessionId, seconds: f.seconds };
+      },
       setActiveLead: (leadId) => {
         setActiveLeadId(leadId);
         // Whose call the line is carrying, for as long as the line remembers

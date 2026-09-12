@@ -465,6 +465,9 @@ function CallForm({
   calBookingUrl?: string;
   line: TelnyxLine;
 }) {
+  // What the line remembers of the call just made to this lead, for the case
+  // the outcome is typed after it ended. Read at save time, not here.
+  const { sessionFor } = useCallLine();
   const [notes, setNotes] = React.useState("");
   // Seeded from the lead so a number that already has them is one glance, not
   // one retype. What the prospect says on the call wins over the scrape.
@@ -479,6 +482,9 @@ function CallForm({
   const [saving, setSaving] = React.useState(false);
 
   async function save() {
+    // Asked for once per save rather than per render: it is a ref read, and
+    // the answer must be the state at the moment the button was pressed.
+    const remembered = sessionFor(lead.id);
     const outcome = picked;
     if (!outcome || saving) return;
     setSaving(true);
@@ -493,10 +499,14 @@ function CallForm({
           callbackAt: outcome === "callback" ? callbackAt : undefined,
           contactEmail: outcome === "demo_booked" ? email : undefined,
           contactName: outcome === "demo_booked" ? contact : undefined,
-          // Present only when the call was placed from here. The session id is
-          // what the recording joins on; the duration is this browser's timer.
-          telnyxSessionId: line.sessionId ?? undefined,
-          durationSeconds: line.seconds || undefined,
+          // The session id is what the recording joins on; the duration is
+          // this browser's timer. `line.sessionId` is live state and is gone
+          // the moment the call ends, so an outcome typed a few minutes later
+          // used to post neither — a real recorded call with no "Listen back",
+          // for ever. The provider keeps the last finished call for this lead
+          // and hands it back here.
+          telnyxSessionId: line.sessionId ?? remembered?.sessionId,
+          durationSeconds: line.seconds || remembered?.seconds || undefined,
         }),
       });
       const data = await res.json();
