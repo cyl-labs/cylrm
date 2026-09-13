@@ -31,7 +31,9 @@ function config() {
   return { apiKey, connectionId };
 }
 
-const API = "https://api.telnyx.com/v2";
+/** Overridable only so a local sink can stand in for Telnyx while testing, in
+ *  the same spirit as `TELEGRAM_API_BASE`. Never set in production. */
+const API = process.env.TELNYX_API_BASE || "https://api.telnyx.com/v2";
 const TIMEOUT_MS = 15_000;
 
 async function telnyx(path: string, init: RequestInit = {}) {
@@ -321,4 +323,77 @@ export async function listAccountNumbers(
   } catch {
     return [];
   }
+}
+
+export type SmsSendResult =
+  | { ok: true; id: string; status: "queued" | "sent" }
+  | {
+      ok: false;
+      /** Telnyx's own error code, or `unconfigured` / `unreachable` for the
+       *  two failures where Telnyx never gave an answer. */
+      code?: string;
+      detail?: string;
+    };
+
+/**
+ * Send one text. See `lib/sms.ts` for what it is for and why it is switched
+ * off.
+ *
+ * Returns rather than throws, because the caller has to tell three outcomes
+ * apart and say each differently. Telnyx refused it: there is a code, and
+ * nothing was sent. Telnyx never answered: the text may or may not have gone,
+ * and pressing send again could text the prospect twice. Or texting is simply
+ * not configured.
+ */
+export async function sendSms(
+  from: string,
+  to: string,
+  text: string,
+): Promise<SmsSendResult> {
+  const apiKey = process.env.TELNYX_API_KEY;
+  if (!apiKey) return { ok: false, code: "unconfigured" };
+
+  let res: Response;
+  try {
+    res = await fetch(`${API}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      // No messaging profile id: the `from` number belongs to one, and that is
+      // what Telnyx sends it under.
+      body: JSON.stringify({ from, to, text }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      code: "unreachable",
+      detail: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  const body = (await res.json().catch(() => ({}))) as {
+    data?: { id?: string; to?: { status?: string }[] };
+    errors?: { code?: string | number; title?: string; detail?: string }[];
+  };
+  if (!res.ok) {
+    const e = body.errors?.[0];
+    return {
+      ok: false,
+      code: e?.code !== undefined ? String(e.code) : undefined,
+      detail: e?.detail ?? e?.title ?? `HTTP ${res.status}`,
+    };
+  }
+  // Accepted with nothing to track it by: treated like no answer, since the
+  // text may well be on its way.
+  if (!body.data?.id) {
+    return { ok: false, code: "unreachable", detail: "No message id returned." };
+  }
+  return {
+    ok: true,
+    id: body.data.id,
+    status: body.data.to?.[0]?.status === "sent" ? "sent" : "queued",
+  };
 }

@@ -578,14 +578,23 @@ What replaced it, and the shape to keep:
 - **The push reminders stayed, and are ours.** 24h and 4h before, to the browser
   of whoever owns the niche — a heads-up so a demo does not arrive as a
   surprise, explicitly *not* a cue to ring ("Coming up. Nothing to do — Cal.com
-  has reminded them."). Nothing the CRM sends ever reaches the prospect; that is
+  has reminded them."). No reminder the CRM sends reaches the prospect; that is
   Cal.com's job and it does it. The sender also stopped skipping meetings with a
   follow-up logged against them: a note somebody wrote must not silence a
   heads-up now that it means something else.
-- **SMS to the prospect was asked for and deliberately not built** — "hold the
-  text, actually texting them, just a reminder for now". If it is ever revisited,
-  note that it is the same move as the confirmation call from the prospect's
-  side.
+- **An automatic SMS reminder to the prospect was asked for and deliberately not
+  built** — "hold the text, actually texting them, just a reminder for now". It
+  would be the confirmation call again, from the prospect's side. What *was*
+  built, and left switched off, is different in kind: a founder texting by hand
+  at demo time after a call nobody picked up. See **Texting a prospect at demo
+  time** below.
+- **The "Meet link" button only renders a real URL** (`toMeeting`, 2026-09-14).
+  The `voice-agent-demo` event moved from Google Meet to an *attendee phone
+  number* location on 2026-09-11, and Cal.com then puts the prospect's phone
+  number in the booking's `meetingUrl` — which rendered as a Meet link pointing
+  at a relative URL. Bookings made before the switch still carry a real Meet
+  link and keep the button until they age off the screen. The column stores
+  whatever Cal.com sent; only the read filters.
 
 - **The "within a day" window is calendar days in the reader's own clock**, not
   a flat 24 hours: `(start_at at time zone tz)::date <= (now() at time zone
@@ -632,6 +641,71 @@ What replaced it, and the shape to keep:
   start. An earlier version stamped the start and was useless, because Cal.com
   takes ~10s on a cold connection — the window in which somebody can press
   twice is exactly the window in which the first request is still going.
+
+### Texting a prospect at demo time (built, switched off 2026-09-14)
+
+A founder rings a prospect at demo time, nobody picks up, and a text follows
+from the same number: "your demo with Cyl Labs is ready, I'll give you a call
+now". `src/lib/sms.ts` is the logic, `sendSms` in `lib/telnyx.ts` the client,
+`POST /api/meetings/[id]/text` the send, and `message.*` events on the existing
+Telnyx webhook carry replies and delivery receipts. Schema in
+`2026-09-14-call-sms.sql`.
+
+- **Dormant until the carriers approve the 10DLC campaign.** Brand `cyllabs`
+  (TCR B0I5ERW) is verified; campaign C3DSJFI (Account Notification) went into
+  carrier review on 2026-09-11. Nothing touches `call_sms` unless
+  `TELNYX_SMS_ENABLED=1`: no button, no thread query, and the webhook answers
+  message events 200 and ignores them. **So this migration, unlike every other
+  Call CRM one, may be applied after the deploy — and must be applied before
+  the flag**, or the send route and the webhook 500 and Telnyx retries until it
+  disables the webhook.
+- **Switching it on**, in order: the carriers approve the campaign; attach the
+  sender's number to it on Telnyx (only possible after approval, and the number
+  must already be on the `cylrm-sms` messaging profile — as of 2026-09-14 only
+  the Founders number `+18722778445` is); apply the migration; set
+  `TELNYX_SMS_ENABLED=1` and restart. The profile's webhook already points at
+  `https://crm.cyllabs.com/api/telnyx/webhook` (set 2026-09-14, and harmless
+  while off: message events are answered 200 and ignored).
+- **The text goes out exactly as typed.** No brand prefix, no "Reply STOP"
+  footer, no "you agreed to receive texts" confirmation. That was the founders'
+  call on 2026-09-14, made after being told carriers expect opt-out wording on
+  business texts generally: the footer and the confirmation made it read as a
+  machine, which defeats the point. The risk accepted is a spam complaint
+  suspending the campaign. Telnyx still honours STOP by itself and refuses
+  later sends (40300), and the screen says so rather than failing mysteriously.
+  **Worth knowing before touching the registration:** the campaign's message
+  flow as submitted describes a confirmation text this deliberately never sends.
+- **Admins only, from the sender's own `telnyx_did`, to US numbers only.** Their
+  own number because the text follows a missed call and must come from the
+  number that just rang; any other reads as a stranger. US only because nothing
+  else was registered, so a Singapore lead gets no button rather than a refusal.
+  The draft names no sender: the founders share one account and it is called
+  "Founders".
+- **A reply is attached to the conversation it answers**: the latest text we
+  sent *to* that number *from* the number it arrived on decides the lead, the
+  meeting and who is told. Only a text with no such conversation falls back to
+  matching the lead by phone, as inbound calls do. Unmatched texts are stored
+  anyway.
+- **Threads are per lead, not per meeting** — a no-show who rebooked is one
+  conversation. The row says "Texted back" when the latest text is theirs, and
+  the screen refreshes itself every 15s for half an hour after a text goes out,
+  since nothing else redraws it when a reply lands.
+- **The reply push ignores quiet hours**, unlike meeting reminders: a reply to
+  "I'll call you now" matters in the next two minutes, not at eight tomorrow.
+- **Statuses only move forward** (queued → sent → delivered | failed), because
+  webhooks retry and arrive out of order. Failure reasons are stored already in
+  words (`explainTextError`). The one likeliest to come up is a landline:
+  scraped business numbers are often desk phones that cannot receive a text.
+- **"Telnyx never answered" is its own error** and says the text may or may not
+  have gone. Pressing Send again after a timeout is how a prospect gets it twice.
+- **Verified locally, never against the real API** (2026-09-14): a fake Telnyx
+  (`TELNYX_API_BASE`, never set in prod) for a send, a 40300 refusal and a
+  dropped connection, and webhooks signed with a throwaway Ed25519 key for
+  delivery receipts, out-of-order receipts, replies, a retried reply, a bad
+  signature, a picture and an unsolicited STOP. The screen was checked at
+  390/768/1440, and the switched-off path with `call_sms` renamed away — which
+  is the proof the deploy does not need the migration. The first real send is
+  what is still to watch.
 
 ### Contracts (DocuSeal)
 

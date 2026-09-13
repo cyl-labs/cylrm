@@ -1303,6 +1303,54 @@ export const callbackReminderSent = pgTable(
 );
 
 /**
+ * Texts to and from a prospect around a demo.
+ *
+ * Built 2026-09-14 and switched off until the 10DLC campaign is approved:
+ * nothing touches this table unless `TELNYX_SMS_ENABLED=1`. See `lib/sms.ts`
+ * and `2026-09-14-call-sms.sql`.
+ */
+export const callSms = pgTable(
+  "call_sms",
+  {
+    id: serial("id").primaryKey(),
+    /** Telnyx's message id, and the dedupe key for retried webhooks. */
+    telnyxMessageId: text("telnyx_message_id").notNull().unique(),
+    direction: text("direction").notNull().$type<"out" | "in">(),
+    fromNumber: text("from_number").notNull(),
+    toNumber: text("to_number").notNull(),
+    /** Exactly what was sent or received. Nothing is added to an outbound text. */
+    body: text("body").notNull(),
+    /** Outbound moves forward only: queued → sent → delivered | failed. */
+    status: text("status")
+      .notNull()
+      .$type<"queued" | "sent" | "delivered" | "failed" | "received">(),
+    /** Why it did not arrive, already in words a founder can act on. */
+    error: text("error"),
+    meetingId: integer("meeting_id").references(() => callMeeting.id, {
+      onDelete: "set null",
+    }),
+    callLeadId: integer("call_lead_id").references(() => callLead.id, {
+      onDelete: "set null",
+    }),
+    /** Outbound: who sent it. Inbound: who it is for. */
+    userId: integer("user_id").references(() => appUser.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  // Declared here as well as in the migration: `drizzle-kit push` drops any
+  // index it cannot see in this file.
+  (t) => [
+    index("call_sms_lead_idx").on(t.callLeadId, t.createdAt),
+    index("call_sms_reply_idx")
+      .on(t.toNumber, t.fromNumber, t.createdAt.desc())
+      .where(sql`direction = 'out'`),
+  ],
+);
+
+/**
  * Which timezone a US area code sits in.
  *
  * Reference data, kept in `data/us-area-codes.json` and synced here by

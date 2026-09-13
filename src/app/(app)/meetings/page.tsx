@@ -5,8 +5,10 @@ import { PushToggle } from "@/components/calls/push-toggle";
 import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
+import { getTextsByLead, smsEnabled, type Texting } from "@/lib/sms";
+import { classifyPhone } from "@/lib/phone";
 import { callScope, getCurrentUser } from "@/lib/session";
-import { callRegionOf, statsRegionOf } from "@/lib/users";
+import { callerNumberOf, callRegionOf, statsRegionOf } from "@/lib/users";
 import {
   statsZone,
   isStatsRegion,
@@ -58,6 +60,20 @@ export default async function MeetingsPage({
   const soon = meetings.filter((m) => m.startingSoon).length;
   const ringBack = meetings.filter((m) => m.needsRingBack).length;
   const cancelled = meetings.filter((m) => m.status === "cancelled").length;
+
+  // Texting the prospect: admins only, and only once it is switched on. Null is
+  // the whole of how the feature stays invisible — the list draws no button and
+  // no thread, and nothing here touches `call_sms`, which may not exist yet.
+  let texting: Texting | null = null;
+  if (me?.role === "admin" && smsEnabled()) {
+    const did = await callerNumberOf(me.id);
+    texting = {
+      byLead: await getTextsByLead(
+        meetings.flatMap((m) => (m.leadId === null ? [] : [m.leadId])),
+      ),
+      from: did && classifyPhone(did) === "us" ? did : null,
+    };
+  }
 
   return (
     <PageShell
@@ -118,6 +134,7 @@ export default async function MeetingsPage({
           tz={zone.tz}
           zoneLabel={zone.label}
           showWho={me?.role === "admin"}
+          texting={texting}
           // The host a person clicks, which is not the one the server fetches
           // from: in production the API is reached on localhost and the link
           // has to be the public name. Empty hides the contract buttons —

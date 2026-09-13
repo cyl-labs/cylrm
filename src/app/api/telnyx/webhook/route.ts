@@ -3,20 +3,22 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { verifyTelnyxSignature } from "@/lib/telnyx";
 import { phoneKeyCandidates } from "@/lib/calls";
+import { recordInboundText, smsEnabled, updateTextStatus } from "@/lib/sms";
 
 /**
- * Telnyx call events.
+ * Telnyx call and message events.
  *
  * `/api` is outside the middleware matcher, so this guards itself. Unset
  * `TELNYX_PUBLIC_KEY` means 401, never allow-by-default, following the cron
  * routes: this writes to the database, so the "unset means silently off" rule
  * that applies to outbound best-effort calls does not apply here.
  *
- * Two things are acted on: `call.recording.saved`, and the inbound call
+ * Three things are acted on: `call.recording.saved`, the inbound call
  * lifecycle (`call.initiated` / `call.answered` / `call.hangup`) for calls
- * arriving at a caller's own number. Everything else is answered 200 and
- * ignored — a 4xx or 5xx makes Telnyx retry each one and eventually disable
- * the webhook entirely.
+ * arriving at a caller's own number, and texts (`message.*`) once texting is
+ * switched on. Everything else is answered 200 and ignored — a 4xx or 5xx
+ * makes Telnyx retry each one and eventually disable the webhook entirely.
+ * Messaging webhooks are signed with the same account key as call events.
  *
  * Inbound is recorded here rather than in the browser on purpose. A call that
  * rang out while the CRM was closed is exactly the one worth knowing about,
@@ -47,6 +49,27 @@ export async function POST(request: Request) {
 
   const type = event.data?.event_type;
   const p = event.data?.payload ?? {};
+
+  // Texts, from the `cylrm-sms` messaging profile. Ignored outright while
+  // texting is switched off, and answered 200 either way — the rule below
+  // applies here too. Placed first so nothing written for call events reads a
+  // message payload: an inbound text's `direction` is "inbound", not the
+  // "incoming" the call branch keys on, and it is worth not relying on that.
+  if (
+    type === "message.received" ||
+    type === "message.sent" ||
+    type === "message.finalized"
+  ) {
+    if (!smsEnabled()) {
+      return NextResponse.json({ ok: true, ignored: "texting is off" });
+    }
+    if (type === "message.received") {
+      const result = await recordInboundText(p);
+      return NextResponse.json({ ok: true, text: "received", ...result });
+    }
+    const moved = await updateTextStatus(p);
+    return NextResponse.json({ ok: true, text: type, moved });
+  }
 
   // An inbound leg. `direction` is "incoming" here, matching the call events
   // API rather than the browser SDK's "inbound" — the two vocabularies differ

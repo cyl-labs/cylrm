@@ -10,13 +10,15 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  MessageSquare,
   PhoneOutgoing,
   ShieldAlert,
   Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Meeting, MeetingFollowupResult } from "@/lib/meetings";
-import { dialableNumber } from "@/lib/phone";
+import type { SmsStatus, Texting } from "@/lib/sms";
+import { classifyPhone, dialableNumber, spokenNumber } from "@/lib/phone";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -75,6 +77,38 @@ const FOLLOWUP_DONE: Record<MeetingFollowupResult, string> = {
   cancelled: "Not rebooking",
 };
 
+/** How an outbound text is doing, as the thread says it. */
+const TEXT_STATUS: Record<SmsStatus, string> = {
+  queued: "Sending",
+  sent: "Sent",
+  delivered: "Delivered",
+  failed: "Didn't go through",
+  received: "",
+};
+
+/**
+ * How long after a text the screen keeps checking for a reply.
+ *
+ * The reply to "I'll give you a call now" is worth seeing within seconds, and
+ * nothing redraws this page when one arrives. Half an hour, because after that
+ * the moment has passed, and a later reply still arrives as a notification.
+ */
+const AWAIT_REPLY_MS = 30 * 60_000;
+const REPLY_POLL_MS = 15_000;
+
+/**
+ * What the text says before anybody edits it.
+ *
+ * Written as the person who just rang, because it is one: no brand prefix and
+ * no footer, which was the founders' decision. No sender name either — the
+ * founders share one account, so its name ("Founders") is exactly the word
+ * that would give the text away as a system.
+ */
+function textDraft(m: Meeting): string {
+  const first = m.attendeeName?.trim().split(/\s+/)[0];
+  return `${first ? `Hey ${first}` : "Hey"}, your demo with Cyl Labs is ready. I'll give you a call now.`;
+}
+
 /**
  * How far off it is, in words.
  *
@@ -86,6 +120,7 @@ function when(iso: string) {
   const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
   if (mins <= 0) {
     const ago = Math.abs(mins);
+    if (ago === 0) return "just now";
     return ago < 60 ? `${ago}m ago` : `${Math.round(ago / 60)}h ago`;
   }
   if (mins < 60) return `in ${mins}m`;
@@ -149,6 +184,7 @@ export function MeetingsList({
   zoneLabel,
   showWho = false,
   signingBase = "",
+  texting = null,
 }: {
   meetings: Meeting[];
   /** The screen's clock, chosen on the server. Passed rather than read from
@@ -163,9 +199,72 @@ export function MeetingsList({
   /** DocuSeal's public host. Empty when it is not configured, which is what
    *  hides the contract buttons rather than offering ones that cannot work. */
   signingBase?: string;
+  /** Texts to the prospect and their replies. Null when texting is switched
+   *  off or the reader is not an admin, which draws no button and no thread. */
+  texting?: Texting | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<number | null>(null);
+  /**
+   * A text being written. Under the row rather than in a dialog, for the reason
+   * the ring-back notes are: the name and the demo time stay readable while it
+   * is typed, and those are what the text is about.
+   */
+  const [composing, setComposing] = React.useState<{
+    meetingId: number;
+    body: string;
+  } | null>(null);
+
+  /**
+   * Keep the page fresh while a reply could be on its way.
+   *
+   * Only while a text went out in the last half hour, and only in a visible
+   * tab, so a screen left open overnight does not poll for nothing.
+   * `router.refresh()` keeps whatever is typed in an open box.
+   */
+  React.useEffect(() => {
+    if (!texting) return;
+    const since = Date.now() - AWAIT_REPLY_MS;
+    const waiting = Object.values(texting.byLead).some((lead) =>
+      lead.texts.some(
+        (t) => t.direction === "out" && new Date(t.at).getTime() > since,
+      ),
+    );
+    if (!waiting) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, REPLY_POLL_MS);
+    return () => clearInterval(timer);
+  }, [texting, router]);
+
+  async function sendText(meeting: Meeting, body: string) {
+    setBusy(meeting.id);
+    try {
+      const res = await fetch(`/api/meetings/${meeting.id}/text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: body }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Could not send the text.");
+        return;
+      }
+      setComposing(null);
+      toast.success(
+        `Texted ${meeting.attendeeName ?? meeting.company ?? "them"}`,
+      );
+      router.refresh();
+    } catch {
+      // The request may have reached the server before the connection went,
+      // so this must not read as "nothing happened, press it again".
+      toast.error(
+        "Lost the connection while sending, so it may or may not have gone. Refresh and check before sending again.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
   /**
    * Picked but not yet logged.
    *
@@ -291,6 +390,22 @@ export function MeetingsList({
       {meetings.map((m) => {
         const cancelled = m.status === "cancelled";
         const their = theirTime(m.startAt, m.attendeeTz);
+        // This business's text conversation, when texting is on.
+        const lead =
+          texting && m.leadId !== null ? texting.byLead[m.leadId] : undefined;
+        // US numbers only: the campaign registered with the carriers covers
+        // nothing else, so a Singapore lead gets no button rather than one
+        // that can only refuse.
+        const textable =
+          texting !== null &&
+          m.leadId !== null &&
+          !!m.phone &&
+          !m.dncBlock &&
+          classifyPhone(m.phone) === "us";
+        const repliedLast =
+          lead !== undefined &&
+          lead.texts.length > 0 &&
+          lead.texts[lead.texts.length - 1].direction === "in";
         return (
           <li
             key={m.id}
@@ -371,6 +486,14 @@ export function MeetingsList({
                     )}
                   >
                     {ATTENDANCE_LABEL[m.attendance]}
+                  </Badge>
+                )}
+                {/* A reply is the one thing on a row that may need answering
+                    within the minute, so it is said where the eye lands. */}
+                {repliedLast && (
+                  <Badge>
+                    <MessageSquare className="size-3" strokeWidth={2.4} />
+                    Texted back
                   </Badge>
                 )}
                 {m.listName && (
@@ -509,6 +632,27 @@ export function MeetingsList({
                 {m.phone && (
                   <CopyNumber phone={m.phone} blocked={m.dncBlock} />
                 )}
+                {/* For after a call nobody picked up. Opens a box under the
+                    row with the words already in it; nothing is sent until
+                    Send is pressed there. */}
+                {textable && (
+                  <button
+                    type="button"
+                    disabled={busy === m.id}
+                    aria-expanded={composing?.meetingId === m.id}
+                    onClick={() =>
+                      setComposing(
+                        composing?.meetingId === m.id
+                          ? null
+                          : { meetingId: m.id, body: textDraft(m) },
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    <MessageSquare className="size-3.5" />
+                    Text them
+                  </button>
+                )}
                 {/* Only after a missed demo. There is nothing to log before
                     one: Cal.com tells the prospect it is coming, the sync
                     brings a cancellation or a new time back on its own, and
@@ -620,6 +764,123 @@ export function MeetingsList({
                     Cancel
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {texting && composing?.meetingId === m.id && (
+              <div className="mt-3 rounded-lg border bg-background p-3">
+                {!texting.from ? (
+                  <p className="text-[13px]">
+                    <span className="font-bold">
+                      You have no US number to text from.
+                    </span>{" "}
+                    A text goes out from your own calling number, so it comes
+                    from the number that just rang them. Give your account a US
+                    number on Team.
+                  </p>
+                ) : lead?.optedOut ? (
+                  <p className="text-[13px]">
+                    <span className="font-bold">They replied STOP.</span>{" "}
+                    Telnyx will not send them any more texts, so ring them
+                    instead.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-[13px] font-bold">
+                      Text {m.attendeeName ?? m.company ?? "them"}
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-muted-foreground">
+                      From your number {spokenNumber(texting.from)} to{" "}
+                      {spokenNumber(m.phone ?? "")}. It goes out exactly as
+                      written, with nothing added.
+                    </p>
+                    <Textarea
+                      autoFocus
+                      value={composing.body}
+                      maxLength={480}
+                      onChange={(e) =>
+                        setComposing({ ...composing, body: e.target.value })
+                      }
+                      className="mt-2 min-h-[64px]"
+                    />
+                  </>
+                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {texting.from && !lead?.optedOut && (
+                    <Button
+                      size="sm"
+                      disabled={busy === m.id || !composing.body.trim()}
+                      onClick={() => sendText(m, composing.body)}
+                    >
+                      {busy === m.id ? "Sending…" : "Send text"}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === m.id}
+                    onClick={() => setComposing(null)}
+                  >
+                    {texting.from && !lead?.optedOut ? "Cancel" : "Close"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* The whole conversation with this business, oldest first, so a
+                reply reads under the text it answers. */}
+            {lead && lead.texts.length > 0 && (
+              <div className="mt-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold">
+                  <MessageSquare className="size-3.5 text-muted-foreground" />
+                  Texts
+                </p>
+                <ul className="mt-2 flex flex-col gap-2">
+                  {lead.texts.map((t) => (
+                    <li
+                      key={t.id}
+                      className={cn(
+                        "max-w-[85%] rounded-lg px-3 py-2 text-[13px]",
+                        t.direction === "out"
+                          ? "self-end bg-primary/10"
+                          : "self-start border bg-background",
+                      )}
+                    >
+                      <p className="whitespace-pre-wrap break-words">
+                        {t.body}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {t.direction === "in"
+                          ? "They replied"
+                          : (t.byName ?? "Sent")}
+                        <span suppressHydrationWarning>
+                          {` · ${when(t.at)}`}
+                        </span>
+                        {t.direction === "out" && (
+                          <span
+                            className={cn(
+                              t.status === "delivered" && "text-success",
+                              t.status === "failed" &&
+                                "font-semibold text-destructive",
+                            )}
+                          >
+                            {` · ${TEXT_STATUS[t.status]}`}
+                          </span>
+                        )}
+                      </p>
+                      {t.status === "failed" && t.error && (
+                        <p className="mt-1 text-[12px] text-destructive">
+                          {t.error}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {lead.optedOut && (
+                  <p className="mt-2 text-[12px] text-muted-foreground">
+                    They replied STOP, so no more texts can go to them.
+                  </p>
+                )}
               </div>
             )}
 
