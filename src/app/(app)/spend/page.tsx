@@ -104,7 +104,11 @@ export default async function SpendPage({
   // Both toggles live in the URL rather than in a preference, like every other
   // filter on the calling side: a link then carries what its sender was
   // looking at, and there is no stored setting to disagree with the screen.
-  const inSgd = params.currency === "sgd";
+  // Singapore dollars by default: the bill is paid from a Singapore account,
+  // so that is the number that means something to the people reading it. USD
+  // stays one click away and is what the figures are actually denominated in,
+  // which the line under the chips says either way.
+  const inSgd = params.currency !== "usd";
   const byAttendance = params.demos === "showed";
 
   const [spend, totals, showedUp, fx] = await Promise.all([
@@ -175,10 +179,10 @@ export default async function SpendPage({
             <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
               Show in
             </span>
-            <Chip href="/spend" active={!inSgd}>
+            <Chip href="/spend?currency=usd" active={!inSgd}>
               USD
             </Chip>
-            <Chip href="/spend?currency=sgd" active={inSgd}>
+            <Chip href="/spend" active={inSgd}>
               SGD
             </Chip>
           </div>
@@ -187,14 +191,14 @@ export default async function SpendPage({
               Cost per demo
             </span>
             <Chip
-              href={inSgd ? "/spend?currency=sgd" : "/spend"}
+              href={inSgd ? "/spend" : "/spend?currency=usd"}
               active={!byAttendance}
             >
               Booked
             </Chip>
             <Chip
               href={
-                inSgd ? "/spend?currency=sgd&demos=showed" : "/spend?demos=showed"
+                inSgd ? "/spend?demos=showed" : "/spend?currency=usd&demos=showed"
               }
               active={byAttendance}
             >

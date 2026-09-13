@@ -270,6 +270,7 @@ export async function getCallTotals(
    *  existing call site is unaffected; absent means nothing is acknowledged. */
   hoursAckAt?: Date | null,
 ): Promise<CallTotals> {
+  const ack = hoursAckAt ? hoursAckAt.toISOString() : null;
   const [row] = (await db.execute(sql`
     select
       count(*) as calls,
@@ -292,8 +293,14 @@ export async function getCallTotals(
           and not ${withinLeadHours(sql`c.called_at`)}
           -- A null watermark leaves every one of them unseen, which is the
           -- right first answer for an account that has never pressed it.
-          and (${hoursAckAt ?? null}::timestamptz is null
-            or c.called_at > ${hoursAckAt ?? null}::timestamptz)
+          --
+          -- Bound as an ISO string, never as a Date: the driver throws
+          -- "The string argument must be of type string ... Received an
+          -- instance of Date" on a raw template parameter, and it only throws
+          -- once somebody has actually acknowledged — so a null watermark
+          -- tests clean and the screen 500s for the first person to press the
+          -- button.
+          and (${ack}::timestamptz is null or c.called_at > ${ack}::timestamptz)
       ) as outside_hours_new,
       count(*) filter (where z.tz is not null) as zone_known
     from call c
