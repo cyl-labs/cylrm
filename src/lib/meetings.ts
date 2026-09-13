@@ -560,7 +560,14 @@ function toMeeting(r: Row): Meeting {
     attendeeName: (r.attendee_name as string | null) ?? null,
     attendeeEmail: (r.attendee_email as string | null) ?? null,
     attendeeTz: (r.attendee_tz as string | null) ?? null,
-    meetingUrl: (r.meeting_url as string | null) ?? null,
+    // Only a link that opens something. The demo event moved to a phone
+    // location on 2026-09-11, and Cal.com then fills this field with the
+    // prospect's phone number, which rendered as a "Meet link" button pointing
+    // at a relative URL. Bookings made before the switch keep their real
+    // Google Meet link.
+    meetingUrl: /^https?:\/\//i.test(String(r.meeting_url ?? ""))
+      ? String(r.meeting_url)
+      : null,
     leadId: r.lead_id === null ? null : n(r.lead_id),
     // Directory scrapes file the business in `company`; a contact list may
     // only have a person. Falling back keeps the row identifiable either way.
