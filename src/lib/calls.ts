@@ -950,11 +950,14 @@ export function didFor(
 /**
  * Which set of documents a market reads.
  *
- * There are two scripts, and what separates them is WhatsApp rather than
- * geography: the `sg` set pitches it, the `us` set does not. The UK is its own
- * market with no script of its own and reads the WhatsApp one, because UK
- * businesses do run on it — it was pointed at the US set on the assumption
- * they did not, which was wrong.
+ * There are two sets. The scripts were split by WhatsApp until 2026-09-14,
+ * when it was taken out of the `sg` script: both now pitch the voice agent
+ * alone and differ only in the booking step, where the `us` script asks the
+ * prospect's time zone because a US list spans several. The objection sheets
+ * still differ on WhatsApp. The UK has no script of its own and reads the `sg`
+ * set — one clock, like Singapore, and UK businesses do run on WhatsApp. It
+ * was once pointed at the US set on the assumption they did not, which was
+ * wrong.
  *
  * Kept as a mapping rather than storing the script's name against a caller, so
  * "who works the UK" stays answerable and giving the UK a script of its own

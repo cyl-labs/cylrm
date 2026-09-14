@@ -30,7 +30,7 @@ _(let them answer)_
 
 > **Prospect** "What is this about?"
 
-> **You say** I was calling to see how do you guys handle your after hour calls and messages
+> **You say** I was calling to see how do you guys handle your after hour calls
 
 _(let them answer)_
 
@@ -43,7 +43,7 @@ Keep it short and do not pause for a callback close — there is nobody there to
 close. Plant the hook, say the number once at the end, slowly. Then log the
 call as **Voicemail**.
 
-> **You say** Hi, my name's [your name] and I'm a developer. I was calling to see whether you had anything in place other than voicemail for your after-hours calls and messages. You might already know this, but most people who reach a voicemail just hang up and message the next company — so I've been helping other [their trade] businesses catch those with a voice agent that picks up instead. If that's useful, give me a call back on [your number]. Thanks!
+> **You say** Hi, this is [your name]. I'm calling to see if you have anything in place for after-hours or overflow calls besides voicemail. I help [their trade] businesses capture missed calls with a voice agent that answers instead. If that's something you'd be interested in, give me a call back at [your number]. Thanks!
 
 ## Their answer will be one of these three
 
@@ -192,11 +192,5 @@ _(let them answer)_
 _(let them answer)_
 
 > **You say** Well, 80% of callers who hit your voicemail hang up and call the next company. Before you spend money on ads or marketing, wouldn't it make sense to capture all of the calls you're currently getting?
-
-_(let them answer)_
-
-## If still "not interested"
-
-> **You say** No worries. Real quick though, do you use WhatsApp for the business at all? Those messages hit the same wall after hours, so I'm curious if that's something you're dealing with too.
 
 _(let them answer)_
