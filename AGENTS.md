@@ -692,7 +692,7 @@ What replaced it, and the shape to keep:
   takes ~10s on a cold connection — the window in which somebody can press
   twice is exactly the window in which the first request is still going.
 
-### Texting a prospect at demo time (built, switched off 2026-09-14)
+### Texting a prospect at demo time (switched on 2026-09-15)
 
 A founder rings a prospect at demo time, nobody picks up, and a text follows
 from the same number: "your demo with Cyl Labs is ready, I'll give you a call
@@ -701,21 +701,30 @@ now". `src/lib/sms.ts` is the logic, `sendSms` in `lib/telnyx.ts` the client,
 Telnyx webhook carry replies and delivery receipts. Schema in
 `2026-09-14-call-sms.sql`.
 
-- **Dormant until the carriers approve the 10DLC campaign.** Brand `cyllabs`
-  (TCR B0I5ERW) is verified; campaign C3DSJFI (Account Notification) went into
-  carrier review on 2026-09-11. Nothing touches `call_sms` unless
-  `TELNYX_SMS_ENABLED=1`: no button, no thread query, and the webhook answers
-  message events 200 and ignores them. **So this migration, unlike every other
-  Call CRM one, may be applied after the deploy — and must be applied before
-  the flag**, or the send route and the webhook 500 and Telnyx retries until it
-  disables the webhook.
-- **Switching it on**, in order: the carriers approve the campaign; attach the
-  sender's number to it on Telnyx (only possible after approval, and the number
-  must already be on the `cylrm-sms` messaging profile — as of 2026-09-14 only
-  the Founders number `+18722778445` is); apply the migration; set
-  `TELNYX_SMS_ENABLED=1` and restart. The profile's webhook already points at
-  `https://crm.cyllabs.com/api/telnyx/webhook` (set 2026-09-14, and harmless
-  while off: message events are answered 200 and ignored).
+- **Switched on 2026-09-15**, the night campaign C3DSJFI (Account
+  Notification, brand `cyllabs`, TCR B0I5ERW) came back `MNO_PROVISIONED`.
+  The Founders number `+18722778445` was linked to it through
+  `POST /10dlc/phone_number_campaigns`, `2026-09-14-call-sms.sql` was applied,
+  and `TELNYX_SMS_ENABLED=1` is in `/root/crm/.env`.
+  - **Linking a number is not instant.** Each carrier maps it separately: at
+    switch-on the smaller US carriers read `ADDED` and T-Mobile and AT&T still
+    read `PENDING`, and a text to their subscribers fails until they finish.
+    `GET /10dlc/phone_number_campaigns/+18722778445` shows where it stands.
+  - **The flag is the whole switch.** Without it nothing touches `call_sms`: no
+    button, no thread query, and the webhook answers message events 200 and
+    ignores them. Turning texting off is unsetting it and restarting; the table
+    can stay.
+  - **If this is ever rebuilt, the migration goes before the flag.** It may be
+    applied after the code is deployed, unlike every other Call CRM migration,
+    but with the flag on and no table the send route and the webhook 500 and
+    Telnyx retries until it disables the webhook.
+  - **A second sender needs the same steps.** The number must be on the
+    `cylrm-sms` messaging profile and linked to the campaign. Mico's
+    `+17076408891` and Querla's `+19789991236` are on the profile but not
+    linked, so they can receive and not send.
+  - **Do not test by texting one of our own numbers.** An inbound text pushes a
+    notification to whoever holds the number it arrived on, which for anything
+    on that profile other than Founders is a caller.
 - **The text goes out exactly as typed.** No brand prefix, no "Reply STOP"
   footer, no "you agreed to receive texts" confirmation. That was the founders'
   call on 2026-09-14, made after being told carriers expect opt-out wording on
