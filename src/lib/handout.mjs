@@ -47,6 +47,10 @@ const tagSpeakers = (html) =>
     .replace(
       /<blockquote>\s*<p><strong>Prospect<\/strong>/g,
       '<blockquote data-speaker="prospect"><p><strong>Prospect</strong>',
+    )
+    .replace(
+      /<blockquote>\s*<p><strong>Voicemail only<\/strong>/g,
+      '<blockquote data-speaker="voicemail"><p><strong>Voicemail only</strong>',
     );
 
 const escape = (s) =>
@@ -155,6 +159,10 @@ export function render(doc) {
     font-weight: 800; line-height: 1.3; }
   blockquote[data-speaker="you"] > p > strong:first-child { color: var(--accent); }
   blockquote[data-speaker="prospect"] > p > strong:first-child { color: var(--muted); }
+  /* A message for a machine, never for a person: a cool dashed box, so it
+     cannot be mistaken for the next line of the call. Mirrors SopProse. */
+  blockquote[data-speaker="voicemail"] > p { background: #EAF0F8; border: 2px dashed #8FA7C7; }
+  blockquote[data-speaker="voicemail"] > p > strong:first-child { color: #35557F; }
 
   /* "(let them answer)" and its like, lined up under the speaker block. */
   .body p em:only-child { color: var(--muted); font-size: 13px;

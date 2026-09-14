@@ -618,6 +618,14 @@ What replaced it, and the shape to keep:
   at a relative URL. Bookings made before the switch still carry a real Meet
   link and keep the button until they age off the screen. The column stores
   whatever Cal.com sent; only the read filters.
+  - **The location is now fixed text, not the attendee's phone** (2026-09-14,
+    changed over the API). "Attendee phone number" made every booker type the
+    number twice, because the separate "Best number to call you on" question
+    is what the dial card prefills (`attendeePhoneNumber`). It is an `address`
+    location reading "Phone call: we will ring the number you give when
+    booking". **Not an empty location:** Cal.com attaches a Cal Video link
+    when there is none, which would put a live "Meet link" button back on this
+    screen. Before the change it was `[{"type":"attendeePhone"}]`.
 
 - **The "within a day" window is calendar days in the reader's own clock**, not
   a flat 24 hours: `(start_at at time zone tz)::date <= (now() at time zone
@@ -1474,8 +1482,12 @@ deleted is removed from the table too.
   unprompted every time. A `##` whose title starts `If` / `Only if` /
   `Otherwise` matches the branch rule, so it gets its own collapsed row marked
   `↳`, takes no step number, and has to be opened deliberately. Applied to the
-  voicemail script, the "what is a voice agent" explainer and the "you're
-  selling me something" answer. Give each one a `> **Prospect**` cue too — that
+  voicemail message, the "what is a voice agent" explainer and the "you're
+  selling me something" answer. The voicemail message went further on
+  2026-09-14, because the branch styling alone did not stop it being read to
+  people who picked up: it moved to the **end** of both scripts, out of the
+  path of a live call, and its line is a `> **Voicemail only**` block rather
+  than `You say` (see speaker blocks below). Give each one a `> **Prospect**` cue too — that
   is what the live hint matches on, and it shows the caller what triggers it.
   Coaching prose stays out of the spoken half by itself as long as the block
   after it is not a `> **You say**` line (see `splitSpoken`'s cue rule).
@@ -1502,6 +1514,12 @@ deleted is removed from the table too.
 - **Speaker blocks are blockquotes led by a bold label** (`> **You say** …` /
   `> **Prospect** …`); `sop-prose.tsx` tags them `data-speaker` and tints them.
   Plain markdown, so the content files stay hand-editable.
+  - **`> **Voicemail only**` is a third label** for words left on a machine: a
+    cool tint in a dashed box instead of the warm `You say` block. Callers run
+    down the warm blocks reading each one aloud, and the voicemail line looked
+    exactly like one. It counts as spoken in `splitSpoken`, and
+    `lib/handout.mjs` styles it the same way. **A new label needs all three**:
+    the tag in `SopProse`, the tag and CSS in `handout.mjs`, and `isSpoken`.
 - **The script sits beside the dial card**, in the column that was empty, and
   is sticky. It is read top to bottom on every call, so it is not behind a tap.
   Below `xl` there is no room for a second column and it becomes a left-hand

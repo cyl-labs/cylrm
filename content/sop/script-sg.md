@@ -34,17 +34,6 @@ _(let them answer)_
 
 _(let them answer)_
 
-## If it rings out to voicemail
-
-Leave one, every time. The number is logged as tried whether you speak or not,
-and a message is the only version of that call that can come back to you.
-
-Keep it short and do not pause for a callback close — there is nobody there to
-close. Plant the hook, say the number once at the end, slowly. Then log the
-call as **Voicemail**.
-
-> **You say** Hi, this is [your name]. I'm calling to see if you have anything in place for after-hours or overflow calls besides voicemail. I help [their trade] businesses capture missed calls with a voice agent that answers instead. If that's something you'd be interested in, give me a call back at [your number]. Thanks!
-
 ## Their answer will be one of these three
 
 ### A
@@ -194,3 +183,16 @@ _(let them answer)_
 > **You say** Well, 80% of callers who hit your voicemail hang up and call the next company. Before you spend money on ads or marketing, wouldn't it make sense to capture all of the calls you're currently getting?
 
 _(let them answer)_
+
+## Only if nobody picks up and you get their voicemail
+
+**This is not part of the call.** Use it only when the phone rings out and you
+hear a voicemail greeting and a beep. If a person answers, never say it: go
+back to the opener.
+
+Leave one every time it happens. The number is logged as tried whether you
+speak or not, and a message is the only version of that call that can come back
+to you. Keep it short, say the number once at the end, slowly, then log the call
+as **Voicemail**.
+
+> **Voicemail only** Hi, this is [your name]. I'm calling to see if you have anything in place for after-hours or overflow calls besides voicemail. I help [their trade] businesses capture missed calls with a voice agent that answers instead. If that's something you'd be interested in, give me a call back at [your number]. Thanks!

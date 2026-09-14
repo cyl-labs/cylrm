@@ -37,6 +37,10 @@ export function SopProse({
     .replace(
       /<blockquote>\s*<p><strong>Prospect<\/strong>/g,
       '<blockquote data-speaker="prospect"><p><strong>Prospect</strong>',
+    )
+    .replace(
+      /<blockquote>\s*<p><strong>Voicemail only<\/strong>/g,
+      '<blockquote data-speaker="voicemail"><p><strong>Voicemail only</strong>',
     );
 
   return (
@@ -71,6 +75,16 @@ export function SopProse({
         // up; today the app is light only.
         "[&_blockquote[data-speaker=you]>p]:bg-[#FDE7E1] dark:[&_blockquote[data-speaker=you]>p]:bg-[#3b211c]",
         "[&_blockquote[data-speaker=prospect]>p]:bg-[#EDEDED] dark:[&_blockquote[data-speaker=prospect]>p]:bg-[#26262a]",
+        // A message left on a machine, never said to a person. Callers read
+        // every warm "You say" block top to bottom, and the voicemail line
+        // looked exactly like one, so it was being read to people who had
+        // picked up. A cool tint and a dashed edge break the pattern the eye
+        // is following, which a heading above it did not.
+        "[&_blockquote[data-speaker=voicemail]>p]:border-2 [&_blockquote[data-speaker=voicemail]>p]:border-dashed [&_blockquote[data-speaker=voicemail]>p]:border-[#8FA7C7] [&_blockquote[data-speaker=voicemail]>p]:bg-[#EAF0F8] dark:[&_blockquote[data-speaker=voicemail]>p]:bg-[#1c2533]",
+        "[&_blockquote[data-speaker=voicemail]_strong]:text-[#35557F] dark:[&_blockquote[data-speaker=voicemail]_strong]:text-[#9fb6d6]",
+        // Two words do not fit the gutter on one line, so they stack there.
+        gutter &&
+          "sm:[&_blockquote[data-speaker=voicemail]_strong]:w-[4.25rem] sm:[&_blockquote[data-speaker=voicemail]_strong]:leading-tight",
         "[&_blockquote>p]:text-foreground dark:[&_blockquote>p]:text-foreground",
         // The label, lifted out of the flow into the gutter. Inline again on a
         // phone, where there is no gutter to lift it into.

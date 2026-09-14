@@ -166,8 +166,10 @@ function splitSpoken(body: string): { response: string; context: string } {
     .split(/\n{2,}/)
     .map((b) => b.trim())
     .filter(Boolean);
+  // `Voicemail only` is still words said out loud, just to a machine, so it
+  // belongs in the spoken half like any `You say` line.
   const isSpoken = (b: string) =>
-    /^>\s*\*\*You say\*\*/.test(b) || /^_\(.*\)_$/.test(b);
+    /^>\s*\*\*(You say|Voicemail only)\*\*/.test(b) || /^_\(.*\)_$/.test(b);
 
   const spoken: string[] = [];
   const rest: string[] = [];
