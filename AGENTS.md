@@ -1750,8 +1750,15 @@ wiring for a new number is three steps — create a credential connection
 `telnyx_did` on the person **while clearing `telnyx_credential_id`**. Copy the
 connection's settings off an existing one: the webhook URL is what carries
 recordings back, and `outbound_voice_profile_id` is where recording and the
-SG/US destination whitelist live. As of 2026-09-07 six accounts have a number,
-each on its own connection, and no number is held by two active people.
+SG/US destination whitelist live. As of 2026-09-14 eight accounts have a number,
+each on its own connection (`cylrm-mico` and `cylrm-querla` added that day,
+copied field for field off `cylrm-harry`, numbers on the `cylrm-sms` texting
+profile too), and no number is held by two active people. **A connection is not
+enough to be rung:** only people listed in `TELNYX_SIP_LOGIN_USERS` log in with
+the connection's SIP user, and a token-only browser answers an inbound call SIP
+480 (see `mintCallToken`). As of that date the list holds Harry and Maryjane
+among active staff, so everyone else's inbound calls land on Missed calls and
+ring no browser.
 
 A JWT's `exp` is exactly its parent credential's `expires_at`, so any token cache
 must expire at `min(cacheTtl, credentialExpiresAt)` — caching a token minted late
