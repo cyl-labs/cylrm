@@ -568,6 +568,42 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   time passed. `past` is excluded because it would re-upsert the hundred most
   recent finished meetings on every one of the day's 288 ticks; a one-off
   backfill of history is that array plus one word.
+### Booking a demo from any screen, and demos nobody booked (2026-09-15)
+
+A demo agreed on 2026-09-15 reached the CRM as Demo booked with nothing on
+Cal.com: it was logged from outside the dial card, and the dial card's form was
+the only place the Cal.com button existed. `components/calls/book-demo.tsx`,
+`lib/cal-link.ts`, `components/calls/unbooked-demos.tsx`, `getUnbookedDemos` in
+`lib/meetings.ts`.
+
+- **One booking step, three screens.** The dial card, the Spreadsheet and the
+  Pipeline board share `BookDemoFields`. Picking Demo booked in the
+  Spreadsheet — logged or corrected to — or moving a card to it on the board
+  opens `BookDemoDialog` instead of saving at once; the dialog saves through
+  the host's own `log`/`correct`/`logCall`, so each screen keeps its update and
+  error handling. A lead or card already at Demo booked gets "Book on Cal.com"
+  in its menu. The correction route (`PATCH /api/calls`) now writes the email
+  and name back to the lead the way logging does.
+- **The booking link is built in one place** (`calBookingHref`), because its
+  notes line `Company (+1…)` is what the meetings sync matches a booking to its
+  lead on. The URL reaches client components through `CalBookingProvider` in
+  the app layout rather than being threaded through each page; the dial card
+  still takes its prop.
+- **Menu items open the dialog a tick later** (`setTimeout`): a dialog opened
+  while a Radix menu is still closing loses focus to it.
+- **Meetings lists demos that are not on the calendar**, at the top and in red:
+  a lead whose latest call is Demo booked, older than 30 minutes (the booking
+  is normally made on the call and the sync runs every five), newer than 30
+  days, with no `call_meeting` for the lead created from a day before that call
+  onwards. Cancelled bookings count as booked, since they already show on
+  Meetings. Scoped to a caller's own niches. **They are in the Meetings badge**
+  (`countMeetingsWaitingFor` adds `countUnbookedDemos`). A booking whose notes
+  line was cleared matches no lead, so its lead stays listed — correctly, as it
+  is on no screen either.
+- **Change the number on Cal.com, never the notes.** The prefill uses the
+  lead's listed number; when the prospect gives another to ring for the demo,
+  "Best number to call you on" is the field to change, and the dialog says so.
+
 ### Nobody rings to confirm a demo (2026-09-11)
 
 The screen used to run on a chase: every booking due within a day turned red

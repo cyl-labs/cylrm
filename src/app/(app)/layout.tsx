@@ -10,6 +10,7 @@ import { canUseKeypad, dialMethodOf } from "@/lib/users";
 import { LinePresence } from "@/components/calls/line-presence";
 import { InboundListener } from "@/components/calls/inbound-listener";
 import { CallLineProvider } from "@/components/calls/call-line";
+import { CalBookingProvider } from "@/components/calls/book-demo";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { NavLinks } from "@/components/nav-links";
@@ -130,7 +131,14 @@ export default async function AppLayout({
           </form>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 bg-background">{children}</main>
+      {/* The Cal.com booking link, for the booking step on every screen that
+          can log a demo: a server env value handed to client components once,
+          here, rather than threaded through each page. */}
+      <main className="min-w-0 flex-1 bg-background">
+        <CalBookingProvider url={process.env.CAL_BOOKING_URL ?? null}>
+          {children}
+        </CalBookingProvider>
+      </main>
       <Toaster />
       {/* Draws the call on every screen that is not a calling screen: a
           prospect ringing back, and a call still in progress after somebody

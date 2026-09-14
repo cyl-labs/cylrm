@@ -685,8 +685,95 @@ export async function countMeetingsWaitingFor(
   const zone = statsZone(
     (await statsRegionOf(me?.id)) ?? (await callRegionOf(me?.id)),
   );
-  return countMeetingsWaiting(callScope(me), zone.tz);
+  const [waiting, unbooked] = await Promise.all([
+    countMeetingsWaiting(callScope(me), zone.tz),
+    countUnbookedDemos(callScope(me)),
+  ]);
+  return waiting + unbooked;
 }
+
+/**
+ * A lead logged as Demo booked that has no Cal.com booking behind it.
+ *
+ * The safety net under the booking step. A demo can be logged from the dial
+ * card, the Spreadsheet or the Pipeline board, or — as on 2026-09-15 — from a
+ * Keypad ring back that had no lead in front of it, and the Cal.com booking is
+ * a separate act on another site that is easy to leave for later and forget.
+ * Until it exists nothing reminds the prospect, nothing reminds us, and the
+ * meeting is on no screen.
+ *
+ * - **Thirty minutes of grace**: the booking is normally made on the call, and
+ *   the sync runs every five minutes, so anything younger is simply in flight.
+ * - **Any booking for the lead from a day before the call onwards counts**,
+ *   cancelled included: a booking made just before the outcome was logged is
+ *   the ordinary order of events, and a cancellation already shows on Meetings.
+ * - **The last 30 days only**, so an old demo nobody booked does not sit here
+ *   for ever.
+ * - **Linked by lead**, which means a booking whose notes line was cleared —
+ *   and so matched to nothing — leaves its lead listed here. That is right: it
+ *   is exactly the booking no screen can see.
+ */
+export type UnbookedDemo = {
+  leadId: number;
+  listId: number;
+  company: string | null;
+  contactName: string | null;
+  email: string | null;
+  phone: string;
+  loggedAt: string;
+  byName: string | null;
+};
+
+const unbookedDemosSql = (ownerId?: number) => sql`
+  from call_lead l
+  join call_list cl on cl.id = l.call_list_id
+  join lateral (
+    select c.outcome, c.called_at, c.user_id from call c
+    where c.call_lead_id = l.id
+    order by c.called_at desc, c.id desc
+    limit 1
+  ) lc on true
+  left join app_user u on u.id = lc.user_id
+  where l.duplicate_of_lead_id is null
+    and lc.outcome = 'demo_booked'
+    and lc.called_at < now() - interval '30 minutes'
+    and lc.called_at > now() - interval '30 days'
+    and not exists (
+      select 1 from call_meeting m
+      where m.call_lead_id = l.id
+        and m.created_at > lc.called_at - interval '1 day'
+    )
+    ${ownerId === undefined ? sql`` : sql`and cl.assigned_user_id = ${ownerId}`}
+`;
+
+export async function getUnbookedDemos(ownerId?: number): Promise<UnbookedDemo[]> {
+  const rows = (await db.execute(sql`
+    select l.id as lead_id, cl.id as list_id, l.company, l.name, l.email,
+      l.phone, lc.called_at, u.name as by_name
+    ${unbookedDemosSql(ownerId)}
+    order by lc.called_at desc
+    limit 50
+  `)) as Row[];
+  return rows.map((r) => ({
+    leadId: n(r.lead_id),
+    listId: n(r.list_id),
+    company: (r.company as string | null) ?? null,
+    contactName: (r.name as string | null) ?? null,
+    email: (r.email as string | null) ?? null,
+    phone: String(r.phone),
+    loggedAt: new Date(r.called_at as string).toISOString(),
+    byName: (r.by_name as string | null) ?? null,
+  }));
+}
+
+/** Part of the Meetings badge: a demo nobody put on the calendar is work
+ *  owed, the same as a no-show waiting on a ring back. */
+export const countUnbookedDemos = cache(async (ownerId?: number): Promise<number> => {
+  const [row] = (await db.execute(sql`
+    select count(*) as n ${unbookedDemosSql(ownerId)}
+  `)) as Row[];
+  return n(row?.n);
+});
 
 /* ------------------------------------------------------------------ *
  * Reminders

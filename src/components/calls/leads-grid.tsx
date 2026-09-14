@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { dialableNumber } from "@/lib/phone";
+import { BookDemoDialog, type DemoDetails } from "@/components/calls/book-demo";
 import { cn } from "@/lib/utils";
 import { websiteHref, websiteLabel } from "@/lib/website";
 
@@ -213,33 +214,59 @@ function CategoryMenu({
   const category = categoryOf(lead);
   const who = lead.company ?? lead.name ?? lead.phone;
 
-  async function log(outcome: CallOutcome) {
-    if (saving) return;
+  /**
+   * The booking step, when one is open.
+   *
+   * Demo booked — logged or corrected to — opens it instead of saving at once,
+   * the same step the dial card shows, so the Cal.com booking is made while the
+   * details are to hand. `book` is for a lead already logged as a demo whose
+   * slot still has to go on the calendar. Opened a tick later because it is
+   * reached from a menu item, and a dialog opened while the menu is still
+   * closing loses its focus to it.
+   */
+  const [booking, setBooking] = React.useState<"log" | "correct" | "book" | null>(
+    null,
+  );
+  const openBooking = (mode: "log" | "correct" | "book") =>
+    setTimeout(() => setBooking(mode), 0);
+
+  async function log(outcome: CallOutcome, details?: DemoDetails): Promise<boolean> {
+    if (outcome === "demo_booked" && !details) {
+      openBooking("log");
+      return false;
+    }
+    if (saving) return false;
     setSaving(true);
     try {
       const res = await fetch("/api/calls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callLeadId: lead.id, outcome }),
+        body: JSON.stringify({ callLeadId: lead.id, outcome, ...(details ?? {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(data.error ?? `Could not log it (${res.status}).`);
-        return;
+        return false;
       }
       toast.success(
         `${OUTCOME_LABELS[outcome]}: ${who}, attempt ${lead.attempts + 1}`,
       );
       onLogged(lead.id, outcome);
+      return true;
     } catch {
       toast.error("Could not log it: network error.");
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
-  async function correct(next: CallCategory) {
-    if (saving || next === category) return;
+  async function correct(next: CallCategory, details?: DemoDetails): Promise<boolean> {
+    if (next === "demo_booked" && !details && next !== category) {
+      openBooking("correct");
+      return false;
+    }
+    if (saving || next === category) return false;
     setSaving(true);
     try {
       const res =
@@ -251,17 +278,20 @@ function CategoryMenu({
               body: JSON.stringify({
                 callLeadId: lead.id,
                 outcome: next as CallOutcome,
+                ...(details ?? {}),
               }),
             });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(data.error ?? `Could not change it (${res.status}).`);
-        return;
+        return false;
       }
       toast.success(`${who} → ${CATEGORY_LABELS[next]}`);
       onCorrected(lead.id, next);
+      return true;
     } catch {
       toast.error("Could not change it: network error.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -298,6 +328,14 @@ function CategoryMenu({
             {OUTCOME_LABELS[o]}
           </DropdownMenuItem>
         ))}
+        {/* A lead already logged as a demo may still have no slot on the
+            calendar — the case Meetings lists — so the booking step is one
+            click away from its row too, not only from logging a new call. */}
+        {category === "demo_booked" && (
+          <DropdownMenuItem onSelect={() => openBooking("book")}>
+            Book on Cal.com
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuSub>
           <DropdownMenuSubTrigger disabled={category === "uncalled"}>
@@ -321,6 +359,23 @@ function CategoryMenu({
           </DropdownMenuSubContent>
         </DropdownMenuSub>
       </DropdownMenuContent>
+      {/* Inside the menu's root, which renders no element of its own, so this
+          needs no wrapper. It saves through `log` and `correct` above, which
+          keep the sheet's own update and error handling. */}
+      <BookDemoDialog
+        lead={booking ? lead : null}
+        mode={booking ?? "book"}
+        onOpenChange={(open) => {
+          if (!open) setBooking(null);
+        }}
+        onConfirm={
+          booking === "log"
+            ? (details) => log("demo_booked", details)
+            : booking === "correct"
+              ? (details) => correct("demo_booked", details)
+              : undefined
+        }
+      />
     </DropdownMenu>
   );
 }

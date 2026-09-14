@@ -163,6 +163,8 @@ export async function PATCH(request: Request) {
     callLeadId?: unknown;
     outcome?: unknown;
     callbackAt?: unknown;
+    contactEmail?: unknown;
+    contactName?: unknown;
   } | null;
 
   if (!body) {
@@ -182,6 +184,22 @@ export async function PATCH(request: Request) {
     .where(eq(callLead.id, leadId));
   if (!lead) {
     return Response.json({ error: "Lead not found." }, { status: 404 });
+  }
+
+  // The same write-back the log route does, for a call relabelled as a demo
+  // from the Spreadsheet's booking step: the email is what the invite and the
+  // reminders go to.
+  if (body.outcome === "demo_booked") {
+    const patch: { email?: string; name?: string } = {};
+    if (typeof body.contactEmail === "string" && body.contactEmail.trim()) {
+      patch.email = body.contactEmail.trim().slice(0, 500);
+    }
+    if (typeof body.contactName === "string" && body.contactName.trim()) {
+      patch.name = body.contactName.trim().slice(0, 500);
+    }
+    if (Object.keys(patch).length > 0) {
+      await db.update(callLead).set(patch).where(eq(callLead.id, leadId));
+    }
   }
 
   const existing = await latestCallFor(leadId);

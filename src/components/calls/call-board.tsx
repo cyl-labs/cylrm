@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import type { BoardCard, CallOutcome, CallStage } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { RecordingSheet } from "@/components/calls/recording-sheet";
+import { BookDemoDialog, type DemoDetails } from "@/components/calls/book-demo";
 import { placeShort } from "@/lib/place";
 import { useTouchDrag } from "@/components/kanban/use-touch-drag";
 import { dialableNumber } from "@/lib/phone";
@@ -206,7 +207,30 @@ export function CallBoard({
   // hidden dialogs on a full board.
   const [playing, setPlaying] = React.useState<BoardCard | null>(null);
 
-  async function logCall(card: BoardCard, outcome: CallOutcome) {
+  /**
+   * The card whose demo is being booked, if any.
+   *
+   * Moving a card to Demo booked — by dragging or from its menu — opens the
+   * booking step instead of logging at once, the same step the dial card
+   * shows, so the Cal.com booking is made while the details are to hand.
+   * `book` is for a card already there whose slot still has to be booked.
+   */
+  const [booking, setBooking] = React.useState<{
+    card: BoardCard;
+    mode: "log" | "book";
+  } | null>(null);
+
+  async function logCall(
+    card: BoardCard,
+    outcome: CallOutcome,
+    details?: DemoDetails,
+  ): Promise<boolean> {
+    if (outcome === "demo_booked" && !details) {
+      // Deferred a tick: this is often called from a menu item, and a dialog
+      // opened while the menu is still closing loses its focus to the menu.
+      setTimeout(() => setBooking({ card, mode: "log" }), 0);
+      return false;
+    }
     const attempts = (logged[card.id]?.attempts ?? card.attempts) + 1;
     const who = card.company ?? card.name ?? card.phone;
     setLogged((p) => ({ ...p, [card.id]: { outcome, attempts } }));
@@ -214,7 +238,7 @@ export function CallBoard({
       const res = await fetch("/api/calls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callLeadId: card.id, outcome }),
+        body: JSON.stringify({ callLeadId: card.id, outcome, ...(details ?? {}) }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -224,10 +248,11 @@ export function CallBoard({
           delete next[card.id];
           return next;
         });
-        return;
+        return false;
       }
       toast.success(`${OUTCOME_LABELS[outcome]}: ${who}, attempt ${attempts}`);
       router.refresh();
+      return true;
     } catch {
       toast.error("Could not log the call: network error.");
       setLogged((p) => {
@@ -235,6 +260,7 @@ export function CallBoard({
         delete next[card.id];
         return next;
       });
+      return false;
     }
   }
 
@@ -413,6 +439,17 @@ export function CallBoard({
                           {OUTCOME_LABELS[o]}
                         </DropdownMenuItem>
                       ))}
+                      {/* Already a demo, and maybe still not on the calendar:
+                          the booking step without logging another call. */}
+                      {c.stage === "demo_booked" && (
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            setTimeout(() => setBooking({ card: c, mode: "book" }), 0)
+                          }
+                        >
+                          Book on Cal.com
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -450,6 +487,20 @@ export function CallBoard({
         </div>
       )}
 
+      {/* Mounted once for the board, like the recording sheet below: a dialog
+          per card would be a portal per card. */}
+      <BookDemoDialog
+        lead={booking?.card ?? null}
+        mode={booking?.mode ?? "book"}
+        onOpenChange={(open) => {
+          if (!open) setBooking(null);
+        }}
+        onConfirm={
+          booking && booking.mode === "log"
+            ? (details) => logCall(booking.card, "demo_booked", details)
+            : undefined
+        }
+      />
       {playing?.recordingId && (
         <RecordingSheet
           recordingId={playing.recordingId}

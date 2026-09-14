@@ -5,6 +5,7 @@ import { PushToggle } from "@/components/calls/push-toggle";
 import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
+import { UnbookedDemos } from "@/components/calls/unbooked-demos";
 import { getTextsByLead, smsEnabled, type Texting } from "@/lib/sms";
 import { classifyPhone } from "@/lib/phone";
 import { callScope, getCurrentUser } from "@/lib/session";
@@ -101,6 +102,13 @@ export default async function MeetingsPage({
             on the way in, and shut by default so it costs one line of height
             to everybody who already knows. */}
         <MeetingsExplainer zoneName={zone.name} />
+        {/* Demos logged in the CRM with no Cal.com booking behind them: the
+            one thing on this screen that is a job with a deadline. */}
+        <UnbookedDemos
+          ownerId={callScope(me)}
+          showWho={me?.role === "admin"}
+          tz={zone.tz}
+        />
         {meetings.length > 0 && (
           <p className="text-[13px] text-muted-foreground">
             {/* Mostly what is coming, not what is owed: nobody rings to confirm

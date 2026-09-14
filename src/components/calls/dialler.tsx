@@ -8,9 +8,7 @@ import {
   Clock,
   Copy,
   ExternalLink,
-  Globe,
-  CalendarPlus,
-  Grid3x3,
+  Globe,  Grid3x3,
   MapPin,
   Mic,
   MicOff,
@@ -29,6 +27,7 @@ import type { CallOutcome, QueueLead } from "@/lib/calls";
 import type { SopSection } from "@/lib/sop";
 import { ObjectionDrawer } from "@/components/sop/objection-drawer";
 import { IncomingCall } from "@/components/calls/incoming-call";
+import { BookDemoFields } from "@/components/calls/book-demo";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
 import { useClaimLine, useLineLeader } from "@/components/calls/line-presence";
 import { useCallLine } from "@/components/calls/call-line";
@@ -538,67 +537,20 @@ function CallForm({
         className="mt-4 min-h-[64px]"
       />
 
+      {/* The shared booking step: the Spreadsheet and the Pipeline board show
+          the same fields, so a demo is booked the same way wherever it is
+          logged. See `book-demo.tsx`. */}
       {picked === "demo_booked" && (
-        <div className="mt-3 space-y-2.5 rounded-lg border bg-muted/30 p-3.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
-            Booking the demo
-          </p>
-          <div className="space-y-1.5">
-            <Label htmlFor="demo-email">Their email</Label>
-            <Input
-              id="demo-email"
-              type="email"
-              inputMode="email"
-              autoComplete="off"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@company.com"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="demo-contact">Who you spoke to</Label>
-            <Input
-              id="demo-contact"
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="Name"
-            />
-          </div>
-          {calBookingUrl && (
-            // A new tab, never a navigation: leaving this page unmounts the
-            // dialler, which loses the queue's position now and would drop a
-            // live call once dialling moves into the browser. Cal.com's own
-            // booking flow is what sends the invite and the reminders and
-            // writes the event to the calendar, so the caller finishes there.
-            <a
-              href={`${calBookingUrl}?${new URLSearchParams({
-                ...(contact.trim() ? { name: contact.trim() } : {}),
-                ...(email.trim() ? { email: email.trim() } : {}),
-                // The demo is a phone call now, so Cal.com asks for a number
-                // and it is a required field. Prefilled with the one you are
-                // already speaking to them on: a caller retyping eleven digits
-                // mid-call is a typo waiting to happen, and this is the number
-                // the demo gets dialled on. E.164, which is what the booking
-                // has to carry — `phone` is written the way the market writes
-                // it and can be missing its country code.
-                ...(lead.dialTo ? { attendeePhoneNumber: lead.dialTo } : {}),
-                notes: `${lead.company ?? lead.phone} (${lead.phone})`,
-              }).toString()}`}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border bg-background text-sm font-bold transition-colors hover:bg-muted"
-            >
-              <CalendarPlus className="size-4 shrink-0" strokeWidth={2.2} />
-              Book it on Cal.com
-              <ExternalLink
-                className="size-3.5 shrink-0 text-muted-foreground"
-                strokeWidth={2.2}
-              />
-            </a>
-          )}
-          <p className="text-[12px] text-muted-foreground">
-            Book the slot you agreed, then come back and log the call.
-          </p>
+        <div className="mt-3">
+          <BookDemoFields
+            lead={lead}
+            calBookingUrl={calBookingUrl}
+            email={email}
+            onEmail={setEmail}
+            contact={contact}
+            onContact={setContact}
+            hint="Book the slot you agreed, then come back and log the call."
+          />
         </div>
       )}
 
