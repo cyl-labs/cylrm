@@ -129,7 +129,13 @@ export function MeetingsExplainer({
               what happened
             </span>{" "}
             on the row &mdash; showed up, no show, or not a real booking. That
-            is the same answer Payroll pays on, so it is recorded once.
+            is the same answer Payroll pays on, so it is recorded once. The demo
+            is a phone call, so{" "}
+            <span className="font-semibold text-foreground">
+              showed up means they picked up and stayed on while the agent was
+              brought in
+            </span>
+            . No answer, or they could not stay for it, is a no show.
           </p>
           <p className="mt-1 text-muted-foreground">
             <span className="font-semibold text-foreground">

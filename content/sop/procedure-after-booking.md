@@ -184,6 +184,15 @@ off yourself.
 **If they show up, you are paid.** Whether they buy is not your problem and
 does not change anything: turning up is the whole bar.
 
+**What showing up means now that the demo is a phone call.** At the booked
+time we ring them. It counts as a meeting when they **pick up and stay on the
+line while we bring the agent in**. That is all it takes.
+
+It does not count if they do not answer, or if they pick up but cannot stay for
+it ("can you call me next week?"). Either way it is logged as a no show, and it
+comes back to you as a ring back so you can put a new time in. When the new time
+happens and they stay on for the agent, it counts then.
+
 Payment goes out the **Friday after the meeting**, by whatever method you
 prefer.
 

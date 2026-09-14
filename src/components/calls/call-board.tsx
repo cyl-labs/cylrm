@@ -431,7 +431,12 @@ export function CallBoard({
                       <DropdownMenuLabel>
                         Attempt {c.attempts + 1}
                       </DropdownMenuLabel>
-                      {loggable.map((o) => (
+                      {/* A card already at Demo booked gets "Book on Cal.com"
+                          below instead of a second Demo booked, which logged a
+                          duplicate demo when the slot was all that was meant. */}
+                      {loggable
+                        .filter((o) => !(o === "demo_booked" && c.stage === "demo_booked"))
+                        .map((o) => (
                         <DropdownMenuItem
                           key={o}
                           onSelect={() => logCall(c, o)}

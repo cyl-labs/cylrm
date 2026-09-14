@@ -89,20 +89,28 @@ const COLS: { key: ColKey; label: string; w: number; align?: "center" }[] = [
   { key: "callbackAt", label: "Callback", w: 130 },
 ];
 
-type EditableKey = "company" | "phone" | "email" | "website";
+type EditableKey = "company" | "phone" | "email" | "website" | "lastNotes";
 
-/** Columns that are the lead's own record and can be corrected here — a
- *  scraped number is wrong often enough to be worth fixing in place. The rest
- *  are derived: Category has its own dropdown, Tries / Last call / Callback /
- *  Notes come from the calls themselves, and List is which sheet you are on. */
+/** Columns that can be typed over here. Company, phone, email and website are
+ *  the lead's own record — a scraped number is wrong often enough to be worth
+ *  fixing in place. Notes are the latest call's, and are saved onto that call
+ *  rather than the lead. The rest are derived: Category has its own dropdown,
+ *  Tries / Last call / Callback come from the calls themselves, and List is
+ *  which sheet you are on. */
 const EDITABLE = new Set<ColKey>([
   "company",
   "phone",
   "email",
   "website",
+  "lastNotes",
 ] satisfies EditableKey[]);
 
 const isEditable = (key: ColKey): key is EditableKey => EDITABLE.has(key);
+
+/** Whether this lead's cell can be edited. Notes belong to a call, so a lead
+ *  nobody has rung has nowhere to put them. */
+const canEditCell = (lead: SheetLead, key: ColKey): key is EditableKey =>
+  isEditable(key) && (key !== "lastNotes" || lead.lastOutcome !== null);
 
 /** A, B, C … — the column names a spreadsheet user reads off the top. */
 const colLetter = (i: number) => String.fromCharCode(65 + i);
@@ -323,11 +331,16 @@ function CategoryMenu({
         <DropdownMenuLabel>
           Log a call{lead.attempts > 0 && ` (attempt ${lead.attempts + 1})`}
         </DropdownMenuLabel>
-        {outcomes.map((o) => (
-          <DropdownMenuItem key={o} onSelect={() => log(o)}>
-            {OUTCOME_LABELS[o]}
-          </DropdownMenuItem>
-        ))}
+        {/* No second "Demo booked" on a lead that is already one: picking it
+            there meant to book the slot and logged a duplicate demo instead.
+            "Book on Cal.com" below is the action for that. */}
+        {outcomes
+          .filter((o) => !(o === "demo_booked" && category === "demo_booked"))
+          .map((o) => (
+            <DropdownMenuItem key={o} onSelect={() => log(o)}>
+              {OUTCOME_LABELS[o]}
+            </DropdownMenuItem>
+          ))}
         {/* A lead already logged as a demo may still have no slot on the
             calendar — the case Meetings lists — so the booking step is one
             click away from its row too, not only from logging a new call. */}
@@ -502,6 +515,7 @@ export function LeadsGrid({
   const [saving, setSaving] = React.useState(false);
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const editInputRef = React.useRef<HTMLInputElement>(null);
+  const notesInputRef = React.useRef<HTMLTextAreaElement>(null);
   const activeTabRef = React.useRef<HTMLButtonElement>(null);
 
   // Arriving on a list's tab from its Spreadsheet button, that tab can be far
@@ -669,15 +683,27 @@ export function LeadsGrid({
     }
   }
 
-  const canEdit = selected !== undefined && isEditable(selCol.key);
+  const canEdit = selected !== undefined && canEditCell(selected, selCol.key);
 
-  function startEditing() {
-    if (!selected || !isEditable(selCol.key)) return;
-    setEditing({ leadId: selected.id, key: selCol.key });
-    setDraft(cellText(selected, selCol.key));
+  function editCell(lead: SheetLead, key: ColKey) {
+    if (!isEditable(key)) return;
+    if (!canEditCell(lead, key)) {
+      // Said out loud rather than ignored: a double-click that does nothing
+      // reads as the notes being broken, which is the complaint this answers.
+      toast.info("Nobody has rung this lead yet. Log a call first: notes belong to a call.");
+      return;
+    }
+    setEditing({ leadId: lead.id, key });
+    setDraft(cellText(lead, key));
     // The input mounts this tick; focusing after paint puts the caret in it
     // without the grid stealing it back.
-    requestAnimationFrame(() => editInputRef.current?.select());
+    requestAnimationFrame(() =>
+      (key === "lastNotes" ? notesInputRef : editInputRef).current?.select(),
+    );
+  }
+
+  function startEditing() {
+    if (selected) editCell(selected, selCol.key);
   }
 
   function cancelEditing() {
@@ -703,11 +729,20 @@ export function LeadsGrid({
     }
     setSaving(true);
     try {
-      const res = await fetch(`/api/call-leads/${editing.leadId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [editing.key]: next }),
-      });
+      // Notes are the latest call's, so they go to the calls route; every
+      // other editable column is the lead's own.
+      const res =
+        editing.key === "lastNotes"
+          ? await fetch("/api/calls", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callLeadId: editing.leadId, notes: next }),
+            })
+          : await fetch(`/api/call-leads/${editing.leadId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ [editing.key]: next }),
+            });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(data.error ?? `Could not save (${res.status}).`);
@@ -719,7 +754,9 @@ export function LeadsGrid({
           ...prev[editing.leadId],
           // What the server stored, not what was typed — it trims, and a
           // cleared cell comes back as null.
-          [editing.key]: data[editing.key] ?? null,
+          [editing.key]:
+            (editing.key === "lastNotes" ? data.notes : data[editing.key]) ??
+            null,
         },
       }));
       toast.success("Saved");
@@ -768,7 +805,9 @@ export function LeadsGrid({
       // Enter and F2 open the editor, as they do in a spreadsheet.
       case "Enter":
       case "F2":
-        if (!canEdit) return;
+        // Any editable column, not just `canEdit`: a notes cell on a lead
+        // nobody has rung gets told why instead of the key doing nothing.
+        if (!isEditable(selCol.key)) return;
         startEditing();
         break;
       default:
@@ -777,8 +816,21 @@ export function LeadsGrid({
     e.preventDefault();
   }
 
+  /** A notes edit belongs to the call that was latest when it was typed. Once
+   *  another call is logged, or that one is deleted, laying it over the row
+   *  would show an old note against a different call. */
+  function forgetNotesEdit(id: number) {
+    setFieldEdits((prev) => {
+      if (!prev[id] || !("lastNotes" in prev[id])) return prev;
+      const rest = { ...prev[id] };
+      delete rest.lastNotes;
+      return { ...prev, [id]: rest };
+    });
+  }
+
   /** A call was logged: one more attempt, and it happened just now. */
   function handleLogged(id: number, outcome: CallOutcome) {
+    forgetNotesEdit(id);
     const current = rows.find((l) => l.id === id);
     setCallEdits((prev) => ({
       ...prev,
@@ -801,6 +853,9 @@ export function LeadsGrid({
 
   /** The last call was mislabelled — same attempt, different outcome. */
   function handleCorrected(id: number, next: CallCategory) {
+    // Relabelling keeps the same call and its notes; only "never called"
+    // deletes it.
+    if (next === "uncalled") forgetNotesEdit(id);
     const current = rows.find((l) => l.id === id);
     setCallEdits((prev) => ({
       ...prev,
@@ -876,7 +931,25 @@ export function LeadsGrid({
         <span className="text-[13px] font-semibold text-muted-foreground">
           fx
         </span>
-        {editing ? (
+        {editing?.key === "lastNotes" ? (
+          // A textarea for notes only: an input drops line breaks, so saving a
+          // note written over several lines on the dial card would flatten it.
+          <textarea
+            ref={notesInputRef}
+            value={draft}
+            disabled={saving}
+            rows={Math.min(Math.max(draft.split("\n").length, 1), 5)}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) saveEdit();
+              else if (e.key === "Escape") cancelEditing();
+              else return;
+              e.preventDefault();
+            }}
+            title="Enter saves. Shift+Enter starts a new line."
+            className="min-w-0 flex-1 resize-none rounded border border-primary bg-background px-2 py-0.5 text-[13px] leading-5 outline-none disabled:opacity-60"
+          />
+        ) : editing ? (
           <input
             ref={editInputRef}
             value={draft}
@@ -931,7 +1004,9 @@ export function LeadsGrid({
                 title={
                   canEdit
                     ? "Edit this cell (Enter)"
-                    : "This column comes from the calls themselves"
+                    : selCol.key === "lastNotes"
+                      ? "Nobody has rung this lead yet. Log a call first: notes belong to a call"
+                      : "This column comes from the calls themselves"
                 }
                 onClick={startEditing}
               >
@@ -1140,13 +1215,7 @@ export function LeadsGrid({
                               // Double-click opens the editor, as in a
                               // spreadsheet. The single click that precedes it
                               // has already selected this cell.
-                              if (isEditable(c.key)) {
-                                setEditing({ leadId: l.id, key: c.key });
-                                setDraft(cellText(l, c.key));
-                                requestAnimationFrame(() =>
-                                  editInputRef.current?.select(),
-                                );
-                              }
+                              editCell(l, c.key);
                             }}
                             title={c.key === "phone" ? "Click to copy" : undefined}
                             className={cn(

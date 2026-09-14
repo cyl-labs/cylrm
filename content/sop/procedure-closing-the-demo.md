@@ -50,6 +50,12 @@ harder to postpone than a conversation.
 Both legs are recorded, as always. Keep the tab open: closing it drops both
 calls.
 
+**Logging it afterwards.** It counts as a meeting, and the caller who booked it
+is paid, once they **pick up and stay on while you bring the agent in**. That is
+what **They showed up** means on Meetings and on Payroll. No answer, or they
+picked up but could not stay for it: log **No show**, which puts a ring back on
+the caller's list to rebook it.
+
 ## Before you dial the agent in
 
 Set expectations first, or a generic demo gets judged as the finished product.

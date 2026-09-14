@@ -609,6 +609,14 @@ export function MeetingsList({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
                       <DropdownMenuLabel>Did they turn up?</DropdownMenuLabel>
+                      {/* The bar, in front of the person answering it. The
+                          demo is a phone call now, so "turned up" needed
+                          saying: this answer is what the caller is paid on. */}
+                      <p className="max-w-60 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
+                        Showed up means they picked up and stayed on while the
+                        agent was brought in. No answer, or they could not stay,
+                        is a no show.
+                      </p>
                       {(
                         Object.keys(ATTENDANCE_LABEL) as DemoStatus[]
                       ).map((sVal) => (

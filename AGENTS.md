@@ -520,6 +520,7 @@ inbound handled.
 - `gatekeeper` was dropped and put back the same day (`2026-08-05-drop-gatekeeper.sql`, then `-restore-gatekeeper.sql`). Both files are kept: the drop is what the four production rows were mapped through, and the restore names those ids so the round trip is auditable. It also shows the cheap direction — `ALTER TYPE ... ADD VALUE ... BEFORE` needs no rebuild, but must commit before anything uses the value, so that file has no `BEGIN`.
 - Spreadsheet detail (`src/components/calls/leads-grid.tsx`) — every calling lead in a Google-Sheets-style grid, with column letters, a formula bar, arrow-key cell selection, and a sheet tab per call list. Rows are windowed on a fixed `ROW_H`, so the row height and the virtualisation constants have to stay in step. It loads one payload (`getSheetLeads`, capped at `CALL_SHEET_LIMIT`) and does every tab, filter and search in the browser.
 - Cells on the spreadsheet that belong to the lead itself (company, phone, name, title, email) are edited through `PATCH /api/call-leads/[id]`, which re-derives `phone_key` — a number changed without it would go on being deduped against the old one — and refuses a number that fails `classifyPhone` or already exists on that list (the `(call_list_id, phone_key)` unique index would otherwise surface as a raw database error).
+- **The Notes cell is editable too, but it saves onto the latest call, not the lead** (2026-09-15, after a caller reported he could not edit notes). The column is `lastNotes`, the latest `call` row's notes, so the grid sends it to `PATCH /api/calls` with `{ callLeadId, notes }` and no `outcome`. That rewrites the notes in place and touches nothing else: not the outcome, not `user_id`, not `called_at`. A lead nobody has rung has no call to hold notes, so the cell is not editable there and the route refuses it too. The editor is a textarea for this one column (Enter saves, Shift+Enter is a new line), because an `<input>` silently drops line breaks and saving would flatten a multi-line note written on the dial card. The saved value is laid over the row like any field edit and is dropped the moment a new call is logged or the latest one corrected away, or the old note would sit over the new call's.
 - Leads are classified by **category** — the outcome enum plus "never called" — and the category cell is where one gets corrected: `PATCH /api/calls` overwrites the latest call's outcome instead of inserting another, so fixing a mis-tap does not read as a second dial, and `DELETE /api/calls?callLeadId=` drops that call to return a lead to never-called.
 - `@/lib/calls` imports the Postgres client, so a **client** component must only take types from it. Labels, the category list and `categoryOf` live in `src/components/calls/outcome.ts` for that reason — importing a value from `@/lib/calls` into the grid pulled the driver into the browser bundle and broke the build.
 - Aggregates in `getCallLists` count `l.id`, not `*`: a list whose leads are all cross-list duplicates joins to nothing, and `count(*)` scores the LEFT JOIN's phantom NULL row as an uncalled lead — that read "-1 of 0 worked" before it was fixed.
@@ -582,7 +583,11 @@ the only place the Cal.com button existed. `components/calls/book-demo.tsx`,
   opens `BookDemoDialog` instead of saving at once; the dialog saves through
   the host's own `log`/`correct`/`logCall`, so each screen keeps its update and
   error handling. A lead or card already at Demo booked gets "Book on Cal.com"
-  in its menu. The correction route (`PATCH /api/calls`) now writes the email
+  in its menu, **and no "Demo booked" in its "Log a call" list**: with both on
+  offer, a founder booking Santa Fe Junk Removal's slot picked Demo booked and
+  logged a duplicate demo, which added a call and a pickup to the caller's pay
+  figures. A genuine second demo with the same business can still be logged
+  from the dial card. The correction route (`PATCH /api/calls`) now writes the email
   and name back to the lead the way logging does.
 - **The booking link is built in one place** (`calBookingHref`), because its
   notes line `Company (+1…)` is what the meetings sync matches a booking to its
@@ -1421,6 +1426,7 @@ sentence claiming a rate nobody is paid.
   the Postgres detail, including `constraint_name` and code `23505`, hangs off
   `err.cause`. Matching a constraint name against the outer message silently
   never fires and turns an actionable 409 into an unexplained 500.
+- **"Showed up" means they picked up and stayed on for the agent** (founders' rule, 2026-09-15). The demo stopped being a Google Meet on 2026-09-11 and is now a founder ringing the prospect at the booked time and merging the agent in, so "turned up" had to be redefined: it counts when they answer **and stay on the line while the agent is brought in**. No answer, or picking up and asking to do it another time, is a no show, which is right because that is what puts the ring back to rebook on the caller's list. The rule is written out wherever the answer is given or paid on: `procedure-after-booking.md` (callers), `procedure-closing-the-demo.md` (founders), the Meetings explainer, the "Log what happened" menu, the Payroll intro and Showed up button, and the dial card's pay line. **If it changes, change all of them.**
 - **A booking has three answers, not two** (`call_demo_attendance.status`:
   `showed_up` | `no_show` | `invalid`, was a `showed_up` boolean until
   `2026-08-27-demo-attendance-status.sql`). `invalid` is not a gentler

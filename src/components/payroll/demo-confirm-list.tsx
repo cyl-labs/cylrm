@@ -154,6 +154,7 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
           variant={d.status === "showed_up" ? "default" : "outline"}
           disabled={busy === d.callId}
           onClick={() => mark(d.callId, "showed_up")}
+          title="They picked up at the booked time and stayed on while the agent was brought in"
         >
           <Check className="size-3.5" strokeWidth={2.5} />
           Showed up

@@ -431,6 +431,11 @@ function HowToBook() {
         <span className="font-bold">decision maker</span>,{" "}
         <span className="font-bold">interested</span>, and{" "}
         <span className="font-bold">a specific date and time agreed</span>.
+        You are paid when they{" "}
+        <span className="font-bold">
+          pick up at that time and stay on while we add the agent
+        </span>
+        .
       </p>
     </div>
   );

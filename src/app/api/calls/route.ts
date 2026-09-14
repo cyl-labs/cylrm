@@ -165,6 +165,7 @@ export async function PATCH(request: Request) {
     callbackAt?: unknown;
     contactEmail?: unknown;
     contactName?: unknown;
+    notes?: unknown;
   } | null;
 
   if (!body) {
@@ -174,6 +175,25 @@ export async function PATCH(request: Request) {
   if (!Number.isInteger(leadId)) {
     return Response.json({ error: "Invalid lead." }, { status: 400 });
   }
+
+  // Notes typed into the Spreadsheet's Notes cell. That column is the latest
+  // call's notes, so an edit rewrites them in place: not an outcome change and
+  // not a new attempt, the same reasoning as the rest of this route. It was not
+  // editable at all until 2026-09-15, and a caller who wanted to add what a
+  // prospect said after the fact had nowhere to put it.
+  if (body.outcome === undefined && typeof body.notes === "string") {
+    const latest = await latestCallFor(leadId);
+    if (!latest) {
+      return Response.json(
+        { error: "This lead has no calls yet. Log a call first: notes belong to a call." },
+        { status: 400 },
+      );
+    }
+    const notes = body.notes.trim() === "" ? null : body.notes.trim().slice(0, 5000);
+    await db.update(call).set({ notes }).where(eq(call.id, latest.id));
+    return Response.json({ id: latest.id, notes });
+  }
+
   if (!isOutcome(body.outcome)) {
     return Response.json({ error: "Unknown call outcome." }, { status: 400 });
   }
