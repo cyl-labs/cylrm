@@ -26,6 +26,10 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${figtree.variable} ${geistMono.variable} h-full antialiased`}
+      // The theme script in the app layout adds `dark` to this element before
+      // React hydrates, which is what stops a flash of light on a dark browser.
+      // Without this, React reports the extra class as a mismatch.
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

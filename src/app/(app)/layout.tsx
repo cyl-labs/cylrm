@@ -13,6 +13,8 @@ import { sql } from "drizzle-orm";
 import { NavLinks } from "@/components/nav-links";
 import { Toaster } from "@/components/ui/sonner";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { AppThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function AppLayout({
   children,
@@ -32,6 +34,7 @@ export default async function AppLayout({
   // that is the POST below.
   if (!me && (await isSwitchedOff())) {
     return (
+      <AppThemeProvider>
       <div className="flex min-h-svh items-center justify-center bg-background px-6">
         <div className="w-full max-w-sm rounded-xl border bg-card p-6 text-center">
           <h1 className="text-base font-extrabold tracking-[-0.01em]">
@@ -51,6 +54,7 @@ export default async function AppLayout({
           </form>
         </div>
       </div>
+      </AppThemeProvider>
     );
   }
 
@@ -74,6 +78,7 @@ export default async function AppLayout({
     Boolean(row?.telnyx_did?.trim()) && (await dialMethodOf(me?.id)) === "browser";
 
   return (
+    <AppThemeProvider>
     <LinePresence>
     {/* The phone lives here, above every screen, because a page unmounts on
         navigation and a layout does not — which is why a call used to die the
@@ -107,6 +112,7 @@ export default async function AppLayout({
               {me.name}
             </p>
           )}
+          <ThemeToggle />
           <form method="post" action="/api/logout">
             <button
               type="submit"
@@ -127,5 +133,6 @@ export default async function AppLayout({
     </div>
     </CallLineProvider>
     </LinePresence>
+    </AppThemeProvider>
   );
 }

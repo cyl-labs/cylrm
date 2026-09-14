@@ -232,12 +232,15 @@ export function RecordingSheet({
                         <p
                           className={cn(
                             "mt-0.5 inline-block rounded-[3px] px-1.5 py-0.5 text-[13px] leading-relaxed",
+                            // The script's speaker tints, and their dark
+                            // versions from `SopProse`. They were inline styles,
+                            // which no dark theme can reach: light pink under
+                            // light text in dark mode.
+                            turn.speaker === "caller"
+                              ? "bg-[#FDE7E1] dark:bg-[#3b211c]"
+                              : "bg-[#EDEDED] dark:bg-[#26262a]",
                             playing && "ring-2 ring-primary/40",
                           )}
-                          style={{
-                            background:
-                              turn.speaker === "caller" ? "#FDE7E1" : "#EDEDED",
-                          }}
                         >
                           {turn.text}
                         </p>

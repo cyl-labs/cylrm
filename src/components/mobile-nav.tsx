@@ -4,6 +4,7 @@ import * as React from "react";
 import { LogOut, Menu } from "lucide-react";
 import { NavLinks } from "@/components/nav-links";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -87,6 +88,7 @@ export function MobileNav({
           />
         </div>
         <div className="mt-auto px-2.5 pb-3.5">
+          <ThemeToggle />
           <form method="post" action="/api/logout">
             <button
               type="submit"

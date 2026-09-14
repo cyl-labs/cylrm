@@ -97,38 +97,48 @@
 }
 
 .dark {
-  --background: oklch(0.141 0.004 285.8);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.9);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.9);
-  --popover-foreground: oklch(0.985 0 0);
+  /* The same warm palette at night (2026-09-14, the toggle in the sidebar).
+     This block was shadcn's stock dark theme until then: cool blue-grey
+     neutrals, the exact mismatch the light palette's note warns about, and
+     unused because nothing turned it on.
+
+     Neutrals keep the light palette's warm hue. The accent brightens to
+     #f2683c, because #d2451f only reaches 3.9:1 as text on a dark ground, and
+     buttons take dark text on it rather than white: white on #f2683c is 3.1:1,
+     dark on it is 5.8:1. Measured against the background: body text 16:1,
+     muted text 7:1, accent text 6:1. */
+  --background: #171412;
+  --foreground: #f1ece8;
+  --card: #201c19;
+  --card-foreground: #f1ece8;
+  --popover: #231f1c;
+  --popover-foreground: #f1ece8;
   --primary: #f2683c;
-  --primary-foreground: #ffffff;
-  --secondary: oklch(0.274 0.005 286);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.005 286);
-  --muted-foreground: oklch(0.712 0.013 286.1);
-  --accent: oklch(0.274 0.005 286);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: #ef5c73;
-  --success: #21c08b;
+  --primary-foreground: #1a1512;
+  --secondary: #2c2723;
+  --secondary-foreground: #e2dbd5;
+  --muted: #2a2522;
+  --muted-foreground: #a89f98;
+  --accent: #2e2824;
+  --accent-foreground: #f1ece8;
+  --destructive: #f0647a;
+  --success: #2fc792;
   --warning: oklch(0.769 0.165 70.1);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: #37302b;
+  --input: #463e38;
   --ring: #a8492c;
   --chart-1: #f2683c;
-  --chart-2: oklch(0.714 0.143 254.6);
-  --chart-3: oklch(0.723 0.192 149.6);
+  --chart-2: #f5a283;
+  --chart-3: #2fc792;
   --chart-4: oklch(0.769 0.165 70.1);
-  --chart-5: oklch(0.712 0.013 286.1);
-  --sidebar: oklch(0.179 0.004 286);
-  --sidebar-foreground: oklch(0.871 0.005 286.3);
+  --chart-5: #a89f98;
+  --sidebar: #1c1916;
+  --sidebar-foreground: #cfc6bf;
   --sidebar-primary: #f2683c;
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.274 0.005 286);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-primary-foreground: #1a1512;
+  --sidebar-accent: #2c2521;
+  --sidebar-accent-foreground: #f1ece8;
+  --sidebar-border: #2f2925;
   --sidebar-ring: #a8492c;
 }
 
