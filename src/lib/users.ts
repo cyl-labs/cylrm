@@ -34,6 +34,10 @@ export type TeamMember = {
   /** Lifetime, across every list — what the Team screen shows next to a name
    *  so a dormant account is obvious without opening Stats. */
   calls: number;
+  /** The call lists assigned to them. Shown on Team because nothing else
+   *  answers "what is this person working" in one place, and an active caller
+   *  with none signs in to an empty app. Assigned from Call lists, not here. */
+  lists: { id: number; name: string; leads: number; uncalled: number }[];
 };
 
 /**
@@ -84,8 +88,37 @@ export async function listTeam(): Promise<TeamMember[]> {
     // Descending on a boolean puts the active accounts first.
     .orderBy(desc(appUser.active), asc(appUser.name));
 
+  // Their lists, fetched apart from the query above rather than joined into
+  // it: that one already aggregates calls per person, and a second one-to-many
+  // join would multiply every call count by the number of lists they hold.
+  // Identifiers written out qualified, per the subquery gotcha in AGENTS.md.
+  // "Not rung" means no call at all, which is what `uncalled` means on the
+  // Call lists screen, so the two cannot disagree about a list.
+  const listRows = (await db.execute(sql`
+    select cl.assigned_user_id as user_id, cl.id, cl.name,
+      count(l.id)::int as leads,
+      count(l.id) filter (
+        where not exists (select 1 from "call" c where c.call_lead_id = l.id)
+      )::int as uncalled
+    from call_list cl
+    left join call_lead l
+      on l.call_list_id = cl.id and l.duplicate_of_lead_id is null
+    where cl.assigned_user_id is not null
+    group by cl.id, cl.name, cl.assigned_user_id
+    order by cl.name
+  `)) as { user_id: number; id: number; name: string; leads: number; uncalled: number }[];
+  const listsBy = new Map<number, TeamMember["lists"]>();
+  for (const l of listRows) {
+    const uid = Number(l.user_id);
+    listsBy.set(uid, [
+      ...(listsBy.get(uid) ?? []),
+      { id: Number(l.id), name: l.name, leads: Number(l.leads), uncalled: Number(l.uncalled) },
+    ]);
+  }
+
   return rows.map((r) => ({
     ...r,
+    lists: listsBy.get(r.id) ?? [],
     role: r.role,
     createdAt: r.createdAt.toISOString(),
     lastSeenAt: r.lastSeenAt ? r.lastSeenAt.toISOString() : null,

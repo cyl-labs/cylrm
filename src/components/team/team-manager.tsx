@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { KeyRound, Pencil, Plus, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -49,6 +50,24 @@ const NO_DID = "__market__";
  *  `numbersFor`. */
 const PREFIX: Record<string, string> = { sg: "+65", us: "+1", gb: "+44" };
 const MARKET_LABEL: Record<string, string> = { sg: "Singapore", us: "US", gb: "UK" };
+
+/** One list, so the empty and "show switched off" rows can span all of it.
+ *  Both said `colSpan={COLUMNS.length}` long after the table grew past nine. */
+const COLUMNS = [
+  "Name",
+  "Username",
+  "Role",
+  "Market",
+  "Call lists",
+  "Dials with",
+  "Their number",
+  "Paid by",
+  "Keypad",
+  "Hints",
+  "Calls",
+  "Last dialled",
+  "",
+];
 
 export function TeamManager({
   numbers: accountNumbers,
@@ -167,13 +186,15 @@ export function TeamManager({
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b text-left">
-                {["Name", "Username", "Role", "Market", "Dials with", "Their number", "Paid by", "Keypad", "Hints", "Calls", "Last dialled", ""].map(
-                  (h, i) => (
+                {COLUMNS.map(
+                  (h) => (
                     <th
                       key={h || "actions"}
                       className={cn(
                         "whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground",
-                        i === 6 && "text-right",
+                        // By name, not position: an index here drifted onto
+                        // "Paid by" as columns were added in front of Calls.
+                        h === "Calls" && "text-right",
                       )}
                     >
                       {h}
@@ -186,7 +207,7 @@ export function TeamManager({
               {team.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={COLUMNS.length}
                     className="px-4 py-10 text-center text-muted-foreground"
                   >
                     Nobody yet.
@@ -264,6 +285,48 @@ export function TeamManager({
                                 ? "UK"
                                 : "Every region"}
                         </span>
+                      )}
+                    </td>
+                    {/* What they are working. Answers "why is this person's
+                        screen empty" here, rather than by opening every card on
+                        Call lists. Assigned there; this only shows it. The count
+                        is what is left to start on, and turns red at zero, the
+                        other reason a caller runs dry. */}
+                    <td className="px-4 py-2.5">
+                      {m.lists.length > 0 ? (
+                        <div className="flex min-w-44 max-w-72 flex-wrap gap-1">
+                          {m.lists.map((l) => (
+                            <Link
+                              key={l.id}
+                              href={`/calls/${l.id}`}
+                              title={`${l.leads} leads, ${l.uncalled} not rung yet`}
+                              className="inline-flex max-w-full items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[12px] transition-colors hover:bg-muted"
+                            >
+                              <span className="truncate font-semibold">
+                                {l.name}
+                              </span>
+                              <span
+                                className={cn(
+                                  "shrink-0 whitespace-nowrap tabular-nums",
+                                  l.uncalled === 0
+                                    ? "font-semibold text-destructive"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {l.uncalled} not rung
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : m.active && m.role === "caller" ? (
+                        <Link
+                          href="/calls"
+                          className="whitespace-nowrap text-[12px] font-semibold text-destructive underline-offset-4 hover:underline"
+                        >
+                          None yet. Assign on Call lists
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
@@ -526,7 +589,7 @@ export function TeamManager({
               )}
               {off > 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-2.5">
+                  <td colSpan={COLUMNS.length} className="px-4 py-2.5">
                     <button
                       type="button"
                       onClick={() => setShowOff((v) => !v)}
