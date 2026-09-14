@@ -19,6 +19,13 @@ import { ListRegion } from "@/components/calls/list-region";
 import { WorkGateBanner } from "@/components/calls/work-gate";
 import { getWorkOrder } from "@/lib/work-order";
 import { REGION_LABELS, REGION_ORDER } from "@/components/calls/region";
+import { ListSortPicker } from "@/components/calls/list-sort-picker";
+import {
+  DEFAULT_LIST_SORT,
+  isListSort,
+  listProgress,
+  sortLists,
+} from "@/lib/list-sort";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -27,11 +34,11 @@ export const dynamic = "force-dynamic";
 export default async function CallsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mine?: string }>;
+  searchParams: Promise<{ mine?: string; sort?: string }>;
 }) {
   const me = await getCurrentUser();
   const isAdmin = me?.role === "admin";
-  const [{ mine: mineParam }, all, team] = await Promise.all([
+  const [{ mine: mineParam, sort: sortParam }, all, team] = await Promise.all([
     searchParams,
     // A caller is only ever handed their own niches; the filter below is an
     // admin convenience on top of the full set.
@@ -48,7 +55,10 @@ export default async function CallsPage({
   // Admins default to the whole floor — that is the job — and can narrow to
   // their own. Callers have nothing to narrow: `all` is already only theirs.
   const mine = isAdmin && mineParam === "1";
-  const lists = mine ? myLists : all;
+  // The chosen order, applied before the folders are cut so every folder keeps
+  // it. See `lib/list-sort.ts` for why niche is the default.
+  const sort = isListSort(sortParam) ? sortParam : DEFAULT_LIST_SORT;
+  const lists = sortLists(mine ? myLists : all, sort);
   const people = team.map((t) => ({ id: t.id, name: t.name, active: t.active }));
 
   // The end-of-session report, filled in. Callers only: the founders are who
@@ -96,7 +106,9 @@ export default async function CallsPage({
               ].map((t) => (
                 <Link
                   key={t.key}
-                  href={`/calls?mine=${t.key}`}
+                  // Carries the sort, or switching between Mine and Everyone
+                  // would quietly put the order back to the default.
+                  href={`/calls?mine=${t.key}${sort === DEFAULT_LIST_SORT ? "" : `&sort=${sort}`}`}
                   className={cn(
                     "rounded-md px-2.5 py-1 text-[13px] font-semibold transition-colors",
                     t.on
@@ -143,6 +155,17 @@ export default async function CallsPage({
             demos={report.demos}
             zoneName={report.zoneName}
           />
+        )}
+        {/* Above the lists rather than in the header: the header already
+            holds Mine/Everyone and Import, and a third control there does not
+            fit a phone. Only once there is an order worth choosing. */}
+        {lists.length > 2 && (
+          <div className="mb-3 flex justify-end">
+            <ListSortPicker
+              value={sort}
+              mine={mineParam === "1" || mineParam === "0" ? mineParam : null}
+            />
+          </div>
         )}
         {lists.length === 0 ? (
           <div className="rounded-xl border border-dashed py-16 text-center">
@@ -280,9 +303,9 @@ function ListCard({
   // "35 of 40 worked" over a screen that then asked for 21 more
   // calls was two different questions wearing the same sentence:
   // a lead rung and not reached is still work.
-  const leftToCall = l.uncalled + l.toRetry + l.callbacksDue;
-  const done = l.total - leftToCall;
-  const pct = l.total === 0 ? 0 : Math.round((done / l.total) * 100);
+  // Shared with the sort, so "most done first" orders by this very bar.
+  const { leftToCall, done, fraction } = listProgress(l);
+  const pct = Math.round(fraction * 100);
   return (
     <li className="relative">
       {/* Over the card, not inside it — the card is one big link

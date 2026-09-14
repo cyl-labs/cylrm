@@ -313,6 +313,17 @@ inbound handled.
   rather than being guessed. Empty folders are not rendered. The chip on each
   card is the control, not the label — the folder is already legible from the
   heading the card sits under.
+- **Lists are sorted by niche by default, with a Sort picker** (2026-09-14,
+  `lib/list-sort.ts`, `?sort=`). The screen used to be newest-created first
+  straight off `getCallLists`, which put every fresh split part and import at
+  the top and scattered a niche's parts across the grid. Options: niche A to Z
+  (numbers compared as numbers, so `.2` before `.10`), most done first, least
+  done first, newest first. "Done" is `listProgress`, the same function that
+  draws each card's bar, so the order always matches what the reader sees.
+  Sorted before the folders are cut, so every folder keeps it. The picker and
+  the Mine/Everyone links each carry the other's parameter — the `?list=` trap
+  documented on Stats. Shown once there are more than two lists, callers
+  included.
 - **Bulk import**: the import dialog takes many CSVs at once, and each becomes
   its own list. Every file is first sent to `POST /api/call-lists` with
   `dryRun=1`, which runs the real parser and reports usable/skipped counts
