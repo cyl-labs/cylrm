@@ -108,7 +108,7 @@ export default async function AppLayout({
               logging a morning of calls under a colleague's name is only
               noticed once the stats are wrong. */}
           {me && (
-            <p className="truncate px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-sidebar-foreground/55">
+            <p className="truncate px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-sidebar-foreground/55 dark:text-sidebar-foreground/75">
               {me.name}
             </p>
           )}

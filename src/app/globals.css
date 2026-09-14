@@ -99,11 +99,21 @@
 .dark {
   /* Claude's dark theme (2026-09-14, asked for by the founders after the first
      dark palette — near-black browns under a bright #f2683c — looked off).
-     Values follow claude.ai's own: a warm grey page #262624, a darker sidebar
-     #1f1e1d, raised surfaces #30302e, off-white text #faf9f5 with a softer
-     #b1ada1 for secondary text, and the clay accent. claude.ai needs a login
-     to inspect, so these are the widely copied community extraction (tweakcn's
-     "Claude" theme), not a published spec.
+     Values follow claude.ai's own: a warm grey page #262624, raised surfaces
+     #30302e, off-white text #faf9f5 with a softer #b1ada1 for secondary text,
+     and the clay accent. claude.ai needs a login to inspect, so these are the
+     widely copied community extraction (tweakcn's "Claude" theme), not a
+     published spec.
+
+     The sidebar is the raised surface, not a darker strip. It shipped as
+     #1f1e1d beside a #30302e page header, so three shades met in the top-left
+     corner and the founders read it as the sidebar not matching. A screenshot
+     of claude.ai measured its sidebar lighter than the page and the same colour
+     as its chat box, which is also how the light theme here already works
+     (sidebar, header and cards all white). Its border is --border so the
+     header's bottom rule and the sidebar's edge are one line. The active item's
+     clay is lighter (--sidebar-primary #eb9a7c, 5.1:1) because #dd7f60 on its
+     tint over #30302e is 3.96:1.
 
      Two deliberate differences, both for readability:
      - The clay is #dd7f60, one shade lighter than claude.ai's #d97757. Small
@@ -136,13 +146,13 @@
   --chart-3: #2fc792;
   --chart-4: oklch(0.769 0.165 70.1);
   --chart-5: #b1ada1;
-  --sidebar: #1f1e1d;
+  --sidebar: #30302e;
   --sidebar-foreground: #c2c0b6;
-  --sidebar-primary: #dd7f60;
+  --sidebar-primary: #eb9a7c;
   --sidebar-primary-foreground: #1f1e1d;
-  --sidebar-accent: #30302e;
+  --sidebar-accent: #3a3a37;
   --sidebar-accent-foreground: #faf9f5;
-  --sidebar-border: #2f2f2c;
+  --sidebar-border: #3e3e38;
   --sidebar-ring: #dd7f60;
 }
 

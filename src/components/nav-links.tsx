@@ -45,7 +45,7 @@ export function NavLinks({
             className={cn(
               "flex h-[38px] items-center gap-2.5 rounded-lg px-3 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               active &&
-                "bg-primary/10 font-bold text-primary hover:bg-primary/10 hover:text-primary",
+                "bg-sidebar-primary/10 font-bold text-sidebar-primary hover:bg-sidebar-primary/10 hover:text-sidebar-primary",
             )}
           >
             <Icon className="size-[17px]" strokeWidth={1.8} />
