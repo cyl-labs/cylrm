@@ -134,15 +134,19 @@ _(let them answer)_
 
 _(let them answer)_
 
+If they will not give an email, book it anyway and leave it out. They get no
+invite or reminder, so use the no-email line at the end.
+
 ### Set their time zone before you offer any times
 
 > **You say** And what time zone are you in?
 
 _(let them answer)_
 
-Press **Book it on Cal.com**, then change the time zone on the left of that
-page from yours to theirs. Every slot now reads in their local time, so you
-offer what they hear and book what they agreed. Do not convert in your head.
+Press **Book it on Cal.com**. No login is needed: it opens our booking page with
+their details filled in. Change the time zone on the left of that page from
+yours to theirs. Every slot now reads in their local time, so you offer what
+they hear and book what they agreed. Do not convert in your head.
 
 ### Offer times, never ask for them
 
@@ -177,6 +181,10 @@ Book the slot you just agreed, while they are still on the phone.
 the earliest slot it offers.
 
 > **You say** Done. You will get a calendar invite in the next minute, and a reminder the day before. We will call you on this number. See you [day] at [time] your time.
+
+_(no email? there is no invite coming, so say this instead)_
+
+> **You say** Done. We will call you on this number on [day] at [time] your time. That is [day] at [time], so pop it in your phone now.
 
 Then come back and log the call as **Demo booked**.
 

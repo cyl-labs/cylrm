@@ -134,6 +134,12 @@ _(let them answer)_
 
 _(let them answer)_
 
+If they will not give an email, book it anyway and leave it out. They get no
+invite or reminder, so use the no-email line at the end.
+
+Press **Book it on Cal.com**. No login is needed: it opens our booking page with
+their details filled in.
+
 ### Offer times, never ask for them
 
 **Two times. One each on two different days.**
@@ -167,6 +173,10 @@ Book the slot you just agreed, while they are still on the phone.
 the earliest slot it offers.
 
 > **You say** Done. You will get a calendar invite in the next minute, and a reminder the day before. We will call you on this number. See you [day] at [time].
+
+_(no email? there is no invite coming, so say this instead)_
+
+> **You say** Done. We will call you on this number on [day] at [time]. That is [day] at [time], so pop it in your phone now.
 
 Then come back and log the call as **Demo booked**.
 

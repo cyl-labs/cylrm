@@ -375,15 +375,18 @@ function HowToBook() {
       Tap <span className="font-bold">Demo booked</span> below first — it shows
       which slots are free.
     </>,
-    <>Take their name and best email. Read it back letter by letter.</>,
+    <>
+      Take their name and best email. Read it back letter by letter.{" "}
+      <span className="font-bold">No email? Book it anyway.</span>
+    </>,
     <>
       Ask <span className="font-bold">what time zone they are in</span>. Never
       work it out from their number.
     </>,
     <>
-      On Cal.com, switch the time zone to theirs. Every slot then reads in their
-      local time — <span className="font-bold">do not convert in your head</span>
-      .
+      On Cal.com (no login needed), switch the time zone to theirs. Every slot
+      then reads in their local time —{" "}
+      <span className="font-bold">do not convert in your head</span>.
     </>,
     <>
       Offer two times on two different days, read off the slots in front of you.
@@ -396,8 +399,9 @@ function HowToBook() {
       &ldquo;Five thirty&rdquo; is two appointments twelve hours apart.
     </>,
     <>
-      Book it while they are still on the line, then confirm: invite in the next
-      minute, reminder the day before.
+      Book it while they are still on the line, then confirm the day and time.
+      With an email they also get an invite in the next minute and a reminder
+      the day before.
     </>,
   ];
   return (

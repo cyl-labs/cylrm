@@ -12,19 +12,32 @@ them to change their mind.
 
 ## Take their name and email
 
-The email is the only thing you do not already have, and the booking is not
-finished without it: no invite, no reminder, and a meeting far more likely to
-be a no-show. You are already on their number, so do not ask for one.
+The email is what sends them the calendar invite and both reminders, and a
+meeting nobody reminded them about is far more likely to be a no-show. Ask for
+it every time. You are already on their number, so do not ask for one.
 
 > **You say** Perfect, let me get you scheduled in. Can I take your name and the best email for the invite?
 
 Confirm the email back to them letter by letter if there is any doubt. A typo
-here costs the whole meeting.
+here costs them the invite and the reminders.
+
+**If they will not give an email, book it anyway.** Leave the email box empty:
+Cal.com does not need one. The booking still counts, but nothing will remind
+them, so say the day and time back twice before you hang up.
+
+## You do not need a Cal.com login
+
+**Book it on Cal.com**, on the Demo booked form, opens our booking page in a new
+tab with their details already filled in. It is the same page a prospect would
+use, so there is no account, password or email to sign in with. If Cal.com ever
+asks you to sign in, you are on the wrong page: close that tab and press the
+button again.
 
 ## Time zones, if you are calling the US
 
-Singapore is one time zone and so is the UK. If that is your market, set
-Cal.com to it once and this section never applies to you again.
+Singapore is one time zone and so is the UK. If that is your market, check that
+the time zone on the booking page shows it, and change it the way described
+below if it does not.
 
 The US is four zones before Alaska and Hawaii, and both are in the lists, so
 there you have to ask.
@@ -84,8 +97,8 @@ asking you. The time itself is read off Cal.com, so that part is not on you.
 
 ## What happens automatically
 
-Cal.com sends the calendar invite within a minute of booking, then reminds
-them again a day before and an hour before. The booking email comes through to
+If you took their email, Cal.com sends the calendar invite within a minute of
+booking, then reminds them again a day before and an hour before. The booking email comes through to
 us at the same time, so nothing depends on you remembering — and neither does
 the prospect turning up.
 
