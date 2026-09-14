@@ -575,6 +575,11 @@ export const call = pgTable(
   (t) => [
     index("call_user_id_idx").on(t.userId),
     index("call_telnyx_session_id_idx").on(t.telnyxSessionId),
+    // A lead's latest call, which every calling screen asks for once per lead
+    // (`latestCall`). Without it each lead read the whole table: the sidebar's
+    // callbacks count took a second on every page. Column order matches that
+    // subquery's filter and sort. See 2026-09-14-call-lead-latest-idx.sql.
+    index("call_lead_latest_idx").on(t.callLeadId, t.calledAt.desc(), t.id.desc()),
   ],
 );
 
