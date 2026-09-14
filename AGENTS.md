@@ -368,6 +368,29 @@ inbound handled.
     returns `{ split, parts: [...] }`, and only the first part carries the
     file-wide counts so a split does not report the same 12 unusable rows N
     times.
+- **A list already in the CRM splits from the `⋯` menu** ("Split between
+  callers", `POST /api/call-lists/[id]/split`, `list-actions.tsx`), under the
+  importer's rules: dealt not sliced, duplicates left on the original, one
+  transaction, and the original list becomes part one so its calls keep their
+  list id. Parts are named by `partName` there too; that dialog used
+  `<name> <i+1>` until 2026-09-14.
+  - **Sizes are even by default and adjustable with a slider** (2026-09-14).
+    One handle between each pair of parts, arrow keys move it one lead, and no
+    part drops below one. An untouched slider sends no sizes and the server
+    deals evenly, so "Even split" on screen always means what it says.
+  - **Uneven sizes are still dealt, not cut.** `dealParts` in
+    `src/lib/split-deal.ts` gives each lead to the part furthest behind its
+    share, so a 60% part gets three leads in every five all the way down. With
+    equal sizes it produces exactly the old `i % n` order — checked for every
+    list from 2 to 600 leads and 2 to 10 parts — so an untouched split deals
+    the way it always did.
+  - **Chosen sizes must add up to the list as it is when the split runs.** The
+    dialog counts when it opens, and a list that gained or lost leads in
+    between is refused with a reason rather than dealt to sizes nobody chose.
+  - Each row shows roughly how many of its leads nobody has rung yet, which is
+    usually the reason for an uneven split. It is an estimate: fresh and worked
+    leads are dealt in proportion, not exactly.
+  - The importer's `split=N` is still even-only.
 - **Renaming and deleting a list** are on a `⋯` menu on each card, admin only
   and enforced in `PATCH`/`DELETE /api/call-lists/[id]` rather than by hiding
   the button. Delete is genuinely destructive and says what it will destroy in

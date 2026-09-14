@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
+import { dealParts, evenShares } from "@/lib/split-deal";
 
 /**
  * Divide a list already in the CRM between several callers.
@@ -13,16 +14,22 @@ import { getCurrentUser } from "@/lib/session";
  * The rules are the importer's, deliberately, because they were arrived at for
  * reasons that have not changed:
  *
- * - **Dealt round-robin, never cut into blocks.** A scrape arrives sorted — by
- *   city, by rating, by whatever the directory ordered on — so contiguous
- *   slices hand one caller every Alaska lead and another every Californian one.
- *   Dealing gives each part the same mix and, to within one lead, the same size.
+ * - **Dealt, never cut into blocks.** A scrape arrives sorted — by city, by
+ *   rating, by whatever the directory ordered on — so contiguous slices hand
+ *   one caller every Alaska lead and another every Californian one. Dealing
+ *   gives each part the same mix. See `dealParts`.
  * - **Duplicates are not dealt.** They are already held out of every queue and
  *   count, so including them would make one caller's share look larger than the
  *   work in it. They stay on the original.
  * - **One transaction.** A split that half-succeeds leaves a niche divided
  *   between callers with a chunk of it missing, which is worse than not having
  *   split at all.
+ *
+ * **Sizes are even unless the dialog sends them** (2026-09-14). A part carrying
+ * `leads` asks for that many, and then every part must, and they must add up to
+ * exactly the leads that can be rung *now*. The dialog counts them when it
+ * opens, so a list that gained or lost leads in between is refused with a
+ * reason rather than dealt to sizes nobody chose.
  *
  * The original list is kept and becomes the first part rather than being
  * emptied and deleted: its id is what every logged call reaches through, and a
@@ -34,7 +41,7 @@ import { getCurrentUser } from "@/lib/session";
  *  the size of the floor, low enough that a typo cannot make forty lists. */
 const MAX_PARTS = 10;
 
-type Part = { name: string; assignedUserId: number | null };
+type Part = { name: string; assignedUserId: number | null; leads: number | null };
 
 export async function POST(
   request: Request,
@@ -74,7 +81,11 @@ export async function POST(
     if (typeof p !== "object" || p === null) {
       return Response.json({ error: "Invalid part." }, { status: 400 });
     }
-    const { name, assignedUserId } = p as { name?: unknown; assignedUserId?: unknown };
+    const { name, assignedUserId, leads } = p as {
+      name?: unknown;
+      assignedUserId?: unknown;
+      leads?: unknown;
+    };
     const trimmed = typeof name === "string" ? name.trim().slice(0, 120) : "";
     if (!trimmed) {
       return Response.json({ error: "Every list needs a name." }, { status: 400 });
@@ -86,10 +97,29 @@ export async function POST(
     ) {
       return Response.json({ error: "Invalid owner." }, { status: 400 });
     }
+    if (
+      leads !== null &&
+      leads !== undefined &&
+      !(Number.isInteger(leads) && (leads as number) >= 1)
+    ) {
+      return Response.json(
+        { error: "Every list needs at least one lead." },
+        { status: 400 },
+      );
+    }
     parts.push({
       name: trimmed,
       assignedUserId: Number.isInteger(assignedUserId) ? (assignedUserId as number) : null,
+      leads: Number.isInteger(leads) ? (leads as number) : null,
     });
+  }
+
+  const sized = parts.filter((p) => p.leads !== null).length;
+  if (sized > 0 && sized < parts.length) {
+    return Response.json(
+      { error: "Give every list a number of leads, or leave them all even." },
+      { status: 400 },
+    );
   }
 
   const result = await db.transaction(async (tx) => {
@@ -110,7 +140,17 @@ export async function POST(
 
     if (workable.length < parts.length) {
       return {
-        error: `Only ${workable.length} leads can be rung — not enough for ${parts.length} lists.` as const,
+        error: `Only ${workable.length} leads can be rung — not enough for ${parts.length} lists.`,
+      };
+    }
+
+    const sizes = sized
+      ? parts.map((p) => p.leads as number)
+      : evenShares(workable.length, parts.length);
+    const asked = sizes.reduce((a, b) => a + b, 0);
+    if (asked !== workable.length) {
+      return {
+        error: `This list now has ${workable.length} leads that can be rung, not ${asked}. Close the split and open it again.`,
       };
     }
 
@@ -131,9 +171,10 @@ export async function POST(
     `);
 
     // Deal. Part 0 is already where it needs to be, so only the others move.
+    const order = dealParts(sizes);
     const moves = new Map<number, number[]>();
     workable.forEach((lead, i) => {
-      const target = i % parts.length;
+      const target = order[i];
       if (target === 0) return;
       const to = ids[target];
       moves.set(to, [...(moves.get(to) ?? []), lead.id]);
@@ -146,10 +187,10 @@ export async function POST(
     }
 
     return {
-      parts: ids.map((listId, i) => ({
-        id: listId,
+      parts: ids.map((partId, i) => ({
+        id: partId,
         name: parts[i].name,
-        leads: workable.filter((_, n) => n % parts.length === i).length,
+        leads: sizes[i],
       })),
     };
   });

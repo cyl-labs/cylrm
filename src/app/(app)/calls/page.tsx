@@ -304,6 +304,7 @@ function ListCard({
             listId={l.id}
             name={l.name}
             leads={l.total}
+            uncalled={l.uncalled}
             calls={l.callsLogged}
             people={people}
           />
