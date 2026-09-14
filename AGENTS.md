@@ -626,6 +626,14 @@ What replaced it, and the shape to keep:
     booking". **Not an empty location:** Cal.com attaches a Cal Video link
     when there is none, which would put a live "Meet link" button back on this
     screen. Before the change it was `[{"type":"attendeePhone"}]`.
+  - **Email is optional on that booking form** (2026-09-14, also over the
+    API). Prospects who would not give one were being booked as
+    `noemail@gmail.com`. Cal.com only allows it because "Best number to call
+    you on" stays visible and required — at least one of the two must be.
+    Editing `bookingFields` over the API **replaces the whole list**, so send
+    every field back, not just the one being changed. The trade-off: a booking
+    with no email gets no calendar invite and no Cal.com reminder emails, and
+    the CRM can only link it through the phone number in the notes.
 
 - **The "within a day" window is calendar days in the reader's own clock**, not
   a flat 24 hours: `(start_at at time zone tz)::date <= (now() at time zone
