@@ -14,14 +14,14 @@ every time, or you end up being interviewed.
 
 **First time they ask:**
 
-> **You say** My name's [your name]. I work with [their trade] on missed calls and messages. We set up a voice agent that picks up when you're on a job or closed.
+> **You say** My name's [your name]. I work with [their trade] on missed calls. We set up a voice agent that picks up when you're on a job or closed.
 
 _(let them answer)_
 
 **They ask again.** Give the name this time, then straight back to your
 question.
 
-> **You say** Cyllabs. Anyway, when you're out on a job, do those calls and messages go to voicemail?
+> **You say** Cyllabs. Anyway, when you're out on a job, do those calls go to voicemail?
 
 _(let them answer)_
 
@@ -29,7 +29,7 @@ _(let them answer)_
 Repeating the pitch is what makes you sound like a script; the short human
 answer is what usually settles it.
 
-> **You say** Just me. I help [their trade] businesses stop losing after-hours calls and WhatsApps.
+> **You say** Just me. I help [their trade] businesses stop losing after-hours calls.
 
 _(let them answer)_
 
@@ -57,11 +57,6 @@ _(let them answer)_
 
 > **You say** Well, 80% of callers who hit your voicemail hang up and call the next company. Before you spend money on ads or marketing, wouldn't it make sense to capture all of the calls you're currently getting?
 
-## Brushing you off | Still "not interested" after the 80% line
-
-
-> **You say** No worries. Real quick though, do you use WhatsApp for the business at all? Those messages hit the same wall after hours, so I'm curious if that's something you're dealing with too.
-
 ## Brushing you off | Prospect: "Call me back later / I'm busy."
 
 
@@ -70,7 +65,7 @@ _(let them answer)_
 ## Brushing you off | Prospect: "Just send me an email / send me info."
 
 
-> **You say** I can send it on WhatsApp instead of email, you're more likely to actually see it. But you'll get more out of hearing it. I built a demo for your business, so we just call you and put the agent on the line — you hear it take a call live. Do you have 15 minutes this week to check it out?
+> **You say** I can send something over, but you'll get more out of hearing it. I built a demo for your business, so we just call you and put the agent on the line — you hear it take a call live. Do you have 15 minutes this week to check it out?
 
 ## Brushing you off | Prospect: "We're too busy / it's our busy season."
 
@@ -110,10 +105,24 @@ _(let them answer)_
 
 > **You say** Makes sense. That's exactly what I'd show you on the demo, how many you're actually losing there. Do you have 15 minutes this week to take a look?
 
-## Says they don't need it | Prospect: "We get basically no after-hours calls, doesn't matter to us."
+## Says they don't need it | If they say they don't get enough calls to justify it
 
+Do not argue the volume — you will lose. Low volume is often a visibility
+problem rather than a coverage one, so this turns the objection into a second
+reason to buy: they may be getting fewer calls *because* they are not showing
+as always open.
 
-> **You say** Sounds like you're still getting those calls, just on WhatsApp instead of the phone. And I get it if the questions you get are pretty custom, this isn't about the chatbot answering everything for you. It's about responding and capturing the lead fast, before they go to someone else. We actually have forms built right into WhatsApp, so for something like a quote, the customer just fills that in themselves. You still handle the custom stuff, you just don't lose people to slow response time.
+> **You say** Are you listed 24 hours on Google, by chance?
+
+_(let them answer)_
+
+If they are not:
+
+> **You say** Yeah, that could be part of the reason. Google tends to rank businesses that are open 24 hours a little higher on Maps, especially for people searching later at night — it puts those ones near the top of the list.
+
+_(let them answer)_
+
+> **You say** Once you have an agent picking up, you can flip your hours to 24/7 on Google and you'd be right up there. So you might actually get more calls out of it, not just catch the ones you're missing now. That's one thing this lets you do that you can't really do without it. Do you have 15 minutes this week to take a look?
 
 ## Says they don't need it | Prospect: "We only need it overnight, not for day calls."
 
@@ -163,10 +172,24 @@ If they are still unsure:
 
 > **You say** There's over 10,000 voices to choose from, and I can customize everything to how you want it to sound.
 
-## Already sorted | Prospect: "We already use the WhatsApp Business AI agent / bot."
+## Doubts it works | Prospect: "It won't know my business" / "Every job is different"
 
 
-> **You say** Nice, that's a good start. Does it actually handle the booking and payment for you, or just answer messages? That's honestly the best part of what we do, it doesn't just reply, it can book the appointment and take payment right there in the conversation, so you're not just getting a faster reply, you're getting the job locked in.
+> **You say** It's not guessing at your business — we build it a knowledge base from your services, your pricing, the questions you actually get, so it answers like somebody who works there. And anything it doesn't know, it takes their details and passes it straight to you, so you still get the lead.
+
+_(let them answer)_
+
+A different objection from the robot-voice one, which is why it is its own
+entry: that one doubts how it *sounds*, this one doubts what it *knows*.
+Answering it with "people can't tell it's a robot" misses the point they are
+making.
+
+One in six prospects raises some version of this — "every situation is
+different", "it's not applicable to my business". They are not doubting that
+you built them a demo; they are doubting it can answer what their customers
+actually ask. The second half of the line matters as much as the first: they
+do not have to believe it handles every question, only that nothing gets lost
+when it cannot.
 
 ## Already sorted | Prospect: "We already have something for that."
 
@@ -184,6 +207,18 @@ _(let them answer)_
 If they are unhappy with it, skip the price question — that is already your opening:
 
 > **You say** That's exactly why I called. I built a demo for your business, so you can hear it take a call live. Do you have 15 minutes this week to take a look?
+
+## Already sorted | Prospect: "We already use the WhatsApp Business AI agent / bot."
+
+
+That bot answers messages. It does not pick up the phone, so do not compare the
+two or start talking about WhatsApp — bring it back to their calls.
+
+> **You say** Nice, so your messages are covered. What about the phone calls, though? When you're on a job or closed, does the phone still go to voicemail?
+
+_(let them answer)_
+
+> **You say** That's the part we handle. I built a demo for your business, so you can hear it take a call live. Do you have 15 minutes this week to take a look?
 
 ## Already sorted | Prospect: "Voicemail is fine / they can leave a message"
 
@@ -254,7 +289,7 @@ Hesitating is what gets you screened; so is a job title, a pitch, or asking for
 **If they ask outright whether it is a sales call**, do not deny it. Say the
 true and smaller version, and hand them something worth passing on.
 
-> **You say** It could turn into one, but I'm not selling you anything on this call. I built a demo for [company] and I wanted to check one thing about your after-hours calls and messages first. Is the owner around?
+> **You say** It could turn into one, but I'm not selling you anything on this call. I built a demo for [company] and I wanted to check one thing about your after-hours calls first. Is the owner around?
 
 _(let them answer)_
 
