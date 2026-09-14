@@ -3,21 +3,25 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { pushToUser } from "@/lib/push";
+import { conversationHref } from "@/lib/text-key";
 
 /**
- * Texting a prospect around a demo.
+ * Texting: sending a prospect a text, and everything that arrives on our
+ * numbers.
  *
- * One use and no other: a founder rings a prospect at demo time, nobody picks
- * up, and a text follows from the same number — "your demo's ready, I'll call
- * you now". Never a campaign, never automatic, never sent by anybody but an
- * admin pressing a button with the words in front of them.
+ * Sending is narrow. Only an admin sends, from their own number, with the words
+ * in front of them — never a campaign, never automatic. It started as one use,
+ * a founder texting a prospect at demo time after a call nobody picked up, and
+ * the Texts screen (`lib/texts.ts`) extended it to replying in a conversation.
  *
- * **Built and switched off** (2026-09-14). US texting from a local number needs
- * a 10DLC campaign approved by the carriers, and ours (TCR C3DSJFI) was still
- * in carrier review when this was written. Until `TELNYX_SMS_ENABLED=1`,
- * nothing here reads or writes `call_sms`, the meetings screen shows no button,
- * and the webhook answers message events 200 and ignores them. That is what
- * lets the code deploy before its migration is applied.
+ * Receiving is wide. Every caller's number takes texts (2026-09-15), because
+ * somebody who misses a call from us often texts the number back instead of
+ * ringing it, and before then those texts reached nobody.
+ *
+ * **Switched on 2026-09-15**, once the carriers provisioned the 10DLC campaign
+ * (TCR C3DSJFI). Without `TELNYX_SMS_ENABLED=1` nothing here reads or writes
+ * `call_sms`, no screen shows anything, and the webhook answers message events
+ * 200 and ignores them.
  *
  * The message goes out exactly as typed: no brand prefix, no opt-out footer,
  * no "you agreed to receive texts" confirmation. That was the founders' call,
@@ -84,6 +88,23 @@ const START_WORDS = new Set(["start", "unstop"]);
 const keyword = (body: string) => body.trim().toLowerCase().replace(/[.!]+$/, "");
 
 /**
+ * Whether their texts, oldest first, leave them opted out.
+ *
+ * The latest keyword wins, so STOP then START is texting again, exactly as
+ * Telnyx reads it. One function for the Meetings thread and the Texts screen,
+ * so the two cannot disagree about whether a send button should be there.
+ */
+export function optedOutOf(inboundBodies: string[]): boolean {
+  let out = false;
+  for (const body of inboundBodies) {
+    const k = keyword(body);
+    if (STOP_WORDS.has(k)) out = true;
+    else if (START_WORDS.has(k)) out = false;
+  }
+  return out;
+}
+
+/**
  * Every text to or from these leads, oldest first.
  *
  * Keyed by lead rather than by meeting, because a conversation is with a
@@ -109,7 +130,7 @@ export async function getTextsByLead(
   const out: Record<number, LeadTexts> = {};
   for (const r of rows) {
     const lead = (out[Number(r.call_lead_id)] ??= { texts: [], optedOut: false });
-    const message: SmsMessage = {
+    lead.texts.push({
       id: Number(r.id),
       direction: r.direction === "in" ? "in" : "out",
       body: String(r.body ?? ""),
@@ -117,15 +138,12 @@ export async function getTextsByLead(
       error: (r.error as string | null) ?? null,
       byName: (r.by_name as string | null) ?? null,
       at: new Date(r.created_at as string).toISOString(),
-    };
-    lead.texts.push(message);
-    // Oldest first, so the latest keyword wins: STOP then START is texting
-    // again, exactly as Telnyx reads it.
-    if (message.direction === "in") {
-      const k = keyword(message.body);
-      if (STOP_WORDS.has(k)) lead.optedOut = true;
-      else if (START_WORDS.has(k)) lead.optedOut = false;
-    }
+    });
+  }
+  for (const lead of Object.values(out)) {
+    lead.optedOut = optedOutOf(
+      lead.texts.filter((t) => t.direction === "in").map((t) => t.body),
+    );
   }
   return out;
 }
@@ -173,8 +191,10 @@ export async function recordOutbound(input: {
   to: string;
   body: string;
   status: SmsStatus;
-  meetingId: number;
-  leadId: number;
+  /** Null for a text sent from the Texts screen to somebody with no booking,
+   *  or with no lead at all. */
+  meetingId: number | null;
+  leadId: number | null;
   userId: number;
 }): Promise<void> {
   await db.execute(sql`
@@ -250,20 +270,20 @@ export async function updateTextStatus(p: Record<string, unknown>): Promise<bool
 }
 
 /**
- * A text from a prospect.
+ * A text from outside.
  *
  * Attached to the conversation it answers rather than guessed from the number
  * alone: the latest text we sent *to* this number *from* the number it arrived
  * on says which meeting and lead it belongs to, and who is waiting on it. Only
  * a text with no such conversation falls back to matching the lead by phone,
- * the way inbound calls do.
+ * the way inbound calls do, and to whoever holds the number it came in on.
  *
  * Stored even when it matches nothing. A text nobody can see is the failure to
  * avoid, and the row is cheap.
  *
- * The push goes to whoever sent the text being answered, and is not held for
- * quiet hours the way meeting reminders are: a reply to "I'm calling you now"
- * matters in the next two minutes, not at eight tomorrow.
+ * The push is not held for quiet hours the way meeting reminders are: a reply
+ * to "I'm calling you now" matters in the next two minutes, not at eight
+ * tomorrow.
  */
 export async function recordInboundText(
   p: Record<string, unknown>,
@@ -354,12 +374,15 @@ export async function recordInboundText(
   }
 
   const notified = await pushToUser(userId, {
-    title: `${who ?? from} texted back`,
+    // Laid out the way a phone lays out a text: who, then what they said.
+    title: who ?? from,
     body: body.length > 140 ? `${body.slice(0, 137)}…` : body,
-    url: "/meetings",
-    // Per conversation, so a second reply replaces the first notification
+    // Straight into the conversation. It opened Meetings until 2026-09-15,
+    // when a founder's demo thread was the only place a reply could be read.
+    url: conversationHref(from, to),
+    // Per conversation, so a second text replaces the first notification
     // rather than stacking behind it.
-    tag: `cylrm-sms-${leadId ?? from}`,
+    tag: `cylrm-sms-${from}-${to}`,
   });
   return { stored: true, notified };
 }

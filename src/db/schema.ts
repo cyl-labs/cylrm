@@ -1307,11 +1307,12 @@ export const callbackReminderSent = pgTable(
 );
 
 /**
- * Texts to and from a prospect around a demo.
+ * Every text to and from our numbers.
  *
- * Built 2026-09-14 and switched off until the 10DLC campaign is approved:
- * nothing touches this table unless `TELNYX_SMS_ENABLED=1`. See `lib/sms.ts`
- * and `2026-09-14-call-sms.sql`.
+ * Built 2026-09-14 for texting a prospect around a demo, switched on
+ * 2026-09-15 and read as conversations on the Texts screen. Nothing touches it
+ * unless `TELNYX_SMS_ENABLED=1`. See `lib/sms.ts`, `lib/texts.ts`,
+ * `2026-09-14-call-sms.sql` and `2026-09-15-call-sms-read.sql`.
  */
 export const callSms = pgTable(
   "call_sms",
@@ -1343,6 +1344,8 @@ export const callSms = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /** Inbound only: when the person it is for opened the conversation. */
+    readAt: timestamp("read_at", { withTimezone: true }),
   },
   // Declared here as well as in the migration: `drizzle-kit push` drops any
   // index it cannot see in this file.
@@ -1351,6 +1354,10 @@ export const callSms = pgTable(
     index("call_sms_reply_idx")
       .on(t.toNumber, t.fromNumber, t.createdAt.desc())
       .where(sql`direction = 'out'`),
+    // The sidebar badge's query, which runs on every page render.
+    index("call_sms_unread_idx")
+      .on(t.userId)
+      .where(sql`direction = 'in' and read_at is null`),
   ],
 );
 

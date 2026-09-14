@@ -23,19 +23,23 @@ import {
 export function MobileNav({
   role,
   keypad = false,
+  texting = false,
   unreadReplies = 0,
   callbacksDue = 0,
   missedCalls = 0,
   meetingsWaiting = 0,
+  unreadTexts = 0,
 }: {
   /** Decides whether the drawer offers the Email CRM at all. */
   role: "admin" | "caller" | undefined;
   /** Granted the Keypad. Admins always are. */
   keypad?: boolean;
+  texting?: boolean;
   unreadReplies?: number;
   callbacksDue?: number;
   missedCalls?: number;
   meetingsWaiting?: number;
+  unreadTexts?: number;
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -49,6 +53,7 @@ export function MobileNav({
         {/* With the nav closed the badge inside it is invisible, so the
             trigger carries the fact that something is waiting. */}
         {(unreadReplies > 0 ||
+          unreadTexts > 0 ||
           callbacksDue > 0 ||
           meetingsWaiting > 0 ||
           missedCalls > 0) && (
@@ -81,10 +86,12 @@ export function MobileNav({
           <NavLinks
             role={role}
             keypad={keypad}
+            texting={texting}
             unreadReplies={unreadReplies}
             callbacksDue={callbacksDue}
             missedCalls={missedCalls}
             meetingsWaiting={meetingsWaiting}
+            unreadTexts={unreadTexts}
           />
         </div>
         <div className="mt-auto px-2.5 pb-3.5">

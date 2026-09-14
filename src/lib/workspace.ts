@@ -5,6 +5,7 @@ import {
   Inbox,
   Kanban,
   MailOpen,
+  MessageCircle,
   PhoneCall,
   PhoneForwarded,
   PhoneMissed,
@@ -80,6 +81,9 @@ export const WORKSPACES: Workspace[] = [
       // Next to Callbacks because it is read the same way — a diary opened at
       // the start of a shift and worked top to bottom.
       { href: "/meetings", label: "Meetings", icon: CalendarClock },
+      // Below the three the work order enforces rather than among them: a text
+      // holds up nobody's queue. Beside Meetings, where texting started.
+      { href: "/texts", label: "Texts", icon: MessageCircle },
       { href: "/sop", label: "Scripts", icon: ScrollText },
       { href: "/call-sheet", label: "Spreadsheet", icon: Table2 },
       { href: "/call-pipeline", label: "Pipeline", icon: Kanban },
@@ -196,15 +200,21 @@ export const isAdminOnlyPath = (pathname: string) =>
  * so a grant made on the Team screen shows up on their next page load rather
  * than their next login. Hiding the link is the courtesy; the page is the
  * control.
+ *
+ * `texting` is `TELNYX_SMS_ENABLED`, passed down because this module also runs
+ * in the browser, where the environment is not readable. Off means no Texts
+ * link, the same rule every switched-off feature follows.
  */
 export function linksFor(
   workspace: Workspace,
   role: "admin" | "caller" | undefined,
   keypad = false,
+  texting = false,
 ) {
   const hidden = [
     ...(role === "admin" ? [] : ADMIN_ONLY_CALL_PREFIXES),
     ...(role === "admin" || keypad ? [] : [KEYPAD_PREFIX]),
+    ...(texting ? [] : ["/texts"]),
   ];
   return workspace.links
     .filter((l) => !hidden.includes(l.href))
@@ -226,6 +236,7 @@ const CALL_PREFIXES = [
   "/callbacks",
   "/missed-calls",
   "/meetings",
+  "/texts",
   "/sop",
   "/call-sheet",
   "/call-pipeline",

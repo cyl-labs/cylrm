@@ -4,6 +4,8 @@ import { countCallbacksDue } from "@/lib/calls";
 import { countMissedCalls } from "@/lib/inbound";
 import { countMeetingsWaitingFor } from "@/lib/meetings";
 import { callScope, getCurrentUser, isSwitchedOff } from "@/lib/session";
+import { smsEnabled } from "@/lib/sms";
+import { countUnreadTexts } from "@/lib/texts";
 import { canUseKeypad, dialMethodOf } from "@/lib/users";
 import { LinePresence } from "@/components/calls/line-presence";
 import { InboundListener } from "@/components/calls/inbound-listener";
@@ -66,6 +68,8 @@ export default async function AppLayout({
   // call is addressed to a person.
   const missed = await countMissedCalls(me);
   const meetings = await countMeetingsWaitingFor(me);
+  // Zero, without touching the table, while texting is switched off.
+  const unreadTexts = await countUnreadTexts(me);
   const keypad = await canUseKeypad(me?.id, me?.role);
 
   // Whether this person can be rung back at all: they need a number of their
@@ -98,10 +102,12 @@ export default async function AppLayout({
         <NavLinks
           role={me?.role}
           keypad={keypad}
+          texting={smsEnabled()}
           unreadReplies={unread}
           callbacksDue={callbacks}
           missedCalls={missed}
           meetingsWaiting={meetings}
+          unreadTexts={unreadTexts}
         />
         <div className="mt-auto px-2.5 pb-3.5">
           {/* Who you are, above the way out. The floor shares machines, and

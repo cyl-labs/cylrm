@@ -719,12 +719,12 @@ Telnyx webhook carry replies and delivery receipts. Schema in
     but with the flag on and no table the send route and the webhook 500 and
     Telnyx retries until it disables the webhook.
   - **A second sender needs the same steps.** The number must be on the
-    `cylrm-sms` messaging profile and linked to the campaign. Mico's
-    `+17076408891` and Querla's `+19789991236` are on the profile but not
-    linked, so they can receive and not send.
+    `cylrm-sms` messaging profile and linked to the campaign. Every caller's
+    number has been on the profile since 2026-09-15 (see **Texts screen**
+    below) and none is linked, so they receive and do not send.
   - **Do not test by texting one of our own numbers.** An inbound text pushes a
-    notification to whoever holds the number it arrived on, which for anything
-    on that profile other than Founders is a caller.
+    notification to whoever holds the number it arrived on, which for every
+    number on that profile other than Founders is a caller.
 - **The text goes out exactly as typed.** No brand prefix, no "Reply STOP"
   footer, no "you agreed to receive texts" confirmation. That was the founders'
   call on 2026-09-14, made after being told carriers expect opt-out wording on
@@ -765,6 +765,71 @@ Telnyx webhook carry replies and delivery receipts. Schema in
   390/768/1440, and the switched-off path with `call_sms` renamed away — which
   is the proof the deploy does not need the migration. The first real send is
   what is still to watch.
+
+### Texts screen (2026-09-15)
+
+`/texts` is every text to and from our numbers, laid out like Messages on an
+iPhone — asked for as "identical to iMessage so it's intuitive", and copied
+rather than designed for that reason. Queries in `src/lib/texts.ts`, the screen
+in `components/calls/texts-app.tsx`, the send at `POST /api/texts`, read
+receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
+
+- **Apply that migration before deploying.** It adds `call_sms.read_at`, and
+  `countUnreadTexts` runs in the app layout for the sidebar badge, so without
+  the column every screen returns 500 — the `call_meeting` trap again.
+- **A conversation is their number *and* ours** (`lib/text-key.ts`, `?c=`
+  holds `+1512…~+1872…`). A prospect can text a caller's number and the
+  founders' number, and those are two conversations with two different people
+  on our side. The key is db-free because the screen and the push notification
+  both build it.
+- **Every caller's number receives texts; only the Founders number sends.** All
+  eight numbers are on the `cylrm-sms` messaging profile as of 2026-09-15, and
+  only `+18722778445` is linked to the 10DLC campaign. Sending is admin-only,
+  from their own number, and only inside a conversation *on* their own number.
+  A thread that came in on a caller's number shows the reason and a "Text them
+  from your number" link rather than a message bar, because replying from a
+  different number starts a different conversation on the prospect's phone.
+- **Callers read, and ring back.** Their bottom bar is the reason they cannot
+  text plus the copy-number and Open lead buttons. Scoped by `call_sms.user_id`
+  like missed calls, so a reassigned number does not hand over the last
+  holder's texts; admins see every conversation, labelled "To <name>".
+- **Unread is per person, and only the person a text is for can clear it.**
+  Marked by a POST when the thread opens, never as a side effect of rendering:
+  Next prefetches links, and a conversation marked read because its link was
+  on screen would clear a dot nobody looked behind. An admin opening a caller's
+  conversation leaves it unread for the caller. Rows that existed before the
+  migration were backfilled as read, so day one did not light up every old text.
+- **Texts are news, not work.** The badge is the primary colour, not red, and
+  nothing here touches `work-order.ts`. Plenty of US businesses answer a missed
+  call with an automatic "sorry we missed your call" text; counting those would
+  stop a caller's queue after nearly every dial. A texts section on Missed calls
+  was built and reverted the same day for this screen.
+- **The look is Apple's, not the app's palette.** systemBlue `#007AFF`
+  (`#0A84FF` dark) for ours, the Messages grey `#E9E9EB` for theirs, and
+  systemGray4 `#3A3A3C` for theirs in dark — Messages' own near-black would
+  vanish into the `#262624` pane. Blue rather than the green an iPhone gives an
+  SMS, because iMessage was the ask. The colours are CSS variables set on the
+  screen's root with `dark:` variants, per the theme rule.
+- **The bubble tail is two pseudo-elements** (after samuelkraft.com's iOS
+  bubbles), the second painted in the pane colour to cut the curve. That is why
+  `--imsg-pane` must equal the thread background exactly, and why anything
+  placed beside a tailed bubble needs `relative z-10`: the cut-out covers about
+  19px past the bubble's edge and bit into the "not delivered" icon until it
+  was raised.
+- **Grouping follows Messages:** consecutive texts from one side sit 2px apart
+  with the tail on the last, an hour's silence starts a block under a "Today
+  1:33 PM" line, only the newest text we sent says Sending/Sent/Delivered, and a
+  failed one says Not Delivered with the reason wherever it is.
+- **It refreshes itself every 10 seconds while the tab is visible**, since
+  nothing else redraws it when a text lands, and a push opens the conversation
+  directly (`conversationHref`). The text being sent shows faded until the
+  refreshed thread is longer than when it went — compared by length rather than
+  cleared in an effect.
+- **Testing locally**: start the dev server with `TELNYX_SMS_ENABLED=1` and
+  `TELNYX_API_BASE` pointed at a stand-in that answers `POST /messages`, or the
+  send goes to real Telnyx with `.env.local`'s key. Giving a local account a
+  `telnyx_did` also makes its browser phone try to register against that
+  stand-in, which logs `LOGIN_FAILED` — noise, not a texting fault.
 
 ### Contracts (DocuSeal)
 

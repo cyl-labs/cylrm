@@ -3,6 +3,8 @@ import { countCallbacksDue } from "@/lib/calls";
 import { countMissedCalls } from "@/lib/inbound";
 import { countMeetingsWaitingFor } from "@/lib/meetings";
 import { callScope, getCurrentUser } from "@/lib/session";
+import { smsEnabled } from "@/lib/sms";
+import { countUnreadTexts } from "@/lib/texts";
 import { MobileNav } from "@/components/mobile-nav";
 import { QuotaBar } from "@/components/calls/quota-bar";
 import { getWeekProgress } from "@/lib/call-stats";
@@ -26,6 +28,7 @@ export async function PageShell({
   // call is addressed to a person.
   const missed = await countMissedCalls(me);
   const meetings = await countMeetingsWaitingFor(me);
+  const unreadTexts = await countUnreadTexts(me);
   // Callers only: the founders set the quota rather than owing it, the same
   // reason they are off the Scoreboard and off the payroll confirm list. A
   // caller can only ever be on a Call CRM screen, so there is no workspace to
@@ -38,10 +41,12 @@ export async function PageShell({
         <MobileNav
         role={me?.role}
         keypad={await canUseKeypad(me?.id, me?.role)}
+        texting={smsEnabled()}
         unreadReplies={unread}
         callbacksDue={callbacks}
         missedCalls={missed}
         meetingsWaiting={meetings}
+        unreadTexts={unreadTexts}
       />
         <h1 className="text-lg font-extrabold tracking-[-0.02em] sm:text-xl">
           {title}

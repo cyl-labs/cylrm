@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
  * today" rather than only as a list of failures.
  */
 
-function ago(iso: string): string {
+export function ago(iso: string): string {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
@@ -52,7 +52,7 @@ function mmss(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function CopyNumber({ phone, blocked }: { phone: string; blocked: string | null }) {
+export function CopyNumber({ phone, blocked }: { phone: string; blocked: string | null }) {
   const [copied, setCopied] = React.useState(false);
   // Screening blocks the clipboard, not only a dial button — the same rule the
   // dialler applies. A prospect ringing us first does not lift it.

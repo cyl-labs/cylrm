@@ -13,26 +13,32 @@ import { linksFor, workspaceForPath } from "@/lib/workspace";
 export function NavLinks({
   role,
   keypad = false,
+  texting = false,
   unreadReplies = 0,
   callbacksDue = 0,
   missedCalls = 0,
   meetingsWaiting = 0,
+  unreadTexts = 0,
 }: {
   /** Decides which of this workspace's screens are on offer — a caller's has
    *  no Stats. Hiding it is the courtesy; the middleware is the control. */
   role: "admin" | "caller" | undefined;
   /** Granted the Keypad. Admins always are. */
   keypad?: boolean;
+  /** Texting is switched on, so there is a Texts screen to link to. */
+  texting?: boolean;
   unreadReplies?: number;
   /** Callbacks whose time has passed — the calling side's version of unread. */
   callbacksDue?: number;
   missedCalls?: number;
   /** Demos starting within a day, plus no-shows waiting on a ring back. */
   meetingsWaiting?: number;
+  /** Texts to this person's own number they have not opened. */
+  unreadTexts?: number;
 }) {
   const pathname = usePathname();
   const workspace = workspaceForPath(pathname);
-  const links = linksFor(workspace, role, keypad);
+  const links = linksFor(workspace, role, keypad, texting);
 
   return (
     <nav className="flex flex-col gap-0.5 px-2.5">
@@ -68,6 +74,13 @@ export function NavLinks({
             {href === "/meetings" && meetingsWaiting > 0 && (
               <span className="ml-auto min-w-5 rounded-full bg-destructive px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-white">
                 {meetingsWaiting > 99 ? "99+" : meetingsWaiting}
+              </span>
+            )}
+            {/* Not red: unread is news, not work owed, and red here would read
+                as one more thing holding up the queue. */}
+            {href === "/texts" && unreadTexts > 0 && (
+              <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-primary-foreground">
+                {unreadTexts > 99 ? "99+" : unreadTexts}
               </span>
             )}
           </Link>
