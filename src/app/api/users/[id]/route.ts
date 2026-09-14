@@ -4,6 +4,12 @@ import { appUser } from "@/db/schema";
 import { getCurrentUser, getSession } from "@/lib/session";
 import { MIN_PASSWORD_LENGTH, hashPassword } from "@/lib/password";
 import { countActiveAdmins } from "@/lib/users";
+import {
+  LineSetupError,
+  TelnyxNotConfiguredError,
+  provisionLine,
+} from "@/lib/telnyx";
+import { isMarket, numberProblem } from "@/lib/team-numbers";
 
 /**
  * Rename someone, reset their password, change their role, or switch them off.
@@ -168,29 +174,44 @@ export async function PATCH(
       typeof body.telnyxDid === "string" ? body.telnyxDid.trim() : "";
     if (did === "") {
       values.telnyxDid = null;
-    } else if (!/^\+[1-9]\d{6,15}$/.test(did)) {
-      return Response.json(
-        { error: "A number has to be in E.164, like +6531258472." },
-        { status: 400 },
-      );
     } else {
-      const region = ("callRegion" in body ? body.callRegion : target.callRegion) as
-        | "sg"
-        | "us"
-        | "gb"
-        | null;
-      const prefix = { sg: "+65", us: "+1", gb: "+44" }[region ?? "sg"];
-      if (region && !did.startsWith(prefix)) {
-        return Response.json(
-          {
-            error: `That is not a ${
-              { sg: "Singapore", us: "US", gb: "UK" }[region]
-            } number. Their market decides which numbers they can ring from.`,
-          },
-          { status: 400 },
-        );
-      }
+      // The same rule Add person applies, from one place.
+      const market = "callRegion" in body ? body.callRegion : target.callRegion;
+      const problem = numberProblem(did, isMarket(market) ? market : null);
+      if (problem) return Response.json({ error: problem }, { status: 400 });
       values.telnyxDid = did;
+
+      // Assigning a number is also what makes it ring them: a line of their
+      // own, the number pointed at it and put on the texting profile. Done
+      // before the row is saved, so a number that cannot be set up is refused
+      // with a reason rather than saved and left ringing nobody. Skipped when
+      // Telnyx is not configured, the rule every optional integration follows.
+      if (did !== target.telnyxDid || !target.telnyxConnectionId) {
+        try {
+          const line = await provisionLine(
+            {
+              id: target.id,
+              username: target.username,
+              telnyxConnectionId: target.telnyxConnectionId,
+            },
+            did,
+          );
+          values.telnyxConnectionId = line.connectionId;
+        } catch (err) {
+          if (!(err instanceof TelnyxNotConfiguredError)) {
+            console.error("[team] line setup failed", err);
+            return Response.json(
+              {
+                error:
+                  err instanceof LineSetupError
+                    ? err.message
+                    : "Couldn't set up their phone line on Telnyx, so the number was not saved. Try again in a minute.",
+              },
+              { status: 502 },
+            );
+          }
+        }
+      }
     }
   }
 

@@ -135,6 +135,8 @@ export function TeamManager({
       return ta - tb;
     });
   const [adding, setAdding] = React.useState(false);
+  /** The caller being replaced by somebody new, if any. */
+  const [replacing, setReplacing] = React.useState<TeamMember | null>(null);
   /** The person whose password is being reset, if any. */
   const [resetting, setResetting] = React.useState<TeamMember | null>(null);
   /** The person being renamed. Separate from the reset dialog because the two
@@ -560,6 +562,22 @@ export function TeamManager({
                             Make caller
                           </Button>
                           )}
+                          {/* For when a caller leaves: one step that hands their
+                              number, line, call lists, missed calls and texts to
+                              the new person and switches them off. Callers only,
+                              and only while active — see the replace route. */}
+                          {m.role === "caller" && m.active && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7"
+                              disabled={busyId === m.id}
+                              onClick={() => setReplacing(m)}
+                            >
+                              <UserRound data-icon="inline-start" />
+                              Replace
+                            </Button>
+                          )}
                           {(!m.isOwner || iAmOwner) && (
                           <Button
                             variant="ghost"
@@ -607,13 +625,20 @@ export function TeamManager({
         </div>
       </div>
 
+      {/* Neither dialog closes itself on success: each swaps its form for the
+          sign-in details to hand over, and closing it is the admin's call. */}
       <AddPersonDialog
         open={adding}
         onOpenChange={setAdding}
-        onAdded={() => {
-          setAdding(false);
-          router.refresh();
-        }}
+        onAdded={() => router.refresh()}
+        offer={(region) => offerFor(region, -1)}
+        holderName={(phone) => holderOf(phone, -1)?.name ?? null}
+      />
+
+      <ReplaceDialog
+        member={replacing}
+        onOpenChange={(open) => !open && setReplacing(null)}
+        onReplaced={() => router.refresh()}
       />
 
       <RenameDialog
@@ -646,40 +671,266 @@ export function TeamManager({
   );
 }
 
+/**
+ * A password somebody can read out over a call without spelling it twice:
+ * lowercase letters and digits with the lookalikes (l, 1, o, 0, i) left out.
+ * Ten characters from 31 is about 50 bits, plenty behind a login that also
+ * needs the username.
+ */
+function newPassword(): string {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
+/** "Wei Ling" → "weiling": what someone types on a phone at 9am. */
+const usernameFrom = (name: string) =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/**
+ * The name, username and password fields both dialogs ask for.
+ *
+ * The username follows the name until it is edited by hand, and the password
+ * starts filled in with one that can be read out, so the common case is typing
+ * a name and pressing the button.
+ */
+function useLoginFields(open: boolean) {
+  const [name, setName] = React.useState("");
+  const [username, setUsername] = React.useState("");
+  const [touchedUsername, setTouchedUsername] = React.useState(false);
+  const [password, setPassword] = React.useState("");
+
+  // Reset each time the dialog opens rather than when it closes, so the
+  // handover card can go on showing what was just made after the form is done.
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setName("");
+      setUsername("");
+      setTouchedUsername(false);
+      setPassword(newPassword());
+    }
+  }
+
+  return {
+    name,
+    username,
+    password,
+    setName: (v: string) => {
+      setName(v);
+      if (!touchedUsername) setUsername(usernameFrom(v));
+    },
+    setUsername: (v: string) => {
+      setTouchedUsername(true);
+      setUsername(v.toLowerCase());
+    },
+    setPassword,
+    regenerate: () => setPassword(newPassword()),
+    valid: Boolean(name.trim()) && username.length >= 2 && password.length >= 8,
+  };
+}
+
+function LoginFields({
+  fields,
+  idPrefix,
+}: {
+  fields: ReturnType<typeof useLoginFields>;
+  idPrefix: string;
+}) {
+  return (
+    <>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${idPrefix}-name`}>Name</Label>
+        <Input
+          id={`${idPrefix}-name`}
+          value={fields.name}
+          onChange={(e) => fields.setName(e.target.value)}
+          placeholder="Wei Ling"
+          autoFocus
+        />
+        <p className="text-[11px] text-muted-foreground">
+          What the stats screen will call them.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${idPrefix}-username`}>Username</Label>
+          <Input
+            id={`${idPrefix}-username`}
+            value={fields.username}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            onChange={(e) => fields.setUsername(e.target.value)}
+            placeholder="weiling"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${idPrefix}-password`}>Password</Label>
+          <div className="flex gap-1.5">
+            <Input
+              id={`${idPrefix}-password`}
+              value={fields.password}
+              onChange={(e) => fields.setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              className="font-mono"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0"
+              onClick={fields.regenerate}
+            >
+              New
+            </Button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * What to give the person who was just set up, with one button to copy it.
+ *
+ * Shown in place of the form rather than as a toast: this is the only time the
+ * password is ever on screen, and a toast is gone before anybody has opened
+ * WhatsApp to send it.
+ */
+function HandOver({
+  title,
+  name,
+  username,
+  password,
+  details,
+  warning,
+  onClose,
+}: {
+  title: string;
+  name: string;
+  username: string;
+  password: string;
+  details: string[];
+  warning?: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = React.useState(false);
+  const text = `Sign in at ${typeof window === "undefined" ? "" : window.location.origin}\nUsername: ${username}\nPassword: ${password}`;
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>
+          Send {name} these. This is the only time the password is shown: if it
+          gets lost, set a new one from their row.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="rounded-lg border bg-muted/40 p-3 font-mono text-[13px] leading-6">
+        <div>
+          <span className="text-muted-foreground">Username </span>
+          <span className="font-bold">{username}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Password </span>
+          <span className="font-bold">{password}</span>
+        </div>
+      </div>
+      {details.length > 0 && (
+        <ul className="list-disc space-y-1 pl-5 text-[13px] text-muted-foreground">
+          {details.map((d) => (
+            <li key={d}>{d}</li>
+          ))}
+        </ul>
+      )}
+      {warning && (
+        <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]">
+          {warning}
+        </p>
+      )}
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose}>
+          Done
+        </Button>
+        <Button
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(text);
+              setCopied(true);
+            } catch {
+              toast.error("Could not copy: select the details and copy them.");
+            }
+          }}
+        >
+          {copied ? "Copied" : "Copy sign-in details"}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+const MARKETS = [
+  { value: "us", label: "US" },
+  { value: "sg", label: "Singapore" },
+  { value: "gb", label: "UK" },
+  { value: "all", label: "Every region" },
+];
+
+const NO_NUMBER = "__none__";
+
 function AddPersonDialog({
   open,
   onOpenChange,
   onAdded,
+  offer,
+  holderName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAdded: () => void;
+  /** Free numbers first, for a market; null is every market. */
+  offer: (region: string | null) => string[];
+  /** Who already rings from a number, if anybody. */
+  holderName: (phone: string) => string | null;
 }) {
-  const [name, setName] = React.useState("");
-  const [username, setUsername] = React.useState("");
-  const [password, setPassword] = React.useState("");
+  const fields = useLoginFields(open);
   const [role, setRole] = React.useState<"caller" | "admin">("caller");
+  const [market, setMarket] = React.useState("us");
+  const [dialMethod, setDialMethod] = React.useState<"browser" | "handset">(
+    "browser",
+  );
+  const [number, setNumber] = React.useState(NO_NUMBER);
   const [saving, setSaving] = React.useState(false);
+  const [done, setDone] = React.useState<{
+    name: string;
+    username: string;
+    password: string;
+    details: string[];
+    warning?: string;
+  } | null>(null);
 
-  // Remounting on open would be one more piece of state; clearing on close is
-  // enough, and stops a half-typed name reappearing tomorrow.
-  React.useEffect(() => {
-    if (!open) {
-      setName("");
-      setUsername("");
-      setPassword("");
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
       setRole("caller");
+      setMarket("us");
+      setDialMethod("browser");
+      setNumber(NO_NUMBER);
+      setDone(null);
     }
-  }, [open]);
+  }
 
-  /** Suggested, not forced: "Wei Ling" → "weiling", which is what someone
-   *  types on a phone at 9am. Stops the moment they edit it themselves. */
-  const [touchedUsername, setTouchedUsername] = React.useState(false);
-  React.useEffect(() => {
-    if (!touchedUsername) {
-      setUsername(name.toLowerCase().replace(/[^a-z0-9]+/g, ""));
-    }
-  }, [name, touchedUsername]);
+  const region = market === "all" ? null : market;
+  const numbers = offer(region);
+  // A number that stopped fitting because the market changed is dropped, not
+  // silently sent for the API to refuse.
+  const picked =
+    number !== NO_NUMBER && numbers.includes(number) && dialMethod === "browser"
+      ? number
+      : null;
+  const pickedHolder = picked ? holderName(picked) : null;
 
   async function submit() {
     setSaving(true);
@@ -687,14 +938,38 @@ function AddPersonDialog({
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, username, password, role }),
+        body: JSON.stringify({
+          name: fields.name,
+          username: fields.username,
+          password: fields.password,
+          role,
+          callRegion: region,
+          dialMethod,
+          telnyxDid: picked ?? "",
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(data.error ?? "Could not add that person.");
         return;
       }
-      toast.success(`${name} can sign in as ${username}.`);
+      const details = [
+        data.number
+          ? `Calls go out from ${data.number}, and calls to it ring them in the CRM.`
+          : dialMethod === "handset"
+            ? "They dial from their own phone."
+            : "No number yet: pick one on their row when there is one free.",
+        role === "caller"
+          ? "Next: give them call lists on Call lists, or their screen will be empty."
+          : "They can manage the team.",
+      ];
+      setDone({
+        name: fields.name.trim(),
+        username: data.username ?? fields.username,
+        password: fields.password,
+        details,
+        warning: data.lineWarning,
+      });
       onAdded();
     } finally {
       setSaving(false);
@@ -704,90 +979,288 @@ function AddPersonDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add someone to the team</DialogTitle>
-          <DialogDescription>
-            They sign in with this username and password. Give it to them
-            directly: nothing is emailed.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor="team-name">Name</Label>
-            <Input
-              id="team-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Wei Ling"
-              autoFocus
-            />
-            <p className="text-[11px] text-muted-foreground">
-              What the stats screen will call them.
-            </p>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="team-username">Username</Label>
-            <Input
-              id="team-username"
-              value={username}
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              onChange={(e) => {
-                setTouchedUsername(true);
-                setUsername(e.target.value.toLowerCase());
-              }}
-              placeholder="weiling"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="team-password">Password</Label>
-            <Input
-              id="team-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Shown as you type on purpose: you are reading it out to them,
-              not keeping it secret from yourself.
-            </p>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="team-role">Role</Label>
-            <Select
-              value={role}
-              onValueChange={(v) => setRole(v as "caller" | "admin")}
-            >
-              <SelectTrigger id="team-role">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="caller">
-                  Caller: everything except managing the team
-                </SelectItem>
-                <SelectItem value="admin">
-                  Admin: can also add and switch off people
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={saving}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={submit}
-            disabled={saving || !name.trim() || !username || password.length < 8}
-          >
-            {saving ? "Adding…" : "Add person"}
-          </Button>
-        </DialogFooter>
+        {done ? (
+          <HandOver
+            title={`${done.name} is set up`}
+            name={done.name}
+            username={done.username}
+            password={done.password}
+            details={done.details}
+            warning={done.warning}
+            onClose={() => onOpenChange(false)}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Add someone to the team</DialogTitle>
+              <DialogDescription>
+                This makes their login and, if you pick a number, their phone
+                line: they can dial and be rung back as soon as they sign in.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3">
+              <LoginFields fields={fields} idPrefix="add" />
+              {/* Full-width triggers, so the dropdowns line up with the text
+                  boxes above rather than shrinking to their contents. */}
+              <div className="grid gap-3 sm:grid-cols-2 [&_button]:w-full">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="add-role">Role</Label>
+                  <Select
+                    value={role}
+                    onValueChange={(v) => setRole(v as "caller" | "admin")}
+                  >
+                    <SelectTrigger id="add-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="caller">Caller</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="add-market">Market</Label>
+                  <Select value={market} onValueChange={setMarket}>
+                    <SelectTrigger id="add-market">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MARKETS.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="add-dials">Dials with</Label>
+                  <Select
+                    value={dialMethod}
+                    onValueChange={(v) => setDialMethod(v as "browser" | "handset")}
+                  >
+                    <SelectTrigger id="add-dials">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="browser">The CRM</SelectItem>
+                      <SelectItem value="handset">Own phone</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="add-number">Their number</Label>
+                  <Select
+                    value={picked ?? NO_NUMBER}
+                    onValueChange={setNumber}
+                    disabled={dialMethod === "handset"}
+                  >
+                    <SelectTrigger id="add-number">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_NUMBER}>
+                        {dialMethod === "handset" ? "Own phone" : "No number yet"}
+                      </SelectItem>
+                      {numbers.map((n) => {
+                        const held = holderName(n);
+                        return (
+                          <SelectItem key={n} value={n}>
+                            {n}
+                            {held && (
+                              <span className="text-muted-foreground">
+                                in use by {held}
+                              </span>
+                            )}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {pickedHolder ? (
+                <p className="text-[12px] text-destructive">
+                  {pickedHolder} already uses {picked}. Calls to it will ring{" "}
+                  {fields.name.trim() || "this person"} instead. If{" "}
+                  {pickedHolder} is leaving, use Replace on their row, which
+                  moves their call lists too.
+                </p>
+              ) : dialMethod === "browser" && numbers.length === 0 ? (
+                <p className="text-[12px] text-muted-foreground">
+                  No {region ? MARKET_LABEL[region] : ""} numbers on the account.
+                  They can still sign in; give them one later from their row.
+                </p>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button onClick={submit} disabled={saving || !fields.valid}>
+                {saving ? (picked ? "Setting up their line…" : "Adding…") : "Add person"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Replace a caller who is leaving.
+ *
+ * Says what moves and what stays before anything happens, in plain words, and
+ * afterwards shows the new login to hand over and what actually moved. See
+ * `/api/users/[id]/replace` for the rules.
+ */
+function ReplaceDialog({
+  member,
+  onOpenChange,
+  onReplaced,
+}: {
+  member: TeamMember | null;
+  onOpenChange: (open: boolean) => void;
+  onReplaced: () => void;
+}) {
+  const open = member !== null;
+  const fields = useLoginFields(open);
+  const [saving, setSaving] = React.useState(false);
+  const [done, setDone] = React.useState<{
+    name: string;
+    username: string;
+    password: string;
+    details: string[];
+    warning?: string;
+  } | null>(null);
+  // The member is kept once the replacement is made, because the list refresh
+  // that follows switches them off and the card still needs their name.
+  const [who, setWho] = React.useState<TeamMember | null>(member);
+  if (member && member !== who) {
+    setWho(member);
+    setDone(null);
+  }
+
+  const plural = (n: number, one: string, many: string) =>
+    `${n} ${n === 1 ? one : many}`;
+
+  async function submit() {
+    if (!who) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/users/${who.id}/replace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fields.name,
+          username: fields.username,
+          password: fields.password,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not replace them.");
+        return;
+      }
+      const name = fields.name.trim();
+      const m = data.moved ?? { lists: 0, missedCalls: 0, texts: 0 };
+      setDone({
+        name,
+        username: data.username ?? fields.username,
+        password: fields.password,
+        details: [
+          data.number
+            ? `${data.number} now rings ${name}, and calls go out from it.`
+            : `${who.name} had no number, so ${name} has none yet.`,
+          m.lists > 0
+            ? `${plural(m.lists, "call list", "call lists")} moved, with their callbacks.`
+            : `${who.name} had no call lists: give ${name} some on Call lists.`,
+          ...(m.missedCalls > 0
+            ? [`${plural(m.missedCalls, "missed call", "missed calls")} to ring back moved.`]
+            : []),
+          ...(m.texts > 0 ? [`${plural(m.texts, "text", "texts")} to the number moved.`] : []),
+          `${who.name} is switched off. Their calls and pay history stay under their name.`,
+        ],
+        warning: data.lineWarning,
+      });
+      onReplaced();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        {done ? (
+          <HandOver
+            title={`${done.name} has taken over from ${who?.name}`}
+            name={done.name}
+            username={done.username}
+            password={done.password}
+            details={done.details}
+            warning={done.warning}
+            onClose={() => onOpenChange(false)}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Replace {who?.name}</DialogTitle>
+              <DialogDescription>
+                For when somebody leaves. The new person picks up exactly where{" "}
+                {who?.name} left off.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3">
+              <LoginFields fields={fields} idPrefix="replace" />
+              <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 text-[13px] sm:grid-cols-2">
+                <div>
+                  <p className="font-bold">Moves to the new person</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                    <li>
+                      {who?.telnyxDid
+                        ? `Their number, ${who.telnyxDid}, and phone line`
+                        : "Their phone line, if they have one"}
+                    </li>
+                    <li>
+                      {who && who.lists.length > 0
+                        ? `${plural(who.lists.length, "call list", "call lists")} and the callbacks on them`
+                        : "Their call lists (they have none)"}
+                    </li>
+                    <li>Missed calls still to ring back</li>
+                    <li>Texts to their number</li>
+                    <li>Market, dialling and Keypad settings</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-bold">Stays with {who?.name}</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                    <li>The calls they made, on Stats</li>
+                    <li>Their pay and payouts</li>
+                    <li>Their account, switched off</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button onClick={submit} disabled={saving || !fields.valid}>
+                {saving ? "Handing over…" : `Replace ${who?.name ?? ""}`}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useLineLeader } from "./line-presence";
+import { showIncomingNotification, startRingtone } from "./ringer";
 import { useTelnyxCall, type TelnyxLine } from "./use-telnyx-call";
 
 /**
@@ -201,6 +202,27 @@ export function CallLineProvider({
 
   const busy = line.state !== "idle";
   const two = Boolean(line.second);
+
+  // Ring out loud, and put up a notification when the CRM is not the window in
+  // front, for as long as somebody is ringing in. The banner alone was silent:
+  // a caller reading their notes in another tab let two calls ring out on
+  // 2026-09-15 without ever knowing, for 35 and 61 seconds. Only in the tab that
+  // holds the line, which is the only one that can answer.
+  const ringingFrom = enabled && leader ? (line.incoming?.from ?? null) : null;
+  React.useEffect(() => {
+    if (!ringingFrom) return;
+    // No ringtone into somebody's ear mid-conversation: the banner already says
+    // a second call is waiting, and a ringing earpiece talks over the prospect.
+    const stopTone = busy ? () => {} : startRingtone();
+    const stopNote = showIncomingNotification(ringingFrom);
+    return () => {
+      stopTone();
+      stopNote();
+    };
+    // `busy` is read once, when the ringing starts: hanging up mid-ring should
+    // not suddenly start the tone for a call that has already been ringing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ringingFrom]);
 
   // No dependency array on purpose: this refreshes the snapshots on every
   // render, which is what makes the refs hold the last live state of a line

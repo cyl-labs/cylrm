@@ -264,7 +264,9 @@ export function InboundList({
                   // Said out loud rather than left blank: a number we hold no
                   // lead for is the one most likely to be a real new enquiry.
                   <p className="mt-2 text-[12px] text-muted-foreground">
-                    Not a lead in the CRM.
+                    Not a lead in the CRM. It could still be one: business
+                    owners often ring back from their own phone, so check the
+                    businesses you rang just before this call.
                   </p>
                 )}
 

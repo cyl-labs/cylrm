@@ -210,22 +210,267 @@ export async function mintCallToken(userId: number): Promise<CallLogin> {
 }
 
 /**
- * Who logs in with SIP credentials rather than a token.
+ * Who logs in with their line's SIP user rather than a token.
  *
- * A comma-separated list of user ids in `TELNYX_SIP_LOGIN_USERS`, because this
- * changes how a caller authenticates and getting it wrong takes the phone away
- * from the whole floor. An env list rolls back in the time it takes to edit
- * `.env` and restart, needs no migration, and lets one person be moved over and
- * watched before anybody else is.
+ * Everybody with a line of their own (`telnyx_connection_id`). A SIP login is
+ * the only kind a call can ring, and a person is given a line precisely so that
+ * their number rings them. Until 2026-09-15 this was an opt-in list in
+ * `TELNYX_SIP_LOGIN_USERS`, which existed to move people over one at a time and
+ * watch each; by then every caller was on it, and a list somebody has to
+ * remember to add each new hire to is exactly how a new hire's phone would
+ * never ring.
  *
- * Empty means everybody keeps the token, which is exactly today's behaviour.
+ * The list's other job, rolling one person back, stays: anyone whose id is in
+ * `TELNYX_TOKEN_ONLY_USERS` is put back on a token, which can dial out but
+ * cannot be rung, with an `.env` edit and a restart.
  */
-export function usesSipLogin(userId: number): boolean {
-  return (process.env.TELNYX_SIP_LOGIN_USERS ?? "")
+export async function usesSipLogin(userId: number): Promise<boolean> {
+  const tokenOnly = (process.env.TELNYX_TOKEN_ONLY_USERS ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)
     .includes(String(userId));
+  if (tokenOnly) return false;
+  const [row] = await db
+    .select({ connectionId: appUser.telnyxConnectionId })
+    .from(appUser)
+    .where(eq(appUser.id, userId));
+  return Boolean(row?.connectionId?.trim());
+}
+
+/** A reason a line could not be set up, worded for the admin assigning it. */
+export class LineSetupError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LineSetupError";
+  }
+}
+
+/**
+ * `telnyx()`, but safe for the ids this part of the API returns.
+ *
+ * Connection, number and voice profile ids are 19 digits — past what a JS
+ * number holds exactly — so `res.json()` rounds them into a different line.
+ * Quoting every long integer before parsing keeps them the strings they are
+ * everywhere else, the same trick `lib/telnyx-usage.ts` uses on its reports.
+ */
+async function telnyxExact(
+  path: string,
+  init: RequestInit = {},
+): Promise<Record<string, unknown>> {
+  const { apiKey } = config();
+  const res = await fetch(`${API}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      ...init.headers,
+    },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(
+      `Telnyx ${init.method ?? "GET"} ${path} failed (${res.status}): ${text.slice(0, 300)}`,
+    );
+  }
+  return text
+    ? (JSON.parse(text.replace(/:\s*(\d{16,})(?=\s*[,}\]])/g, ':"$1"')) as Record<
+        string,
+        unknown
+      >)
+    : {};
+}
+
+/**
+ * The line settings copied from the shared connection onto a new one.
+ *
+ * Everything that makes a line behave like every other caller's — the webhook
+ * that carries recordings and inbound calls back, the outbound voice profile
+ * that decides recording and which countries can be rung, codecs, region — and
+ * nothing that identifies it. Copied at the moment of creation rather than
+ * written out here, so a setting changed on the shared line reaches new hires
+ * without a deploy.
+ */
+const COPIED_LINE_SETTINGS = [
+  "active",
+  "anchorsite_override",
+  "default_on_hold_comfort_noise_enabled",
+  "dtmf_type",
+  "encode_contact_header_enabled",
+  "encrypted_media",
+  "onnet_t38_passthrough_enabled",
+  "third_party_control_enabled",
+  "noise_suppression",
+  "jitter_buffer",
+  "webhook_event_url",
+  "webhook_event_failover_url",
+  "webhook_api_version",
+  "webhook_timeout_secs",
+  "call_cost_in_webhooks",
+  "rtcp_settings",
+  "inbound",
+  "outbound",
+  "sip_uri_calling_preference",
+] as const;
+
+/** Dropped rather than sent: an explicit null or empty string is not always
+ *  accepted on create, and leaving the key out takes Telnyx's default, which
+ *  is what the null on the template meant anyway. */
+function withoutBlanks(value: unknown): unknown {
+  if (value === null || value === "") return undefined;
+  if (Array.isArray(value) || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => [k, withoutBlanks(v)] as const)
+      .filter(([, v]) => v !== undefined),
+  );
+}
+
+/** The messaging profile texts arrive through, found by name so nothing new
+ *  has to be configured. */
+const TEXTING_PROFILE = "cylrm-sms";
+
+/**
+ * A new credential connection for one person, copied off the shared line.
+ *
+ * Named `cylrm-<username>` like every line made by hand before this. The SIP
+ * user and password are generated: the browser is handed them by
+ * `mintCallToken` and nobody ever types them. Exported on its own so it can be
+ * exercised against Telnyx without pointing a real number anywhere.
+ */
+export async function createLineConnection(username: string): Promise<string> {
+  const { connectionId: templateId } = config();
+  const template = (await telnyxExact(`/credential_connections/${templateId}`))
+    .data as Record<string, unknown>;
+  const settings = Object.fromEntries(
+    COPIED_LINE_SETTINGS.map((k) => [k, withoutBlanks(template[k])] as const).filter(
+      ([, v]) => v !== undefined,
+    ),
+  );
+  const random = () => crypto.randomUUID().replace(/-/g, "");
+  const made = (await telnyxExact("/credential_connections", {
+    method: "POST",
+    body: JSON.stringify({
+      ...settings,
+      connection_name: `cylrm-${username}`,
+      // Letters and digits only, like the hand-made ones, and unique on the
+      // account whatever the username: two people called Alex must not share a
+      // SIP user, or one browser registers as the other.
+      user_name: `cylrm${username.replace(/[^A-Za-z0-9]/g, "").slice(0, 8)}${random().slice(0, 6)}`,
+      password: random(),
+    }),
+  })).data as { id?: unknown };
+  if (!made?.id) throw new LineSetupError("Telnyx did not return the new line.");
+  return String(made.id);
+}
+
+/**
+ * Make somebody reachable on the number they have just been assigned.
+ *
+ * The steps that were done by hand for every caller before 2026-09-15: a line
+ * of their own copied off the shared one, the number pointed at it, the number
+ * put on the texting profile, and the line saved against them. Missing any of
+ * them failed quietly — a number on nobody's line rings nobody, and one off the
+ * texting profile never shows a text — which is how a caller's number could go
+ * unanswered for weeks with nothing on screen saying so.
+ *
+ * Idempotent: assigning a number to the person who already has it changes
+ * nothing on Telnyx. The line is saved the moment it exists, so a failure
+ * part-way can simply be retried and reuses it rather than making another.
+ *
+ * Pointing the number at this line takes its inbound calls away from anybody
+ * else who holds the same number. That is what assigning it means, and the
+ * Team screen asks before handing out a number somebody already has.
+ */
+export async function provisionLine(
+  user: { id: number; username: string; telnyxConnectionId: string | null },
+  did: string,
+): Promise<{ connectionId: string; created: boolean }> {
+  const found = (
+    await telnyxExact(`/phone_numbers?filter[phone_number]=${encodeURIComponent(did)}`)
+  ).data as Record<string, unknown>[] | undefined;
+  const number = found?.find((n) => n.phone_number === did);
+  if (!number) {
+    throw new LineSetupError(`${did} is not a number on the Telnyx account.`);
+  }
+
+  let connectionId = user.telnyxConnectionId?.trim() || null;
+  let created = false;
+  if (!connectionId) {
+    connectionId = await createLineConnection(user.username);
+    created = true;
+    // A credential belongs to one connection, so the old one has to go in the
+    // same statement or their browser keeps registering where it was.
+    await db
+      .update(appUser)
+      .set({
+        telnyxConnectionId: connectionId,
+        telnyxCredentialId: null,
+        telnyxCredentialExpiresAt: null,
+      })
+      .where(eq(appUser.id, user.id));
+  }
+
+  if (String(number.connection_id ?? "") !== connectionId) {
+    await telnyxExact(`/phone_numbers/${number.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ connection_id: connectionId }),
+    });
+  }
+
+  // Best effort. A number that cannot take texts still rings, and failing the
+  // whole assignment over it would leave somebody unreachable for a nicety.
+  try {
+    const profiles = (await telnyxExact("/messaging_profiles?page[size]=100"))
+      .data as Record<string, unknown>[] | undefined;
+    const profile = profiles?.find((p) => p.name === TEXTING_PROFILE);
+    if (profile && String(number.messaging_profile_id ?? "") !== String(profile.id)) {
+      await telnyxExact(`/phone_numbers/${number.id}/messaging`, {
+        method: "PATCH",
+        body: JSON.stringify({ messaging_profile_id: String(profile.id) }),
+      });
+    }
+  } catch {
+    // Left for the numbers panel; see above.
+  }
+
+  // Their cached login may be for a line they no longer have.
+  tokenCache.delete(user.id);
+  return { connectionId, created };
+}
+
+/**
+ * Hand a line from somebody leaving to their replacement.
+ *
+ * The number already points at the line, so routing does not change — that is
+ * the reason for reusing the line rather than building another. Two things do
+ * change. The line is renamed after the new person, so the numbers panel on
+ * Team names who has it. And its SIP password is replaced: the leaver's browser
+ * was handed that password every day they worked, and a line that still
+ * accepted it would be one they could go on registering against.
+ */
+export async function handOverLine(input: {
+  connectionId: string;
+  username: string;
+  outgoingUserId: number;
+  outgoingCredentialId: string | null;
+}): Promise<void> {
+  await telnyxExact(`/credential_connections/${input.connectionId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      connection_name: `cylrm-${input.username}`,
+      password: crypto.randomUUID().replace(/-/g, ""),
+    }),
+  });
+  if (input.outgoingCredentialId) {
+    // Best effort: an orphaned credential under a line whose password has
+    // changed costs tidiness, not access.
+    await telnyxExact(`/telephony_credentials/${input.outgoingCredentialId}`, {
+      method: "DELETE",
+    }).catch(() => {});
+  }
+  tokenCache.delete(input.outgoingUserId);
 }
 
 /**

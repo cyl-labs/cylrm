@@ -1493,6 +1493,80 @@ The app is used on phones as well as desktops. Conventions:
   - **Inbound: IMAP** (`imap.gmail.com:993`) with per-account **app passwords** — used both for verification at connect time and by the Phase 5 poller. Do not remove the app-password flow; sending and polling use different credentials. The Google OAuth connect flow does NOT set an app password, and `POST /api/accounts` refuses an email it already knows, so an OAuth-connected account gains one via `PATCH /api/accounts/[id]` with `appPassword` ("Add app password" in the account menu), verified with a real IMAP login before storing. Without it an account sends fine and never sees a reply, so the activation preflight blocks when no sending account has one and warns when only some do.
   - Both secrets encrypted at rest with AES-256-GCM (`src/lib/crypto.ts`, key = `TOKEN_ENCRYPTION_KEY`).
 
+### Adding and replacing people (2026-09-15)
+
+Setting somebody up to call is done entirely on Team, so a new hire or a
+leaver never needs a Telnyx session or a developer. Routes `POST /api/users`
+and `POST /api/users/[id]/replace`; Telnyx work in `provisionLine`,
+`createLineConnection` and `handOverLine` (`lib/telnyx.ts`); the number rule in
+`lib/team-numbers.ts`.
+
+- **Add person takes a market, how they dial and a number**, and a picked
+  number gets its line built there and then: a credential connection
+  `cylrm-<username>` copied off `TELNYX_CONNECTION_ID` (webhook, voice profile,
+  codecs, region — copied at creation, so a change to the shared line reaches
+  new hires without a deploy), the number pointed at it, and the number put on
+  `cylrm-sms`. Picking a number from a row's dropdown does the same through
+  `PATCH /api/users/[id]`. Idempotent, and the connection id is saved the
+  moment it exists, so a failure part-way retries onto the same line.
+- **Telnyx ids are 19 digits**, so `telnyxExact` quotes long integers before
+  parsing: `res.json()` rounds them into a different line. Blank template
+  values are dropped from the create body (`withoutBlanks`) rather than sent as
+  nulls.
+- **A line that fails to build does not undo the account.** The response
+  carries `lineWarning`, the handover card shows it, and picking the number
+  again on their row retries.
+- **Anyone with a line of their own logs in the way that can be rung**
+  (`usesSipLogin`). `TELNYX_SIP_LOGIN_USERS` is no longer read;
+  `TELNYX_TOKEN_ONLY_USERS` puts a person back on a token, which dials out but
+  cannot be rung. The login is chosen when the page mints its token, so any
+  change needs a reload on the caller's side.
+- **Replace** is for an active caller who is leaving. One transaction creates
+  the new account with the leaver's market, stats zone, dialling method,
+  keypad, hints and panel; moves `telnyx_did` and `telnyx_connection_id`;
+  moves `call_list.assigned_user_id`, and callbacks with it; moves missed calls
+  still owed a ring back and inbound texts (`user_id`); and switches the leaver
+  off, which ends their session. Their calls, payouts and the ring-backs they
+  already did stay theirs. Afterwards `handOverLine` renames the connection and
+  **replaces its SIP password**, since the leaver's browser was handed it every
+  day; a failure there is reported rather than refused, because routing
+  already works.
+- **The sign-in details are shown once**, in place of the form, with a copy
+  button. Neither dialog closes itself on success for that reason.
+- **Tested against a stand-in Telnyx** (`TELNYX_API_BASE`), plus one throwaway
+  real connection created, compared with the template and deleted, and an
+  idempotent run against Mico's real line that changed nothing. **Never test
+  Replace against a real line**: it changes that line's password, and the person
+  holding it loses their phone until they reload.
+- **No numbers are bought here.** Buying is a founder's decision on Telnyx;
+  the form says when a market has no number left to give.
+
+### Incoming calls ring out loud (2026-09-15)
+
+`components/calls/ringer.ts`, started from `CallLineProvider` while
+`line.incoming` is set, in the tab that holds the line.
+
+- **A ringtone and, when the CRM is not the focused window, a system
+  notification.** The banner alone was silent. On 2026-09-15 Harry's browser
+  was rung for 35 and then 61 seconds (Telnyx: 487 cancelled, 480 no answer)
+  while he was looking elsewhere, and two more calls were refused 480
+  `SUBSCRIBER_ABSENT` because no tab was registered at that moment.
+- The tone is made with Web Audio (440 + 480 Hz, two seconds on, four off), so
+  there is no file to host. Browsers only allow sound after a click on the
+  page; a freshly reloaded tab nobody has touched may stay silent, which is
+  what the notification is for. It only shows if permission was already granted
+  (`PushGate` asks on first visit).
+- **No tone when already on a call**: it would ring over the prospect. The
+  banner still says a second call is waiting.
+- **Two CRM tabs means one holds the line** (`line-presence.tsx`), and only
+  that tab shows the banner. Switching screens can move the line between tabs,
+  and for the seconds that takes the phone cannot be rung. Worth telling
+  callers to keep one tab.
+- **A missed call from a number matching no lead cannot be dismissed as a
+  stranger.** Built and withdrawn the same day at the founders' request: it is
+  usually a business owner ringing back from their own phone. The row says so
+  instead, pointing the caller at the businesses they rang just before.
+
 ## Scripts and procedures (Call CRM)
 
 `/sop` is the library callers work from: cold-calling scripts, objection
@@ -1840,15 +1914,14 @@ SG/US destination whitelist live. As of 2026-09-14 eight accounts have a number,
 each on its own connection (`cylrm-mico` and `cylrm-querla` added that day,
 copied field for field off `cylrm-harry`, numbers on the `cylrm-sms` texting
 profile too), and no number is held by two active people. **A connection is not
-enough to be rung:** only people listed in `TELNYX_SIP_LOGIN_USERS` log in with
-the connection's SIP user, and a token-only browser answers an inbound call SIP
-480 (see `mintCallToken`). Since 2026-09-15 the list holds every active caller
-(`16,17,22,23,25,26,27`, plus 4 and 11, who have left), at the founders'
-request; until then only Harry and Maryjane rang, and every call to anyone
-else's number went straight to Missed calls. **A new caller has to be added to
-it** or their browser never rings, and it takes a restart plus a reload of the
-CRM on their side, because the login is chosen when the page mints its token.
-Founders (id 2) is deliberately not on it.
+enough to be rung:** the browser has to log in as the connection's SIP user,
+because a token-only browser answers an inbound call SIP 480 (see
+`mintCallToken`). Until 2026-09-15 that was opt-in per person through
+`TELNYX_SIP_LOGIN_USERS`, which held only Harry and Maryjane for most of its
+life, so every call to anyone else's number went straight to Missed calls. It is
+now the default for anybody with a line of their own, the founders' account
+included, and the env list is no longer read — see **Adding and replacing
+people** for that and for how lines are now built from Team.
 
 A JWT's `exp` is exactly its parent credential's `expires_at`, so any token cache
 must expire at `min(cacheTtl, credentialExpiresAt)` — caching a token minted late

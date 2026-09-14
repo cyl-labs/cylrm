@@ -304,6 +304,10 @@ export async function createUser(input: {
   name: string;
   password: string;
   role: "admin" | "caller";
+  /** Their market, or null/absent for every market. Set on creation so a new
+   *  hire's scripts and number picker are right from their first sign-in. */
+  callRegion?: "sg" | "us" | "gb" | null;
+  dialMethod?: "browser" | "handset";
 }) {
   const [row] = await db
     .insert(appUser)
@@ -312,6 +316,8 @@ export async function createUser(input: {
       name: input.name.trim(),
       passwordHash: await hashPassword(input.password),
       role: input.role,
+      callRegion: input.callRegion ?? null,
+      dialMethod: input.dialMethod ?? "browser",
     })
     .returning({ id: appUser.id, username: appUser.username });
   return row;

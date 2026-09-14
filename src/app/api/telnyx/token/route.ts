@@ -25,7 +25,7 @@ export async function POST() {
     // way in that it did not use, and the SIP password is the stronger secret
     // of the two.
     return Response.json(
-      usesSipLogin(me.id)
+      (await usesSipLogin(me.id))
         ? { login: cred.login, password: cred.password }
         : { token: cred.token },
     );
