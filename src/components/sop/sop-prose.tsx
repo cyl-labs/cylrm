@@ -73,8 +73,11 @@ export function SopProse({
         // Warm for the words you say, neutral for theirs, matching the script
         // as written. `dark:` variants are here in case a theme is ever wired
         // up; today the app is light only.
-        "[&_blockquote[data-speaker=you]>p]:bg-[#FDE7E1] dark:[&_blockquote[data-speaker=you]>p]:bg-[#3b211c]",
-        "[&_blockquote[data-speaker=prospect]>p]:bg-[#EDEDED] dark:[&_blockquote[data-speaker=prospect]>p]:bg-[#26262a]",
+        // Dark tints sit a step above the #262624 page: the prospect grey was
+        // #26262a, which is the page colour to the eye, so their lines lost
+        // their block entirely under Claude's palette.
+        "[&_blockquote[data-speaker=you]>p]:bg-[#FDE7E1] dark:[&_blockquote[data-speaker=you]>p]:bg-[#46352d]",
+        "[&_blockquote[data-speaker=prospect]>p]:bg-[#EDEDED] dark:[&_blockquote[data-speaker=prospect]>p]:bg-[#3a3a37]",
         // A message left on a machine, never said to a person. Callers read
         // every warm "You say" block top to bottom, and the voicemail line
         // looked exactly like one, so it was being read to people who had

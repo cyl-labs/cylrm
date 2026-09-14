@@ -237,8 +237,8 @@ export function RecordingSheet({
                             // which no dark theme can reach: light pink under
                             // light text in dark mode.
                             turn.speaker === "caller"
-                              ? "bg-[#FDE7E1] dark:bg-[#3b211c]"
-                              : "bg-[#EDEDED] dark:bg-[#26262a]",
+                              ? "bg-[#FDE7E1] dark:bg-[#46352d]"
+                              : "bg-[#EDEDED] dark:bg-[#3a3a37]",
                             playing && "ring-2 ring-primary/40",
                           )}
                         >

@@ -97,49 +97,53 @@
 }
 
 .dark {
-  /* The same warm palette at night (2026-09-14, the toggle in the sidebar).
-     This block was shadcn's stock dark theme until then: cool blue-grey
-     neutrals, the exact mismatch the light palette's note warns about, and
-     unused because nothing turned it on.
+  /* Claude's dark theme (2026-09-14, asked for by the founders after the first
+     dark palette — near-black browns under a bright #f2683c — looked off).
+     Values follow claude.ai's own: a warm grey page #262624, a darker sidebar
+     #1f1e1d, raised surfaces #30302e, off-white text #faf9f5 with a softer
+     #b1ada1 for secondary text, and the clay accent. claude.ai needs a login
+     to inspect, so these are the widely copied community extraction (tweakcn's
+     "Claude" theme), not a published spec.
 
-     Neutrals keep the light palette's warm hue. The accent brightens to
-     #f2683c, because #d2451f only reaches 3.9:1 as text on a dark ground, and
-     buttons take dark text on it rather than white: white on #f2683c is 3.1:1,
-     dark on it is 5.8:1. Measured against the background: body text 16:1,
-     muted text 7:1, accent text 6:1. */
-  --background: #171412;
-  --foreground: #f1ece8;
-  --card: #201c19;
-  --card-foreground: #f1ece8;
-  --popover: #231f1c;
-  --popover-foreground: #f1ece8;
-  --primary: #f2683c;
-  --primary-foreground: #1a1512;
-  --secondary: #2c2723;
-  --secondary-foreground: #e2dbd5;
-  --muted: #2a2522;
-  --muted-foreground: #a89f98;
-  --accent: #2e2824;
-  --accent-foreground: #f1ece8;
+     Two deliberate differences, both for readability:
+     - The clay is #dd7f60, one shade lighter than claude.ai's #d97757. Small
+       clay text on a #30302e card measured 4.24:1 at #d97757 ("Listen back",
+       "Granted", a calendar count), under the 4.5:1 floor; #dd7f60 clears it.
+     - Buttons carry dark text on the clay rather than white: white on it is
+       under 3:1, dark text is 5.7:1. */
+  --background: #262624;
+  --foreground: #faf9f5;
+  --card: #30302e;
+  --card-foreground: #faf9f5;
+  --popover: #30302e;
+  --popover-foreground: #faf9f5;
+  --primary: #dd7f60;
+  --primary-foreground: #1f1e1d;
+  --secondary: #3a3a37;
+  --secondary-foreground: #e8e6dc;
+  --muted: #30302e;
+  --muted-foreground: #b1ada1;
+  --accent: #3a3a37;
+  --accent-foreground: #faf9f5;
   --destructive: #f0647a;
   --success: #2fc792;
   --warning: oklch(0.769 0.165 70.1);
-  --border: #37302b;
-  --input: #463e38;
-  --ring: #a8492c;
-  --chart-1: #f2683c;
-  --chart-2: #f5a283;
+  --border: #3e3e38;
+  --input: #52514a;
+  --ring: #dd7f60;
+  --chart-1: #dd7f60;
+  --chart-2: #e9a386;
   --chart-3: #2fc792;
   --chart-4: oklch(0.769 0.165 70.1);
-  --chart-5: #a89f98;
-  --sidebar: #1c1916;
-  --sidebar-foreground: #cfc6bf;
-  --sidebar-primary: #f2683c;
-  --sidebar-primary-foreground: #1a1512;
-  --sidebar-accent: #2c2521;
-  --sidebar-accent-foreground: #f1ece8;
-  --sidebar-border: #2f2925;
-  --sidebar-ring: #a8492c;
+  --chart-5: #b1ada1;
+  --sidebar: #1f1e1d;
+  --sidebar-foreground: #c2c0b6;
+  --sidebar-primary: #dd7f60;
+  --sidebar-primary-foreground: #1f1e1d;
+  --sidebar-accent: #30302e;
+  --sidebar-accent-foreground: #faf9f5;
+  --sidebar-border: #2f2f2c;
+  --sidebar-ring: #dd7f60;
 }
 
 @layer base {

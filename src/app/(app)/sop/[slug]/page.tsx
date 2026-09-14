@@ -242,7 +242,7 @@ export default async function SopDocumentPage({
                           highlighter the printed sheet gives it. The rest of
                           the headings are instructions and stay plain. */}
                       {s.title.startsWith("Prospect:") ? (
-                        <span className="rounded-[3px] bg-[#EDEDED] px-1.5 py-0.5 dark:bg-[#26262a]">
+                        <span className="rounded-[3px] bg-[#EDEDED] px-1.5 py-0.5 dark:bg-[#3a3a37]">
                           {s.title}
                         </span>
                       ) : (
