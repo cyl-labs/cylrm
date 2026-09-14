@@ -24,7 +24,7 @@ the dial card.
 
 _(let them answer)_
 
-> **You say** Got it. So, if I call after that… does it go to voicemail, or does someone still pick up?
+> **You say** Got it. So, if I call after [their close time]… does it go to voicemail, or does someone still pick up?
 
 _(let them answer)_
 
