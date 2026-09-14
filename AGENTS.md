@@ -1842,9 +1842,13 @@ copied field for field off `cylrm-harry`, numbers on the `cylrm-sms` texting
 profile too), and no number is held by two active people. **A connection is not
 enough to be rung:** only people listed in `TELNYX_SIP_LOGIN_USERS` log in with
 the connection's SIP user, and a token-only browser answers an inbound call SIP
-480 (see `mintCallToken`). As of that date the list holds Harry and Maryjane
-among active staff, so everyone else's inbound calls land on Missed calls and
-ring no browser.
+480 (see `mintCallToken`). Since 2026-09-15 the list holds every active caller
+(`16,17,22,23,25,26,27`, plus 4 and 11, who have left), at the founders'
+request; until then only Harry and Maryjane rang, and every call to anyone
+else's number went straight to Missed calls. **A new caller has to be added to
+it** or their browser never rings, and it takes a restart plus a reload of the
+CRM on their side, because the login is chosen when the page mints its token.
+Founders (id 2) is deliberately not on it.
 
 A JWT's `exp` is exactly its parent credential's `expires_at`, so any token cache
 must expire at `min(cacheTtl, credentialExpiresAt)` — caching a token minted late

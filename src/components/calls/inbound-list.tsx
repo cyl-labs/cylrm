@@ -243,12 +243,20 @@ export function InboundList({
                         <span className="min-w-0 truncate">{c.listName}</span>
                       </Badge>
                     )}
-                    {c.handledAt && (
-                      <span className="text-[12px] font-semibold text-success">
-                        Rung back
-                        {c.handledBy ? ` by ${c.handledBy}` : ""}
-                      </span>
-                    )}
+                    {/* Cleared with nobody named against it only happens to
+                        calls restored after the fact — the ones lost while
+                        inbound calls were failing to save, 4-15 September — and
+                        none of those was ever rung back. */}
+                    {c.handledAt &&
+                      (c.handledBy ? (
+                        <span className="text-[12px] font-semibold text-success">
+                          Rung back by {c.handledBy}
+                        </span>
+                      ) : (
+                        <span className="text-[12px] font-semibold text-muted-foreground">
+                          Not rung back
+                        </span>
+                      ))}
                   </div>
                 </div>
 
