@@ -24,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CALL_TIME_OUTCOMES, OUTCOME_LABELS } from "@/components/calls/outcome";
+import { RingBackButton } from "@/components/calls/ring-back-button";
+import { useCallLine } from "@/components/calls/call-line";
 import { callTzDate, defaultCallbackAt } from "@/lib/call-time";
 import { dialableNumber } from "@/lib/phone";
 import type { InboundCall } from "@/lib/inbound";
@@ -110,6 +112,9 @@ export function InboundList({
   showWho: boolean;
 }) {
   const router = useRouter();
+  // The ring back placed from a row's Call back button, so logging what came of
+  // it joins the recording. Null when it was dialled from a handset.
+  const { sessionFor } = useCallLine();
   const [busy, setBusy] = React.useState<number | null>(null);
   /**
    * The outcome picked for one row, before it is saved.
@@ -141,6 +146,8 @@ export function InboundList({
                 notes: picked?.notes ?? "",
                 callbackAt:
                   outcome === "callback" ? picked?.callbackAt : undefined,
+                telnyxSessionId:
+                  c.leadId !== null ? sessionFor(c.leadId)?.sessionId : undefined,
               },
         ),
       });
@@ -265,12 +272,26 @@ export function InboundList({
                   // lead for is the one most likely to be a real new enquiry.
                   <p className="mt-2 text-[12px] text-muted-foreground">
                     Not a lead in the CRM. It could still be one: business
-                    owners often ring back from their own phone, so check the
-                    businesses you rang just before this call.
+                    owners often ring back from their own phone. When you ring
+                    back,{" "}
+                    <span className="font-semibold text-foreground">
+                      ask which business they&apos;re with and their timezone
+                    </span>
+                    , and write both down.
                   </p>
                 )}
 
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  {/* From the number they rang, so the call comes from one
+                      they already know. */}
+                  {outstanding && (
+                    <RingBackButton
+                      to={c.from}
+                      from={c.to}
+                      leadId={c.leadId}
+                      blocked={c.dncBlock}
+                    />
+                  )}
                   <CopyNumber phone={c.from} blocked={c.dncBlock} />
                   {outstanding &&
                     (c.leadId !== null ? (

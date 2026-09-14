@@ -320,10 +320,21 @@ inbound handled.
   (numbers compared as numbers, so `.2` before `.10`), most done first, least
   done first, newest first. "Done" is `listProgress`, the same function that
   draws each card's bar, so the order always matches what the reader sees.
-  Sorted before the folders are cut, so every folder keeps it. The picker and
-  the Mine/Everyone links each carry the other's parameter — the `?list=` trap
-  documented on Stats. Shown once there are more than two lists, callers
-  included.
+  Sorted before the folders are cut, so every folder keeps it.
+- **Founders get a filter bar** (2026-09-15, `lib/list-filter.ts`,
+  `components/calls/list-filters.tsx`): search by name, niche or caller;
+  caller (any, Mine, Unassigned, or a person — including anyone switched off
+  who still holds a list); market; progress (not started, in progress,
+  finished); and the sort. Asked for when the floor had 41 lists and 31
+  belonged to nobody, where the question is usually "what is still to hand
+  out". "Not started" means no lead has been rung, not "nothing done" — a list
+  rung once through to voicemail is under way; "finished" is the card's own bar
+  at full (`listProgress`). All in the URL, and every control rebuilds the
+  whole query string through `listFilterQuery`, the `?list=` trap documented on
+  Stats. It replaced the Mine/Everyone links in the header, and an old
+  `?mine=1` still reads as Mine. Filtered to nothing, the screen says so with a
+  Clear link rather than "No call lists yet". Callers keep only the sort
+  picker, shown once they have more than two lists.
 - **Bulk import**: the import dialog takes many CSVs at once, and each becomes
   its own list. Every file is first sent to `POST /api/call-lists` with
   `dryRun=1`, which runs the real parser and reports usable/skipped counts
@@ -1565,7 +1576,20 @@ and `POST /api/users/[id]/replace`; Telnyx work in `provisionLine`,
 - **A missed call from a number matching no lead cannot be dismissed as a
   stranger.** Built and withdrawn the same day at the founders' request: it is
   usually a business owner ringing back from their own phone. The row says so
-  instead, pointing the caller at the businesses they rang just before.
+  instead, pointing the caller at the businesses they rang just before, and
+  telling them to ask which business they are with and their timezone. The
+  incoming-call banner says the same for an unknown number. Asked for after
+  Harry spoke to "Angel" on a Colorado mobile, agreed a Thursday 1pm demo and
+  had no business name to book it against.
+- **Missed calls and Texts have a Call back button**
+  (`RingBackButton`, `components/calls/ring-back-button.tsx` — not the older
+  `CallBackButton`, which links into a lead's dial card from Callbacks and
+  Meetings). Before it, ringing somebody back
+  from the browser meant copying the number, opening the Keypad and pasting.
+  It dials from the number they rang or texted, sets the active lead so the
+  outcome logged on the row joins the recording (`/api/inbound-calls/[id]`
+  now takes `telnyxSessionId`), and renders nothing without a live browser
+  line or when the number is screened out — the copy button covers both.
 
 ## Scripts and procedures (Call CRM)
 

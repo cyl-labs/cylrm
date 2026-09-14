@@ -56,6 +56,9 @@ export async function PATCH(
     outcome?: unknown;
     notes?: unknown;
     callbackAt?: unknown;
+    /** The browser call the ring back was, when it was placed from the row's
+     *  Call back button, so the recording joins the call it belongs to. */
+    telnyxSessionId?: unknown;
   } | null;
 
   let outcome: CallOutcome | null = null;
@@ -72,6 +75,10 @@ export async function PATCH(
   const notes =
     typeof body?.notes === "string" && body.notes.trim() !== ""
       ? body.notes.trim().slice(0, 5000)
+      : null;
+  const telnyxSessionId =
+    typeof body?.telnyxSessionId === "string" && body.telnyxSessionId
+      ? body.telnyxSessionId.slice(0, 200)
       : null;
 
   // Which inbound call this is, and the lead behind it. Read before anything
@@ -110,16 +117,18 @@ export async function PATCH(
 
   await db.transaction(async (tx) => {
     if (outcome !== null && leadId !== null) {
-      // Exactly the row `/api/calls` writes, minus the telephony fields: the
-      // ring back was dialled from a handset or the keypad, so there is no
-      // session to join a recording on. A lead's state is derived from its
-      // latest call, so this alone moves it out of the queue.
+      // Exactly the row `/api/calls` writes. The session is present when the
+      // ring back was dialled from the row in the browser, and absent when it
+      // was dialled from a handset, in which case there is no recording to
+      // join. A lead's state is derived from its latest call, so this alone
+      // moves it out of the queue.
       await tx.insert(call).values({
         callLeadId: leadId,
         userId: me.id,
         outcome,
         notes,
         callbackAt,
+        telnyxSessionId,
       });
     }
 

@@ -103,7 +103,10 @@ export function IncomingCall({
               {lead ? ` · ${lead.list}` : ""}
             </>
           ) : looked ? (
-            "Not a lead in the CRM"
+            // Usually an owner ringing back from their own phone rather than a
+            // stranger, and the business name is the one thing that finds the
+            // lead afterwards.
+            "Not a lead in the CRM. Ask which business they're with."
           ) : (
             "Looking them up…"
           )}

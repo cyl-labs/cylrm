@@ -20,12 +20,13 @@ import { WorkGateBanner } from "@/components/calls/work-gate";
 import { getWorkOrder } from "@/lib/work-order";
 import { REGION_LABELS, REGION_ORDER } from "@/components/calls/region";
 import { ListSortPicker } from "@/components/calls/list-sort-picker";
+import { ListFilters } from "@/components/calls/list-filters";
+import { listProgress, sortLists } from "@/lib/list-sort";
 import {
-  DEFAULT_LIST_SORT,
-  isListSort,
-  listProgress,
-  sortLists,
-} from "@/lib/list-sort";
+  applyListFilters,
+  listFilterQuery,
+  parseListFilters,
+} from "@/lib/list-filter";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -34,13 +35,20 @@ export const dynamic = "force-dynamic";
 export default async function CallsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mine?: string; sort?: string }>;
+  searchParams: Promise<{
+    mine?: string;
+    sort?: string;
+    q?: string;
+    owner?: string;
+    market?: string;
+    stage?: string;
+  }>;
 }) {
   const me = await getCurrentUser();
   const isAdmin = me?.role === "admin";
-  const [{ mine: mineParam, sort: sortParam }, all, team] = await Promise.all([
+  const [params, all, team] = await Promise.all([
     searchParams,
-    // A caller is only ever handed their own niches; the filter below is an
+    // A caller is only ever handed their own niches; the filters below are an
     // admin convenience on top of the full set.
     getCallLists(callScope(me)),
     listTeam(),
@@ -51,15 +59,27 @@ export default async function CallsPage({
   // worse than being told before the press.
   const work = await getWorkOrder(me);
 
-  const myLists = all.filter((l) => l.assignedUserId === me?.id);
-  // Admins default to the whole floor — that is the job — and can narrow to
-  // their own. Callers have nothing to narrow: `all` is already only theirs.
-  const mine = isAdmin && mineParam === "1";
-  // The chosen order, applied before the folders are cut so every folder keeps
-  // it. See `lib/list-sort.ts` for why niche is the default.
-  const sort = isListSort(sortParam) ? sortParam : DEFAULT_LIST_SORT;
-  const lists = sortLists(mine ? myLists : all, sort);
+  // Search, whose lists, market and progress, for the founders. A caller is
+  // handed a couple of niches and gets only the order: a filter bar over two
+  // cards is furniture. See `lib/list-filter.ts`.
+  const parsed = parseListFilters(params);
+  const filters = isAdmin
+    ? parsed
+    : { ...parsed, q: "", owner: "any" as const, market: "any" as const, stage: "all" as const };
+  // Filtered, then sorted, then cut into folders, so every folder keeps the
+  // chosen order. See `lib/list-sort.ts` for why niche is the default.
+  const lists = sortLists(
+    applyListFilters(all, filters, me?.id ?? null),
+    filters.sort,
+  );
   const people = team.map((t) => ({ id: t.id, name: t.name, active: t.active }));
+  // Who lists can be narrowed to: everyone working, plus anyone switched off
+  // who still holds a list, so those can be found and handed on.
+  const owners = team
+    .filter((t) => t.active || all.some((l) => l.assignedUserId === t.id))
+    .map((t) => ({ id: t.id, name: t.name, active: t.active }));
+  const hasOwnLists = all.some((l) => l.assignedUserId === me?.id);
+  const clearHref = `/calls${listFilterQuery({ ...filters, q: "", owner: "any", market: "any", stage: "all" })}`;
 
   // The end-of-session report, filled in. Callers only: the founders are who
   // it is posted to, so prompting them to file one would be a card asking
@@ -95,42 +115,17 @@ export default async function CallsPage({
     <PageShell
       title="Call lists"
       actions={
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          {isAdmin && myLists.length > 0 && (
-            // Two links rather than a control: the filter is in the URL, so
-            // it survives a refresh and can be bookmarked.
-            <div className="flex shrink-0 rounded-lg border p-0.5">
-              {[
-                { key: "1", label: "Mine", on: mine },
-                { key: "0", label: "Everyone", on: !mine },
-              ].map((t) => (
-                <Link
-                  key={t.key}
-                  // Carries the sort, or switching between Mine and Everyone
-                  // would quietly put the order back to the default.
-                  href={`/calls?mine=${t.key}${sort === DEFAULT_LIST_SORT ? "" : `&sort=${sort}`}`}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-[13px] font-semibold transition-colors",
-                    t.on
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  {t.label}
-                </Link>
-              ))}
-            </div>
-          )}
-          {/* Admins only. A caller is handed their niches; importing is not
-              a thing they do, and offering it invites a dead end. */}
-          {isAdmin && (
+        // Admins only. A caller is handed their niches; importing is not a
+        // thing they do, and offering it invites a dead end.
+        isAdmin ? (
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <CallImportDialog
               callLists={all.map((l) => ({ id: l.id, name: l.name }))}
               people={people}
               canAssign={isAdmin}
             />
-          )}
-        </div>
+          </div>
+        ) : undefined
       }
     >
       <div className="px-4 py-5 sm:px-6">
@@ -156,18 +151,23 @@ export default async function CallsPage({
             zoneName={report.zoneName}
           />
         )}
-        {/* Above the lists rather than in the header: the header already
-            holds Mine/Everyone and Import, and a third control there does not
-            fit a phone. Only once there is an order worth choosing. */}
-        {lists.length > 2 && (
+        {/* The founders' bar replaces the Mine/Everyone toggle that used to sit
+            in the header: "Mine" is one of its caller choices now. */}
+        {isAdmin && all.length > 0 && (
+          <ListFilters
+            filters={filters}
+            owners={owners}
+            canPickMine={hasOwnLists}
+            shown={lists.length}
+            total={all.length}
+          />
+        )}
+        {!isAdmin && lists.length > 2 && (
           <div className="mb-3 flex justify-end">
-            <ListSortPicker
-              value={sort}
-              mine={mineParam === "1" || mineParam === "0" ? mineParam : null}
-            />
+            <ListSortPicker value={filters.sort} mine={null} />
           </div>
         )}
-        {lists.length === 0 ? (
+        {all.length === 0 ? (
           <div className="rounded-xl border border-dashed py-16 text-center">
             <PhoneCall
               className="mx-auto size-6 text-muted-foreground"
@@ -184,6 +184,23 @@ export default async function CallsPage({
                 ? "Import a CSV with a phone column to start calling."
                 : "Your niches will appear here once an admin assigns them. Ask for more when you run out."}
             </p>
+          </div>
+        ) : lists.length === 0 ? (
+          // Filtered down to nothing. Said as that, with the way back, rather
+          // than the "no call lists yet" above, which would read as the lists
+          // having gone.
+          <div className="rounded-xl border border-dashed py-12 text-center">
+            <p className="text-sm font-semibold">No lists match these filters.</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Try another caller, market or progress.
+            </p>
+            <Link
+              href={clearHref}
+              scroll={false}
+              className="mt-3 inline-block text-[13px] font-semibold underline-offset-4 hover:underline"
+            >
+              Clear filters
+            </Link>
           </div>
         ) : isAdmin ? (
           // Folders, for the only people who see more than a handful of

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CopyNumber } from "@/components/calls/inbound-list";
+import { RingBackButton } from "@/components/calls/ring-back-button";
 import { classifyPhone, e164, spokenNumber } from "@/lib/phone";
 import { conversationHref } from "@/lib/text-key";
 import type { Conversation, TextMessage, Thread } from "@/lib/texts";
@@ -613,6 +614,12 @@ function ThreadView({
               <p className="text-[12px] text-muted-foreground">Not a lead in the CRM.</p>
             )}
             <div className="flex flex-wrap justify-center gap-2">
+              <RingBackButton
+                to={c.their}
+                from={c.ours}
+                leadId={c.leadId}
+                blocked={c.dncBlock}
+              />
               <CopyNumber phone={c.their} blocked={c.dncBlock} />
               {lead && (
                 <Link
@@ -714,6 +721,12 @@ function ThreadView({
               under the reason rather than one tap away in the header. */}
           {!isAdmin && (
             <div className="mt-2 flex flex-wrap justify-center gap-2">
+              <RingBackButton
+                to={c.their}
+                from={c.ours}
+                leadId={c.leadId}
+                blocked={c.dncBlock}
+              />
               <CopyNumber phone={c.their} blocked={c.dncBlock} />
               {lead && (
                 <Link
