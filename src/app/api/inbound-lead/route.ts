@@ -38,7 +38,12 @@ export async function GET(request: Request) {
            cl.name as list_name
     from call_lead l
     join call_list cl on cl.id = l.call_list_id
-    where l.phone_key = any(${keys})
+    -- A list, not "= any(array)": Drizzle renders an array as "($1, $2)",
+    -- which Postgres refuses, and every lookup here failed from 2026-09-04.
+    where l.phone_key in (${sql.join(
+      keys.map((k) => sql`${k}`),
+      sql`, `,
+    )})
       ${owner === undefined ? sql`` : sql`and cl.assigned_user_id = ${owner}`}
     -- A number can sit on more than one list when a duplicate was kept rather
     -- than dropped. The original is the one with the history on it.

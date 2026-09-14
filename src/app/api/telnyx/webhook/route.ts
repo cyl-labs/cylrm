@@ -166,7 +166,15 @@ async function recordInbound(
         (select id from app_user where telnyx_did = ${to} and active limit 1),
         ${
           keys.length > 0
-            ? sql`(select id from call_lead where phone_key = any(${keys})
+            ? // `in (…)`, never `= any(${keys})`: Drizzle spreads an array into
+              // "($1, $2)", which Postgres reads as a row rather than an array,
+              // so the whole insert failed. It did, for every inbound call from
+              // 2026-09-04 to 2026-09-15, and Missed calls stayed empty.
+              sql`(select id from call_lead
+                   where phone_key in (${sql.join(
+                     keys.map((k) => sql`${k}`),
+                     sql`, `,
+                   )})
                    order by duplicate_of_lead_id nulls first, id limit 1)`
             : sql`null`
         },
