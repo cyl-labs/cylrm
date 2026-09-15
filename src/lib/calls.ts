@@ -50,22 +50,58 @@ export type CallOutcome =
 const TERMINAL = sql`('not_interested','demo_booked','trial','won','lost','bad_number')`;
 
 /**
+ * Days to wait before ringing a lead again, by how many times it has not been
+ * reached so far.
+ *
+ * The first call is followed by one the next day, then three days after that,
+ * then a week after that: three call-backs, four calls in all, and then the
+ * lead is off the list (`MAX_UNANSWERED_TRIES`). Set by the founders on
+ * 2026-09-16. Before it a lead that did not pick up came back as soon as
+ * everything older had been rung, so on a thin list a caller could spend all of
+ * a lead's tries in one afternoon: Raffy rang Wikiwiki Express twice 36 minutes
+ * apart and got voicemail both times.
+ *
+ * A "day" is the lead's own calendar day where their zone is known, so a call
+ * at 4:30pm their time comes back the next morning rather than at 4:30pm the
+ * next afternoon. An unknown zone waits whole 24-hour days. No answer,
+ * voicemail and gatekeeper all wait; only the first two count toward the limit.
+ */
+export const RETRY_AFTER_DAYS = [1, 3, 7] as const;
+
+/**
  * How many tries nobody answered before a lead leaves the queue for good.
  *
- * Without a limit a list could never be finished: every no-answer went back in
- * the queue for ever, and callers ended up ringing the same unanswered numbers
- * a fifth and sixth time while fresh lists sat unassigned. Set by the founders
- * on 2026-09-16 after the call history showed a business that has not picked
- * up answers 39% of first tries, 19% of second, 10% of fourth and 8% of fifth,
- * with no demo booked past the first try at all.
+ * One more than the call-backs in `RETRY_AFTER_DAYS`, so four calls in all.
+ * Without a limit a list could never be finished. It was five with no spacing
+ * for a morning; the call history behind both showed a business that has not
+ * picked up answers 39% of first tries, 19% of second, 16% of third and 10% of
+ * fourth, with no demo booked past the first try at all.
  *
- * Only no answer and voicemail count. A gatekeeper is a person, so a lead
- * whose latest call reached one stays in the queue however many tries it has.
+ * Only no answer and voicemail count. A gatekeeper is a person, so a lead whose
+ * latest call reached one stays in the queue however many tries it has, coming
+ * back weekly once past the third.
  */
-export const MAX_UNANSWERED_TRIES = 5;
+export const MAX_UNANSWERED_TRIES = RETRY_AFTER_DAYS.length + 1;
 
 /** A lead the queue has given up on. Expects `latestCall` aliased as `lc`. */
 const TRIED_OUT = sql`(lc.outcome in ('no_answer','voicemail') and lc.unanswered >= ${MAX_UNANSWERED_TRIES})`;
+
+/** This lead's wait in days, from how many times it has not been reached.
+ *  Built from the constant alone, so `sql.raw` carries no input. */
+const RETRY_WAIT_DAYS = sql.raw(
+  `(case ${RETRY_AFTER_DAYS.map((d, i) => `when lc.not_reached <= ${i + 1} then ${d}`).join(" ")} else ${RETRY_AFTER_DAYS[RETRY_AFTER_DAYS.length - 1]} end)`,
+);
+
+/**
+ * A lead that was not reached last time and whose wait is over, so it may be
+ * rung again today. Expects `latestCall` as `lc` and `leadZone` as `z`.
+ */
+const RETRY_READY = sql`(
+  case when z.tz is not null
+    then (now() at time zone z.tz)::date >= (lc.called_at at time zone z.tz)::date + ${RETRY_WAIT_DAYS}
+    else now() >= lc.called_at + make_interval(days => ${RETRY_WAIT_DAYS})
+  end
+)`;
 
 /**
  * A callback you can act on now: the time has passed, or none was set.
@@ -103,7 +139,12 @@ const latestCall = sql`
       -- this too, and the queue, the counts and the progress bar agree.
       (select count(*) from call c2
         where c2.call_lead_id = l.id
-          and c2.outcome in ('no_answer','voicemail')) as unanswered
+          and c2.outcome in ('no_answer','voicemail')) as unanswered,
+      -- Tries that did not reach the owner, gatekeeper included, which is
+      -- what picks the wait in RETRY_AFTER_DAYS.
+      (select count(*) from call c3
+        where c3.call_lead_id = l.id
+          and c3.outcome in ('no_answer','voicemail','gatekeeper')) as not_reached
     from call c
     where c.call_lead_id = l.id
     order by c.called_at desc, c.id desc
@@ -224,6 +265,10 @@ export type CallListSummary = {
   /** Nobody answered in `MAX_UNANSWERED_TRIES` tries, so out of the queue for
    *  good and counted as done on the progress bar. */
   triedOut: number;
+  /** Rung, not reached, and waiting for its day in `RETRY_AFTER_DAYS`. Out of
+   *  the queue and `toRetry` for today, but still owed, so a list holding any
+   *  is not Finished. */
+  retryLater: number;
   /** Said no, or the line was wrong, or a trial that did not convert. Named
    *  for what happened rather than "closed", which counted a booked demo as
    *  finished business alongside a wrong number. */
@@ -281,7 +326,16 @@ export async function getCallLists(
       count(l.id) filter (
         where lc.outcome in ('no_answer','voicemail','gatekeeper')
           and not ${TRIED_OUT}
+          and ${RETRY_READY}
       ) as to_retry,
+      -- Done for today: not reached, and waiting for its day in
+      -- RETRY_AFTER_DAYS. Out of the queue and the bar's "left", but it keeps a
+      -- list from reading as Finished.
+      count(l.id) filter (
+        where lc.outcome in ('no_answer','voicemail','gatekeeper')
+          and not ${TRIED_OUT}
+          and not ${RETRY_READY}
+      ) as retry_later,
       count(l.id) filter (where ${TRIED_OUT}) as tried_out,
       count(l.id) filter (
         where lc.outcome in ('not_interested','bad_number','lost')
@@ -325,6 +379,8 @@ export async function getCallLists(
     left join call_lead l
       on l.call_list_id = cl.id and l.duplicate_of_lead_id is null
     ${latestCall}
+    -- For RETRY_READY: a lead's "next day" is its own calendar day.
+    ${leadZone}
     where true ${ownedBy(ownerId)}
     group by cl.id, cl.name, cl.niche, cl.created_at, cl.assigned_user_id
     order by cl.created_at desc, cl.id desc
@@ -343,6 +399,7 @@ export async function getCallLists(
     badNumbersToday: n(r.bad_numbers_today),
     toRetry: n(r.to_retry),
     triedOut: n(r.tried_out),
+    retryLater: n(r.retry_later),
     ruledOut: n(r.ruled_out),
     demoBooked: n(r.demo_booked),
     trials: n(r.trials),
@@ -751,6 +808,10 @@ function queueWhere(filter: CallQueueFilter) {
           -- Nobody answered in MAX_UNANSWERED_TRIES tries: given up on. Still
           -- under the All tab, and counted as done on the progress bar.
           and not ${TRIED_OUT}
+          -- Not reached last time: back only once its wait in
+          -- RETRY_AFTER_DAYS is over, so a lead's four calls land on four
+          -- different days instead of one afternoon.
+          and ${RETRY_READY}
         )
         or (lc.outcome = 'callback' and ${CALLBACK_DUE})
       )`
@@ -857,6 +918,7 @@ export type CallListDetail = {
   | "badNumbersToday"
   | "toRetry"
   | "triedOut"
+  | "retryLater"
   | "ruledOut"
   | "demoBooked"
   | "trials"

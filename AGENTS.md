@@ -348,10 +348,23 @@ inbound handled.
   `?mine=1` still reads as Mine. Filtered to nothing, the screen says so with a
   Clear link rather than "No call lists yet". Callers keep only the sort
   picker, shown once they have more than two lists.
-- **A lead leaves the queue after 5 tries nobody answered** (2026-09-16,
-  `MAX_UNANSWERED_TRIES` and `TRIED_OUT` in `lib/calls.ts`). Without a limit a
-  list could never be finished: every no-answer and voicemail went back in the
-  queue for ever, and a caller asked for a new list while holding 146 of them.
+- **A lead not reached gets four calls, a day, three days and a week apart**
+  (2026-09-16, `RETRY_AFTER_DAYS`, `RETRY_READY`, `MAX_UNANSWERED_TRIES` and
+  `TRIED_OUT` in `lib/calls.ts`). Without a limit a list could never be
+  finished: every no-answer and voicemail went back in the queue for ever, and
+  a caller asked for a new list while holding 146 of them. Without spacing a
+  thin list let a caller spend a lead's tries in an afternoon: Raffy rang one
+  business twice 36 minutes apart. It was five unspaced tries for a morning.
+  - **The wait is counted in the lead's own calendar days** (`z.tz`), so a
+    4:30pm call comes back the next morning. Unknown zones wait whole 24-hour
+    days. The wait indexes on `lc.not_reached` (no answer, voicemail *and*
+    gatekeeper); the limit on `lc.unanswered` (no answer and voicemail only).
+  - **A lead waiting for its day is done for now, not finished.** It leaves
+    `toRetry` for `retryLater`, so it is out of "Left to call" and counts toward
+    the bar, but `stageOf` in `lib/list-filter.ts` will not call a list with any
+    `retryLater` Finished, and the card says "N back on a later day". A founder
+    reading a full bar as a list with nothing left would hand out a new one.
+    The dial screen's empty state says the same rather than "Nothing to call".
   - **Only no answer and voicemail count**, across every call on the lead
     (`lc.unanswered`, counted inside `latestCall`). A lead whose latest call
     reached a gatekeeper stays in the queue however many tries it has, and

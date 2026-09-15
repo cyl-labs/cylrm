@@ -160,6 +160,9 @@ export default async function CallListPage({
     { label: "to try again", value: list.toRetry },
     // Off the queue for good: nobody answered in MAX_UNANSWERED_TRIES tries.
     // Still under the All tab for anyone who wants to ring one anyway.
+    // Rung and not reached, waiting a day, three days or a week before the
+    // next try. Out of "Left to call" for today, still owed.
+    { label: "back on a later day", value: list.retryLater },
     {
       label: `no answer after ${MAX_UNANSWERED_TRIES} tries`,
       value: list.triedOut,
@@ -428,6 +431,9 @@ export default async function CallListPage({
         // Only while the filter is doing the hiding. With it off an empty
         // queue really is an empty queue.
         hiddenByHours={callableNow ? split.total - split.callableNow : 0}
+        // Only the To call view waits leads out, so only it can be empty
+        // because of them.
+        retryLater={filter === "queue" ? list.retryLater : 0}
         showAllHref={
           canSeeAsleep ? `/calls/${listId}?view=${filter}&open=0` : undefined
         }

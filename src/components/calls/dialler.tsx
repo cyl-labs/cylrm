@@ -662,6 +662,7 @@ export function Dialler({
   callerName,
   hiddenByHours = 0,
   showAllHref,
+  retryLater = 0,
   liveHints = false,
   market = null,
   panelLeft: initialPanel = "objections",
@@ -704,6 +705,10 @@ export function Dialler({
    *  asleep", and "Nothing to call here" would be a lie on a full list. */
   hiddenByHours?: number;
   showAllHref?: string;
+  /** Leads rung and not reached that are waiting for a later day. Zero outside
+   *  the To call view. Lets an empty queue say "back on a later day" rather
+   *  than "Nothing to call here" on a list with calls still owed. */
+  retryLater?: number;
   /** Listen to the live call and suggest which objection fits. Off unless
    *  `LIVE_HINTS=1` and an OpenAI key are set, in which case the dialler
    *  behaves exactly as it does today. */
@@ -977,14 +982,21 @@ export function Dialler({
           {leads.length === 0
             ? hiddenByHours > 0
               ? "Everyone here is asleep."
-              : "Nothing to call here."
+              : retryLater > 0
+                ? "You've rung everyone you can today."
+                : "Nothing to call here."
             : "Queue cleared."}
         </p>
         <p className="mt-1 text-[13px] text-muted-foreground">
           {leads.length === 0
             ? hiddenByHours > 0
               ? `It is outside ${LEAD_HOURS_LABEL} for all ${hiddenByHours.toLocaleString()} of them. Come back later, or work another niche.`
-              : "Import a CSV with a phone column to start."
+              : retryLater > 0
+                ? // A fourth empty queue: the leads are all waiting for their next
+                  // try. "Import a CSV" here would send a caller to ask for a new
+                  // list when this one has calls owed tomorrow.
+                  `${retryLater.toLocaleString()} ${retryLater === 1 ? "lead didn't" : "leads didn't"} pick up and ${retryLater === 1 ? "comes" : "come"} back on a later day. Come back tomorrow, or work another niche.`
+                : "Import a CSV with a phone column to start."
             : "Every lead in this view has been worked."}
         </p>
         {leads.length === 0 && hiddenByHours > 0 && showAllHref && (

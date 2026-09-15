@@ -438,6 +438,12 @@ function ListCard({
           {l.toRetry > 0 && (
             <Badge variant="outline">{l.toRetry} to try again</Badge>
           )}
+          {/* Done for today, but not finished: rung, not reached, and waiting
+              for its next day. Said so the bar at full does not read as a
+              list with nothing left in it. */}
+          {l.retryLater > 0 && (
+            <Badge variant="outline">{l.retryLater} back on a later day</Badge>
+          )}
           {l.triedOut > 0 && (
             <Badge variant="outline">
               {l.triedOut} no answer after {MAX_UNANSWERED_TRIES} tries

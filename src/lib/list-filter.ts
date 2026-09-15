@@ -110,6 +110,8 @@ type Filterable = {
   total: number;
   uncalled: number;
   toRetry: number;
+  /** Rung, not reached, and waiting for its next day. */
+  retryLater: number;
   callbacksDue: number;
 };
 
@@ -119,12 +121,17 @@ type Filterable = {
  * "Not started" is nobody has rung a single lead, not "nothing is done": a
  * list where every lead has been rung once and gone to voicemail has nothing
  * done and is plainly under way. "Finished" is the card's own bar at full —
- * `listProgress`, so the filter and the bar cannot disagree.
+ * `listProgress` — **and** nothing waiting for a later day. Those leads count
+ * toward the bar because they are done for today, but a list with calls still
+ * owed next week is not finished, and reading it as one is how a founder hands
+ * out a new list too early.
  */
 export function stageOf(l: Filterable): Exclude<ListStage, "all"> | null {
   if (l.total === 0) return null;
   if (l.uncalled === l.total) return "not-started";
-  return listProgress(l).leftToCall === 0 ? "finished" : "in-progress";
+  return listProgress(l).leftToCall === 0 && l.retryLater === 0
+    ? "finished"
+    : "in-progress";
 }
 
 export function applyListFilters<T extends Filterable>(
