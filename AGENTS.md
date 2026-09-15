@@ -1526,6 +1526,7 @@ The app is used on phones as well as desktops. Conventions:
   to be able to match what they read here with what they are paid.
 
 - The sidebar in `src/app/(app)/layout.tsx` is desktop-only (`hidden lg:flex`); below `lg` the same nav is a drawer (`src/components/mobile-nav.tsx`) whose trigger `PageShell` renders to the left of the page title, so a phone gets one header rather than two. `PageShell` is `async` because it counts unread replies and callbacks due for the drawer's badges.
+- **The phone drawer folds the lesser screens** (2026-09-15, `NavLinks grouped`, `NAV_GROUPS` and `WorkspaceLink.group` in `lib/workspace.ts`). At fifteen Call CRM screens the list ran off an iPhone with Log out below it. Missed calls to Texts stay flat, since they are the work order and carry the badges, so **never put a badged link in a fold**. Below them sit Tools, Results and Admin, closed by default. Each lists what is inside when closed, and the fold holding the current page opens by itself. A fold with one link renders flat, which is a caller's Results (My stats only). The list scrolls on its own so Dark mode and Log out stay pinned, and only a link closes the drawer. The desktop sidebar ignores `group` and is unchanged.
 - Screen padding is `px-4 sm:px-6` (`sm:px-7` for the two `px-7` screens); filter controls are `w-full sm:w-<n>`. Tables stay tables and scroll inside their bordered container — no card-per-row rewrites.
 - The pipeline boards are snapping horizontal scrollers on narrow screens and grids on wide ones (email at `lg`, calling at `xl` — it has seven columns). HTML5 drag events still never fire on touch, so dragging on a phone is rebuilt on pointer events in `src/components/kanban/use-touch-drag.ts`: hold a card ~240ms to pick it up, and the board pans itself while a finger sits near an edge. Every card keeps its menu — that is the keyboard route, and on the calling board the only way to reach the outcomes no column stands for.
 - `useTouchDrag` keeps its callbacks in a ref on purpose. They were dependencies of `end`, whose identity changed every render, so the unmount cleanup that calls it ran on every render and cancelled the hold timer — the gesture never started. Its auto-scroll is a per-frame loop rather than one tick per `pointermove`, because a finger parked against the edge stops producing move events and the pan would stall.
@@ -1611,6 +1612,15 @@ and `POST /api/users/[id]/replace`; Telnyx work in `provisionLine`,
   (`PushGate` asks on first visit).
 - **No tone when already on a call**: it would ring over the prospect. The
   banner still says a second call is waiting.
+- **An answered call must be told where to play** (`call.answer({ remoteElement })`
+  in `use-telnyx-call.ts`). A call we dial gets its audio element in `newCall`.
+  An invite arrives with none, and the SDK's attach silently does nothing with a
+  null element. So until 2026-09-15 whoever answered in the browser heard
+  silence while being heard perfectly. Found when Founders rang Omar's browser
+  from the Keypad: both channels of the dual recording carried a voice, and Omar
+  heard neither Founders nor the agent merged in afterwards. **If one side of a
+  call is silent, pull the recording before suspecting the mic or the network.**
+  A voice on the recording's channel means it reached Telnyx.
 - **Two CRM tabs means one holds the line** (`line-presence.tsx`), and only
   that tab shows the banner. Switching screens can move the line between tabs,
   and for the seconds that takes the phone cannot be rung. Worth telling

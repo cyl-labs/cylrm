@@ -26,7 +26,26 @@ export type WorkspaceLink = {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** Folded under a heading in the phone drawer. Ungrouped links are the day's
+   *  work and always show. */
+  group?: NavGroup;
 };
+
+export type NavGroup = "tools" | "results" | "admin";
+
+/**
+ * The phone drawer's folds, in order.
+ *
+ * Phone only: the Call CRM grew to fifteen screens and on an iPhone the list
+ * ran off the bottom with Log out below it. The desktop sidebar has the height
+ * and stays flat. "Results" rather than "Numbers", which on a calling app reads
+ * as phone numbers.
+ */
+export const NAV_GROUPS: { id: NavGroup; label: string }[] = [
+  { id: "tools", label: "Tools" },
+  { id: "results", label: "Results" },
+  { id: "admin", label: "Admin" },
+];
 
 export type Workspace = {
   id: WorkspaceId;
@@ -84,20 +103,20 @@ export const WORKSPACES: Workspace[] = [
       // Below the three the work order enforces rather than among them: a text
       // holds up nobody's queue. Beside Meetings, where texting started.
       { href: "/texts", label: "Texts", icon: MessageCircle },
-      { href: "/sop", label: "Scripts", icon: ScrollText },
-      { href: "/call-sheet", label: "Spreadsheet", icon: Table2 },
-      { href: "/call-pipeline", label: "Pipeline", icon: Kanban },
-      { href: "/scoreboard", label: "Scoreboard", icon: Trophy },
-      { href: "/call-stats", label: "Stats", icon: BarChart3 },
-      { href: "/keypad", label: "Keypad", icon: Hash },
+      { href: "/sop", label: "Scripts", icon: ScrollText, group: "tools" },
+      { href: "/call-sheet", label: "Spreadsheet", icon: Table2, group: "tools" },
+      { href: "/call-pipeline", label: "Pipeline", icon: Kanban, group: "tools" },
+      { href: "/scoreboard", label: "Scoreboard", icon: Trophy, group: "results" },
+      { href: "/call-stats", label: "Stats", icon: BarChart3, group: "results" },
+      { href: "/keypad", label: "Keypad", icon: Hash, group: "tools" },
       // Deliberately not "Accounts": that is the Gmail sending accounts on
       // the email side, and two screens with one name is how the wrong one
       // gets opened.
-      { href: "/team", label: "Team", icon: ShieldCheck },
-      { href: "/payroll", label: "Payroll", icon: Wallet },
+      { href: "/team", label: "Team", icon: ShieldCheck, group: "admin" },
+      { href: "/payroll", label: "Payroll", icon: Wallet, group: "admin" },
       // Beside Payroll, which is the other half of the same question: that one
       // is what the people cost, this is what the phones do.
-      { href: "/spend", label: "Spend", icon: Receipt },
+      { href: "/spend", label: "Spend", icon: Receipt, group: "admin" },
     ],
   },
 ];

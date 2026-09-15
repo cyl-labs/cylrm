@@ -82,8 +82,17 @@ export function MobileNav({
         {/* Navigating is the whole point of opening this, and the drawer
             covers the page it just moved to. Closing on click beats watching
             the pathname, which needs a state-setting effect. */}
-        <div onClick={() => setOpen(false)}>
+        {/* Scrolls on its own so Dark mode and Log out stay pinned below it:
+            on a phone the full list ran off the bottom of the screen. Only a
+            link closes the drawer; opening a group must leave it open. */}
+        <div
+          className="min-h-0 flex-1 overflow-y-auto"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("a")) setOpen(false);
+          }}
+        >
           <NavLinks
+            grouped
             role={role}
             keypad={keypad}
             texting={texting}

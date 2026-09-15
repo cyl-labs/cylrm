@@ -26,7 +26,7 @@ type TelnyxCall = {
   direction?: string;
   /** Who is ringing. `options` is where the SDK puts the invite's caller id. */
   options?: { remoteCallerNumber?: string; remoteCallerName?: string };
-  answer?: () => void;
+  answer?: (params?: { remoteElement?: string }) => void;
   hangup: () => void;
   muteAudio: () => void;
   unmuteAudio: () => void;
@@ -470,7 +470,14 @@ export function useTelnyxCall(
                   }
                 }
                 try {
-                  call.answer?.();
+                  // Where to play them. A call we dial is told this in
+                  // `newCall`; an invite arrives with nothing, and the SDK
+                  // attaches the far end's audio to no element at all — so
+                  // whoever answered heard silence while being heard perfectly.
+                  // Found on 2026-09-15, Founders ringing Omar's browser: both
+                  // channels of the recording carry a voice, and Omar heard
+                  // neither Founders nor the agent merged in after.
+                  call.answer?.({ remoteElement: audioId });
                 } catch {
                   // Gone already; the update that follows clears the banner.
                 }
@@ -575,6 +582,9 @@ export function useTelnyxCall(
         // Unmounting during a call is already the bad case; nothing to do.
       }
     };
+    // `audioId` is read by the answer handler and is a constant the provider
+    // passes; listing it would add nothing and invite the teardown above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
   // Tell the server whether this person is on a call, so an admin can see it
