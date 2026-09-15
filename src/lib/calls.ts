@@ -50,6 +50,24 @@ export type CallOutcome =
 const TERMINAL = sql`('not_interested','demo_booked','trial','won','lost','bad_number')`;
 
 /**
+ * How many tries nobody answered before a lead leaves the queue for good.
+ *
+ * Without a limit a list could never be finished: every no-answer went back in
+ * the queue for ever, and callers ended up ringing the same unanswered numbers
+ * a fifth and sixth time while fresh lists sat unassigned. Set by the founders
+ * on 2026-09-16 after the call history showed a business that has not picked
+ * up answers 39% of first tries, 19% of second, 10% of fourth and 8% of fifth,
+ * with no demo booked past the first try at all.
+ *
+ * Only no answer and voicemail count. A gatekeeper is a person, so a lead
+ * whose latest call reached one stays in the queue however many tries it has.
+ */
+export const MAX_UNANSWERED_TRIES = 5;
+
+/** A lead the queue has given up on. Expects `latestCall` aliased as `lc`. */
+const TRIED_OUT = sql`(lc.outcome in ('no_answer','voicemail') and lc.unanswered >= ${MAX_UNANSWERED_TRIES})`;
+
+/**
  * A callback you can act on now: the time has passed, or none was set.
  *
  * One expression because four places ask the question — the queue, the badge
@@ -79,7 +97,13 @@ const latestCall = sql`
     select c.outcome, c.called_at, c.callback_at, c.notes, c.telnyx_session_id,
       -- Who made it. Joined here rather than on the outer query so it stays
       -- the *latest* call's caller, not every caller this lead has had.
-      (select u.name from app_user u where u.id = c.user_id) as by_name
+      (select u.name from app_user u where u.id = c.user_id) as by_name,
+      -- Tries nobody answered, across every call on the lead, for TRIED_OUT.
+      -- Counted here so every query that knows a lead's latest call knows
+      -- this too, and the queue, the counts and the progress bar agree.
+      (select count(*) from call c2
+        where c2.call_lead_id = l.id
+          and c2.outcome in ('no_answer','voicemail')) as unanswered
     from call c
     where c.call_lead_id = l.id
     order by c.called_at desc, c.id desc
@@ -197,6 +221,9 @@ export type CallListSummary = {
   /** Rung, nobody reached, still worth ringing: no answer, voicemail,
    *  gatekeeper. Callbacks are counted separately — they have a time. */
   toRetry: number;
+  /** Nobody answered in `MAX_UNANSWERED_TRIES` tries, so out of the queue for
+   *  good and counted as done on the progress bar. */
+  triedOut: number;
   /** Said no, or the line was wrong, or a trial that did not convert. Named
    *  for what happened rather than "closed", which counted a booked demo as
    *  finished business alongside a wrong number. */
@@ -253,7 +280,9 @@ export async function getCallLists(
       count(l.id) filter (where lc.outcome is null) as uncalled,
       count(l.id) filter (
         where lc.outcome in ('no_answer','voicemail','gatekeeper')
+          and not ${TRIED_OUT}
       ) as to_retry,
+      count(l.id) filter (where ${TRIED_OUT}) as tried_out,
       count(l.id) filter (
         where lc.outcome in ('not_interested','bad_number','lost')
       ) as ruled_out,
@@ -313,6 +342,7 @@ export async function getCallLists(
     noAnswerToday: n(r.no_answer_today),
     badNumbersToday: n(r.bad_numbers_today),
     toRetry: n(r.to_retry),
+    triedOut: n(r.tried_out),
     ruledOut: n(r.ruled_out),
     demoBooked: n(r.demo_booked),
     trials: n(r.trials),
@@ -715,7 +745,13 @@ function queueWhere(filter: CallQueueFilter) {
       // is the whole point of asking for a time.
       sql`and (
         lc.outcome is null
-        or (lc.outcome not in ${TERMINAL} and lc.outcome <> 'callback')
+        or (
+          lc.outcome not in ${TERMINAL}
+          and lc.outcome <> 'callback'
+          -- Nobody answered in MAX_UNANSWERED_TRIES tries: given up on. Still
+          -- under the All tab, and counted as done on the progress bar.
+          and not ${TRIED_OUT}
+        )
         or (lc.outcome = 'callback' and ${CALLBACK_DUE})
       )`
     : filter === "callbacks"
@@ -820,6 +856,7 @@ export type CallListDetail = {
   | "noAnswerToday"
   | "badNumbersToday"
   | "toRetry"
+  | "triedOut"
   | "ruledOut"
   | "demoBooked"
   | "trials"

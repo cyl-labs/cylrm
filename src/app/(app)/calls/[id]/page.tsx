@@ -7,6 +7,7 @@ import {
   countQueueSplit,
   getCallQueue,
   getSavedLines,
+  MAX_UNANSWERED_TRIES,
   type CallQueueFilter,
 } from "@/lib/calls";
 import { getDiallerSop } from "@/lib/sop";
@@ -157,6 +158,12 @@ export default async function CallListPage({
   const breakdown = [
     { label: "never called", value: list.uncalled },
     { label: "to try again", value: list.toRetry },
+    // Off the queue for good: nobody answered in MAX_UNANSWERED_TRIES tries.
+    // Still under the All tab for anyone who wants to ring one anyway.
+    {
+      label: `no answer after ${MAX_UNANSWERED_TRIES} tries`,
+      value: list.triedOut,
+    },
     { label: "callback due", value: list.callbacksDue },
     { label: "call later", value: list.callbacksLater },
     { label: "got a demo", value: list.demoBooked + list.trials + list.won },

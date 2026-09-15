@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { ChevronRight, Lock, PhoneCall } from "lucide-react";
-import { getCallLists, type CallListSummary } from "@/lib/calls";
+import {
+  getCallLists,
+  MAX_UNANSWERED_TRIES,
+  type CallListSummary,
+} from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { callerNumberOf, listTeam, statsRegionOf } from "@/lib/users";
 import { spokenNumber } from "@/lib/phone";
@@ -433,6 +437,11 @@ function ListCard({
           )}
           {l.toRetry > 0 && (
             <Badge variant="outline">{l.toRetry} to try again</Badge>
+          )}
+          {l.triedOut > 0 && (
+            <Badge variant="outline">
+              {l.triedOut} no answer after {MAX_UNANSWERED_TRIES} tries
+            </Badge>
           )}
           {l.ruledOut > 0 && (
             <Badge variant="outline">{l.ruledOut} ruled out</Badge>

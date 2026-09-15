@@ -335,6 +335,23 @@ inbound handled.
   `?mine=1` still reads as Mine. Filtered to nothing, the screen says so with a
   Clear link rather than "No call lists yet". Callers keep only the sort
   picker, shown once they have more than two lists.
+- **A lead leaves the queue after 5 tries nobody answered** (2026-09-16,
+  `MAX_UNANSWERED_TRIES` and `TRIED_OUT` in `lib/calls.ts`). Without a limit a
+  list could never be finished: every no-answer and voicemail went back in the
+  queue for ever, and a caller asked for a new list while holding 146 of them.
+  - **Only no answer and voicemail count**, across every call on the lead
+    (`lc.unanswered`, counted inside `latestCall`). A lead whose latest call
+    reached a gatekeeper stays in the queue however many tries it has, and
+    logging any other outcome on a tried-out lead puts it back where that
+    outcome belongs.
+  - **Tried-out leads move out of `toRetry` into `triedOut`**, so
+    `listProgress` counts them as done and a list can reach Finished. The card
+    and the list's breakdown both show the count. They stay under the dialler's
+    **All** tab for anyone who wants to ring one anyway.
+  - **The number came from the call history**, not a guess: of businesses that
+    had not picked up yet, 39% answered the first try, 19% the second, 16% the
+    third, 10% the fourth and 8% the fifth, and no demo was booked past the
+    first. Changing it is that one constant.
 - **Bulk import**: the import dialog takes many CSVs at once, and each becomes
   its own list. Every file is first sent to `POST /api/call-lists` with
   `dryRun=1`, which runs the real parser and reports usable/skipped counts
