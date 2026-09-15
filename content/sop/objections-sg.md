@@ -194,9 +194,41 @@ when it cannot.
 ## Already sorted | Prospect: "We already have something for that."
 
 
-> **You say** Nice. How's your experience been with it so far?
+Find out what they have before you say anything about it. It is often an
+answering service or a call centre, and if you ask the right question they will
+tell you what is wrong with it themselves.
+
+> **You say** Nice. Who are you with?
+
+_(let them name it. Never say anything bad about the company they use)_
+
+> **You say** How's that been going? Are they actually booking jobs into your calendar, or mostly taking messages and sending them over to you?
 
 _(let them answer)_
+
+**If they say it is mostly messages**, they have just named the problem for you. Agree with them:
+
+> **You say** Yeah, that's what most people run into. A message still means you calling them back, so you're still the one closing the job, just an hour later. And by then half of them have already called someone else.
+
+**Then ask about minutes.** Answering services usually charge by the minute, and a busy month costs more than people expect:
+
+> **You say** Do you know roughly how many minutes you're using a month? I only ask because those plans are minute-based and it catches people out.
+
+_(let them answer)_
+
+> **You say** Ours starts as low as $99 a month, so it's well under what most answering services charge. I built a demo for your business, so you can hear it take a call live. Do you have 15 minutes this week to take a look?
+
+**If the price does not bother them, ask about quality instead:**
+
+> **You say** When someone calls with something specific, like your pricing, whether you cover their area, or when you can come down, does the receptionist know the answer? Or do they put the caller on hold to go and look it up?
+
+_(let them answer)_
+
+Receptionists at these services read answers off a sheet, and people leave those jobs often, so whoever picks up may be a few weeks in. Do not say that about their provider. Just say what ours does:
+
+> **You say** That's the difference with ours. It knows your business from day one and gives the same answer every time. I built a demo for your business, so you can hear it take a call live. Do you have 15 minutes this week to take a look?
+
+**If it is not an answering service** (another AI, or someone in their own office), ask what they pay instead:
 
 > **You say** Fair enough. And what are you paying for it, if you don't mind me asking?
 
