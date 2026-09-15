@@ -90,7 +90,7 @@ const TEXT_STATUS: Record<SmsStatus, string> = {
 /**
  * How long after a text the screen keeps checking for a reply.
  *
- * The reply to "I'll give you a call now" is worth seeing within seconds, and
+ * The reply to "I'll call you again now" is worth seeing within seconds, and
  * nothing redraws this page when one arrives. Half an hour, because after that
  * the moment has passed, and a later reply still arrives as a notification.
  */
@@ -100,14 +100,16 @@ const REPLY_POLL_MS = 15_000;
 /**
  * What the text says before anybody edits it.
  *
- * Written as the person who just rang, because it is one: no brand prefix and
- * no footer, which was the founders' decision. No sender name either — the
- * founders share one account, so its name ("Founders") is exactly the word
- * that would give the text away as a system.
+ * Only ever sent after a demo-time call they did not pick up or that went to
+ * voicemail, so it says that and nothing else. Written as the person who just
+ * rang, because it is one: no brand prefix, no footer, and no company name,
+ * which the founders asked for on 2026-09-15 ("nobody cares"). No sender name
+ * either — the founders share one account, so its name ("Founders") is exactly
+ * the word that would give the text away as a system.
  */
 function textDraft(m: Meeting): string {
   const first = m.attendeeName?.trim().split(/\s+/)[0];
-  return `${first ? `Hey ${first}` : "Hey"}, your demo with Cyl Labs is ready. I'll give you a call now.`;
+  return `${first ? `Hey ${first}` : "Hey"}, just tried calling you for your demo. I'll call you again now.`;
 }
 
 /**

@@ -24,20 +24,22 @@ caller quotes one number and the agreement says another.
 
 ## Ring them at the scheduled time, never before
 
-**Do not ring ahead to check they are ready.** A call fifteen minutes before the
-demo is an invitation to say "actually, now's not great" — you have handed them
-a way out of a meeting they had already agreed to. The same reason nobody
-confirms a booking the day before any more: Cal.com reminds them, and every
-extra touch before the demo is a chance for it to come apart.
+**Don't call early to check they're ready.** It gives them an easy chance to
+say "actually, now's not a good time", and the demo is gone. Cal.com already
+reminds them, so there is nothing to check.
 
-So ring **at the time, on the minute**, and open as though the demo is already
-running — because it is.
+Call **on the minute**, and talk as if the demo has already started.
 
-> **You say** Hi [name], it's [your name] from Cyl Labs — I've got the agent on the other line waiting for us. Give me two seconds and I'll bring it in.
+> **You say** Hi [name], it's [your name]. I've got the agent on the other line, give me two seconds and I'll bring it in.
 
-That line does two things. It says the meeting has started rather than asking
-whether it can, and it puts something live on the other end, which is much
-harder to postpone than a conversation.
+Don't ask whether now is still a good time. Tell them the agent is waiting and
+bring it in. Don't say the company name.
+
+**If they don't pick up, or it goes to voicemail**, press **Text** on their row
+on Meetings, send it, then ring again. Only text after a call they missed,
+never before one. The text is filled in for you:
+
+"Hey [name], just tried calling you for your demo. I'll call you again now."
 
 **How to actually bring it in**, from the lead's dial card:
 
@@ -52,9 +54,9 @@ calls.
 
 **Logging it afterwards.** It counts as a meeting, and the caller who booked it
 is paid, once they **pick up and stay on while you bring the agent in**. That is
-what **They showed up** means on Meetings and on Payroll. No answer, or they
-picked up but could not stay for it: log **No show**, which puts a ring back on
-the caller's list to rebook it.
+what **They showed up** means on Meetings and on Payroll. Still no answer after
+the text and a second call, or they picked up but could not stay for it: log
+**No show**, which puts a ring back on the caller's list to rebook it.
 
 ## Before you dial the agent in
 

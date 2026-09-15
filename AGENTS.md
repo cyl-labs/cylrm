@@ -747,8 +747,11 @@ What replaced it, and the shape to keep:
 ### Texting a prospect at demo time (switched on 2026-09-15)
 
 A founder rings a prospect at demo time, nobody picks up, and a text follows
-from the same number: "your demo with Cyl Labs is ready, I'll give you a call
-now". `src/lib/sms.ts` is the logic, `sendSms` in `lib/telnyx.ts` the client,
+from the same number: "just tried calling you for your demo. I'll call you again
+now". **Only after a missed call or voicemail, never before one**, and **no
+company name** in the text or in the demo opener (founders, 2026-09-15: "nobody
+cares"). `procedure-closing-the-demo.md` says the same; change both together.
+`src/lib/sms.ts` is the logic, `sendSms` in `lib/telnyx.ts` the client,
 `POST /api/meetings/[id]/text` the send, and `message.*` events on the existing
 Telnyx webhook carry replies and delivery receipts. Schema in
 `2026-09-14-call-sms.sql`.
