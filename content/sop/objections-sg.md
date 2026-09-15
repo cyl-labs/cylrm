@@ -259,7 +259,7 @@ Voicemail is the thing being replaced, not a setup worth protecting, so the
 backup answer below does not apply — there is nothing to sit behind. Go at what
 voicemail actually costs them instead.
 
-> **You say** Well, 80% of callers who hit your voicemail hang up and call the next company. Before you spend money on ads or marketing, wouldn't it make sense to capture all of the calls you're currently getting?
+> **You say** Well, 80% of callers who hit your voicemail hang up and call the next company. And the ones who do leave a message still need you to call them back, so you're still the one closing the job, just an hour later. Before you spend money on ads or marketing, wouldn't it make sense to capture all of the calls you're currently getting?
 
 _(let them answer)_
 
