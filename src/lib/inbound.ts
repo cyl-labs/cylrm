@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { leadZone, withinLeadHours } from "@/lib/calls";
 import { dncBlockReason } from "@/lib/dnc";
 import { dialCountry } from "@/lib/phone";
 import type { CurrentUser } from "@/lib/session";
@@ -49,6 +50,12 @@ export type InboundCall = {
    *  and the callbacks diary apply, so a screening result cannot be walked
    *  past just because the prospect rang first. */
   dncBlock: string | null;
+  /** The ring back can wait until their morning: see `CAN_WAIT`. Only means
+   *  anything on a missed call still owed one. */
+  canWait: boolean;
+  /** Their clock at the moment the page was drawn, like "3:35am". Null when
+   *  their zone is unknown, which is also exactly when `canWait` is false. */
+  theirNow: string | null;
 };
 
 /** A caller sees calls to their own number; an admin sees the lot, including
@@ -59,6 +66,36 @@ const scoped = (me: CurrentUser | null) =>
   me?.role === "admin" ? sql`` : sql`and ic.user_id = ${me?.id ?? -1}`;
 
 const KEEP_DAYS = 30;
+
+/** How old a missed call has to be before it may wait for their morning. */
+export const MISSED_CALL_FRESH_MINUTES = 60;
+
+/**
+ * A missed call whose ring back can wait until business hours where they are.
+ *
+ * Missed calls are the first stage of the work order and block a caller's
+ * queue until cleared, so a call from a business that had just shut pushed
+ * the caller to clear it in the middle of that business's night. On 2026-09-15
+ * a Hawaii business rang Raffy back just after 4pm and 5pm their time; he
+ * cleared both at 3:23 and 3:35am their time, because his queue was shut until
+ * he did.
+ *
+ * Waits only when **both** hold. It came in more than an hour ago: somebody who
+ * rang within the hour is plainly awake whatever their clock says, and is the
+ * warmest call of the day, so that one still goes first (the founders' rule).
+ * And it is outside 9 to 5 where they are now, by the same `withinLeadHours`
+ * the dial queue filters on. **An unknown zone never waits**: a warm lead we
+ * cannot place is not a reason to delay it.
+ *
+ * It stays on the Missed calls screen, labelled. It leaves the badge and the
+ * work-order gate, which both read `countMissedCalls`, and comes back to them
+ * the moment it is 9am there. Expects `leadZone` joined, giving `z`.
+ */
+const CAN_WAIT = sql`(
+  ic.started_at < now() - ${`${MISSED_CALL_FRESH_MINUTES} minutes`}::interval
+  and z.tz is not null
+  and not ${withinLeadHours(sql`now()`)}
+)`;
 
 export async function getInboundCalls(
   me: CurrentUser | null,
@@ -72,12 +109,18 @@ export async function getInboundCalls(
       l.id as lead_id, l.company, l.name as lead_name,
       l.dnc_status, l.dnc_checked_at,
       cl.name as list_name, cl.id as list_id,
-      (select count(*) from call c where c.call_lead_id = l.id) as attempts
+      (select count(*) from call c where c.call_lead_id = l.id) as attempts,
+      ${CAN_WAIT} as can_wait,
+      -- Formatted here for the reason Stats formats "their time" in SQL: the
+      -- zone varies per row, and a clock built in the browser renders one
+      -- string on the server and another on hydration.
+      to_char(now() at time zone z.tz, 'FMHH12:MIam') as their_now
     from inbound_call ic
     left join app_user u on u.id = ic.user_id
     left join app_user h on h.id = ic.handled_by
     left join call_lead l on l.id = ic.call_lead_id
     left join call_list cl on cl.id = l.call_list_id
+    ${leadZone}
     where ic.started_at > now() - ${`${KEEP_DAYS} days`}::interval
       ${missedOnly ? sql`and ic.answered_at is null and ic.handled_at is null` : sql``}
       ${scoped(me)}
@@ -119,12 +162,19 @@ export async function getInboundCalls(
         },
         dialCountry(phone),
       ),
+      canWait: r.can_wait === true,
+      theirNow: (r.their_now as string | null) ?? null,
     };
   });
 }
 
 /**
- * How many missed calls are still owed a ring back.
+ * How many missed calls are owed a ring back **now**.
+ *
+ * Not every unhandled one: a call that can wait until their morning
+ * (`CAN_WAIT`) is left out, so the sidebar badge and the work-order gate — both
+ * of which read this — say "act now" and agree with each other. The Missed
+ * calls screen still lists the ones that can wait.
  *
  * `cache()`d for the reason `countCallbacksDue` and `countUnreadReplies` are:
  * the sidebar and `PageShell` both ask while rendering one page.
@@ -134,8 +184,11 @@ export const countMissedCalls = cache(async function countMissedCalls(
 ): Promise<number> {
   const [row] = (await db.execute(sql`
     select count(*)::int as n from inbound_call ic
+    left join call_lead l on l.id = ic.call_lead_id
+    ${leadZone}
     where ic.answered_at is null and ic.handled_at is null
       and ic.started_at > now() - ${`${KEEP_DAYS} days`}::interval
+      and not ${CAN_WAIT}
       ${scoped(me)}
   `)) as { n: number }[];
   return row?.n ?? 0;

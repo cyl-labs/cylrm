@@ -445,7 +445,7 @@ export default async function CallStatsPage({
               {" "}
               {totals.outsideHours > totals.outsideHoursNew
                 ? `(${totals.outsideHours.toLocaleString()} in this range altogether; the rest you have already seen). `
-                : `(${pct(totals.outsideHours, totals.zoneKnown)} of the ${totals.zoneKnown.toLocaleString()} whose timezone we know). `}
+                : `(${pct(totals.outsideHours, totals.zoneKnown)} of the ${totals.zoneKnown.toLocaleString()} dialled calls whose timezone we know). `}
               {/* Straight to the rows rather than "they are marked below":
                   finding 35 red cells in three hundred rows is the work this
                   sentence was creating. The filter is on the table, so the
@@ -466,9 +466,11 @@ export default async function CallStatsPage({
                   screen: a link pointing at "Every call" on a page whose table
                   says "Your calls" is a link to something that is not there. */}
               in {mine ? "Your calls" : "Every call"} below. The dialler hides
-              these leads by default, so a call here was placed either with{" "}
-              <span className="font-semibold">Open now</span> switched off or
-              from a callback booked for that time.
+              these leads by default, so a call here was placed with{" "}
+              <span className="font-semibold">Open now</span> switched off, from
+              a callback booked for that time, or as a ring back from Missed
+              calls. Outcomes saved without a call, like clearing a missed
+              call, are not counted.
             </span>
           </p>
           <AckHours count={totals.outsideHoursNew} />
@@ -817,6 +819,17 @@ export default async function CallStatsPage({
                             }
                           >
                             &mdash;
+                          </span>
+                        ) : c.inHours === null ? (
+                          // Their clock is known, but no phone rang: an outcome
+                          // saved while clearing a missed call, or from the
+                          // Spreadsheet, Pipeline or Callbacks. The time is when
+                          // it was saved, so it is shown without judging it.
+                          <span className="text-muted-foreground">
+                            {c.theirTime}
+                            <span className="block text-[11px]">
+                              logged, not dialled
+                            </span>
                           </span>
                         ) : c.inHours === false ? (
                           // The flag. Stated in words as well as colour, since

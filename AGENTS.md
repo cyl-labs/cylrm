@@ -240,6 +240,19 @@ opening a niche to check something is not somebody skipping their callbacks.
   sidebar badges read, never queries of their own: a wall disagreeing with the
   badge beside it reads as a bug. Both are already `cache()`d, so the gate
   costs nothing per render.
+- **A missed call can wait until morning where they are** (2026-09-16,
+  `CAN_WAIT` in `lib/inbound.ts`). Stage one used to hold every unhandled
+  missed call, so a business that rang just after closing pushed the caller to
+  clear it in the middle of that business's night: Raffy cleared two from a
+  Hawaii business at 3:23 and 3:35am their time, because his queue was shut
+  until he did. A missed call now waits only when **both** hold: it is more
+  than an hour old (`MISSED_CALL_FRESH_MINUTES` — somebody who rang within the
+  hour is awake whatever their clock says, the founders' rule), and it is
+  outside 9 to 5 where they are by the same `withinLeadHours` the dial queue
+  uses. **An unknown zone never waits**, so a warm lead we cannot place still
+  blocks. One that waits leaves `countMissedCalls`, so the badge and the gate
+  agree, and stays on Missed calls un-reddened, saying their time and that the
+  list is not held up. It comes back into both the moment it is 9am there.
 - It gates the **dialler only**. The spreadsheet and the pipeline board can
   still log a call, and are deliberately left alone — they are reference
   screens rather than a queue, and blocking every way to touch a lead would
@@ -1338,6 +1351,18 @@ business hours where they actually are. Measured on the live data: 51% Eastern,
   there and the row shows a dash: "we cannot say" is a different answer from
   "they were rung at four in the morning" and must not be flagged as one.
   Keypad rows are null too, having no lead and so no prospect.
+  **Only a call a phone actually rang for is judged** (`RANG` in
+  `lib/call-stats.ts`, 2026-09-16). `called_at` is when an outcome was saved,
+  and outcomes are saved from screens that dial nothing: clearing a missed
+  call, the Spreadsheet, the Pipeline board, Callbacks. Of nine out-of-hours
+  rows in the fortnight to 2026-09-16, one was a real dial; the other eight
+  were outcomes saved at an odd hour. A browser dialler's row counts only with
+  a Telnyx session; a handset dialler's row always counts, since the logged
+  time is the only record of that call, and so does an unattributed row. A row
+  that does not count shows its time as "logged, not dialled" instead of a
+  flag, and is out of the banner, its denominator and `outcome=outside_hours`.
+  `dial_method` is read as it is today, so a person who moved from handset to
+  browser loses the flag on their old rows.
 - **`outcome=outside_hours` narrows the log to exactly those calls**, and the
   banner links straight to it. It is a third non-outcome value on
   `LogFilterValue` beside `keypad`, for the reason that one exists: it is the

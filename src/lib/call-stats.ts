@@ -262,6 +262,26 @@ const inList = (listId?: number): SQL =>
       )`
     : sql``;
 
+/**
+ * A phone actually rang for this call, so its time can be judged against the
+ * prospect's business hours.
+ *
+ * Outcomes get logged from places that dial nothing — clearing a missed call,
+ * the Spreadsheet, the Pipeline board, the callbacks diary — and `called_at` is
+ * when the outcome was saved, not when anybody was rung. On 2026-09-15 Raffy
+ * cleared two missed calls from a Hawaii business at 3:23am their time, and
+ * Stats flagged both as calls placed in the middle of their night. Of nine
+ * out-of-hours rows in the fortnight to 2026-09-16, one was a real dial.
+ *
+ * So a browser dialler's row counts only when Telnyx has a session for it. A
+ * handset dialler's row always counts, because for them the logged time is the
+ * only record of the call there is, and so does a row nobody is attributed to,
+ * which predates browser dialling. `dial_method` is read as it is today, so
+ * somebody who moved from handset to browser has their old handset rows
+ * treated as unknown. Expects `app_user` joined as `u` on `c.user_id`.
+ */
+const RANG = sql`(c.telnyx_session_id is not null or u.dial_method is distinct from 'browser')`;
+
 export async function getCallTotals(
   w: StatsWindow,
   listId?: number,
@@ -287,9 +307,13 @@ export async function getCallTotals(
       -- Attempts, not leads: ringing one business three times at midnight is
       -- three calls made out of hours, and counting it once would read as a
       -- single slip rather than a habit.
-      count(*) filter (where z.tz is not null and not ${withinLeadHours(sql`c.called_at`)}) as outside_hours,
+      -- RANG: only rows where a phone actually rang are judged. An outcome
+      -- saved at 3am their time while clearing a missed call is not a call
+      -- placed at 3am, and counting it made the banner cry wolf.
+      count(*) filter (where z.tz is not null and ${RANG} and not ${withinLeadHours(sql`c.called_at`)}) as outside_hours,
       count(*) filter (
         where z.tz is not null
+          and ${RANG}
           and not ${withinLeadHours(sql`c.called_at`)}
           -- A null watermark leaves every one of them unseen, which is the
           -- right first answer for an account that has never pressed it.
@@ -302,12 +326,14 @@ export async function getCallTotals(
           -- button.
           and (${ack}::timestamptz is null or c.called_at > ${ack}::timestamptz)
       ) as outside_hours_new,
-      count(*) filter (where z.tz is not null) as zone_known
+      count(*) filter (where z.tz is not null and ${RANG}) as zone_known
     from call c
     -- Joined for the zone alone. call_lead_id is not null and the lateral
     -- always yields exactly one row, so no count above can move.
     join call_lead l on l.id = c.call_lead_id
     ${leadZone}
+    -- For RANG. At most one user per call, so this cannot move a count either.
+    left join app_user u on u.id = c.user_id
     where ${since(w)} ${inList(listId)} ${byUser(userId)}
   `)) as Row[];
 
@@ -676,7 +702,10 @@ export async function getCallLog(
       -- and another on hydration. Null where the area code maps to no zone.
       to_char(c.called_at at time zone z.tz, 'HH24:MI') as their_time,
       ${withinLeadHours(sql`c.called_at`)} as in_hours,
-      z.tz is not null as zone_known,
+      -- Known means the zone is known AND a phone rang (RANG). An outcome
+      -- saved with no call behind it gets no verdict: the screen shows its
+      -- time as "logged, not dialled" rather than flagging it.
+      (z.tz is not null and ${RANG}) as zone_known,
       r.recording_id, r.duration_ms as recording_ms
     from call c
     join call_lead l on l.id = c.call_lead_id
@@ -692,7 +721,7 @@ export async function getCallLog(
       ${byUser(userId)}
       ${
         filter === "outside_hours"
-          ? sql`and z.tz is not null and not ${withinLeadHours(sql`c.called_at`)}`
+          ? sql`and z.tz is not null and ${RANG} and not ${withinLeadHours(sql`c.called_at`)}`
           : filter && filter !== "keypad"
             ? sql`and c.outcome = ${filter}`
             : sql``

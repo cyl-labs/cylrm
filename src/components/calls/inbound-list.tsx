@@ -103,11 +103,16 @@ export function InboundList({
   calls,
   all,
   missed,
+  waiting = 0,
   showWho,
 }: {
   calls: InboundCall[];
   all: boolean;
+  /** Owed a ring back now — the same count as the badge. */
   missed: number;
+  /** Owed one once it is morning where they are (`canWait`). Listed below, but
+   *  not in `missed`, the badge or the work-order gate. */
+  waiting?: number;
   /** Admins see whose number was rung; a caller only ever sees their own. */
   showWho: boolean;
 }) {
@@ -178,12 +183,25 @@ export function InboundList({
           {missed > 0 ? (
             <>
               <span className="font-bold text-destructive">
-                {missed} to ring back
+                {missed} to ring back now
               </span>
-              {!all && ", nothing else missed"}
+              {!all && waiting === 0 && ", nothing else missed"}
             </>
+          ) : waiting > 0 ? (
+            "Nothing to ring back right now."
           ) : (
             "Nothing missed."
+          )}
+          {/* In the header as well as on each row, so a badge reading zero
+              beside a list of missed calls does not look like a bug. */}
+          {waiting > 0 && (
+            <>
+              {" "}
+              <span className="font-semibold text-foreground">
+                {waiting} can wait until morning
+              </span>{" "}
+              where they are.
+            </>
           )}{" "}
           Last 30 days.
         </p>
@@ -213,7 +231,11 @@ export function InboundList({
                 key={c.id}
                 className={cn(
                   "rounded-xl border px-4 py-3",
-                  outstanding ? "border-destructive/40 bg-destructive/5" : "bg-card",
+                  // Red only when it is owed now. One that can wait until their
+                  // morning is still listed, but not shouting.
+                  outstanding && !c.canWait
+                    ? "border-destructive/40 bg-destructive/5"
+                    : "bg-card",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -266,6 +288,19 @@ export function InboundList({
                       ))}
                   </div>
                 </div>
+
+                {/* Why a missed call is not red and not in the badge. Their
+                    clock is named so "can wait" is checkable, and it says the
+                    list is not blocked, which is the part a caller acts on. */}
+                {outstanding && c.canWait && (
+                  <p className="mt-2 text-[12px] text-muted-foreground">
+                    <span className="font-semibold text-foreground">
+                      It&apos;s {c.theirNow} where they are, so this can wait.
+                    </span>{" "}
+                    Ring back after 9am their time. It isn&apos;t holding up
+                    your call list.
+                  </p>
+                )}
 
                 {c.leadId === null && (
                   // Said out loud rather than left blank: a number we hold no

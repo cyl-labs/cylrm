@@ -28,7 +28,11 @@ export default async function MissedCallsPage({
   const me = await getCurrentUser();
   const all = show === "all";
   const calls = await getInboundCalls(me, { missedOnly: !all });
-  const missed = calls.filter((c) => !c.answeredAt && !c.handledAt).length;
+  const outstanding = calls.filter((c) => !c.answeredAt && !c.handledAt);
+  // Split the way `countMissedCalls` splits them, so the header agrees with the
+  // badge beside it: owed now, and owed once it is morning where they are.
+  const missed = outstanding.filter((c) => !c.canWait).length;
+  const waiting = outstanding.length - missed;
 
   return (
     <PageShell title="Missed calls">
@@ -37,6 +41,7 @@ export default async function MissedCallsPage({
           calls={calls}
           all={all}
           missed={missed}
+          waiting={waiting}
           showWho={me?.role === "admin"}
         />
       </div>
