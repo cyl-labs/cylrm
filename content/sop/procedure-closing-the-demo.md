@@ -147,6 +147,26 @@ The calculator at the top of this page does all of this while they talk — thei
 calls a week and their average job, and it prints what each package would cost
 at that volume.
 
+## If they say it's too expensive
+
+> **Prospect** That's too expensive. / That's a lot for me.
+
+Don't argue about the price and don't jump to a discount. Go back to the
+numbers they just gave you. They already said how much they are losing, so the
+question is only whether the agent catches one of those calls.
+
+> **You say** I get it. But go back to your numbers: you said you're missing about [their calls] calls a week, and an average job is [their average job]. If the agent saves just one of those a month, that's [their average job] in, against [the package price]. It's already paid for itself.
+
+_(let them answer)_
+
+If their average job is more than the package price, say that part plainly.
+One job covers the whole month.
+
+> **You say** So really it's one job a month. Anything past that is money you're not getting today.
+
+_(let them answer)_
+
+Still stuck on price after that? Offer a term discount next, then the trial.
 
 ### The term discounts, when price is the sticking point
 
@@ -170,9 +190,31 @@ leave early. Do not offer a discount you are not willing to hold somebody to.
 
 ## If they say they don't get enough calls to justify it
 
-The same answer the callers have on their objection sheet — the Google Maps
-visibility angle. Read it there rather than here, so there is one version of
-it to keep current.
+> **Prospect** I don't really get enough calls for this. / It's pretty quiet for me.
+
+Don't argue about how many calls they get. Low volume is often because people
+can't find them, not because nobody needs them. So this turns the objection
+into a second reason to buy: they may get fewer calls *because* they don't show
+as always open.
+
+> **You say** Are you listed as open 24 hours on Google, by chance?
+
+_(let them answer)_
+
+If they're not:
+
+> **You say** Yeah, that could be part of it. Google tends to rank businesses that are open 24 hours a little higher on Maps, especially for people searching later at night. It puts those ones near the top of the list.
+
+_(let them answer)_
+
+> **You say** Once the agent is picking up, you can switch your hours to 24/7 on Google, because someone will actually answer. So you'd likely get more calls out of it, not just catch the ones you're missing now. That's something you can't really do without it.
+
+_(let them answer)_
+
+Then go back to the package that fits the calls they do get.
+
+The callers' objection sheets carry the same answer. If the wording changes,
+change it there too.
 
 ## Only if they hesitate: the 30-day trial
 
