@@ -149,7 +149,9 @@ export async function draftContracts(
         },
         {
           role: SIGNER_ROLE,
-          email: input.signeeEmail,
+          // Only when they gave one. The link reaches them by hand either way,
+          // since DocuSeal cannot email from this droplet.
+          ...(input.signeeEmail ? { email: input.signeeEmail } : {}),
           name: input.signeeName || undefined,
           // Their printed name, so the signature block agrees with the party
           // named at the top rather than asking them to type it again.

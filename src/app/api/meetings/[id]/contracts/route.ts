@@ -90,9 +90,21 @@ export async function POST(
       { status: 400 },
     );
   }
-  if (!input.signeeEmail) {
+  // The email is optional: plenty of prospects will not give one. DocuSeal only
+  // needs something to name the signer by, though — with neither a name nor an
+  // email it drops the client from the document altogether.
+  if (!input.signeeName && !input.signeeEmail) {
     return Response.json(
-      { error: "An email address is required for the person signing." },
+      { error: "Put in who signs for them, or their email." },
+      { status: 400 },
+    );
+  }
+  if (
+    input.signeeEmail &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.signeeEmail)
+  ) {
+    return Response.json(
+      { error: "That email doesn't look right. Fix it or leave it blank." },
       { status: 400 },
     );
   }

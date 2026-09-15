@@ -67,7 +67,10 @@ export const SIGNER_ROLE = "Second Party";
 
 export type Submitter = {
   role: string;
-  email: string;
+  /** Optional: DocuSeal needs a name, a phone or an email to keep a signer, and
+   *  plenty of prospects give no email. Left out when blank rather than sent as
+   *  an empty string. */
+  email?: string;
   name?: string;
   values?: Record<string, string>;
 };

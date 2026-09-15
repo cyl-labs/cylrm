@@ -932,6 +932,20 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   agreement is worse than the typing this removes, so every value goes in front
   of somebody first. The empty-business-name check is in the route as well as
   the button, because a disabled button is not a validation.
+- **The client's email is optional** (2026-09-15). Plenty of prospects will
+  not give one, and the Cal.com form stopped requiring it on 2026-09-14.
+  DocuSeal keeps a signer with only a name (it drops one with no email, phone
+  *and* name), so the route asks for **a name or an email**, not both, and the
+  Draft button agrees. Blank means the email key is left off the submitter
+  entirely. A booking's `noemail@gmail.com`-style stand-in is not prefilled
+  (`isPlaceholderEmail`), or DocuSeal would record it as the signer's own
+  address. **The gap to know:** the n8n signed-copy workflow gates on
+  `Boolean(client.email)` in "Read the event", and "Tell the CRM" sits after
+  the Gmail draft in one line, so a contract signed with no email reaches
+  neither. No draft, which is right, but also no `signed_at`, no "signed" chip
+  and no push. Discarding stays safe because it asks DocuSeal directly. The fix
+  is in that workflow, not here: drop the email from `mine` and branch so only
+  the Gmail steps need an address.
 - **The prices are in `lib/packages.ts`, never in the templates.** A template
   holds the wording, the CRM holds the numbers: changing a price is then one
   line rather than somebody opening two documents in an editor and getting one

@@ -137,7 +137,9 @@ export function PrepareContracts({
     // point than an empty box.
     setNicheName(tidy(meeting.niche) || tidy(meeting.listName));
     setSigneeName(meeting.attendeeName ?? "");
-    setSigneeEmail(meeting.attendeeEmail ?? "");
+    // A stand-in typed into Cal.com by a prospect who gave none is not an
+    // address. Prefilled, DocuSeal would record it as the signer's own.
+    setSigneeEmail(isPlaceholderEmail(meeting.attendeeEmail) ? "" : (meeting.attendeeEmail ?? ""));
     // Today — on the reader's own clock, deliberately not the screen's.
     //
     // It was the meeting's day until 2026-09-08, on the reasoning that an
@@ -483,15 +485,29 @@ export function PrepareContracts({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="signeeEmail">Their email</Label>
+                <Label htmlFor="signeeEmail">
+                  Their email
+                  <span className="font-normal text-muted-foreground">
+                    (optional)
+                  </span>
+                </Label>
                 <Input
                   id="signeeEmail"
                   type="email"
                   value={signeeEmail}
                   onChange={(e) => setSigneeEmail(e.target.value)}
+                  placeholder="None given"
                 />
               </div>
             </div>
+            {/* Plenty of prospects will not give an email, and the contract
+                does not need one. What changes is only how things reach them. */}
+            {!signeeEmail.trim() && (
+              <p className="-mt-1 text-[12px] text-muted-foreground">
+                No email is fine. Send them the signing link yourself, and get
+                their signed copy to them another way, such as by text.
+              </p>
+            )}
 
             {/* Only the paid agreement has a fee table. Asking for a package
                 while drafting a trial would be asking a question the document
@@ -596,7 +612,14 @@ export function PrepareContracts({
             </Button>
             <Button
               onClick={submit}
-              disabled={busy || !businessName.trim() || chosen.length === 0}
+              disabled={
+                busy ||
+                !businessName.trim() ||
+                chosen.length === 0 ||
+                // DocuSeal drops a signer with neither, and the contract would
+                // come back with no client on it. The route refuses it too.
+                (!signeeName.trim() && !signeeEmail.trim())
+              }
             >
               {busy && <Loader2 className="size-4 animate-spin" />}
               {busy
@@ -684,6 +707,19 @@ function tidy(value: string | null): string {
       .trim();
   }
   return s.toLowerCase();
+}
+
+/**
+ * An address a prospect typed into Cal.com to get past a box, not a real one.
+ *
+ * The booking form made email optional on 2026-09-14; before that, prospects
+ * who would not give one were booked as `noemail@gmail.com`. Narrow on purpose:
+ * only local parts that say "none" outright, so a real address is never
+ * mistaken for one.
+ */
+function isPlaceholderEmail(email: string | null): boolean {
+  if (!email) return false;
+  return /^(no-?e?mail|none|na|n\/a|nomail)@/i.test(email.trim());
 }
 
 /** The meeting's calendar day in the screen's zone. `toISOString` would answer
