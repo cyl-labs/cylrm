@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmSend } from "@/components/confirm-send";
 import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
@@ -214,6 +215,9 @@ export function MeetingsList({
     meetingId: number;
     body: string;
   } | null>(null);
+  /** Send text pressed, waiting on the last look (`ConfirmSend`). One at a
+   *  time, like the composer it belongs to. */
+  const [confirmingText, setConfirmingText] = React.useState(false);
 
   /**
    * Keep the page fresh while a reply could be on its way.
@@ -818,7 +822,7 @@ export function MeetingsList({
                     <Button
                       size="sm"
                       disabled={busy === m.id || !composing.body.trim()}
-                      onClick={() => sendText(m, composing.body)}
+                      onClick={() => setConfirmingText(true)}
                     >
                       {busy === m.id ? "Sending…" : "Send text"}
                     </Button>
@@ -832,6 +836,23 @@ export function MeetingsList({
                     {texting.from && !lead?.optedOut ? "Cancel" : "Close"}
                   </Button>
                 </div>
+                {texting.from && (
+                  <ConfirmSend
+                    open={confirmingText}
+                    kind="text"
+                    to={{
+                      name: m.attendeeName ?? m.company,
+                      address: spokenNumber(m.phone ?? ""),
+                    }}
+                    from={spokenNumber(texting.from)}
+                    body={composing.body.trim()}
+                    onCancel={() => setConfirmingText(false)}
+                    onConfirm={() => {
+                      setConfirmingText(false);
+                      void sendText(m, composing.body);
+                    }}
+                  />
+                )}
               </div>
             )}
 

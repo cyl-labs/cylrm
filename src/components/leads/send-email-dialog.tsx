@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import { ConfirmSend } from "@/components/confirm-send";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,6 +46,8 @@ export function SendEmailDialog({
   const [body, setBody] = React.useState("");
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  /** Submitting the form opens a last look; only Send inside it sends. */
+  const [confirming, setConfirming] = React.useState(false);
 
   const name =
     target && [target.firstName, target.lastName].filter(Boolean).join(" ");
@@ -56,11 +59,18 @@ export function SendEmailDialog({
       setBody("");
       setError(null);
       setSending(false);
+      setConfirming(false);
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!target || sending) return;
+    setConfirming(true);
+  }
+
+  async function deliver() {
+    setConfirming(false);
     if (!target || sending) return;
     setSending(true);
     setError(null);
@@ -151,6 +161,18 @@ export function SendEmailDialog({
             </Button>
           </DialogFooter>
         </form>
+        {target && (
+          <ConfirmSend
+            open={confirming}
+            kind="email"
+            to={{ name: name || null, address: target.email }}
+            from={accounts.find((a) => String(a.id) === accountId)?.email ?? null}
+            subject={subject}
+            body={body}
+            onCancel={() => setConfirming(false)}
+            onConfirm={() => void deliver()}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

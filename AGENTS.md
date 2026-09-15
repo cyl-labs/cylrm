@@ -845,6 +845,19 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
   text plus the copy-number and Open lead buttons. Scoped by `call_sms.user_id`
   like missed calls, so a reassigned number does not hand over the last
   holder's texts; admins see every conversation, labelled "To <name>".
+- **Nothing goes out without a last look** (`components/confirm-send.tsx`,
+  2026-09-15). Enter and the arrow on this screen, Send text on a meeting row,
+  and Send in the Leads email dialog all open `ConfirmSend` instead of sending.
+  It shows who it is to, the number or mailbox it goes from, and the message
+  itself, plus a warning line when the message holds a link. **"Go back" has
+  focus when it opens**, so the Enter that opened it cannot also send it, and
+  going back keeps what was typed. Built after a founder drafted Santa Fe Junk
+  Removal's trial agreement and texted the prospect its signing link seventeen
+  seconds later by accident: this bar sent on Enter, so a paste and a keypress
+  were the whole gesture, and the link had to be killed by archiving the
+  contract in DocuSeal. **A new way to send anything to a prospect goes through
+  `ConfirmSend` too.** Verified against a stand-in Telnyx: Enter, Enter sent
+  nothing and kept the text; pressing Send sent exactly once.
 - **Unread is per person, and only the person a text is for can clear it.**
   Marked by a POST when the thread opens, never as a side effect of rendering:
   Next prefetches links, and a conversation marked read because its link was

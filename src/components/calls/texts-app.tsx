@@ -13,6 +13,7 @@ import {
   User,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmSend } from "@/components/confirm-send";
 import { CopyNumber } from "@/components/calls/inbound-list";
 import { RingBackButton } from "@/components/calls/ring-back-button";
 import { classifyPhone, e164, spokenNumber } from "@/lib/phone";
@@ -511,13 +512,22 @@ function ThreadView({
   const startFromMine =
     isAdmin && canSend && myNumber && !onMyNumber && theirIsUs && !c.dncBlock;
 
-  async function send() {
+  /** The text awaiting a last look. Enter and the arrow only ever open that
+   *  look; nothing is sent until Send is pressed inside it (`ConfirmSend`). */
+  const [confirming, setConfirming] = React.useState<string | null>(null);
+
+  function send() {
     const body = text.trim();
     if (!body || pending) return;
     if (body.length > MAX_LENGTH) {
       toast.error(`Keep it under ${MAX_LENGTH} characters.`);
       return;
     }
+    setConfirming(body);
+  }
+
+  async function deliver(body: string) {
+    setConfirming(null);
     nearBottom.current = true;
     setPending({ body, base: messages.length });
     setText("");
@@ -569,6 +579,17 @@ function ThreadView({
 
   return (
     <>
+      <ConfirmSend
+        open={confirming !== null}
+        kind="text"
+        to={{ name: c.name, address: spokenNumber(c.their) }}
+        from={spokenNumber(c.ours)}
+        body={confirming ?? ""}
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => {
+          if (confirming) void deliver(confirming);
+        }}
+      />
       <header className="relative shrink-0 border-b bg-[var(--imsg-pane)] px-14 pb-2 pt-2">
         <Link
           href="/texts"
