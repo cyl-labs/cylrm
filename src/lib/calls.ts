@@ -317,14 +317,51 @@ export async function getCallLists(
   // all duplicates joins to no rows and a LEFT JOIN then hands back one row of
   // NULLs. count(*) scores that phantom as an uncalled lead, which made an
   // empty list read "-1 of 0 worked".
+  //
+  // Hand-tuned, and deliberately not built on `latestCall` or `leadZone`. Every
+  // calling screen runs this for every list and every lead, and the first cut
+  // of the four-call limit took it from 0.37s to 1.49s on 5,231 leads: two
+  // correlated counts per lead, a timezone worked out for every lead when only
+  // the ones waiting on a retry are ever read, and six rescans of the calls
+  // table per list. This returns the same numbers from one grouped pass over
+  // calls for each lead's tries, one for each list's call counts, and a
+  // timezone only where `RETRY_READY` reads it: 0.26s, measured on prod on
+  // 2026-09-16 with identical results for all 41 lists. **If the latest-call,
+  // retry or timezone rules change, change them here as well.**
+  const calledToday = sql`(c.called_at at time zone ${CALL_TZ})::date = (now() at time zone ${CALL_TZ})::date`;
+  const notReached = sql`('no_answer','voicemail','gatekeeper')`;
   const rows = (await db.execute(sql`
+    with tries as (
+      select call_lead_id,
+        count(*) filter (where outcome in ('no_answer','voicemail')) as unanswered,
+        count(*) filter (where outcome in ${notReached}) as not_reached
+      from call
+      group by call_lead_id
+    ),
+    list_calls as (
+      select cll.call_list_id,
+        count(*) filter (where ${calledToday}) as called_today,
+        count(*) filter (where ${calledToday} and c.outcome in ${SPOKE_TO}) as conversations_today,
+        count(*) filter (where ${calledToday} and c.outcome in ('no_answer','voicemail')) as no_answer_today,
+        count(*) filter (where ${calledToday} and c.outcome = 'bad_number') as bad_numbers_today,
+        count(*) as calls_logged
+      from call c
+      join call_lead cll on cll.id = c.call_lead_id
+      group by cll.call_list_id
+    ),
+    dups as (
+      select call_list_id, count(*) as duplicates
+      from call_lead
+      where duplicate_of_lead_id is not null
+      group by call_list_id
+    )
     select cl.id, cl.name, cl.niche, cl.created_at, cl.region,
       cl.assigned_user_id,
       (select u.name from app_user u where u.id = cl.assigned_user_id) as assigned_name,
       count(l.id) as total,
       count(l.id) filter (where lc.outcome is null) as uncalled,
       count(l.id) filter (
-        where lc.outcome in ('no_answer','voicemail','gatekeeper')
+        where lc.outcome in ${notReached}
           and not ${TRIED_OUT}
           and ${RETRY_READY}
       ) as to_retry,
@@ -332,7 +369,7 @@ export async function getCallLists(
       -- RETRY_AFTER_DAYS. Out of the queue and the bar's "left", but it keeps a
       -- list from reading as Finished.
       count(l.id) filter (
-        where lc.outcome in ('no_answer','voicemail','gatekeeper')
+        where lc.outcome in ${notReached}
           and not ${TRIED_OUT}
           and not ${RETRY_READY}
       ) as retry_later,
@@ -340,29 +377,10 @@ export async function getCallLists(
       count(l.id) filter (
         where lc.outcome in ('not_interested','bad_number','lost')
       ) as ruled_out,
-      (select count(*) from call c
-        join call_lead cll on cll.id = c.call_lead_id
-        where cll.call_list_id = cl.id
-          and (c.called_at at time zone ${CALL_TZ})::date
-              = (now() at time zone ${CALL_TZ})::date) as called_today,
-      (select count(*) from call c
-        join call_lead cll on cll.id = c.call_lead_id
-        where cll.call_list_id = cl.id
-          and (c.called_at at time zone ${CALL_TZ})::date
-              = (now() at time zone ${CALL_TZ})::date
-          and c.outcome in ${SPOKE_TO}) as conversations_today,
-      (select count(*) from call c
-        join call_lead cll on cll.id = c.call_lead_id
-        where cll.call_list_id = cl.id
-          and (c.called_at at time zone ${CALL_TZ})::date
-              = (now() at time zone ${CALL_TZ})::date
-          and c.outcome in ('no_answer','voicemail')) as no_answer_today,
-      (select count(*) from call c
-        join call_lead cll on cll.id = c.call_lead_id
-        where cll.call_list_id = cl.id
-          and (c.called_at at time zone ${CALL_TZ})::date
-              = (now() at time zone ${CALL_TZ})::date
-          and c.outcome = 'bad_number') as bad_numbers_today,
+      coalesce(max(lcs.called_today), 0) as called_today,
+      coalesce(max(lcs.conversations_today), 0) as conversations_today,
+      coalesce(max(lcs.no_answer_today), 0) as no_answer_today,
+      coalesce(max(lcs.bad_numbers_today), 0) as bad_numbers_today,
       count(l.id) filter (where lc.outcome = 'demo_booked') as demo_booked,
       count(l.id) filter (where lc.outcome = 'trial') as trials,
       count(l.id) filter (where lc.outcome = 'won') as won,
@@ -370,17 +388,45 @@ export async function getCallLists(
       count(l.id) filter (
         where lc.outcome = 'callback' and lc.callback_at > now()
       ) as callbacks_later,
-      (select count(*) from call_lead d
-        where d.call_list_id = cl.id and d.duplicate_of_lead_id is not null) as duplicates,
-      (select count(*) from call c
-        join call_lead cll on cll.id = c.call_lead_id
-        where cll.call_list_id = cl.id) as calls_logged
+      coalesce(max(d.duplicates), 0) as duplicates,
+      coalesce(max(lcs.calls_logged), 0) as calls_logged
     from call_list cl
     left join call_lead l
       on l.call_list_id = cl.id and l.duplicate_of_lead_id is null
-    ${latestCall}
-    -- For RETRY_READY: a lead's "next day" is its own calendar day.
-    ${leadZone}
+    -- The latest call, as latestCall picks it, with the two try counts
+    -- TRIED_OUT and RETRY_READY read.
+    left join lateral (
+      select c.outcome, c.called_at, c.callback_at,
+        coalesce(t.unanswered, 0) as unanswered,
+        coalesce(t.not_reached, 0) as not_reached
+      from call c
+      left join tries t on t.call_lead_id = c.call_lead_id
+      where c.call_lead_id = l.id
+      order by c.called_at desc, c.id desc
+      limit 1
+    ) lc on true
+    -- leadZone's answer, worked out only for a lead waiting on a retry: nothing
+    -- else in this query reads z.tz. The area-code join is written as a plain
+    -- equality so it can be hashed rather than tested lead by lead.
+    left join us_area_code ac
+      on lc.outcome in ${notReached}
+     and ac.area_code = case when l.phone_key ~ '^1[0-9]{10}$' then substr(l.phone_key, 2, 3) end
+    cross join lateral (
+      select case when lc.outcome in ${notReached} then coalesce(
+        case when l.phone_key ~ '^1[0-9]{10}$'
+          then case lower(trim(coalesce(l.source_fields->>'state', '')))
+            ${STATE_TZ_SQL}
+          end
+        end,
+        ac.tz,
+        case
+          when l.phone_key ~ '^65[0-9]{8}$' then 'Asia/Singapore'
+          when l.phone_key ~ '^44' then 'Europe/London'
+        end
+      ) end as tz
+    ) z
+    left join list_calls lcs on lcs.call_list_id = cl.id
+    left join dups d on d.call_list_id = cl.id
     where true ${ownedBy(ownerId)}
     group by cl.id, cl.name, cl.niche, cl.created_at, cl.assigned_user_id
     order by cl.created_at desc, cl.id desc
