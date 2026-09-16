@@ -538,6 +538,18 @@ inbound handled.
   rather than the length alone: a bare "1:21" under a timestamp reads as
   another timestamp, so the one thing on the row that does something had
   nothing on it saying so.
+- **"By list" is one row a niche, not eight columns of figures** (2026-09-16).
+  It was a table of List/Leads/Worked/Calls/Pickups/Demos/Trials/Won, which
+  made you read seven numbers to answer the only question anybody brings to
+  it — how far through is this niche, and is it converting — and printed a grid
+  of noughts for every list that had not reached a demo. Each row now shows
+  **three numbers and nothing else** — percent worked (with a bar), pickup rate
+  and demos — because those are the only ones anybody acts on. Leads, calls,
+  pickups, trials and wins moved behind a native `details` fold, which is where
+  you go once one of the three looks wrong. Native like the booking notes on
+  Meetings, so it opens before hydration and costs no state on a screen that
+  can list forty niches. The bar is `aria-hidden`: decoration over a percentage
+  already written out beside it, so it is not announced twice.
 - **Stats default to the last seven days** (2026-09-08; it was today until
   then). A single day is too thin to read: one caller's morning is a handful of
   rows, a day with an appointment in it looks like a collapse, and every ratio
@@ -1351,6 +1363,16 @@ One push a week to the founders: who finished under `WEEKLY_CALL_QUOTA`.
   and it opens `/call-stats` rather than the Scoreboard — Stats defaults to the
   last seven days and carries the By-person table, where the Scoreboard opens
   on today and would answer a question about the week with one shift.
+- **The same standings are a card on Stats**, because a push that is missed or
+  dismissed leaves nothing behind and the answer has to be readable somewhere.
+  Both read `getQuotaStandings`, so the screen and the notification cannot
+  disagree about who is behind — the rule the caller's own bar follows by
+  counting through `getCallTotals`. Founders only, like the rest of the
+  admin half of that page. **It is the pay week and does not follow the range
+  picker**, which the card says out loud: a quota that moved with a dropdown
+  would let somebody change how much work is owed by changing a filter, and
+  without the sentence the numbers look broken when the range changes and this
+  does not.
 - **Apply the migration before deploying**, unlike the callbacks digest: with
   push configured the "nothing to do" branch is not taken, so a missing table
   is a cron job throwing every five minutes.

@@ -83,12 +83,26 @@ export type QuotaDigestResult = {
   deliveries?: number;
 };
 
-export async function sendQuotaDigest(
-  now: Date = new Date(),
-): Promise<QuotaDigestResult> {
-  if (!pushConfigured()) return { skipped: "unconfigured" };
-  if (!inWindow(now)) return { skipped: "not-friday-yet" };
+export type QuotaStanding = { name: string; calls: number };
 
+/**
+ * Where every caller stands against the quota this week.
+ *
+ * Shared by the Friday notification and the card on Stats rather than each
+ * counting its own way — two answers to "did they hit 300" put two numbers in
+ * front of one founder, and the one they act on had better be the one that
+ * was sent. The same reason the caller's own bar counts through
+ * `getCallTotals`.
+ *
+ * Deliberately **not** scoped by the Stats range picker: this is Payroll's
+ * week, Monday to now, and a quota that moved with a dropdown would let
+ * somebody change how much work is owed by changing a filter. The card says
+ * so, or the numbers look broken when the range changes and this does not.
+ */
+export async function getQuotaStandings(): Promise<{
+  weekStart: string;
+  standings: QuotaStanding[];
+}> {
   const weekStart = payWeekStart();
 
   // **Only callers who could actually have rung somebody**, which takes two
@@ -102,14 +116,13 @@ export async function sendQuotaDigest(
   // precisely the noise that buries the one name worth reading. Somebody who
   // cannot place a call is not behind on their quota; they are waiting on an
   // admin, and that is a different message to a different person.
+  //
   // The third condition is the narrow one, and it has to be narrow. Somebody
   // hired this week who has not dialled at all is still being set up, not
   // behind — but "joined this week" alone is far too wide a brush: two of the
   // people working hardest the day this was built had been added within the
   // week, one of them a third of the way to quota already. So it excludes only
-  // the pairing of both: new *and* never once dialled. Anyone who joined
-  // before the week began stays named however little they did, which is the
-  // whole point — that is the caller worth asking about.
+  // the pairing of both: new *and* never once dialled.
   const callers = (await db.execute(sql`
     select u.id, u.name
     from app_user u
@@ -127,17 +140,31 @@ export async function sendQuotaDigest(
 
   // Counted through `getWeekProgress`, never a query of its own, so "a call"
   // means what it means on the caller's own bar, on Stats and on the
-  // Scoreboard. A digest disagreeing with the strip they watched all week
-  // would be worse than no digest.
-  const standings: { name: string; calls: number }[] = [];
+  // Scoreboard.
+  const standings: QuotaStanding[] = [];
   for (const c of callers) {
     const { calls } = await getWeekProgress(n(c.id));
     standings.push({ name: String(c.name ?? "Unknown"), calls });
   }
+  // Worst first: the top of this list is the only part anybody needs to act on.
+  standings.sort((a, b) => a.calls - b.calls);
+  return { weekStart, standings };
+}
 
-  const under = standings
-    .filter((s) => s.calls < WEEKLY_CALL_QUOTA)
-    .sort((a, b) => a.calls - b.calls);
+export async function sendQuotaDigest(
+  now: Date = new Date(),
+): Promise<QuotaDigestResult> {
+  if (!pushConfigured()) return { skipped: "unconfigured" };
+  if (!inWindow(now)) return { skipped: "not-friday-yet" };
+
+  const weekStart = payWeekStart();
+
+  // The same roster and the same counts the card on Stats renders — one
+  // definition of "is this person behind", shared, rather than a copy here and
+  // a copy there that drift into disagreeing about who to chase. Already
+  // sorted worst first.
+  const { standings } = await getQuotaStandings();
+  const under = standings.filter((s) => s.calls < WEEKLY_CALL_QUOTA);
 
   const founders = (await db.execute(sql`
     select distinct u.id

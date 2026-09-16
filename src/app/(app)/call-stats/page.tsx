@@ -1,5 +1,6 @@
 import { getCallLists, LEAD_HOURS_LABEL } from "@/lib/calls";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import {
   dayBackInStatsTz,
   getCallTotals,
@@ -20,6 +21,10 @@ import {
   type PersonStat,
 } from "@/lib/call-stats";
 import { DEFAULT_STATS_REGION, isStatsRegion } from "@/lib/stats-zones";
+// The same standings the Friday notification sends, so the screen and the
+// push cannot disagree about who is behind.
+import { getQuotaStandings } from "@/lib/quota-digest";
+import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
 import { CallCalendar } from "@/components/calls/call-calendar";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
 import { getCurrentUser } from "@/lib/session";
@@ -227,7 +232,8 @@ export default async function CallStatsPage({
     (l) => l.total - l.uncalled > 0 || l.id === listId,
   );
 
-  const [totals, outcomes, lists, monthDays, people, log] = await Promise.all([
+  const [totals, outcomes, lists, monthDays, people, log, quota] =
+    await Promise.all([
     getCallTotals(w, listId, personId, await hoursAckOf(me?.id)),
     getOutcomeCounts(w, listId, personId),
     // `scopeId` as well as `personId`: one narrows the numbers to their calls,
@@ -239,6 +245,12 @@ export default async function CallStatsPage({
     // row saying what the tiles above it already say.
     mine ? Promise.resolve<PersonStat[]>([]) : getPersonStats(w, listId, personId),
     getCallLog(w, listId, personId, outcome),
+    // The floor's week against the quota. Founders only — a caller seeing
+    // everyone else's numbers is the thing `/call-stats` is split in two to
+    // prevent, and they already carry their own bar in the header.
+    mine
+      ? Promise.resolve({ weekStart: "", standings: [] })
+      : getQuotaStandings(),
   ]);
 
   // Every row in the screen's own zone, and never the reader's browser zone,
@@ -630,6 +642,68 @@ export default async function CallStatsPage({
           </div>
         )}
 
+        {/* The floor against the quota, and the in-app answer to the Friday
+            notification: a push that is missed or dismissed leaves nothing
+            behind, so the same standings have to be readable on a screen.
+            Founders only — a caller seeing everyone else's numbers is what
+            this page is split in two to prevent. */}
+        {!mine && quota.standings.length > 0 && (
+          <div className={CARD}>
+            <div className="border-b border-border/60 px-5 py-3.5">
+              <p className="text-sm font-extrabold tracking-[-0.01em]">
+                This week against quota
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground/75">
+                Calls since Monday against {WEEKLY_CALL_QUOTA}, worst first.
+                This is the pay week and does not follow the dates above — the
+                same count the Friday notification sends.
+              </p>
+            </div>
+            <ul className="divide-y divide-border/60">
+              {quota.standings.map((s) => {
+                const met = s.calls >= WEEKLY_CALL_QUOTA;
+                const width = Math.min(
+                  100,
+                  Math.round((s.calls / WEEKLY_CALL_QUOTA) * 100),
+                );
+                return (
+                  <li
+                    key={s.name}
+                    className="flex items-center gap-3 px-5 py-2"
+                  >
+                    <span className="w-28 shrink-0 truncate text-[13px] font-semibold">
+                      {s.name}
+                    </span>
+                    {/* Decoration over the number printed beside it. */}
+                    <span
+                      aria-hidden
+                      className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted"
+                    >
+                      <span
+                        className={cn(
+                          "block h-full rounded-full",
+                          met ? "bg-success" : "bg-primary",
+                        )}
+                        style={{ width: `${width}%` }}
+                      />
+                    </span>
+                    <span
+                      className={cn(
+                        "w-24 shrink-0 text-right text-[12px] tabular-nums",
+                        met
+                          ? "font-semibold text-success"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {s.calls.toLocaleString()} / {WEEKLY_CALL_QUOTA}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         <div className={CARD}>
           <div className="border-b border-border/60 px-5 py-3.5">
             <p className="text-sm font-extrabold tracking-[-0.01em]">
@@ -637,8 +711,8 @@ export default async function CallStatsPage({
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/75">
               {mine
-                ? "Leads is the size of the niche and worked is how many of them you have ever rung. Calls onwards are only the dates above."
-                : "Leads and worked are lifetime; calls onwards are the selected range."}
+                ? "How much of each niche you have ever rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the dates above."
+                : "How much of each niche has been rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the selected range."}
             </p>
           </div>
           {/* A table of headings over nothing is the state a new caller lands
@@ -653,63 +727,85 @@ export default async function CallStatsPage({
                 : "No call lists yet. Import a CSV on the Call lists screen."}
             </p>
           ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="border-b border-border/60 text-left">
-                  {[
-                    "List",
-                    "Leads",
-                    "Worked",
-                    "Calls",
-                    "Pickups",
-                    "Demos",
-                    "Trials",
-                    "Won",
-                  ].map((h, i) => (
-                    <th
-                      key={h}
-                      className={`whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground ${
-                        i === 0 ? "" : "text-right"
-                      }`}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {lists.map((l) => (
-                  <tr key={l.id} className="border-b border-border/60 last:border-0">
-                    <td className="max-w-[16rem] truncate px-4 py-2 font-semibold">
-                      {l.name}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {l.leads.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
-                      {l.worked.toLocaleString()} ({pct(l.worked, l.leads)})
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {l.calls.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
-                      {l.pickups.toLocaleString()} ({pct(l.pickups, l.calls)})
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {l.demos.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {l.trials.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-right font-bold tabular-nums">
-                      {l.won.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            /* One row a niche instead of eight columns of figures. The table it
+               replaced made you read seven numbers to answer the only question
+               anybody brings here — how far through is this list, and is it
+               converting — and the bar answers the first at a glance. The
+               outcome chips appear only when they are not zero, because a grid
+               of noughts is what made the old one unreadable. */
+            <ul className="divide-y divide-border/60">
+              {lists.map((l) => {
+                const workedPct =
+                  l.leads > 0 ? Math.round((l.worked / l.leads) * 100) : 0;
+                return (
+                  <li key={l.id}>
+                    {/* Three numbers on the row and the rest behind a fold.
+                        Worked, pickup rate and demos are the only ones anybody
+                        acts on; leads, calls, trials and wins are what you go
+                        looking for once one of those three looks wrong. Native
+                        `details`, like the booking notes on Meetings, so it
+                        opens before hydration and costs no state on a list that
+                        can run to forty niches. */}
+                    <details className="group">
+                      <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-2.5">
+                        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+                          {l.name}
+                        </span>
+
+                        {/* Decoration over the percentage printed beside it, so
+                            it is not announced twice. */}
+                        <span
+                          aria-hidden
+                          className="hidden h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-muted sm:block"
+                        >
+                          <span
+                            className="block h-full rounded-full bg-primary"
+                            style={{ width: `${workedPct}%` }}
+                          />
+                        </span>
+                        <span className="w-20 shrink-0 text-right text-[12px] tabular-nums">
+                          {workedPct}%
+                          <span className="ml-1 text-muted-foreground">
+                            worked
+                          </span>
+                        </span>
+
+                        <span className="w-24 shrink-0 text-right text-[12px] tabular-nums">
+                          {pct(l.pickups, l.calls)}
+                          <span className="ml-1 text-muted-foreground">
+                            picked up
+                          </span>
+                        </span>
+
+                        <span
+                          className={cn(
+                            "w-20 shrink-0 text-right text-[12px] tabular-nums",
+                            l.demos === 0 && "text-muted-foreground",
+                          )}
+                        >
+                          {l.demos}
+                          <span className="ml-1 text-muted-foreground">
+                            {l.demos === 1 ? "demo" : "demos"}
+                          </span>
+                        </span>
+                      </summary>
+
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 px-5 pb-2.5 pl-[3.25rem] text-[12px] tabular-nums text-muted-foreground">
+                        <span>
+                          {l.worked.toLocaleString()} of{" "}
+                          {l.leads.toLocaleString()} leads rung
+                        </span>
+                        <span>{l.calls.toLocaleString()} calls</span>
+                        <span>{l.pickups.toLocaleString()} pickups</span>
+                        <span>{l.trials.toLocaleString()} trials</span>
+                        <span>{l.won.toLocaleString()} won</span>
+                      </div>
+                    </details>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
 
