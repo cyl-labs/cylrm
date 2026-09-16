@@ -55,7 +55,14 @@ export function TimezonePicker({ region }: { region: StatsRegion }) {
 
   return (
     <Select value={region} onValueChange={go}>
-      <SelectTrigger size="sm" className="w-full sm:w-36">
+      {/* Wider than the `sm:w-36` its neighbours use, because its longest
+          option is longer than theirs: "Singapore (SGT)" at 14px needs about
+          115px, and w-36 leaves roughly 104 once the padding, the gap and the
+          16px chevron are taken out. The shared trigger clamps to one line, so
+          the overflow showed up as the closing bracket being sliced off rather
+          than as anything obviously broken. w-44 matches the wider selects on
+          Call lists and leaves real headroom instead of landing on the edge. */}
+      <SelectTrigger size="sm" className="w-full sm:w-44">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
