@@ -550,6 +550,19 @@ inbound handled.
   Meetings, so it opens before hydration and costs no state on a screen that
   can list forty niches. The bar is `aria-hidden`: decoration over a percentage
   already written out beside it, so it is not announced twice.
+  - **Sorted busiest first, on the page rather than in the query.**
+    `getListStats` returns newest-created first, which on forty-one niches led
+    the screen with whatever had just been imported or split — every one at 0%
+    — and buried the ones being worked. It orders by calls in the range, then
+    by how far through the niche is. The order is a property of this screen,
+    not of the data, which is why it is not an `order by`.
+  - **The summary row wraps at phone width**, name on its own line. The three
+    figures are fixed width and with the chevron and padding take about 346px
+    of a 390px screen, which left the name truncated to nothing: every row read
+    "0% worked · - picked up · 0 demos" with no niche on it. It was invisible to
+    a DOM check — `innerText` still contained the name — and only showed up in
+    a screenshot, which is the case the 390px rule in **Layout / responsive**
+    exists for.
 - **Stats default to the last seven days** (2026-09-08; it was today until
   then). A single day is too thin to read: one caller's morning is a handful of
   rows, a day with an appointment in it looks like a collapse, and every ratio

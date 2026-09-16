@@ -734,7 +734,22 @@ export default async function CallStatsPage({
                outcome chips appear only when they are not zero, because a grid
                of noughts is what made the old one unreadable. */
             <ul className="divide-y divide-border/60">
-              {lists.map((l) => {
+              {/* Busiest first. `getListStats` returns newest-created first,
+                  which on a floor with forty-one niches led the screen with
+                  whatever was imported or split most recently — all of them at
+                  0% with no calls — and buried the ones actually being worked.
+                  Ordering by calls in the range and then by how far through the
+                  niche is puts the rows somebody came here to read at the top,
+                  and sinks the untouched ones to the bottom where they cost
+                  nothing. Sorted here rather than in the query because the
+                  order is a property of this screen, not of the data. */}
+              {[...lists]
+                .sort(
+                  (a, b) =>
+                    b.calls - a.calls ||
+                    b.worked / (b.leads || 1) - a.worked / (a.leads || 1),
+                )
+                .map((l) => {
                 const workedPct =
                   l.leads > 0 ? Math.round((l.worked / l.leads) * 100) : 0;
                 return (
@@ -747,10 +762,22 @@ export default async function CallStatsPage({
                         opens before hydration and costs no state on a list that
                         can run to forty niches. */}
                     <details className="group">
-                      <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-2.5">
-                        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                          {l.name}
+                      {/* Wraps to two lines on a phone. The three figures are
+                          fixed width and, with the chevron and the padding,
+                          take about 346px of a 390px screen — which left the
+                          name squeezed to nothing by its own `truncate`, so
+                          every row read "0% worked · - picked up · 0 demos"
+                          with no niche on it. `basis-full` gives the name the
+                          first line to itself until `sm`, where it goes back to
+                          sharing the row. Caught by screenshotting at 390:
+                          `innerText` still had the name in it, so the DOM said
+                          it was fine. */}
+                      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5">
+                        <span className="flex min-w-0 basis-full items-center gap-2 sm:flex-1 sm:basis-auto">
+                          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+                          <span className="min-w-0 truncate text-[13px] font-semibold">
+                            {l.name}
+                          </span>
                         </span>
 
                         {/* Decoration over the percentage printed beside it, so
