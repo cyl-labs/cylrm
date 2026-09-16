@@ -26,7 +26,10 @@ import {
 import { CALL_TIME_OUTCOMES, OUTCOME_LABELS } from "@/components/calls/outcome";
 import { RingBackButton } from "@/components/calls/ring-back-button";
 import { useCallLine } from "@/components/calls/call-line";
-import { callTzDate, defaultCallbackAt } from "@/lib/call-time";
+import {
+  callbackZoneLabel,
+  defaultCallbackAt,
+} from "@/lib/call-time";
 import { dialableNumber } from "@/lib/phone";
 import type { InboundCall } from "@/lib/inbound";
 import type { CallOutcome } from "@/lib/calls";
@@ -355,7 +358,7 @@ export function InboundList({
                                   id: c.id,
                                   outcome: o,
                                   notes: "",
-                                  callbackAt: defaultCallbackAt(),
+                                  callbackAt: defaultCallbackAt(c.tz),
                                 })
                               }
                             >
@@ -413,7 +416,7 @@ export function InboundList({
                           htmlFor={`cb-${c.id}`}
                           className="text-[12px] font-semibold"
                         >
-                          Call back at (Singapore time)
+                          {callbackZoneLabel(c.tz)}
                         </label>
                         <Input
                           id={`cb-${c.id}`}

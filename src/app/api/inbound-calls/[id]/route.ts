@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { call } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
 import { parseCallbackAt } from "@/lib/call-time";
+import { zoneForLead } from "@/lib/calls";
 import type { CallOutcome } from "@/lib/calls";
 
 const OUTCOMES: CallOutcome[] = [
@@ -107,11 +108,17 @@ export async function PATCH(
   }
 
   let callbackAt: Date | null = null;
-  if (outcome === "callback") {
-    // Read as a wall clock in the calling timezone, exactly as the dialler
-    // does: a datetime-local field sends no offset, and the droplet is UTC.
+  // The lead test moved up here on 2026-09-17, and it is load-bearing now
+  // rather than tidy. The parse used to run before anything knew whether a
+  // lead existed, which was harmless only because the value was discarded a few
+  // lines later — but the zone comes from the lead, and reading a typed wall
+  // clock without one would silently fall back to Singapore for a US prospect.
+  // A row matching no lead has nothing to log a call against anyway.
+  if (outcome === "callback" && leadId !== null) {
+    // The prospect's zone, exactly as the dialler reads it: a datetime-local
+    // field sends no offset, the droplet is UTC, and "9am" means their morning.
     callbackAt =
-      parseCallbackAt(body?.callbackAt) ??
+      parseCallbackAt(body?.callbackAt, await zoneForLead(leadId)) ??
       new Date(Date.now() + 24 * 60 * 60 * 1000);
   }
 

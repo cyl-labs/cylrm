@@ -56,6 +56,15 @@ export type InboundCall = {
   /** Their clock at the moment the page was drawn, like "3:35am". Null when
    *  their zone is unknown, which is also exactly when `canWait` is false. */
   theirNow: string | null;
+  /**
+   * The zone itself, not just a clock rendered from it.
+   *
+   * `theirNow` is a formatted string and cannot be computed with: setting a
+   * callback from this row means turning a typed wall clock into an instant in
+   * the prospect's zone, and "3:35am" will not do it. The query has always
+   * joined `leadZone` and read `z.tz` — it simply never selected it.
+   */
+  tz: string | null;
 };
 
 /** A caller sees calls to their own number; an admin sees the lot, including
@@ -143,7 +152,11 @@ export async function getInboundCalls(
       -- Formatted here for the reason Stats formats "their time" in SQL: the
       -- zone varies per row, and a clock built in the browser renders one
       -- string on the server and another on hydration.
-      to_char(now() at time zone z.tz, 'FMHH12:MIam') as their_now
+      to_char(now() at time zone z.tz, 'FMHH12:MIam') as their_now,
+      -- The zone itself as well as the clock built from it: setting a callback
+      -- from this row has to turn a typed wall time into an instant where the
+      -- prospect is, and a formatted "3:35am" cannot be computed with.
+      z.tz
     from inbound_call ic
     left join app_user u on u.id = ic.user_id
     left join app_user h on h.id = ic.handled_by
@@ -196,6 +209,7 @@ export async function getInboundCalls(
       ),
       canWait: r.can_wait === true,
       theirNow: (r.their_now as string | null) ?? null,
+      tz: (r.tz as string | null) ?? null,
     };
   });
 }

@@ -53,7 +53,7 @@ export default async function CallbacksPage({
             ) : (
               `${leads.length} scheduled, none due yet`
             )}
-            . Times are Singapore time.
+            . Times are where the prospect is, and each row says which clock.
           </p>
         )}
         <CallbacksList leads={leads} showWho={me?.role === "admin"} />

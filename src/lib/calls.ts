@@ -226,6 +226,25 @@ const STATE_TZ_SQL = sql.join(
   sql` `,
 );
 
+/**
+ * One lead's zone, for the routes that have to read a typed callback time.
+ *
+ * Built on `leadZone` rather than restating its coalesce: that fragment already
+ * settles state, then area code, then Singapore and the UK by prefix, and a
+ * second copy of those rules is how the time a callback is *stored* in drifts
+ * from the time it is *shown* in. Null is a real answer — toll-free belongs to
+ * no place — and every caller treats it as "fall back to the floor's clock".
+ */
+export async function zoneForLead(leadId: number): Promise<string | null> {
+  const [row] = (await db.execute(sql`
+    select z.tz from call_lead l
+    ${leadZone}
+    where l.id = ${leadId}
+    limit 1
+  `)) as { tz: string | null }[];
+  return row?.tz ?? null;
+}
+
 export const leadZone = sql`
   left join us_area_code ac
     on l.phone_key ~ '^1[0-9]{10}$'

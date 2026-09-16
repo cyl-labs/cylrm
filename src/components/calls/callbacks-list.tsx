@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { defaultCallbackAt } from "@/lib/call-time";
+import { callbackZoneLabel, defaultCallbackAt } from "@/lib/call-time";
 import { cn } from "@/lib/utils";
 
 /** Callbacks are Singapore appointments, and the zone is pinned for the same
@@ -28,14 +28,30 @@ import { cn } from "@/lib/utils";
  *  SGT, and left to themselves they disagree and React rebuilds the tree. */
 const CALL_TZ = "Asia/Singapore";
 
-const timeFormat = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZone: CALL_TZ,
-});
+/**
+ * The promised time on the prospect's clock, with the zone named.
+ *
+ * It read in Singapore for every lead until 2026-09-17 and said so nowhere, so
+ * a callback agreed for somebody's morning showed the caller a tidy "9:00 AM"
+ * that was ten at night where the prospect was. Nine of the twelve outstanding
+ * callbacks were outside the prospect's 9 to 5 the day this changed.
+ *
+ * The zone name is part of the value, not decoration: this diary lists leads
+ * from every market at once, so two adjacent rows can be different clocks.
+ */
+function whenFor(iso: string, tz: string | null) {
+  const zone = tz || CALL_TZ;
+  const at = new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: zone,
+    timeZoneName: "short",
+  }).format(new Date(iso));
+  return tz ? `${at} their time` : `${at} (no zone for this number)`;
+}
 
 /**
  * How far off it is, in words.
@@ -270,7 +286,7 @@ export function CallbacksList({
                 on, the date is what you check it against. */}
             <p className="mt-1.5 text-[13px] text-muted-foreground">
               {l.callbackAt
-                ? timeFormat.format(new Date(l.callbackAt))
+                ? whenFor(l.callbackAt, l.tz)
                 : "No time was set on this callback"}
               {l.attempts > 0 &&
                 ` · ${l.attempts} ${l.attempts === 1 ? "try" : "tries"}`}
@@ -316,7 +332,7 @@ export function CallbacksList({
                           leadId: l.id,
                           outcome: o,
                           notes: "",
-                          callbackAt: defaultCallbackAt(),
+                          callbackAt: defaultCallbackAt(l.tz),
                         })
                       }
                     >
@@ -358,7 +374,7 @@ export function CallbacksList({
                       htmlFor={`cb-${l.id}`}
                       className="text-[12px] font-semibold"
                     >
-                      Call back at (Singapore time)
+                      {callbackZoneLabel(l.tz)}
                     </label>
                     <Input
                       id={`cb-${l.id}`}

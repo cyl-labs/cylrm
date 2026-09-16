@@ -137,6 +137,26 @@ function fmt(iso: string | null) {
   });
 }
 
+/**
+ * The same, but on the prospect's clock — for a time that is an appointment
+ * with them rather than a record of what we did.
+ *
+ * A null zone falls back to the floor's, which is what a toll-free number or an
+ * unmapped area code leaves us with: `leadZone` already resolves a US state,
+ * the area code, and Singapore and the UK by prefix, so what reaches here as
+ * null genuinely belongs to no place.
+ */
+function fmtFor(iso: string | null, tz: string | null) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-US", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: tz || CALL_TZ,
+  });
+}
+
 /** The cell's value as text — what the formula bar shows, what Ctrl+C copies
  *  and what lands in the CSV, so all three can never disagree. */
 function cellText(lead: SheetLead, key: ColKey): string {
@@ -147,8 +167,14 @@ function cellText(lead: SheetLead, key: ColKey): string {
       return lead.attempts ? String(lead.attempts) : "";
     case "lastCalledAt":
       return fmt(lead.lastCalledAt);
+    // The prospect's clock, not the floor's — a callback is an appointment with
+    // them, and the time was agreed in their morning. Deliberately *not* `fmt`,
+    // which this column shared until 2026-09-17: that one also renders "last
+    // called at", and when a call happened is naturally read on the floor's
+    // clock. Moving both would have been a silent regression on the column
+    // nobody asked to change.
     case "callbackAt":
-      return fmt(lead.callbackAt);
+      return fmtFor(lead.callbackAt, lead.tz);
     case "phone":
       return lead.phone;
     // The tidied form, not the stored one, so the cell, the formula bar, a

@@ -55,7 +55,10 @@ import { LEAD_HOURS_LABEL } from "@/lib/call-hours";
 import { placeLabel, placeShort } from "@/lib/place";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { LocalTime } from "@/components/calls/local-time";
-import { callTzDate, defaultCallbackAt } from "@/lib/call-time";
+import {
+  callbackZoneLabel,
+  defaultCallbackAt,
+} from "@/lib/call-time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -481,7 +484,11 @@ function CallForm({
   // one retype. What the prospect says on the call wins over the scrape.
   const [email, setEmail] = React.useState(lead.email ?? "");
   const [contact, setContact] = React.useState(lead.name ?? "");
-  const [callbackAt, setCallbackAt] = React.useState(defaultCallbackAt);
+  // Opens on the prospect's tomorrow morning, not the floor's: a callback is an
+  // appointment with them. A lazy initialiser because it now takes an argument.
+  const [callbackAt, setCallbackAt] = React.useState(() =>
+    defaultCallbackAt(lead.tz),
+  );
   // Picked but not yet saved. Nothing is written until the confirm button is
   // pressed: one tap next to another used to be the whole gesture, and a
   // mis-tap became a call in the record that had to be found and corrected
@@ -561,7 +568,7 @@ function CallForm({
 
       {picked === "callback" && (
         <div className="mt-3 space-y-1.5">
-          <Label htmlFor="callback-at">Call back at (Singapore time)</Label>
+          <Label htmlFor="callback-at">{callbackZoneLabel(lead.tz)}</Label>
           <Input
             id="callback-at"
             type="datetime-local"

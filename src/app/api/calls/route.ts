@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { call, callLead } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
 import { parseCallbackAt } from "@/lib/call-time";
+import { zoneForLead } from "@/lib/calls";
 
 const OUTCOMES = [
   "no_answer",
@@ -67,10 +68,15 @@ export async function POST(request: Request) {
   // caller is mid-flow and should not be stopped by a form error.
   let callbackAt: Date | null = null;
   if (body.outcome === "callback") {
-    // The typed time is Singapore time; see parseCallbackAt for why saying so
-    // matters. No time at all defaults to tomorrow.
+    // Read in the prospect's zone, not the floor's — a callback is an
+    // appointment with them, and "9am" means their morning. It was Singapore
+    // for every lead until 2026-09-17, which put 9 of the 12 callbacks then
+    // outstanding outside the prospect's 9 to 5, several at ten at night.
+    // A lead with no zone falls back to Singapore inside `parseCallbackAt`.
+    // No time at all still defaults to tomorrow rather than being refused: the
+    // caller is mid-flow and should not be stopped by a form error.
     callbackAt =
-      parseCallbackAt(body.callbackAt) ??
+      parseCallbackAt(body.callbackAt, await zoneForLead(leadId)) ??
       new Date(Date.now() + 24 * 60 * 60 * 1000);
   }
 
@@ -227,7 +233,7 @@ export async function PATCH(request: Request) {
   let callbackAt: Date | null = null;
   if (body.outcome === "callback") {
     callbackAt =
-      parseCallbackAt(body.callbackAt) ??
+      parseCallbackAt(body.callbackAt, await zoneForLead(leadId)) ??
       // Keep the time they already asked for if there was one; a correction
       // to some other field should not move an agreed callback.
       existing?.callbackAt ??
