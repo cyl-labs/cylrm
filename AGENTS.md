@@ -1807,6 +1807,17 @@ and `POST /api/users/[id]/replace`; Telnyx work in `provisionLine`,
   heard neither Founders nor the agent merged in afterwards. **If one side of a
   call is silent, pull the recording before suspecting the mic or the network.**
   A voice on the recording's channel means it reached Telnyx.
+- **The banner is a fixed overlay, so it must be opaque** (fixed 2026-09-16).
+  `InboundListener` renders it `fixed inset-x-0 top-0 z-50` over whatever
+  screen the call lands on, and `IncomingCall` filled itself with
+  `bg-success/10` — a 10% tint. On a phone that meant the header, the quota bar
+  and the page text all read through the banner at once, with its border drawn
+  on top, so it looked like a rendering fault rather than a transparency one.
+  It is now `bg-card` with the green as its own tint layer inside, plus
+  `shadow-lg` like the ongoing-call bar in the same file. **Anything else
+  rendered `fixed` over a screen needs a solid surface for the same reason** —
+  a tint is only safe in normal flow, which is why the dialler and the Keypad
+  never showed this.
 - **Two CRM tabs means one holds the line** (`line-presence.tsx`), and only
   that tab shows the banner. Switching screens can move the line between tabs,
   and for the seconds that takes the phone cannot be rung. Worth telling

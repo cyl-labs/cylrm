@@ -79,7 +79,17 @@ export function IncomingCall({
   const who = lead?.company || lead?.name || null;
 
   return (
-    <div className="animate-in fade-in slide-in-from-top-2 mb-3 overflow-hidden rounded-xl border-2 border-success bg-success/10 shadow-sm">
+    // An OPAQUE surface with the green laid over it, never `bg-success/10`
+    // alone. `InboundListener` renders this `fixed` over whatever screen the
+    // call arrives on, and a 10% tint let the page beneath read straight
+    // through it: on a phone the header, the quota bar and the page text all
+    // showed inside the banner at once. The border was drawn on top, so it
+    // looked like a rendering fault rather than a transparency one. `shadow-lg`
+    // for the same reason the ongoing-call bar in that file uses it — this
+    // floats above the page and has to look like it does.
+    <div className="animate-in fade-in slide-in-from-top-2 mb-3 overflow-hidden rounded-xl border-2 border-success bg-card shadow-lg">
+      {/* The tint, as its own layer so the panel underneath stays opaque. */}
+      <div className="bg-success/10">
       <div className="px-4 pb-3 pt-3.5">
         <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.07em] text-success">
           <span className="relative flex size-2">
@@ -161,6 +171,7 @@ export function IncomingCall({
           <Phone data-icon="inline-start" />
           {busy ? "End & answer" : "Answer"}
         </Button>
+      </div>
       </div>
     </div>
   );
