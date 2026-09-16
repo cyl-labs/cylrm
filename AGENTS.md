@@ -1163,10 +1163,13 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   of them wrong. Db-free for the reason `payroll-rates.ts` is — the dialog is a
   client component and has to render amounts. Discounts are integer cents, so
   250_00 at 15% off is exactly 212_50 rather than 212.49999999999997.
-  - **`procedure-closing-the-demo.md` quotes the same figures**, so a founder can
-    read them off the screen mid-demo, and the two must move together: a founder
-    quoting one number while the agreement says another is the failure worth
-    preventing. That document says where they came from.
+  - **The demo page prices itself from this module** (2026-09-16). It used to
+    carry a hand-copied packages table beside the calculator and the two had to
+    move together; the table is gone and `PricingCalculator` reads `PACKAGES`
+    straight from here, so the price a founder quotes mid-demo and the price on
+    the agreement cannot disagree. **The term-discount table in that document is
+    still copied by hand** and still has to move with `TERMS`, as does the Price
+    objection on each caller sheet.
   - Unresolved and flagged rather than quietly changed: both objection sheets
     still answer "how much" with **"as low as $99 a month"** while Ring Rookie is
     $100. It is what the floor has been saying for months, so it is a pricing

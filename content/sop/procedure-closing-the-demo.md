@@ -17,46 +17,36 @@ his.** He quotes $199 a month and a $1 trial because he is established and can
 hold that price. We quote the packages below and fall back to the 30-day trial
 the callers already offer on both objection sheets.
 
-**The prices here are copied from `src/lib/packages.ts`, which is what the
-contracts are actually drafted from.** That file is the source of truth: if a
-price moves there, it moves here and in the Price objection on each sheet, or a
-caller quotes one number and the agreement says another.
+**The calculator below reads its prices from `src/lib/packages.ts`, which is
+what the contracts are actually drafted from**, so the package price you quote
+mid-demo and the price on the agreement cannot disagree. The one table still
+copied by hand is the term discounts: if a rate moves in that file, it moves
+there and in the Price objection on each caller sheet, or a caller quotes one
+number and the agreement says another.
 
 ## Ring them at the scheduled time, never before
 
-**Don't call early to check they're ready.** It gives them an easy chance to
-say "actually, now's not a good time", and the demo is gone. Cal.com already
-reminds them, so there is nothing to check.
-
-Call **on the minute**, and talk as if the demo has already started.
+**Don't call early to check they're ready.** It hands them an easy "actually,
+now's not a good time" and the demo is gone. Cal.com has already reminded them.
+Call **on the minute**, talk as if the demo has already started, and don't say
+the company name.
 
 > **You say** Hi [name], it's [your name]. I've got the agent on the other line, give me two seconds and I'll bring it in.
 
-Don't ask whether now is still a good time. Tell them the agent is waiting and
-bring it in. Don't say the company name.
+**No answer?** Press **Text** on their row on Meetings, send it, then ring
+again. Only ever after a call they missed, never before one.
 
-**If they don't pick up, or it goes to voicemail**, press **Text** on their row
-on Meetings, send it, then ring again. Only text after a call they missed,
-never before one. The text is filled in for you:
+**Bringing the agent in**, from the lead's dial card: call them as normal, press
+**Add call**, pick the agent's line, then **Merge calls** — press it while it is
+still ringing and it fires the moment the agent answers, which matters because
+the agent starts talking as soon as it picks up. Both legs are recorded. Keep
+the tab open: closing it drops both calls.
 
-"Hey [name], just tried calling you for your demo. I'll call you again now."
-
-**How to actually bring it in**, from the lead's dial card:
-
-1. Call them from the dial card as normal.
-2. Press **Add call** and pick the agent's line from the list.
-3. Press **Merge calls**. You can press it while it is still ringing — it fires
-   the moment the agent answers, which matters because the agent starts talking
-   as soon as it picks up.
-
-Both legs are recorded, as always. Keep the tab open: closing it drops both
-calls.
-
-**Logging it afterwards.** It counts as a meeting, and the caller who booked it
-is paid, once they **pick up and stay on while you bring the agent in**. That is
-what **They showed up** means on Meetings and on Payroll. Still no answer after
-the text and a second call, or they picked up but could not stay for it: log
-**No show**, which puts a ring back on the caller's list to rebook it.
+**It counts as a meeting, and the caller who booked it is paid, once they pick
+up and stay on while you bring the agent in.** That is what **They showed up**
+means on Meetings and on Payroll. Still no answer after the text and a second
+call, or they picked up but could not stay: log **No show**, which puts a ring
+back on the caller's list to rebook.
 
 ## Before you dial the agent in
 
@@ -95,57 +85,12 @@ whatever you quote next is measured against it.
 
 [calculator]
 
-## Now put the packages in front of them
-
-Quote the packages, not the trial. The trial is what you reach for when they
-hesitate — leading with it gives away the ask before they have refused it, and
-a prospect who has just agreed they are losing $8,000 a month does not need to
-be talked down to a free month.
-
-Show them all three, then recommend one. Which one is not a judgement call: it
-comes out of the minutes, and the sum is below the table.
-
-| Package | Minutes | Price | Over that |
-| --- | --- | --- | --- |
-| Ring Rookie | 75 | $100 / month | $1.00 a minute |
-| Phone Professional | 225 | $250 / month | $0.60 a minute |
-| Call Commander | Unlimited | $2,000 / month | — |
-
-### Work out their minutes, then name the package
-
-Reckon **two minutes a call**. Their missed calls a week times nine is close
-enough to the minutes they need in a month, and it is arithmetic you can do
-while they are still talking.
-
-| Missed calls a week | Minutes a month | Where they land |
-| --- | --- | --- |
-| up to 8 | under 75 | Ring Rookie — it covers them outright |
-| 9 to 26 | 75 to 225 | Ring Rookie is the cheaper bill, Phone Professional the steadier one |
-| 27 to 360 | 225 to 3,100 | Phone Professional |
-| more than 360 | over 3,100 | Call Commander |
-
-**Call Commander is a call centre's plan, not a busy tradesman's.** At $2,000 it
-only beats Phone Professional past roughly 3,100 minutes a month — about 360
-missed calls a week. Somebody missing thirty a week belongs on Phone
-Professional at about $270, and quoting them two thousand is how you lose a deal
-you had already won.
-
-> **You say** You said about four a week — that's roughly 35 minutes a month, so you'd be on Ring Rookie at $100. Against the $8,000 we just worked out, it's a bit over one per cent of what's currently walking out the door.
-
-_(let them answer)_
-
-**Do not talk somebody up a tier on price; the arithmetic will not back you up.**
-Ring Rookie plus overage is cheaper than Phone Professional the whole way to 225
-minutes and exactly level there — 150 minutes costs $175 on Ring Rookie against
-$250 on Phone Professional. What the bigger package actually buys at those
-volumes is a bill that does not move, and the cheaper 60-cent rate beyond 225.
-Say that plainly: the pitch for the bigger plan is a steady bill, not a smaller
-one. A prospect who does the sum afterwards and finds they were pushed up a tier
-has caught you overselling, and you will not get that back.
-
-The calculator at the top of this page does all of this while they talk — their
-calls a week and their average job, and it prints what each package would cost
-at that volume.
+The calculator does all of this while they talk — their calls a week and their
+average job — and it prints what each package would cost at that volume. Read
+the package and the price straight off it, and only once they have said the loss
+out loud. It marks the cheapest option at their volume: **do not talk somebody
+up a tier on price**, because the arithmetic will not back you up and a prospect
+who does the sum afterwards has caught you overselling.
 
 ## If they say it's too expensive
 
@@ -243,14 +188,7 @@ in a decision rather than in silence. We do not do that today and this does not
 ask you to — but it is the one part of his close worth stealing later, if
 trials keep lapsing without an answer either way.
 
-## Set onboarding expectations before they sign anything
-
-A week is honest and it protects the relationship. Promising same-day and
-taking five days is how a good close turns into a bad first fortnight.
-
-> **You say** It'll take a bit of time to onboard you. Even if I get the doc back tomorrow, we'd still want about a week to make sure everything's solid — build it out, run test calls on the agent, confirm it's answering the way you want.
-
-## Confirm the carrier, then lock the next call
+## Confirm the carrier
 
 Call forwarding is carrier-specific, so ask now rather than discovering it on
 setup day.
@@ -263,7 +201,54 @@ _(let them answer)_
 
 _(let them answer)_
 
+## Send the doc while you are still on the call
+
+**Don't narrate the plumbing.** Naming the tools — a form, a text message, a
+link — is what makes a signed agreement sound like admin homework, and it is the
+one part of this call that gets improvised. Say what happens to them and how
+long it takes. Don't announce the channel, just send it.
+
+The agreement is prefilled from their booking before you ever dial, so "it's
+already filled in" is true and it removes the thing people actually dread.
+
+> **You say** Great. I'm sending the doc over to you now, while we're on the call. It's already filled in, so it's really just your name and a signature.
+
+Send it, then give them a reason to open it that is **theirs** rather than
+yours. Not "sign on the spot" — that is pressure, and it is asking for your
+convenience. Questions answered live while you are on the phone is a better
+deal for them and it is the truth.
+
+> **You say** Have a look at it now while I'm here, so you can ask me anything straight away instead of having to call me back. Saves us both a bit of time.
+
+_(let them answer)_
+
+If they want to read it properly first, don't push. You have the next call
+booked either way.
+
+> **You say** No problem at all, it's yours to keep. Read it over and send it back when you're happy.
+
+## Then the questions, and a call to hear it working
+
+Two things follow the signature, and they are easier to say in that order: the
+questions you need from them, and the date they hear the result. The second is
+what earns the first — nobody fills in a questionnaire for its own sake.
+
+> **You say** Once that's in, I'll send over a short set of questions about your business — how you want it to answer, what you want it to ask people. That's what I build the agent from.
+
+_(let them answer)_
+
+> **You say** Get those back to me and give me two or three days. Let's put a time in now and I'll walk you through it properly, so you can hear it answering as your business.
+
+_(let them answer)_
+
 Never end on "I'll follow up". Offer two specific times, the same way the
 callers are taught to.
 
-> **You say** What does your schedule look like? I've got availability tomorrow afternoon, or we could do Monday.
+> **You say** What does your schedule look like? I've got availability Thursday afternoon, or we could do Friday morning.
+
+**Full onboarding is about a week, and that is a different promise from the call
+above.** The call in two or three days is to show them the agent updated with
+their answers; going live — forwarding set up, test calls run, answering the way
+they want — takes about a week. Only say the week if they ask when it's live,
+and never lead with it: a week quoted while you are booking a call for Thursday
+sounds like a contradiction and costs you the momentum you just built.
