@@ -37,6 +37,10 @@ async function run() {
   // One digest a day per person, claimed by a unique index — the other 287
   // ticks find nothing to do.
   await tick("callbacks");
+  // The founders' end-of-week report on the 300-call quota. Returns
+  // immediately outside Friday evening to Sunday, and the week is claimed by a
+  // unique index inside it, so this is a no-op on all but one tick a week.
+  await tick("quota");
 }
 
 run();

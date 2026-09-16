@@ -1298,6 +1298,63 @@ same worker loop. Schema in `2026-08-30-callback-reminder-sent.sql`.
   for an admin.
 - Its own tag, so a callback digest never replaces an unread meeting reminder.
 
+### Friday quota digest (founders only)
+
+One push a week to the founders: who finished under `WEEKLY_CALL_QUOTA`.
+`src/lib/quota-digest.ts`, `/api/cron/quota` on the same worker loop. Schema in
+`2026-09-16-quota-digest-sent.sql`.
+
+- **It exists because the 300 was invisible to the people who set it.**
+  `WEEKLY_CALL_QUOTA` was read in exactly one place — the strip `PageShell`
+  draws — and that strip is `role === "caller"` only. Knowing where the floor
+  stood meant opening Stats and reading it person by person, which is a number
+  nobody looks up. Asked for on 2026-09-16, when Rainier had a number, a niche
+  and zero calls three days into the week and nothing had said so.
+- **Founders only, and that is the feature rather than a permission.** A caller
+  watches the bar in their own header all week; a Friday notification telling
+  them they missed a target they have been looking at since Monday is a
+  telling-off, not information.
+- **Counted through `getWeekProgress`, never a query of its own**, so "a call"
+  means what it means on the caller's bar, on Stats and on the Scoreboard. A
+  digest disagreeing with the strip somebody watched all week is worse than no
+  digest.
+- **Only callers who could actually have rung somebody are judged, and that
+  takes two conditions.** A niche assigned, *and* a way to dial it — a
+  `telnyx_did` of their own, or `dial_method = 'handset'`, which needs none.
+  The first draft tested only for a niche and was caught against live data
+  before it shipped: three accounts set up that morning had been given lists
+  but not yet numbers, so all three came back at zero calls and would have
+  buried the one caller who genuinely had not dialled all week. Somebody who
+  cannot place a call is not behind on quota — they are waiting on an admin,
+  which is a different message to a different person.
+  - **And a third condition, deliberately narrow: new this week *and* never
+    once dialled.** Somebody hired mid-week who has not started is still being
+    set up. "Joined this week" on its own is far too wide — the day this was
+    built, two of the busiest callers on the floor had been added within the
+    week, one already a third of the way to quota, and excluding them would
+    have hidden real work. Anyone who joined *before* the week began stays
+    named however little they did, which is exactly the caller worth asking
+    about.
+- **The clock is `STATS_TZ`, not each founder's own**, because the quota week
+  is cut in `STATS_TZ` — reading it locally would report a part-finished week
+  to whoever was furthest ahead. Same reason `payWeekStart` ignores the
+  timezone picker.
+- **The window is Friday 17:00 Eastern through the end of Sunday**, and the
+  claim is per *week* rather than per day (`quota_digest_sent`, unique on
+  `(user_id, week_start)`). That pairing is what makes a worker outage on
+  Friday night a digest that lands on Saturday instead of a week with no
+  report, while still making a second send impossible.
+- **Sent even when nobody missed.** Once a week is not noise, and silence is
+  ambiguous: "everyone hit it" and "the job stopped running" must not look the
+  same from outside. The title says which.
+- Its own tag (`cylrm-quota`), so it never replaces an unread meeting reminder,
+  and it opens `/call-stats` rather than the Scoreboard — Stats defaults to the
+  last seven days and carries the By-person table, where the Scoreboard opens
+  on today and would answer a question about the week with one shift.
+- **Apply the migration before deploying**, unlike the callbacks digest: with
+  push configured the "nothing to do" branch is not taken, so a missing table
+  is a cron job throwing every five minutes.
+
 ### Browser push reminders
 
 A meeting reminder has to reach somebody who has not opened the CRM yet today.

@@ -1282,6 +1282,35 @@ export const meetingReminderSent = pgTable(
  * Nothing else invites the prospect or reminds anyone it was promised, so a
  * diary nobody opens is a promise quietly broken.
  */
+/**
+ * One Friday quota digest per founder per week.
+ *
+ * Keyed on the **week** rather than a day, unlike `callback_reminder_sent`:
+ * this is Payroll's week (Monday, cut in `STATS_TZ`), and keying it that way is
+ * what lets the send window run from Friday evening through Sunday without
+ * sending twice. A worker outage on Friday night still delivers on Saturday.
+ */
+export const quotaDigestSent = pgTable(
+  "quota_digest_sent",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    /** The Monday the quota week began, in `STATS_TZ`. */
+    weekStart: date("week_start").notNull(),
+    /** What the digest claimed, kept so "you said three were under" can be
+     *  checked against the numbers afterwards. */
+    underQuota: integer("under_quota").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("quota_digest_sent_once_per_week_idx").on(t.userId, t.weekStart),
+  ],
+);
+
 export const callbackReminderSent = pgTable(
   "callback_reminder_sent",
   {
