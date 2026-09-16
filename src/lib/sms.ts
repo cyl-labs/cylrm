@@ -1,6 +1,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import type { SmsMedia } from "@/db/schema";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { pushToUser } from "@/lib/push";
 import { conversationHref } from "@/lib/text-key";
@@ -285,6 +286,34 @@ export async function updateTextStatus(p: Record<string, unknown>): Promise<bool
  * to "I'm calling you now" matters in the next two minutes, not at eight
  * tomorrow.
  */
+/**
+ * The attachments on an inbound MMS, as `SmsMedia`.
+ *
+ * Every field is read defensively because this is a webhook body: an item with
+ * no url is dropped rather than stored as a row pointing nowhere, and a
+ * missing content type becomes the generic one so the thread still offers it
+ * as a file instead of rendering a broken picture.
+ */
+function parseMedia(raw: unknown): SmsMedia[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SmsMedia[] = [];
+  for (const item of raw) {
+    const m = item as Record<string, unknown> | null;
+    const url = typeof m?.url === "string" ? m.url : "";
+    if (!url) continue;
+    out.push({
+      url,
+      contentType:
+        typeof m?.content_type === "string" && m.content_type
+          ? m.content_type
+          : "application/octet-stream",
+      size: typeof m?.size === "number" ? m.size : null,
+      hash: typeof m?.hash_sha256 === "string" ? m.hash_sha256 : null,
+    });
+  }
+  return out;
+}
+
 export async function recordInboundText(
   p: Record<string, unknown>,
 ): Promise<{ stored: boolean; notified: number }> {
@@ -301,8 +330,14 @@ export async function recordInboundText(
   if (!id || !from || !to) return { stored: false, notified: 0 };
 
   const text = typeof p.text === "string" ? p.text.trim() : "";
-  const media = Array.isArray(p.media) ? p.media.length : 0;
-  // A picture has no text, and an empty bubble reads as a bug.
+  // Kept, not counted. Until 2026-09-16 this read `p.media.length` and threw
+  // the urls away, so the CRM knew a photo existed and could never show it.
+  const items = parseMedia(p.media);
+  const media = items.length;
+  // A picture has no text, and an empty bubble reads as a bug. Still written
+  // even though the thread now renders the attachment itself: it is what the
+  // conversation list shows as the preview line, and it is the fallback for a
+  // file whose bytes have aged out of Telnyx's bucket.
   const body =
     [
       text,
@@ -334,9 +369,10 @@ export async function recordInboundText(
     )
     insert into call_sms (
       telnyx_message_id, direction, from_number, to_number, body, status,
-      meeting_id, call_lead_id, user_id
+      media, meeting_id, call_lead_id, user_id
     )
     select ${id}, 'in', ${from}, ${to}, ${body}, 'received',
+      ${media > 0 ? JSON.stringify(items) : null}::jsonb,
       coalesce(
         (select meeting_id from convo),
         (select m.id from call_meeting m

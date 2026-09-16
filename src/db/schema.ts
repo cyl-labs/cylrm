@@ -1314,6 +1314,28 @@ export const callbackReminderSent = pgTable(
  * unless `TELNYX_SMS_ENABLED=1`. See `lib/sms.ts`, `lib/texts.ts`,
  * `2026-09-14-call-sms.sql` and `2026-09-15-call-sms-read.sql`.
  */
+/**
+ * One picture or file on an inbound MMS, exactly as Telnyx describes it.
+ *
+ * **`url` is public.** It is a plain object in Telnyx's S3 bucket, readable by
+ * anyone who has the link and with no credentials at all — measured on
+ * 2026-09-16, where sending the Telnyx bearer token made S3 refuse it with a
+ * 400. So it is stored, never served: `/api/texts/media/[id]` checks who is
+ * asking and streams the bytes, and nothing puts this value in a page.
+ *
+ * It also stops working. Telnyx's bucket deletes the object 30 days after it
+ * arrives, which is why that route keeps a copy the first time somebody opens
+ * one.
+ */
+export type SmsMedia = {
+  url: string;
+  contentType: string;
+  size: number | null;
+  /** Telnyx's sha256, which names the cached file. Off the wire, so the route
+   *  only trusts it when it looks like a hash. */
+  hash: string | null;
+};
+
 export const callSms = pgTable(
   "call_sms",
   {
@@ -1325,6 +1347,15 @@ export const callSms = pgTable(
     toNumber: text("to_number").notNull(),
     /** Exactly what was sent or received. Nothing is added to an outbound text. */
     body: text("body").notNull(),
+    /**
+     * Pictures and files on an inbound MMS, null when there are none.
+     *
+     * `url` is Telnyx's own S3 object and is **publicly readable without
+     * credentials**, so it must never be rendered into a page — see
+     * `SmsMedia`. It also expires 30 days after arrival, which is why
+     * `/api/texts/media/[id]` caches the bytes on first view.
+     */
+    media: jsonb("media").$type<SmsMedia[]>(),
     /** Outbound moves forward only: queued → sent → delivered | failed. */
     status: text("status")
       .notNull()

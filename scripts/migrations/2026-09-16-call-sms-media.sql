@@ -1,0 +1,38 @@
+-- Pictures and files people text us.
+--
+-- Safe to apply before or after the deploy. The column is nullable and every
+-- read tolerates null, so old rows and a not-yet-deployed app both behave.
+--
+-- Inbound MMS has always arrived with its attachments: `recordInboundText`
+-- counted `p.media.length` to write "[They sent a picture or file]" into the
+-- body and threw the URLs away. So the CRM knew a photo existed and could
+-- never show it, which is what a founder hit on 2026-09-16 when a prospect
+-- sent one.
+--
+-- WHAT IS STORED, AND THE CATCH. Each item is
+-- `{url, contentType, size, hash}` exactly as Telnyx sends it. The url points
+-- at Telnyx's own S3 bucket and is **publicly readable with no credentials** —
+-- measured, and note that sending the Telnyx bearer token makes S3 refuse it
+-- with a 400. Two consequences, and both are load-bearing:
+--
+--   * It must never reach the browser. `/api/texts/media/[id]` checks who is
+--     asking and streams the bytes; putting the raw url in the page would be
+--     handing out an unauthenticated link to a prospect's photograph. Same
+--     reasoning as `/api/recordings/[id]`, which exists so Telnyx's presigned
+--     recording urls are never stored or served either.
+--   * **It expires after 30 days.** The response carries
+--     `x-amz-expiration: rule-id="30Days"`. So the url alone is a feature that
+--     quietly stops working a month later. That is why the route caches the
+--     bytes under `SMS_MEDIA_DIR` the first time somebody opens one — on the
+--     droplet that is `/root/crm-media`, deliberately outside `/root/crm`,
+--     which `deploy.sh` rsyncs with `--delete`. Anything cached inside the app
+--     directory would be wiped by the next deploy.
+--
+-- The one message that predated this WAS backfilled, on the day, and only
+-- because it was still inside the 30 days: `GET /v2/messages/{id}` returns the
+-- media array for a message Telnyx still holds, and every row already stores
+-- `telnyx_message_id`. That is the whole recovery route, and it closes on
+-- 2026-10-17 for that message. A row older than 30 days cannot be rescued —
+-- there is no url recorded anywhere and the object is gone — so anything
+-- arriving from here on is stored at webhook time instead.
+alter table call_sms add column if not exists media jsonb;

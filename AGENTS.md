@@ -948,6 +948,34 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
   contract in DocuSeal. **A new way to send anything to a prospect goes through
   `ConfirmSend` too.** Verified against a stand-in Telnyx: Enter, Enter sent
   nothing and kept the text; pressing Send sent exactly once.
+- **Pictures and files are shown, and never served from Telnyx's url**
+  (2026-09-16, `2026-09-16-call-sms-media.sql`, `SmsMedia` in `schema.ts`,
+  `parseMedia` in `lib/sms.ts`, `findVisibleTextMedia` in `lib/texts.ts`,
+  `/api/texts/media/[id]`). Inbound MMS always arrived with its attachments —
+  `recordInboundText` counted `p.media.length` to write "[They sent a picture
+  or file]" and threw the urls away, so the CRM knew a photo existed and could
+  not show it. It now stores each item and the thread renders images inline,
+  other types as a file row.
+  - **Telnyx's media url is public and must never reach the browser.** It is a
+    plain object in their S3 bucket, readable with no credentials at all, and
+    sending the Telnyx bearer token makes S3 refuse it with a 400 — both
+    measured. So `TextMessage.media` carries only a content type and a size,
+    and the bytes come from a route that checks who is asking, exactly as
+    `/api/recordings/[id]` exists so presigned recording urls are never served
+    either. `findVisibleTextMedia` reuses `scope(me)`, the clause the thread
+    itself is read through, rather than restating who may see a conversation.
+  - **It expires after 30 days** (`x-amz-expiration`, `rule-id="30Days"`), so
+    proxying alone would be a feature that quietly stopped working a month
+    later. The route writes a copy to **`SMS_MEDIA_DIR`** the first time
+    somebody opens an attachment, and reads that copy afterwards. Nothing is
+    fetched speculatively: an attachment nobody looks at is never downloaded.
+    **On the droplet it must point outside `/root/crm`** (`/root/crm-media`),
+    because `deploy.sh` rsyncs that directory with `--delete` and would erase
+    the cache on every deploy. Unset means proxy-only, which is right in local
+    dev and right for the first 30 days anywhere.
+  - The placeholder is still written, because it is the conversation list's
+    preview line and the fallback for bytes that have aged out; `bubbleText`
+    strips it in the thread only when something is rendered in its place.
 - **Unread is per person, and only the person a text is for can clear it.**
   Marked by a POST when the thread opens, never as a side effect of rendering:
   Next prefetches links, and a conversation marked read because its link was
@@ -2317,6 +2345,23 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
 - **`drizzle-kit push` drops any index that is not declared in `schema.ts`.** `call_user_id_idx` was created by `2026-08-13-app-user.sql` and never added to the schema file, so the first push after it silently removed the index every per-person query relies on. Both it and `call_telnyx_session_id_idx` are now declared on the `call` table. An index that exists only in a migration will not survive; put it in both places, and check `pg_indexes` after any push.
 - **`call` needs `call_lead_latest_idx`** (2026-09-14, `2026-09-14-call-lead-latest-idx.sql`). Every calling screen asks for each lead's latest call (`latestCall`, a lateral subquery per lead), and with no index on `call_lead_id` Postgres read the whole calls table once per lead. The sidebar's callbacks count runs on every page, so every page paid about a second; Callbacks took ~4s, Spreadsheet and Pipeline 6–11s. Built on prod `CONCURRENTLY` and declared in `schema.ts` so a push keeps it. Server time per sidebar click afterwards: light pages ~0.1s, Callbacks ~0.5s, Call lists ~0.4s, Spreadsheet and Pipeline ~1.7s, Stats ~1.5s. **If a calling screen goes slow again, check this index still exists before anything else.** Keypad (~0.9s) and Team (~0.65s) did not move: they wait on the Telnyx API, not on this.
 - **`getCallLists` is hand-tuned and must stay that way** (2026-09-16). Call lists, Callbacks, a list's dial screen, Spreadsheet, Pipeline and Stats all run it, over every list and every lead. The four-call limit and call spacing first added two correlated counts per lead to `latestCall` and joined `leadZone` for every lead, and that one query went from 0.37s to **1.49s** on 5,231 leads — every one of those screens sat at 2–4s. Measured by watching `pg_stat_activity` while a page loaded, then timing rebuilt versions directly. It now counts tries in one grouped pass over `call`, each list's call counts in another (they were six correlated rescans per list), skips the recording and caller-name lookups it never reads, and works out a timezone only for leads waiting on a retry, with the area-code join written as a plain equality so it can hash: **0.26s, identical numbers for all 41 lists.** The price is that it restates the latest-call, retry and timezone rules rather than reusing `latestCall`/`leadZone`, so a change to any of those rules has to be made there too. Removing the Email CRM would not have helped: its screens and its one sidebar count were never on the slow path.
+- **Writing jsonb: Drizzle is safe, the raw postgres.js client double-encodes.**
+  Measured against prod on 2026-09-16. `db.execute(sql\`… ${JSON.stringify(x)}::jsonb\`)`
+  through **Drizzle** stores a real array or object — it binds the string as a
+  plain text parameter and Postgres parses it at the cast. The identical
+  expression through the **raw `postgres()` client** stores a jsonb *string*,
+  because that driver JSON-encodes a parameter bound to a jsonb target; this is
+  true of both the tagged template and `client.unsafe()` with a positional
+  parameter. Use `sql.json(x)` there.
+  - It fails silently and only on read: `Array.isArray(row.col)` is false, so
+    the feature reads as "there is no data" rather than as an error. That is
+    how `call_recording.transcript_turns` came to hold 66 strings against 31
+    arrays (`2026-09-16-transcript-turns-unwrap.sql` unwraps them losslessly
+    with `#>> '{}'`), and the route that writes it was never the culprit.
+  - **One-off scripts are the risk**, since those are what get written against
+    the raw client — the `node --env-file=.env` pattern used to query prod. If
+    a script writes jsonb, check `jsonb_typeof` afterwards rather than trusting
+    the write.
 - **Never interpolate a Drizzle column into a subquery inside `.select()`.** Drizzle renders interpolated columns *unqualified* there, so ``sql`(select count(*) from ${call} where ${call.userId} = ${appUser.id})` `` emits `where "user_id" = "id"`, and inside `select ... from "call"` that bare `"id"` binds to `call.id` instead of the user's. It fails silently: the subquery correlates with nothing and returns one constant for every row, which looked like a plausible 0 for everyone on the Team screen until a backfill turned it into a plausible 1 for everyone. Either write the identifiers out literally and qualified (as `campaigns/page.tsx` does — `"enrollment"."campaign_id" = "campaign"."id"`), or use a LEFT JOIN, where two tables force Drizzle to prefix both sides. Check with `.toSQL().sql`, not by eye.
 - **Never write `= any(${array})` in a Drizzle `sql` template.** Drizzle spreads
   a JS array into `($1, $2)`, which Postgres reads as a row, and the statement

@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
+import type { SmsMedia } from "@/db/schema";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { dncBlockReason } from "@/lib/dnc";
 import { dialCountry } from "@/lib/phone";
@@ -32,6 +33,16 @@ export type TextMessage = {
   /** Who sent it, outbound only. */
   byName: string | null;
   at: string;
+  /**
+   * Pictures and files on the text, in the order they arrived.
+   *
+   * **Deliberately carries no url.** The stored one is a public Telnyx S3
+   * object, so the browser gets a type and a size and fetches the bytes from
+   * `/api/texts/media/<id>?i=<index>`, which checks who is asking. Shipping
+   * the url to the page would make every attachment readable by anyone who
+   * ever saw the HTML.
+   */
+  media: { contentType: string; size: number | null }[];
 };
 
 export type Conversation = {
@@ -204,7 +215,7 @@ export async function getThreadMessages(
 ): Promise<TextMessage[]> {
   if (!smsEnabled() || !me) return [];
   const rows = (await db.execute(sql`
-    select s.id, s.direction, s.body, s.status, s.error, s.created_at,
+    select s.id, s.direction, s.body, s.status, s.error, s.created_at, s.media,
       u.name as by_name
     from call_sms s
     left join app_user u on u.id = s.user_id and s.direction = 'out'
@@ -224,7 +235,43 @@ export async function getThreadMessages(
     error: (r.error as string | null) ?? null,
     byName: (r.by_name as string | null) ?? null,
     at: iso(r.created_at),
+    // Type and size only. The url is deliberately dropped here — see
+    // `TextMessage.media` and `/api/texts/media/[id]`.
+    media: (Array.isArray(r.media) ? (r.media as SmsMedia[]) : []).map((m) => ({
+      contentType: m.contentType || "application/octet-stream",
+      size: typeof m.size === "number" ? m.size : null,
+    })),
   }));
+}
+
+/**
+ * One attachment, if this person is allowed to see it.
+ *
+ * The conversation scoping rule and not a second copy of it: `scope(me)` is
+ * the same clause the thread itself is read through, so a caller can reach
+ * exactly the attachments on texts to their own number and an admin can reach
+ * all of them. Two copies of "may you see this" is how the two end up
+ * disagreeing, and the one that is wrong here hands out a prospect's
+ * photograph.
+ *
+ * Returns the stored `SmsMedia`, url included — this runs on the server for
+ * `/api/texts/media/[id]`, which is the only thing that may hold that value.
+ */
+export async function findVisibleTextMedia(
+  messageId: number,
+  index: number,
+  me: CurrentUser | null,
+): Promise<SmsMedia | null> {
+  if (!smsEnabled() || !me) return null;
+  const rows = (await db.execute(sql`
+    select s.media from call_sms s
+    where s.id = ${messageId} and s.media is not null and ${scope(me)}
+    limit 1
+  `)) as Row[];
+  const media = rows[0]?.media;
+  if (!Array.isArray(media)) return null;
+  const item = (media as SmsMedia[])[index];
+  return item && typeof item.url === "string" && item.url ? item : null;
 }
 
 /**

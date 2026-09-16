@@ -11,6 +11,7 @@ import {
   Search,
   SquarePen,
   User,
+  Paperclip,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmSend } from "@/components/confirm-send";
@@ -56,6 +57,37 @@ const BLOCK_GAP_MS = 60 * 60_000;
 // whole of the look lives in this one file.
 const BUBBLE =
   "relative min-w-0 whitespace-pre-wrap break-words rounded-[18px] px-3 py-[7px] text-[15px] leading-[1.35]";
+
+/** Where the bytes come from. Never Telnyx's own url, which is public — the
+ *  route checks who is asking. See `/api/texts/media/[id]`. */
+const mediaHref = (id: number, i: number) => `/api/texts/media/${id}?i=${i}`;
+
+/** "1.2 MB". Shown on a file row because the only other thing we can honestly
+ *  say about an attachment we are not rendering is its type. */
+function fileSize(bytes: number | null) {
+  if (!bytes) return null;
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/**
+ * The words in a bubble that is also showing its attachment.
+ *
+ * `recordInboundText` writes "[They sent a picture or file]" into the body so
+ * the conversation list has a preview line and so a bubble is never empty.
+ * Once the picture itself is on screen that sentence is just describing what
+ * the reader is looking at, so it comes off — but only here, and only when
+ * there is really something rendered in its place.
+ */
+function bubbleText(body: string, hasMedia: boolean) {
+  if (!hasMedia) return body;
+  return body
+    .split("\n")
+    .filter((line) => !/^\[They sent .*\]$/.test(line.trim()))
+    .join("\n")
+    .trim();
+}
 const TAIL_OUT =
   "before:absolute before:bottom-0 before:right-[-5px] before:h-[18px] before:w-[14px] before:rounded-bl-[12px_10px] before:bg-[var(--imsg-sent)] before:content-[''] after:absolute after:bottom-0 after:right-[-19px] after:h-[18px] after:w-[19px] after:rounded-bl-[7px] after:bg-[var(--imsg-pane)] after:content-['']";
 const TAIL_IN =
@@ -801,6 +833,8 @@ function Bubble({
 }) {
   const out = m.direction === "out";
   const failed = out && m.status === "failed";
+  // The placeholder comes off once the attachment itself is on screen.
+  const words = bubbleText(m.body, m.media.length > 0);
   return (
     <div
       className={cn(
@@ -819,7 +853,49 @@ function Bubble({
             tail && (out ? TAIL_OUT : TAIL_IN),
           )}
         >
-          {m.body}
+          {m.media.length > 0 && (
+            <div className={cn("flex flex-col gap-1.5", words && "mb-1.5")}>
+              {m.media.map((med, i) =>
+                med.contentType.startsWith("image/") ? (
+                  // Opens full size in a tab, because a photo of a job site is
+                  // usually sent to be looked at closely.
+                  <a
+                    key={i}
+                    href={mediaHref(m.id, i)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element --
+                        next/image wants a known host, and this is our own
+                        route streaming bytes of unknown dimensions. */}
+                    <img
+                      src={mediaHref(m.id, i)}
+                      alt="Attachment"
+                      className="max-h-80 w-full rounded-[12px] object-cover"
+                    />
+                  </a>
+                ) : (
+                  <a
+                    key={i}
+                    href={mediaHref(m.id, i)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(
+                      "flex items-center gap-2 rounded-[12px] px-3 py-2 text-[13px] underline",
+                      out ? "bg-white/20" : "bg-black/10 dark:bg-white/10",
+                    )}
+                  >
+                    <Paperclip className="size-4 shrink-0" />
+                    <span className="truncate">
+                      {med.contentType.split("/")[1]?.toUpperCase() ?? "File"}
+                      {fileSize(med.size) ? ` · ${fileSize(med.size)}` : ""}
+                    </span>
+                  </a>
+                ),
+              )}
+            </div>
+          )}
+          {words}
         </div>
         {failed && (
           // Raised above the bubble's tail: the tail's outer half is painted in
