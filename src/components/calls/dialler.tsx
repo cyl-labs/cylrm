@@ -1121,9 +1121,9 @@ export function Dialler({
             className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200"
           >
             <span className="font-semibold">
-              Message already left · {relative(current.voicemailAt)}
+              You already left a voicemail {relative(current.voicemailAt)}
             </span>{" "}
-            If this rings out again, hang up without speaking and log it as
+            Do not leave another one. If nobody picks up, hang up and log it as
             Voicemail.
           </p>
         )}

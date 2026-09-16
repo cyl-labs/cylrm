@@ -95,6 +95,23 @@ export const RETRY_AFTER_DAYS = [3, 7, 21] as const;
  */
 export const MAX_UNANSWERED_TRIES = RETRY_AFTER_DAYS.length + 1;
 
+/**
+ * How stale a retry has to be before it goes to the back of the queue.
+ *
+ * The queue sorts oldest-attempt-first, so that nobody is rung twice while
+ * others sit untouched. That is right among leads touched recently and wrong
+ * once the gaps get long: with a third retry waiting 21 days, oldest-first
+ * hands somebody a screen of three-week-old numbers before the ones they rang
+ * on Monday, and it reads as being fed leftovers. Mico said exactly that —
+ * "these are all still old leads" — with 58 retries in front of him, 38 of
+ * them last touched 20 to 23 days ago.
+ *
+ * So anything older than this drops behind everything else. It is not skipped
+ * and nothing is lost: it is the last thing in the queue rather than the
+ * first, which is where a lead nobody has reached in three weeks belongs.
+ */
+export const STALE_RETRY_DAYS = 7;
+
 /** A lead the queue has given up on. Expects `latestCall` aliased as `lc`. */
 const TRIED_OUT = sql`(lc.outcome in ('no_answer','voicemail') and lc.unanswered >= ${MAX_UNANSWERED_TRIES})`;
 
@@ -870,8 +887,14 @@ export async function getCallBoard(
  * Leads for the dialler, in the order they should be worked.
  *
  * Callbacks that are due come first — someone asked to be rung at a time and
- * that time has passed. Then leads never tried, then everything else oldest
- * attempt first, so nobody gets rung twice while others sit untouched.
+ * that time has passed. Then leads never tried — first touches always lead,
+ * being both the best odds on the list and the only ones that cannot feel
+ * recycled. Then retries, oldest first so nobody is rung twice while others
+ * sit untouched, **except that anything last touched more than
+ * `STALE_RETRY_DAYS` ago drops behind the lot**: oldest-first was right when
+ * the gaps were days and wrong once the third retry waits three weeks, which
+ * put a screen of three-week-old numbers in front of a caller before the ones
+ * he rang on Monday.
  */
 /**
  * Which leads a dialling tab holds.
@@ -973,8 +996,19 @@ export async function getCallQueue(
       ${where}
       ${callableNow ? sql`and ${CALLABLE_NOW}` : sql``}
     order by
+      -- Somebody asked to be rung at a time and that time has passed.
       (lc.outcome = 'callback' and (lc.callback_at is null or lc.callback_at <= now())) desc,
+      -- Then every lead nobody has ever rung. First touches always lead: they
+      -- are the best odds on the list (39% answer a first try against 8% a
+      -- fifth) and the only ones that cannot feel recycled.
       (lc.outcome is null) desc,
+      -- Then recent retries before stale ones. In Postgres false sorts before
+      -- true, so anything last touched more than STALE_RETRY_DAYS ago drops to
+      -- the back. See the constant for why oldest-first stopped being right
+      -- once the retry gaps grew to three weeks. Nulls cannot reach here: the
+      -- clause above has already hoisted them.
+      -- NB: no backticks anywhere in this comment. It is a template literal.
+      (lc.called_at < now() - make_interval(days => ${STALE_RETRY_DAYS})) asc,
       lc.called_at asc nulls first,
       l.id asc
     limit ${CALL_QUEUE_LIMIT}

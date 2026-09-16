@@ -358,6 +358,27 @@ inbound handled.
   `?mine=1` still reads as Mine. Filtered to nothing, the screen says so with a
   Clear link rather than "No call lists yet". Callers keep only the sort
   picker, shown once they have more than two lists.
+- **The dial queue is ordered callbacks, then first touches, then recent
+  retries, then stale ones** (`getCallQueue`'s `order by`, `STALE_RETRY_DAYS`
+  = 7). A lead nobody has ever rung always comes before one that has been
+  rung: it is the best odds on the list — 39% answer a first try against 8% a
+  fifth — and the only kind that cannot feel recycled.
+  - **Oldest-attempt-first still applies among retries, but only the recent
+    ones.** That rule exists so nobody is rung twice while others sit
+    untouched, and it was right when the gaps were days. Once the third retry
+    waits three weeks it inverted: it handed a caller every three-week-old
+    number before the ones he rang on Monday. Mico reported exactly that —
+    "these are all still old leads" — with 38 of his 58 retries last touched
+    20 to 23 days ago. Anything past `STALE_RETRY_DAYS` now sorts last.
+  - **Nothing is skipped or lost**; a stale lead is the end of the queue
+    rather than the front, which is where one nobody has reached in three
+    weeks belongs.
+  - **This does not fix a caller seeing no first touches at all** — that is
+    the `CALLABLE_NOW` filter, not the ordering. All 53 of Mico's never-rung
+    leads were Pacific, Mountain and Hawaii, so at 10am Eastern every one of
+    them was outside 9-5 and hidden, leaving only eastern retries on screen.
+    Ordering cannot surface a lead the hours filter has removed; check the
+    lead timezones before changing the sort.
 - **A lead not reached gets four calls, three days, a week and three weeks
   apart** (2026-09-16, `RETRY_AFTER_DAYS`, `RETRY_READY`, `MAX_UNANSWERED_TRIES`
   and `TRIED_OUT` in `lib/calls.ts`). Without a limit a list could never be
