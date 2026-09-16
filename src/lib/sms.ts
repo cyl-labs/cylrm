@@ -48,6 +48,15 @@ export type SmsMessage = {
   /** Who sent it. Outbound only — an inbound text is from the prospect. */
   byName: string | null;
   at: string;
+  /**
+   * Pictures and files on the text, type and size only.
+   *
+   * **No url, deliberately** — the stored one is a public Telnyx S3 object, so
+   * the bytes come from `/api/texts/media/[id]`, which checks who is asking.
+   * Mirrors `TextMessage.media` on the Texts screen because both are drawn by
+   * `TextMedia`; if one gains a field the other wants it too.
+   */
+  media: { contentType: string; size: number | null }[];
 };
 
 export type LeadTexts = {
@@ -121,7 +130,7 @@ export async function getTextsByLead(
 
   const rows = (await db.execute(sql`
     select s.id, s.call_lead_id, s.direction, s.body, s.status, s.error,
-      s.created_at, u.name as by_name
+      s.created_at, s.media, u.name as by_name
     from call_sms s
     left join app_user u on u.id = s.user_id and s.direction = 'out'
     where s.call_lead_id in ${inList(ids)}
@@ -139,6 +148,13 @@ export async function getTextsByLead(
       error: (r.error as string | null) ?? null,
       byName: (r.by_name as string | null) ?? null,
       at: new Date(r.created_at as string).toISOString(),
+      // Type and size only; the url stays on the server. See `SmsMessage`.
+      media: (Array.isArray(r.media) ? (r.media as SmsMedia[]) : []).map(
+        (m) => ({
+          contentType: m.contentType || "application/octet-stream",
+          size: typeof m.size === "number" ? m.size : null,
+        }),
+      ),
     });
   }
   for (const lead of Object.values(out)) {

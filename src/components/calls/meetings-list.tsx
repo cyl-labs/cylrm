@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
 import { CallBackButton } from "@/components/calls/call-back-button";
+import { TextMedia, bubbleText } from "@/components/calls/text-media";
 
 /**
  * How the ring back after a missed demo ended.
@@ -877,8 +878,17 @@ export function MeetingsList({
                           : "self-start border bg-background",
                       )}
                     >
+                      {/* Same renderer as the Texts screen. This row showed
+                          "[They sent a picture or file]" for an hour after
+                          attachments shipped, because it is a second copy of
+                          the thread with its own query. */}
+                      <TextMedia
+                        messageId={t.id}
+                        media={t.media}
+                        spaced={bubbleText(t.body, t.media.length > 0).length > 0}
+                      />
                       <p className="whitespace-pre-wrap break-words">
-                        {t.body}
+                        {bubbleText(t.body, t.media.length > 0)}
                       </p>
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         {t.direction === "in"

@@ -956,6 +956,16 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
   or file]" and threw the urls away, so the CRM knew a photo existed and could
   not show it. It now stores each item and the thread renders images inline,
   other types as a file row.
+  - **Two screens draw texts, and both go through `TextMedia`**
+    (`components/calls/text-media.tsx`). The Texts screen has the iMessage
+    thread, fed by `getThreadMessages` in `lib/texts.ts`; every row on Meetings
+    carries that business's conversation, fed by `getTextsByLead` in
+    `lib/sms.ts`. They are separate queries with separate bubbles, and
+    attachments shipped to the first one only — a founder was still reading
+    "[They sent a picture or file]" on Meetings an hour later. Both message
+    types therefore carry the same `media` shape and neither screen formats it
+    itself. **A third place that shows a text renders it through that
+    component**, or this happens again.
   - **Telnyx's media url is public and must never reach the browser.** It is a
     plain object in their S3 bucket, readable with no credentials at all, and
     sending the Telnyx bearer token makes S3 refuse it with a 400 — both
