@@ -74,11 +74,27 @@ export async function POST(request: Request) {
   // An inbound leg. `direction` is "incoming" here, matching the call events
   // API rather than the browser SDK's "inbound" — the two vocabularies differ
   // and it is worth not assuming they agree.
+  //
+  // **Only `call.initiated` is gated on the direction**, and that asymmetry is
+  // the fix for a bug that ran for the life of this route (2026-09-16). An
+  // answered call kept `answered_at` null and so sat in somebody's Missed calls
+  // for ever, clearable only by hand: measured on prod, `answered_at` was set
+  // on 1 inbound row in 92 while `ended_at` managed 38. Telnyx does not send
+  // `call.answered` with direction "incoming" for these calls — an inbound call
+  // answered by a SIP endpoint reports the leg that picked up, which is the
+  // outgoing one — so the old guard dropped nearly every answer on the floor,
+  // and they landed in the fall-through logger below instead.
+  //
+  // Letting the other two through unguarded is safe because of what
+  // `recordInbound` does with them: `call.initiated` INSERTs, so an outbound
+  // leg reaching it would invent a missed call from a number we rang, and it
+  // keeps the check. `call.answered` and `call.hangup` only UPDATE a row keyed
+  // on `call_session_id`, so a leg belonging to no inbound call matches nothing
+  // and costs one statement that touches no rows.
   if (
-    p.direction === "incoming" &&
-    (type === "call.initiated" ||
-      type === "call.answered" ||
-      type === "call.hangup")
+    (p.direction === "incoming" && type === "call.initiated") ||
+    type === "call.answered" ||
+    type === "call.hangup"
   ) {
     await recordInbound(type, p);
     return NextResponse.json({ ok: true, inbound: type });
