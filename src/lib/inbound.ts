@@ -97,6 +97,35 @@ const CAN_WAIT = sql`(
   and not ${withinLeadHours(sql`now()`)}
 )`;
 
+/**
+ * Somebody has already rung this lead back since they called in.
+ *
+ * Clearing a missed call was only ever possible through the row's own button
+ * (`PATCH /api/inbound-calls/[id]`), which writes the `call` row and stamps
+ * `handled_at` in one transaction. Ring the same person back from anywhere
+ * else — open the lead, dial, log the outcome — and the work is done but the
+ * inbound row never hears about it, so it sits on the screen for ever.
+ *
+ * Reported by Mico on 2026-09-16 and verified in the data: five rows with
+ * `handled_at` and `handled_by` both null, each carrying calls logged after
+ * the prospect rang, at least one of them genuinely dialled. Every row cleared
+ * the intended way carries a `handled_by` name, which is what told the two
+ * apart.
+ *
+ * Derived rather than stored, so it needs no migration and no backfill: the
+ * rows already in that state clear themselves the moment this ships, and it
+ * cannot drift out of step the way a second `handled_at` writer would.
+ *
+ * A row matching no lead never satisfies this — `ic.call_lead_id` is null, the
+ * `exists` is false, and it keeps its "Mark as rung back". That is deliberate:
+ * an unmatched number is the likeliest to be a genuine new enquiry.
+ */
+const RUNG_BACK_SINCE = sql`exists (
+  select 1 from call c
+  where c.call_lead_id = ic.call_lead_id
+    and c.called_at > ic.started_at
+)`;
+
 export async function getInboundCalls(
   me: CurrentUser | null,
   { missedOnly = false }: { missedOnly?: boolean } = {},
@@ -122,7 +151,10 @@ export async function getInboundCalls(
     left join call_list cl on cl.id = l.call_list_id
     ${leadZone}
     where ic.started_at > now() - ${`${KEEP_DAYS} days`}::interval
-      ${missedOnly ? sql`and ic.answered_at is null and ic.handled_at is null` : sql``}
+      ${missedOnly
+        ? sql`and ic.answered_at is null and ic.handled_at is null
+              and not ${RUNG_BACK_SINCE}`
+        : sql``}
       ${scoped(me)}
     order by ic.started_at desc
     limit 300
@@ -189,6 +221,9 @@ export const countMissedCalls = cache(async function countMissedCalls(
     where ic.answered_at is null and ic.handled_at is null
       and ic.started_at > now() - ${`${KEEP_DAYS} days`}::interval
       and not ${CAN_WAIT}
+      -- The same clause the list applies, never a second copy of it: a badge
+      -- disagreeing with the screen beside it reads as a bug.
+      and not ${RUNG_BACK_SINCE}
       ${scoped(me)}
   `)) as { n: number }[];
   return row?.n ?? 0;

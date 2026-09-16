@@ -306,6 +306,24 @@ inbound handled.
   there is nothing to log a call against, and the API refuses an outcome for
   one. That row is also the likeliest to be a genuine new enquiry, so it must
   stay clearable.
+- **A missed call also clears when the lead is rung back from anywhere else**
+  (`RUNG_BACK_SINCE` in `lib/inbound.ts`, 2026-09-16). Until then the only way
+  off the screen was the row's own button, which stamps `handled_at` and
+  `handled_by` together — so a caller who pressed "Open lead", dialled and
+  logged the outcome there had done the work while the row sat on his list for
+  ever. Mico reported it; the data showed five rows with both fields null, each
+  carrying calls logged after the prospect rang and at least one genuinely
+  dialled, against cleared rows that all carry a `handled_by` name.
+  - **Derived, not stored**, so there is no migration and no backfill: the rows
+    already stuck clear themselves on deploy, and a second writer of
+    `handled_at` cannot drift out of step with the first.
+  - **Applied through one constant used by both the list and
+    `countMissedCalls`**, for the reason the counts are shared everywhere else
+    here: a badge disagreeing with the screen beside it reads as a bug.
+  - It does **not** clear an unmatched row (`call_lead_id` null makes the
+    `exists` false), and it does not touch the repeat-caller case: two
+    businesses account for 19 of the 35 outstanding rows by ringing 14 and 5
+    times. Those are real unanswered calls, not stale state.
 - **"Open lead" goes to the dial card, never the spreadsheet**
   (`/calls/<listId>?view=all&lead=<id>`). The grid is a different tool with a
   different shape and a caller sent there mid-shift has to work out where they
