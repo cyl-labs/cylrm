@@ -77,9 +77,10 @@ lost.
 
 ## Do the math out loud, with their numbers
 
-Their figures, never yours. The point is that they hear themselves say it.
-
-> **You say** So let's make it easy. Say it's four missed calls a week, average job is $500 — that's $2,000 a week, about $8,000 a month potentially slipping through the cracks.
+Their figures, never yours. The point is that they hear themselves say it, which
+is why there is no example sentence here to swap numbers into mid-call. **The
+calculator in the step above prints the line with their own figures already in
+it.** Read it straight off.
 
 _(let them answer)_
 

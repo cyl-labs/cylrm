@@ -45,6 +45,16 @@ function costAt(pkg: Package, minutes: number): number {
   return pkg.monthlyCents + over * pkg.overageCents;
 }
 
+/**
+ * Money the way somebody says it out loud: "$8,660", never "$8,660.00".
+ *
+ * `money` from `lib/packages` is the written form and stays right everywhere a
+ * figure is read off a table or put on a contract. The one line below is spoken
+ * to a prospect, and nobody reads the cents on a number this size.
+ */
+const spokenMoney = (cents: number): string =>
+  Math.round(cents / 100).toLocaleString("en-US");
+
 export function PricingCalculator() {
   // Blank rather than pre-filled: a number already in the box gets read out as
   // though the prospect said it.
@@ -112,6 +122,48 @@ export function PricingCalculator() {
         </p>
       ) : (
         <>
+          {/* The line to say, with their own figures in it rather than an
+              example to swap numbers into mid-sentence. The script used to
+              carry "say it's four missed calls a week, average job is $500",
+              and a founder reading that aloud has to do two substitutions and
+              two sums while a prospect waits — which is the whole job this
+              component exists to take off them.
+
+              Styled by hand to match SopProse's "You say" block, because the
+              calculator renders outside SopProse and none of its `[&_...]`
+              descendant rules reach in here: flat tint, no card or border, the
+              label small and red. If that block's look changes, this changes
+              with it, or the one line a founder is meant to read aloud stops
+              looking like the others. The label is inline rather than in the
+              76px gutter the prose uses at sm — the card's own padding would
+              leave a gutter here sitting a few pixels off every block above it,
+              which reads worse than not matching at all.
+
+              Only with both numbers: the loss is calls times ticket, so with
+              one box filled there is no sentence to say yet. */}
+          {hasTicket && (
+            <p className="mt-3.5 rounded-[3px] bg-[#FDE7E1] px-3.5 py-2.5 text-[15px] leading-relaxed text-foreground dark:bg-[#46352d]">
+              <strong className="mr-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#C0392B] dark:text-[#e8897a]">
+                You say
+              </strong>
+              {"So let's make it easy. You're missing about "}
+              <span className="font-bold tabular-nums">{calls}</span>
+              {" calls a week and an average job is "}
+              <span className="font-bold tabular-nums">
+                ${spokenMoney(job * 100)}
+              </span>
+              {" — that's "}
+              <span className="font-bold tabular-nums">
+                ${spokenMoney(calls * job * 100)}
+              </span>
+              {" a week, about "}
+              <span className="font-bold tabular-nums">
+                ${spokenMoney(lossCents)}
+              </span>
+              {" a month potentially slipping through the cracks."}
+            </p>
+          )}
+
           <p className="mt-3.5 text-[13px] leading-relaxed">
             About{" "}
             <span className="font-bold">{Math.round(callsMonthly)} calls</span> a
