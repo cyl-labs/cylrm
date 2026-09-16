@@ -348,17 +348,30 @@ inbound handled.
   `?mine=1` still reads as Mine. Filtered to nothing, the screen says so with a
   Clear link rather than "No call lists yet". Callers keep only the sort
   picker, shown once they have more than two lists.
-- **A lead not reached gets four calls, a day, three days and a week apart**
-  (2026-09-16, `RETRY_AFTER_DAYS`, `RETRY_READY`, `MAX_UNANSWERED_TRIES` and
-  `TRIED_OUT` in `lib/calls.ts`). Without a limit a list could never be
+- **A lead not reached gets four calls, three days, a week and three weeks
+  apart** (2026-09-16, `RETRY_AFTER_DAYS`, `RETRY_READY`, `MAX_UNANSWERED_TRIES`
+  and `TRIED_OUT` in `lib/calls.ts`). Without a limit a list could never be
   finished: every no-answer and voicemail went back in the queue for ever, and
   a caller asked for a new list while holding 146 of them. Without spacing a
   thin list let a caller spend a lead's tries in an afternoon: Raffy rang one
-  business twice 36 minutes apart. It was five unspaced tries for a morning.
-  - **The wait is counted in the lead's own calendar days** (`z.tz`), so a
-    4:30pm call comes back the next morning. Unknown zones wait whole 24-hour
-    days. The wait indexes on `lc.not_reached` (no answer, voicemail *and*
-    gatekeeper); the limit on `lc.unanswered` (no answer and voicemail only).
+  business twice 36 minutes apart. It was five unspaced tries for a morning,
+  then four at 1/3/7 days, widened to 3/7/21 the same day.
+  - **Wider gaps make a list read as *more* finished, which is why they were
+    widened.** A lead whose wait is over sits in `toRetry` and counts against
+    the card's "left to call"; one still waiting sits in `retryLater` and counts
+    as done. So tight gaps kept dropping worked leads back into the queue
+    overnight and a caller's list never stayed complete — the founders' actual
+    complaint. 501 of 727 live leads were back in the queue under 1/3/7 against
+    361 under 3/7/21. **Tightening them again also makes every list look less
+    finished to the person working it.**
+  - **The empty dialler says "done for now", not "come back tomorrow."** The
+    shortest wait is three days, so a caller sent back tomorrow finds the same
+    empty queue and reads the list as broken.
+  - **The wait is counted in the lead's own calendar days** (`z.tz`), so an
+    afternoon call comes back on the morning of its day rather than at the same
+    hour. Unknown zones wait whole 24-hour days. The wait indexes on
+    `lc.not_reached` (no answer, voicemail *and* gatekeeper); the limit on
+    `lc.unanswered` (no answer and voicemail only).
   - **A lead waiting for its day is done for now, not finished.** It leaves
     `toRetry` for `retryLater`, so it is out of "Left to call" and counts toward
     the bar, but `stageOf` in `lib/list-filter.ts` will not call a list with any

@@ -995,7 +995,12 @@ export function Dialler({
                 ? // A fourth empty queue: the leads are all waiting for their next
                   // try. "Import a CSV" here would send a caller to ask for a new
                   // list when this one has calls owed tomorrow.
-                  `${retryLater.toLocaleString()} ${retryLater === 1 ? "lead didn't" : "leads didn't"} pick up and ${retryLater === 1 ? "comes" : "come"} back on a later day. Come back tomorrow, or work another niche.`
+                  // "Come back tomorrow" until 2026-09-16, when the shortest
+                  // wait in RETRY_AFTER_DAYS went from one day to three: a
+                  // caller told to return tomorrow and finding the same empty
+                  // queue reads the list as broken. This queue is finished for
+                  // now, and the words have to say so.
+                  `This niche is done for now. ${retryLater.toLocaleString()} ${retryLater === 1 ? "lead didn't" : "leads didn't"} pick up and ${retryLater === 1 ? "comes" : "come"} back in a few days. Work another niche in the meantime.`
                 : "Import a CSV with a phone column to start."
             : "Every lead in this view has been worked."}
         </p>

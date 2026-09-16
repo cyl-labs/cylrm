@@ -53,20 +53,32 @@ const TERMINAL = sql`('not_interested','demo_booked','trial','won','lost','bad_n
  * Days to wait before ringing a lead again, by how many times it has not been
  * reached so far.
  *
- * The first call is followed by one the next day, then three days after that,
- * then a week after that: three call-backs, four calls in all, and then the
- * lead is off the list (`MAX_UNANSWERED_TRIES`). Set by the founders on
- * 2026-09-16. Before it a lead that did not pick up came back as soon as
- * everything older had been rung, so on a thin list a caller could spend all of
- * a lead's tries in one afternoon: Raffy rang Wikiwiki Express twice 36 minutes
- * apart and got voicemail both times.
+ * Three days after the first call, a week after that, then three weeks: three
+ * call-backs, four calls in all spread over about a month, and then the lead is
+ * off the list (`MAX_UNANSWERED_TRIES`).
  *
- * A "day" is the lead's own calendar day where their zone is known, so a call
- * at 4:30pm their time comes back the next morning rather than at 4:30pm the
- * next afternoon. An unknown zone waits whole 24-hour days. No answer,
- * voicemail and gatekeeper all wait; only the first two count toward the limit.
+ * **Widening these makes a list read as more finished, not less**, which is the
+ * reason the founders asked for it (2026-09-16, widened from `[1, 3, 7]` the
+ * same day they were set). A lead whose wait is over sits in `toRetry` and
+ * counts against the card's "left to call"; one still waiting sits in
+ * `retryLater` and counts as done. Tight gaps therefore kept dropping worked
+ * leads back into the queue overnight, so a caller's list never stayed
+ * complete — measured the day this changed, 501 of the 727 leads in play were
+ * back in the queue under `[1, 3, 7]` against 361 under this. **Anyone
+ * tightening these again should know they are also making every list look less
+ * finished to the person working it.**
+ *
+ * Spacing exists at all because before it a lead came back as soon as
+ * everything older had been rung, so a thin list let a caller spend every try
+ * in one afternoon: Raffy rang Wikiwiki Express twice 36 minutes apart and got
+ * voicemail both times.
+ *
+ * A "day" is the lead's own calendar day where their zone is known, so an
+ * afternoon call comes back on the morning of its day rather than at the same
+ * hour. An unknown zone waits whole 24-hour days. No answer, voicemail and
+ * gatekeeper all wait; only the first two count toward the limit.
  */
-export const RETRY_AFTER_DAYS = [1, 3, 7] as const;
+export const RETRY_AFTER_DAYS = [3, 7, 21] as const;
 
 /**
  * How many tries nobody answered before a lead leaves the queue for good.
@@ -79,7 +91,7 @@ export const RETRY_AFTER_DAYS = [1, 3, 7] as const;
  *
  * Only no answer and voicemail count. A gatekeeper is a person, so a lead whose
  * latest call reached one stays in the queue however many tries it has, coming
- * back weekly once past the third.
+ * back every three weeks once past the third.
  */
 export const MAX_UNANSWERED_TRIES = RETRY_AFTER_DAYS.length + 1;
 
