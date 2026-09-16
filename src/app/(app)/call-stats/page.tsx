@@ -1,6 +1,5 @@
 import { getCallLists, LEAD_HOURS_LABEL } from "@/lib/calls";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
 import {
   dayBackInStatsTz,
   getCallTotals,
@@ -27,6 +26,7 @@ import { getQuotaSchedule, getQuotaStandings } from "@/lib/quota-digest";
 import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
 import { ReminderScheduleCard } from "@/components/calls/reminder-schedule";
 import { CallCalendar } from "@/components/calls/call-calendar";
+import { ListStatsRows } from "@/components/calls/list-stats-rows";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
 import { getCurrentUser } from "@/lib/session";
 import { hoursAckOf, statsRegionOf } from "@/lib/users";
@@ -737,8 +737,8 @@ export default async function CallStatsPage({
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/75">
               {mine
-                ? "How much of each niche you have ever rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the dates above."
-                : "How much of each niche has been rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the selected range."}
+                ? "How much of each niche you have ever rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the dates above. Niches with no calls in this range are folded away — search, or show them all."
+                : "How much of each niche has been rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the selected range. Niches with no calls in this range are folded away — search, or show them all."}
             </p>
           </div>
           {/* A table of headings over nothing is the state a new caller lands
@@ -753,112 +753,12 @@ export default async function CallStatsPage({
                 : "No call lists yet. Import a CSV on the Call lists screen."}
             </p>
           ) : (
-            /* One row a niche instead of eight columns of figures. The table it
-               replaced made you read seven numbers to answer the only question
-               anybody brings here — how far through is this list, and is it
-               converting — and the bar answers the first at a glance. The
-               outcome chips appear only when they are not zero, because a grid
-               of noughts is what made the old one unreadable. */
-            <ul className="divide-y divide-border/60">
-              {/* Busiest first. `getListStats` returns newest-created first,
-                  which on a floor with forty-one niches led the screen with
-                  whatever was imported or split most recently — all of them at
-                  0% with no calls — and buried the ones actually being worked.
-                  Ordering by calls in the range and then by how far through the
-                  niche is puts the rows somebody came here to read at the top,
-                  and sinks the untouched ones to the bottom where they cost
-                  nothing. Sorted here rather than in the query because the
-                  order is a property of this screen, not of the data. */}
-              {[...lists]
-                .sort(
-                  (a, b) =>
-                    b.calls - a.calls ||
-                    b.worked / (b.leads || 1) - a.worked / (a.leads || 1),
-                )
-                .map((l) => {
-                const workedPct =
-                  l.leads > 0 ? Math.round((l.worked / l.leads) * 100) : 0;
-                return (
-                  <li key={l.id}>
-                    {/* Three numbers on the row and the rest behind a fold.
-                        Worked, pickup rate and demos are the only ones anybody
-                        acts on; leads, calls, trials and wins are what you go
-                        looking for once one of those three looks wrong. Native
-                        `details`, like the booking notes on Meetings, so it
-                        opens before hydration and costs no state on a list that
-                        can run to forty niches. */}
-                    <details className="group">
-                      {/* Wraps to two lines on a phone. The three figures are
-                          fixed width and, with the chevron and the padding,
-                          take about 346px of a 390px screen — which left the
-                          name squeezed to nothing by its own `truncate`, so
-                          every row read "0% worked · - picked up · 0 demos"
-                          with no niche on it. `basis-full` gives the name the
-                          first line to itself until `sm`, where it goes back to
-                          sharing the row. Caught by screenshotting at 390:
-                          `innerText` still had the name in it, so the DOM said
-                          it was fine. */}
-                      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5">
-                        <span className="flex min-w-0 basis-full items-center gap-2 sm:flex-1 sm:basis-auto">
-                          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-                          <span className="min-w-0 truncate text-[13px] font-semibold">
-                            {l.name}
-                          </span>
-                        </span>
-
-                        {/* Decoration over the percentage printed beside it, so
-                            it is not announced twice. */}
-                        <span
-                          aria-hidden
-                          className="hidden h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-muted sm:block"
-                        >
-                          <span
-                            className="block h-full rounded-full bg-primary"
-                            style={{ width: `${workedPct}%` }}
-                          />
-                        </span>
-                        <span className="w-20 shrink-0 text-right text-[12px] tabular-nums">
-                          {workedPct}%
-                          <span className="ml-1 text-muted-foreground">
-                            worked
-                          </span>
-                        </span>
-
-                        <span className="w-24 shrink-0 text-right text-[12px] tabular-nums">
-                          {pct(l.pickups, l.calls)}
-                          <span className="ml-1 text-muted-foreground">
-                            picked up
-                          </span>
-                        </span>
-
-                        <span
-                          className={cn(
-                            "w-20 shrink-0 text-right text-[12px] tabular-nums",
-                            l.demos === 0 && "text-muted-foreground",
-                          )}
-                        >
-                          {l.demos}
-                          <span className="ml-1 text-muted-foreground">
-                            {l.demos === 1 ? "demo" : "demos"}
-                          </span>
-                        </span>
-                      </summary>
-
-                      <div className="flex flex-wrap gap-x-6 gap-y-1 px-5 pb-2.5 pl-[3.25rem] text-[12px] tabular-nums text-muted-foreground">
-                        <span>
-                          {l.worked.toLocaleString()} of{" "}
-                          {l.leads.toLocaleString()} leads rung
-                        </span>
-                        <span>{l.calls.toLocaleString()} calls</span>
-                        <span>{l.pickups.toLocaleString()} pickups</span>
-                        <span>{l.trials.toLocaleString()} trials</span>
-                        <span>{l.won.toLocaleString()} won</span>
-                      </div>
-                    </details>
-                  </li>
-                );
-              })}
-            </ul>
+            /* One row a niche instead of eight columns of figures, and the
+               rows themselves live in a client component now: the search box
+               needs state, and filtering forty-one niches down to the ones
+               being worked needs to know what you typed. The card, its heading
+               and the no-niches-at-all case stay here on the server. */
+            <ListStatsRows lists={lists} />
           )}
         </div>
 
