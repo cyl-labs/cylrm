@@ -878,6 +878,19 @@ export const callRecording = pgTable(
     /** Deliberately not unique — a session with two recordings keeps both. */
     callSessionId: text("call_session_id").notNull(),
     callLegId: text("call_leg_id"),
+    /**
+     * Who the call was with, straight off Telnyx.
+     *
+     * The only way to find a recording whose call was never logged. A `call`
+     * row is written when an outcome is logged and a `keypad_call` row when a
+     * leg ends, so a prospect dialled and talked to without an outcome being
+     * tapped — a founder at demo time, every time — leaves audio that no row
+     * points at. 122 such recordings existed when this landed, 111 minutes of
+     * conversation; 120 of them match a lead on `phone_key` through this
+     * column. Null on rows recorded before 2026-09-17 until the backfill runs.
+     */
+    toNumber: text("to_number"),
+    fromNumber: text("from_number"),
     durationMs: integer("duration_ms"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
@@ -891,7 +904,14 @@ export const callRecording = pgTable(
     transcriptTurns: jsonb("transcript_turns").$type<TranscriptTurn[]>(),
     transcribedAt: timestamp("transcribed_at", { withTimezone: true }),
   },
-  (t) => [index("call_recording_session_idx").on(t.callSessionId)],
+  (t) => [
+    index("call_recording_session_idx").on(t.callSessionId),
+    // Finding a meeting's demo audio is "this number, around this time", so
+    // both columns are in it. Declared here as well as in
+    // `2026-09-17-call-recording-numbers.sql`: push drops any index it cannot
+    // see in this file, which is how `call_user_id_idx` went missing once.
+    index("call_recording_to_number_idx").on(t.toNumber, t.startedAt.desc()),
+  ],
 );
 
 /**

@@ -133,18 +133,33 @@ export async function POST(request: Request) {
   // Conflict on the recording, not the session: a session that produces two
   // recordings keeps both, where uniqueness on the session id would make the
   // second silently overwrite the first.
+  // Who the call was with. Telnyx has always sent these and this route always
+  // threw them away, which is why 122 recordings whose call was never logged
+  // could not be reached from anywhere in the app: `call_recording` held only
+  // ids, so nothing could ask which business the audio was of. Kept as sent —
+  // matching a lead happens at read time, because a match made here would be
+  // frozen into the row and a number reassigned later would make it a lie.
+  const toNumber = p.to ? String(p.to) : null;
+  const fromNumber = p.from ? String(p.from) : null;
+
   await db.execute(sql`
     insert into call_recording
-      (recording_id, call_session_id, call_leg_id, duration_ms, started_at, ended_at)
+      (recording_id, call_session_id, call_leg_id, duration_ms, started_at,
+       ended_at, to_number, from_number)
     values (
       ${recordingId}, ${sessionId}, ${p.call_leg_id ? String(p.call_leg_id) : null},
-      ${durationMs}, ${startedAt}, ${endedAt}
+      ${durationMs}, ${startedAt}, ${endedAt}, ${toNumber}, ${fromNumber}
     )
     on conflict (recording_id) do update set
       call_session_id = excluded.call_session_id,
       duration_ms = excluded.duration_ms,
       started_at = excluded.started_at,
-      ended_at = excluded.ended_at
+      ended_at = excluded.ended_at,
+      -- coalesce, not excluded: a retry whose payload omits the numbers must
+      -- not blank out ones already stored, and the backfill may have got there
+      -- first on a recording saved before this shipped.
+      to_number = coalesce(excluded.to_number, call_recording.to_number),
+      from_number = coalesce(excluded.from_number, call_recording.from_number)
   `);
 
   return NextResponse.json({ ok: true, recordingId, sessionId });

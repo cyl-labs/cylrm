@@ -326,6 +326,19 @@ export type Meeting = {
   recordingMs: number | null;
 
   /**
+   * The demo itself — the conversation at the booked time, not the cold call
+   * that won it.
+   *
+   * Matched on the lead's number within a window around `startAt`, because the
+   * demo call usually has no `call` row to hang a session id off: a row is
+   * written when an outcome is logged, and nobody logs an outcome mid-demo.
+   * Null until `scripts/backfill-recording-numbers.mjs` has run, and null
+   * afterwards for any meeting whose demo was never recorded or never happened.
+   */
+  demoRecordingId: string | null;
+  demoRecordingMs: number | null;
+
+  /**
    * The call that booked it, when the meeting is linked to one.
    *
    * What "did they turn up" is recorded against — the same key Payroll uses, so
@@ -453,6 +466,42 @@ const meetingSelect = sql`
     where cr.call_session_id = bc.telnyx_session_id
     order by cr.id limit 1
   ) as recording_ms,
+  -- The demo itself, which is a different call from the one above: that one is
+  -- the cold call that won the booking, this is the conversation at the booked
+  -- time. Found by number and time rather than by a session id, because the
+  -- demo call usually has no call row at all -- a founder mid-demo is talking,
+  -- not tapping an outcome, and a row is only written when an outcome is
+  -- logged. That is why to_number exists; see the 2026-09-17 migration.
+  --
+  -- NB: no backticks and no dollar-brace in this comment. A sql template body is
+  -- raw text until a backtick or an interpolation opener, so either one inside a
+  -- SQL comment breaks the file -- the backtick closes the template, the
+  -- interpolation opener starts an expression that is not there. A slash-slash
+  -- comment sitting inside an interpolation is lexed properly and is safe; this
+  -- is not. Both mistakes were made writing this very block.
+  --
+  -- The window opens BEFORE the booked time: measured on the live data, Gel
+  -- Recycling's demo recording began 79 seconds before start_at, because the
+  -- founder rang on the minute and Telnyx started recording as it connected.
+  -- Three hours after covers a demo that ran long or started late.
+  --
+  -- Telnyx stores E.164 and phone_key is bare digits, hence the concatenation.
+  -- Longest wins rather than earliest: a demo slot can contain a failed first
+  -- attempt of a few seconds, and the conversation is the one worth hearing.
+  (
+    select cr.recording_id from call_recording cr
+    where cr.to_number = '+' || l.phone_key
+      and cr.started_at between m.start_at - interval '30 minutes'
+                           and m.start_at + interval '3 hours'
+    order by cr.duration_ms desc nulls last, cr.id desc limit 1
+  ) as demo_recording_id,
+  (
+    select cr.duration_ms from call_recording cr
+    where cr.to_number = '+' || l.phone_key
+      and cr.started_at between m.start_at - interval '30 minutes'
+                           and m.start_at + interval '3 hours'
+    order by cr.duration_ms desc nulls last, cr.id desc limit 1
+  ) as demo_recording_ms,
   f.result as followup_result, f.created_at as followup_at,
   f.by_name as followup_by, f.notes as followup_notes,
   -- Whether a founder has answered "did they turn up" on Payroll.
@@ -598,6 +647,9 @@ function toMeeting(r: Row): Meeting {
     bookingNotes: (r.booking_notes as string | null) ?? null,
     recordingId: (r.recording_id as string | null) ?? null,
     recordingMs: r.recording_ms === null ? null : Number(r.recording_ms),
+    demoRecordingId: (r.demo_recording_id as string | null) ?? null,
+    demoRecordingMs:
+      r.demo_recording_ms === null ? null : Number(r.demo_recording_ms),
     bookingCallId: r.booking_call_id === null ? null : n(r.booking_call_id),
     started: r.started === true,
     startingSoon: r.starting_soon === true,

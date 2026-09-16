@@ -716,6 +716,27 @@ export function MeetingsList({
                     label="Cold call"
                   />
                 )}
+                {/* The demo itself. Matched by the prospect's number around the
+                    booked time rather than by a session id, because the demo
+                    call usually has no `call` row to carry one — a founder
+                    mid-demo is talking, not tapping an outcome, and a row is
+                    only written when one is logged.
+
+                    `callerName` labels the near side of the transcript, and it
+                    is deliberately not `bookedBy`: that is whoever made the
+                    cold call, which is rarely whoever took the demo. Who ran it
+                    is not recorded anywhere — the missing row again — and demos
+                    are run from the Founders line, so that is the one honest
+                    answer available rather than a name that would be wrong. */}
+                {m.demoRecordingId && (
+                  <LogRecording
+                    recordingId={m.demoRecordingId}
+                    recordingMs={m.demoRecordingMs}
+                    company={m.company ?? m.attendeeName ?? "Demo call"}
+                    callerName="Founders"
+                    label="Demo call"
+                  />
+                )}
                 {/* Founders only, and not for tidiness: this is a one-tap join
                     into a live client demo. A caller is paid when a booked demo
                     shows up and the demo itself is deliberately none of their
