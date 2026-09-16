@@ -144,7 +144,17 @@ const latestCall = sql`
       -- what picks the wait in RETRY_AFTER_DAYS.
       (select count(*) from call c3
         where c3.call_lead_id = l.id
-          and c3.outcome in ('no_answer','voicemail','gatekeeper')) as not_reached
+          and c3.outcome in ('no_answer','voicemail','gatekeeper')) as not_reached,
+      -- When a message was last left on this number, across every call on the
+      -- lead. Deliberately not read off the latest call: the retry that
+      -- follows a message is usually a no answer, so by the time the lead
+      -- comes back round the latest call no longer says one was left. True of
+      -- 83 of the 568 leads that have been messaged. The caller needs the
+      -- older fact, which is why this is a lookup of its own.
+      -- NB: no backticks in here. This is a template literal.
+      (select max(c4.called_at) from call c4
+        where c4.call_lead_id = l.id
+          and c4.outcome = 'voicemail') as voicemail_at
     from call c
     where c.call_lead_id = l.id
     order by c.called_at desc, c.id desc
@@ -488,6 +498,20 @@ export type QueueLead = {
   city: string | null;
   state: string | null;
   attempts: number;
+  /**
+   * When a message was last left on this number, or null if never.
+   *
+   * A message is left once per business and never again: the second one says
+   * nothing the first did not, and a queue of them reads as pestering to the
+   * owner who eventually listens. The caller cannot know this by themselves —
+   * the lead comes back days later, usually behind a no answer, and the card
+   * showed only that last try. So the card says it instead.
+   *
+   * Every call on the lead is searched, not just the latest, which is the
+   * whole point: the retry *after* the message is what the lead's state
+   * usually holds by the time it is offered again.
+   */
+  voicemailAt: string | null;
   lastOutcome: CallOutcome | null;
   lastCalledAt: string | null;
   callbackAt: string | null;
@@ -551,6 +575,7 @@ const leadColumns = sql`
   l.dnc_status, l.dnc_checked_at,
   lc.outcome as last_outcome, lc.called_at as last_called_at,
   lc.callback_at, lc.notes as last_notes, lc.by_name as last_called_by,
+  lc.voicemail_at,
   lr.recording_id, lr.duration_ms as recording_ms,
   (select count(*) from call c where c.call_lead_id = l.id) as attempts,
   z.tz
@@ -568,6 +593,9 @@ function toLead(r: Row, dids: DidMap): QueueLead {
     city: (r.city as string | null) ?? null,
     state: (r.state as string | null) ?? null,
     attempts: n(r.attempts),
+    voicemailAt: r.voicemail_at
+      ? new Date(r.voicemail_at as string).toISOString()
+      : null,
     lastOutcome: (r.last_outcome as CallOutcome | null) ?? null,
     lastCalledAt: r.last_called_at
       ? new Date(r.last_called_at as string).toISOString()

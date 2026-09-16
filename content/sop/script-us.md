@@ -208,9 +208,14 @@ _(let them answer)_
 hear a voicemail greeting and a beep. If a person answers, never say it: go
 back to the opener.
 
-Leave one every time it happens. The number is logged as tried whether you
-speak or not, and a message is the only version of that call that can come back
-to you. Keep it short, say the number once at the end, slowly, then log the call
-as **Voicemail**.
+**One message per business, ever.** Leave this the first time a number rings
+out to a greeting and a beep. Every time after that, hang up without speaking:
+a second message says nothing the first one did not, and a stack of them is
+what gets a number blocked. Either way you log the call as **Voicemail** — the
+number was tried, and that is what the log records.
+
+The dial card tells you which one you are on. If it says a message was already
+left, do not leave another. Keep it short, say the number once at the end,
+slowly.
 
 > **Voicemail only** Hi, this is [your name]. I'm calling to see if you have anything in place for after-hours or overflow calls besides voicemail. I help [their trade] businesses capture missed calls with a voice agent that answers instead. If that's something you'd be interested in, give me a call back at [your number]. Thanks!

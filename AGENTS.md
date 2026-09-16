@@ -378,6 +378,27 @@ inbound handled.
     had not picked up yet, 39% answered the first try, 19% the second, 16% the
     third, 10% the fourth and 8% the fifth, and no demo was booked past the
     first. Changing it is that one constant.
+- **One voicemail per business, ever** (2026-09-16, `voicemailAt` on
+  `QueueLead`, the amber line on the dial card, and the voicemail section of
+  both scripts). A second message says nothing the first did not, and a stack
+  of them is what gets a number blocked. Asked for by the floor; **both scripts
+  said "leave one every time it happens" until now, and that was deliberate**,
+  so this is a reversal rather than a gap being filled. It had already cost
+  something: 180 leads had been messaged more than once, one of them five
+  times, because a caller had no way to know.
+  - **Read across every call on the lead, never off the latest one.** The retry
+    that follows a message is usually a no answer, so by the time a lead comes
+    back round its state no longer says a message was left — true of 83 of the
+    568 messaged leads the day this shipped. Computed in the `latestCall`
+    lateral beside `unanswered`, so every screen that knows a lead's last call
+    knows this too.
+  - **The card gives the instruction, not the date.** A caller mid-queue
+    reading a bare timestamp has to work out what to do with it, so the line
+    says to hang up without speaking and log it as Voicemail anyway — the
+    number was tried, and that is what the log records. Nothing is enforced:
+    logging is unchanged and the outcome still means "rang out to a machine".
+  - Dial card only. The Spreadsheet and the board are reference screens and
+    nobody decides whether to speak from them.
 - **Bulk import**: the import dialog takes many CSVs at once, and each becomes
   its own list. Every file is first sent to `POST /api/call-lists` with
   `dryRun=1`, which runs the real parser and reports usable/skipped counts

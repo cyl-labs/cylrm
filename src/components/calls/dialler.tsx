@@ -1104,6 +1104,25 @@ export function Dialler({
           </div>
         )}
 
+        {/* One message per business, ever. This is its own line rather than
+            part of "Last:" above, because by the time a lead comes back round
+            the latest call is usually the no answer that followed the message
+            — so the fact the caller needs is not in the latest call at all.
+            Worded as the instruction rather than the fact: a caller mid-queue
+            reads a date and has to work out what to do with it. */}
+        {current.voicemailAt && (
+          <p
+            suppressHydrationWarning
+            className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <span className="font-semibold">
+              Message already left · {relative(current.voicemailAt)}
+            </span>{" "}
+            If this rings out again, hang up without speaking and log it as
+            Voicemail.
+          </p>
+        )}
+
         {/* Keys are prefixed because this and CallForm below are siblings:
             keying both on the bare lead id gave one parent two children with
             the same key, which React is entitled to conflate. */}
