@@ -324,6 +324,26 @@ inbound handled.
     `exists` false), and it does not touch the repeat-caller case: two
     businesses account for 19 of the 35 outstanding rows by ringing 14 and 5
     times. Those are real unanswered calls, not stale state.
+- **An answered inbound call used to stay in Missed calls for ever** (fixed
+  2026-09-16, the guard in `/api/telnyx/webhook`). `answered_at` was set on
+  **1 inbound row in 92** on prod, against 38 for `ended_at`. Telnyx does not
+  send `call.answered` with `direction: "incoming"` for these calls — an
+  inbound call answered by a SIP endpoint reports the leg that picked up, and
+  that leg is the outgoing one — so the old `p.direction === "incoming" && (…)`
+  guard dropped nearly every answer, and they landed in the fall-through logger
+  instead. Nothing else sets `answered_at`, so a call somebody answered and
+  talked on read as missed until it was cleared by hand.
+  - **Only `call.initiated` is gated on the direction now, and that asymmetry
+    is load-bearing.** It INSERTs, so an outbound leg reaching it would invent a
+    missed call from a number we rang. `call.answered` and `call.hangup` only
+    UPDATE a row keyed on `call_session_id`, so a leg belonging to no inbound
+    call matches nothing. **Do not "tidy" the three types back under one
+    direction check** — that is the bug.
+  - Found from the other end: Omar ringing the Founders number left four rows
+    on Missed calls, and Telnyx had one of them answered, bridged and 41
+    seconds long at MOS 4.46. Not backfilled: which of the existing 91 were
+    really answered is not knowable from our own rows, and any that were rung
+    back clear themselves through `RUNG_BACK_SINCE`.
 - **"Open lead" goes to the dial card, never the spreadsheet**
   (`/calls/<listId>?view=all&lead=<id>`). The grid is a different tool with a
   different shape and a caller sent there mid-shift has to work out where they
@@ -2581,6 +2601,18 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
   - Both checks **fail open**: an unreachable psql restarts anyway, on the
     grounds that a droplet whose database cannot be reached has a worse problem
     than a restart.
+  - **The guard watches calls, not the browser phone, and those are not the
+    same thing** (2026-09-16). `restart_when_clear` reads `app_user.on_call_since`
+    with a 45-second `presence_at` heartbeat, which is the right test for "is
+    anybody mid-conversation" and says nothing about a browser that is merely
+    *registered*. A restart still 502s `POST /api/telnyx/token`: Caddy logged
+    exactly that from a founder's browser at 15:35:51 during a deploy, while
+    the floor was between calls. So a deploy into a legitimate gap can still
+    knock somebody's phone off its SIP registration for the seconds the app
+    takes to come back, and the next inbound call to them gets refused
+    **SIP 480 SUBSCRIBER_ABSENT** — which is indistinguishable, from the
+    caller's side, from nobody being there. Worth knowing before blaming the
+    network for a call that would not connect just after a deploy.
 - Code lives at `/root/crm`; the script's shipping step is
   `rsync -az --delete --exclude /node_modules --exclude .git --exclude ".env*" --exclude .claude ./ root@178.128.28.158:/root/crm/`
   after a local `npm run build`, then `pm2 restart crm crm-worker`.
