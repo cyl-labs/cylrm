@@ -256,10 +256,23 @@ export default async function SopDocumentPage({
                       )}
                       className="mt-3"
                     />
-                    {/* Beside the arithmetic it does, not at the top of the
-                        page: a founder mid-demo is reading the line they are
-                        about to say, and a calculator anywhere else is one they
-                        scroll past and do the sum without. */}
+                    {/* Where the numbers are collected, not beside the
+                        arithmetic they feed. Its two boxes are the two
+                        questions in "get their numbers", so a founder types
+                        each figure as the prospect says it. It sat under "do
+                        the math out loud" until 2026-09-16, one step further
+                        down, which asked somebody mid-demo to hold both numbers
+                        in their head across a scroll — and they didn't, which
+                        is the complaint that moved it. Still never at the top
+                        of the page: a calculator away from the words is one
+                        they scroll past and do the sum without.
+
+                        The marker's position *within* a section does not
+                        matter. The section's prose renders first and this is
+                        appended after it, so the calculator always lands at the
+                        foot of whichever section carries the marker. Move it by
+                        moving it between sections, and expect it at the bottom
+                        of the one it lands in. */}
                     {s.html.includes(CALCULATOR_MARKER) && (
                       <div className="mt-4">
                         <PricingCalculator />

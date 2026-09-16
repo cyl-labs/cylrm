@@ -68,6 +68,13 @@ _(let them answer)_
 
 _(let them answer)_
 
+**Type each number in as they say it.** The calculator is directly below and its
+two boxes are these two questions. Leaving it until you need the figure means
+carrying both numbers in your head while you scroll, which is where they get
+lost.
+
+[calculator]
+
 ## Do the math out loud, with their numbers
 
 Their figures, never yours. The point is that they hear themselves say it.
@@ -80,14 +87,12 @@ Stop there and let the number sit. Do not name a price in the same breath: the
 whole point of the arithmetic is that they say the loss out loud first, so that
 whatever you quote next is measured against it.
 
-[calculator]
-
-The calculator does all of this while they talk — their calls a week and their
-average job — and it prints what each package would cost at that volume. Read
-the package and the price straight off it, and only once they have said the loss
-out loud. It marks the cheapest option at their volume: **do not talk somebody
-up a tier on price**, because the arithmetic will not back you up and a prospect
-who does the sum afterwards has caught you overselling.
+The calculator in the step above has already worked all of this out from the two
+numbers you typed in: the loss, and what each package would cost at their
+volume. Read it straight off, and only once they have said the loss out loud. It
+marks the cheapest option at their volume: **do not talk somebody up a tier on
+price**, because the arithmetic will not back you up and a prospect who does the
+sum afterwards has caught you overselling.
 
 ## If they say it's too expensive
 
