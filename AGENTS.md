@@ -802,6 +802,42 @@ What replaced it, and the shape to keep:
   fee is decided once, wherever somebody happened to be standing when they
   answered. Admin-only for the obvious reason — a caller marking their own
   booking as having shown up is signing off their own commission.
+- **The answer carries a note** (`call_demo_attendance.notes`, 2026-09-17,
+  `2026-09-17-demo-attendance-notes.sql`). Three statuses are the right shape
+  for the thing they decide and far too thin for what a founder comes away
+  with. Gel Recycling on 2026-09-16 is the case: a founder rang at the booked
+  time and spent 4m44s with a receptionist who could not put the manager on.
+  Correctly a no show, since nobody stayed on for the agent — but that the
+  manager exists and is reachable on the main line around 9am was written down
+  nowhere, and went into Slack where no screen can find it.
+  - **Neither existing notes field fits, which is why this is a third.**
+    `call.notes` belongs to a call row and the demo call has no call row at all
+    — the gap the recording match in `meetingSelect` works around.
+    `call_meeting_followup.notes` is the ring back *after* a missed demo and
+    only exists once a no show has been marked, so it cannot hold what the demo
+    itself turned up.
+  - **Picking an answer no longer fires on the tap.** It opens the same box, in
+    the same place, with the same two buttons as the ring back logger already
+    on that row — one tap next to another was the whole gesture, and a mis-tap
+    became a recorded answer. Two loggers on one row behaving differently would
+    be a thing to learn twice. The box is prefilled from what is stored, so
+    changing an answer carries the note with it rather than asking again.
+  - **Only a caller who mentions notes can change them**, and that is the
+    load-bearing line. Payroll's confirm list posts `{callId, status}` and
+    nothing else, so an answer given there must leave a note written on
+    Meetings alone; the Meetings box always sends the field, so an empty one
+    means somebody read that note and deleted it. Hence the `given` flag in the
+    route rather than a null check on the value: *said nothing* keeps, *said
+    nothing in particular* clears. A plain `coalesce` would have made clearing
+    a note impossible from the one screen that shows it.
+  - **Both note boxes on the row are labelled** now that there are two, for the
+    same reason the two play buttons say "Cold call" and "Demo call": two
+    unlabelled grey blocks leave a founder guessing which call they are
+    reading. The demo's note sits above the ring back's, because it happened
+    first.
+  - **Apply the migration before deploying.** `meetingSelect` selects the
+    column and `getMeetings` draws the Meetings screen, so shipping the code
+    first breaks that screen for everyone.
 - **`needsRingBack` requires the lead's *latest* accepted booking.** Attendance
   is recorded per business (one fee per lead), so one "no show" answer is
   visible to every meeting row that lead has — KR Services asked to be rung back
