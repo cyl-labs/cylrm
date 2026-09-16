@@ -189,10 +189,16 @@ export function ListStatsRows({ lists }: { lists: ListStat[] }) {
                         style={{ width: `${workedPct}%` }}
                       />
                     </span>
+                    {/* The percent sign belongs to the number, not to the
+                        label: moved into the muted span it inherits that
+                        span's `ml-1` and the row renders "99 % worked". Caught
+                        in a 390px screenshot — every assertion about widths and
+                        overflow passed, because a stray space breaks nothing
+                        measurable. */}
                     <span className="w-20 shrink-0 text-right text-[12px] tabular-nums">
-                      {workedPct}
+                      {workedPct}%
                       <span className="ml-1 text-muted-foreground">
-                        % worked
+                        worked
                       </span>
                     </span>
 
