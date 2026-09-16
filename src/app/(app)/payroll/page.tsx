@@ -14,8 +14,10 @@ import {
   getPayoutHistory,
   getPayroll,
 } from "@/lib/payroll";
+import { getPayrollReminderSetting } from "@/lib/payroll-reminder";
 import { PayrollTable } from "@/components/payroll/payroll-table";
 import { DemoConfirmList } from "@/components/payroll/demo-confirm-list";
+import { PayrollReminderCard } from "@/components/payroll/reminder-card";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -41,10 +43,11 @@ export default async function PayrollPage() {
   // list in another file.
   if (me?.role !== "admin") redirect("/calls");
 
-  const [rows, demos, history] = await Promise.all([
+  const [rows, demos, history, reminder] = await Promise.all([
     getPayroll(),
     getDemosToConfirm(),
     getPayoutHistory(),
+    getPayrollReminderSetting(),
   ]);
 
   const owedTotal = rows.reduce((sum, r) => sum + r.totalCents, 0);
@@ -240,6 +243,21 @@ export default async function PayrollPage() {
               </table>
             </div>
           )}
+        </div>
+
+        {/* When to be told it is payday. At the foot because it is a setting
+            rather than work — what is owed is the top of this screen, and this
+            is only how you stop finding out about it late. */}
+        <div className={CARD}>
+          <div className="border-b border-border/60 px-5 py-3.5">
+            <p className="text-sm font-extrabold tracking-[-0.01em]">
+              Payday reminder
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground/75">
+              A notification to the founders with what everybody is owed.
+            </p>
+          </div>
+          <PayrollReminderCard initial={reminder} />
         </div>
       </div>
     </PageShell>

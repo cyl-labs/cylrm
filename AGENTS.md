@@ -1355,6 +1355,42 @@ One push a week to the founders: who finished under `WEEKLY_CALL_QUOTA`.
   push configured the "nothing to do" branch is not taken, so a missing table
   is a cron job throwing every five minutes.
 
+### Payday reminder (founders only, settable)
+
+One push a week: what the floor is owed, on the day the money goes out.
+`src/lib/payroll-reminder.ts`, `/api/cron/payroll` on the same worker loop,
+settings at `/api/payroll/reminder` and `components/payroll/reminder-card.tsx`.
+Schema in `2026-09-16-payroll-reminder.sql`.
+
+- **Payroll is manual on purpose**, which makes the one failure it cannot
+  survive a founder forgetting it is Friday. Nothing on that screen resets on a
+  timer and nothing pays anybody; everything on it waits patiently, and the
+  people waiting to be paid do not.
+- **The schedule is settable, not a constant** — `app_setting.payroll_reminder_on
+  / _weekday / _hour`, defaulting to Friday 5pm. Payday is a business decision
+  and the only certain thing about it is that it moves. It lives on
+  `app_setting` beside the sending window because that is this app's
+  single-row settings table.
+- **The hour is read in the recipient's own zone, and this is the one payroll
+  number that is.** Everything else is cut in `STATS_TZ` precisely so that what
+  somebody is owed cannot depend on which clock the person paying them reads.
+  A reminder is the opposite kind of thing — a nudge to a human — and "Friday
+  5pm" means 5pm where that human is. The founders are in Singapore, so firing
+  on Eastern would have delivered it at 5am on Saturday.
+- **`week_start` on the claim table is an idempotency key, not a reporting
+  window.** It is Payroll's Monday in `STATS_TZ`; the send *time* is local.
+  Keying per week is what lets the window run on past the configured hour — so
+  a worker outage on Friday evening still delivers on Saturday — while making a
+  second send for that week impossible.
+- **Its own route and its own notification tag.** `/api/settings` is an Email
+  CRM screen guarded by `denyIfNotEmailUser`, the wrong gate entirely for this,
+  and one that would let an email user change when the calling floor is paid;
+  `/api/payroll/reminder` is admin-only through `getCurrentUser`. The tag is
+  `cylrm-payroll` because the quota digest lands the same evening and one must
+  not replace the other.
+- **Sent even when nothing is owed**, like the quota digest: silence cannot be
+  told apart from the job having stopped.
+
 ### Browser push reminders
 
 A meeting reminder has to reach somebody who has not opened the CRM yet today.

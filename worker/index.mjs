@@ -41,6 +41,10 @@ async function run() {
   // immediately outside Friday evening to Sunday, and the week is claimed by a
   // unique index inside it, so this is a no-op on all but one tick a week.
   await tick("quota");
+  // Payday. Settable, defaulting to Friday 5pm in the recipient's own zone,
+  // and claimed per pay week — so like the two above this is a no-op on all
+  // but one tick a week.
+  await tick("payroll");
 }
 
 run();

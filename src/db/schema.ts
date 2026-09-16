@@ -158,6 +158,27 @@ export const appSetting = pgTable("app_setting", {
    *  businesses is wasted at the weekend, and a follow-up landing 72h after a
    *  Thursday send would otherwise arrive on Sunday. */
   sendWeekdaysOnly: boolean("send_weekdays_only").notNull().default(true),
+  /**
+   * When the founders get the payday reminder.
+   *
+   * Settable because payday is a business decision and the one thing certain
+   * about it is that it moves — "every Friday 5pm" is today's answer, not a
+   * constant. Kept here beside the sending window because this is the app's
+   * single-row settings table.
+   *
+   * **The hour is read in the recipient's own zone**, unlike every other
+   * payroll figure, which is cut in `STATS_TZ` so that what somebody is owed
+   * cannot depend on who is reading. A reminder is a nudge to a person, and
+   * 5pm means 5pm where they are: on Eastern this would reach Singapore at 5am
+   * on Saturday.
+   */
+  payrollReminderOn: boolean("payroll_reminder_on").notNull().default(true),
+  /** ISO weekday: 1 = Monday … 7 = Sunday. */
+  payrollReminderWeekday: integer("payroll_reminder_weekday")
+    .notNull()
+    .default(5),
+  /** Hour of that day, 0-23, in the recipient's own zone. */
+  payrollReminderHour: integer("payroll_reminder_hour").notNull().default(17),
 });
 
 export const leadList = pgTable("lead_list", {
@@ -1282,6 +1303,38 @@ export const meetingReminderSent = pgTable(
  * Nothing else invites the prospect or reminds anyone it was promised, so a
  * diary nobody opens is a promise quietly broken.
  */
+/**
+ * One payday reminder per founder per pay week.
+ *
+ * `weekStart` is an **idempotency key, not a reporting window**: the send time
+ * is judged in the recipient's own zone, but a stable per-week key is what
+ * lets the window run on past the configured hour — so a worker outage on
+ * Friday evening still delivers on Saturday — while making a second send for
+ * that week impossible.
+ */
+export const payrollReminderSent = pgTable(
+  "payroll_reminder_sent",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    /** The Monday the pay week began, in `STATS_TZ`. */
+    weekStart: date("week_start").notNull(),
+    /** What the reminder claimed was owed, kept so it can be checked back. */
+    owedCents: integer("owed_cents").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("payroll_reminder_sent_once_per_week_idx").on(
+      t.userId,
+      t.weekStart,
+    ),
+  ],
+);
+
 /**
  * One Friday quota digest per founder per week.
  *
