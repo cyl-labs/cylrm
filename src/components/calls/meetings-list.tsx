@@ -860,14 +860,33 @@ export function MeetingsList({
             )}
 
             {/* The whole conversation with this business, oldest first, so a
-                reply reads under the text it answers. */}
+                reply reads under the text it answers.
+
+                Folded away since 2026-09-16, the same native `details` the
+                booking notes use: a long thread pushed the next meeting off
+                the screen, and this is a diary read top to bottom. Native so
+                it works before hydration and costs no state on a list that
+                can be long.
+
+                Shut even when they have replied, because the row already says
+                "Texted back" in its chips — the fold repeating that would be
+                the noise this removes. The summary carries the count and when
+                the last one was, so it is worth reading closed. */}
             {lead && lead.texts.length > 0 && (
-              <div className="mt-3 rounded-lg border bg-muted/30 px-3 py-2.5">
-                <p className="flex items-center gap-1.5 text-[13px] font-semibold">
-                  <MessageSquare className="size-3.5 text-muted-foreground" />
+              <details className="group mt-3 rounded-lg border bg-muted/30">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">
+                  <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+                  <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />
                   Texts
-                </p>
-                <ul className="mt-2 flex flex-col gap-2">
+                  <span className="font-normal text-muted-foreground">
+                    {lead.texts.length}
+                    {" · "}
+                    <span suppressHydrationWarning>
+                      {when(lead.texts[lead.texts.length - 1].at)}
+                    </span>
+                  </span>
+                </summary>
+                <ul className="flex flex-col gap-2 border-t px-3 py-2.5">
                   {lead.texts.map((t) => (
                     <li
                       key={t.id}
@@ -918,11 +937,13 @@ export function MeetingsList({
                   ))}
                 </ul>
                 {lead.optedOut && (
-                  <p className="mt-2 text-[12px] text-muted-foreground">
+                  // Its own bordered strip now the padding lives on the list
+                  // above rather than on a wrapper.
+                  <p className="border-t px-3 py-2 text-[12px] text-muted-foreground">
                     They replied STOP, so no more texts can go to them.
                   </p>
                 )}
-              </div>
+              </details>
             )}
 
             {/*

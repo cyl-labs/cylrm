@@ -795,6 +795,15 @@ What replaced it, and the shape to keep:
 - Times render in that one zone with the prospect's own alongside it when it
   differs — `attendees[].timeZone` comes free on the booking, and the SOP used
   to make a caller work it out by hand.
+- **The text thread on a row is folded away** (2026-09-16), the same native
+  `details` the booking notes use, so it opens before hydration and costs no
+  state on a list that can be long. A conversation of any length pushed the
+  next meeting off the screen, and this is a diary read top to bottom. It stays
+  **shut even when they have replied**, because the row's own chips already say
+  "Texted back" and a fold repeating that is the noise this removes; the
+  summary carries the count and when the last one was, so it is worth reading
+  closed. The composer is outside the fold — collapsing the history must not
+  hide the way to answer it.
 - **The screen explains itself** (`meetings-explainer.tsx`, 2026-09-07). Every
   other screen in the app is filled in by somebody; this one fills itself in —
   times arrive from Cal.com, rows appear on their own, notifications go out on
@@ -1018,6 +1027,16 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
   directly (`conversationHref`). The text being sent shows faded until the
   refreshed thread is longer than when it went — compared by length rather than
   cleared in an effect.
+  - **Guard the send on `showPending`, never on `pending`** (fixed 2026-09-16).
+    That length comparison is why `pending` is deliberately *not* cleared on a
+    successful send — but `send()` and the arrow's `disabled` both read the raw
+    value, so one text disabled the composer until the page was reloaded. A
+    founder hit it live and worked around it by refreshing between every
+    message; both his texts were delivered, so nothing in the data looked
+    wrong. `showPending` goes false the moment the refreshed thread carries the
+    message, and the 10s poll means it recovers on its own if a refresh is
+    missed. The Meetings composer never had this — it clears `busy` in a
+    `finally`.
 - **Testing locally**: start the dev server with `TELNYX_SMS_ENABLED=1` and
   `TELNYX_API_BASE` pointed at a stand-in that answers `POST /messages`, or the
   send goes to real Telnyx with `.env.local`'s key. Giving a local account a

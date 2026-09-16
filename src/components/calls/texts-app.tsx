@@ -523,7 +523,14 @@ function ThreadView({
 
   function send() {
     const body = text.trim();
-    if (!body || pending) return;
+    // `showPending`, never `pending`. On a successful send `pending` is left
+    // set on purpose — the faded bubble hides itself by comparing lengths
+    // rather than by clearing state in an effect — so reading it here meant
+    // one send disabled the composer until the page was reloaded. A founder
+    // hit that on 2026-09-16 and worked around it by refreshing between every
+    // text. This goes false the moment the refreshed thread has the message,
+    // and the screen re-polls every 10s, so it recovers by itself.
+    if (!body || showPending) return;
     if (body.length > MAX_LENGTH) {
       toast.error(`Keep it under ${MAX_LENGTH} characters.`);
       return;
@@ -722,7 +729,7 @@ function ThreadView({
             />
             <button
               type="submit"
-              disabled={!text.trim() || pending !== null}
+              disabled={!text.trim() || showPending}
               aria-label="Send"
               className="mb-px ml-2 flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--imsg-sent)] text-white transition-opacity disabled:opacity-40"
             >
