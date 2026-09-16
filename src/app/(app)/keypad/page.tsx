@@ -15,8 +15,13 @@ export const dynamic = "force-dynamic";
 /**
  * A phone with no lead behind it.
  *
- * Granted per person (`app_user.keypad_access`) rather than by role, because
- * it is one permission and not a rank. Admins have it by being admins.
+ * Held per person (`app_user.keypad_access`) rather than by role, because it is
+ * one permission and not a rank. Admins have it by being admins.
+ *
+ * **On by default since 2026-09-16.** It was off by default and granted one at
+ * a time, which meant the permission was reliably missing at the moment
+ * somebody needed to ring a number that is not on a niche. The column is now a
+ * way to take it away from one person rather than a gate everybody waits at.
  *
  * Checked here rather than in the middleware, which only has the session
  * cookie and so could not tell a granted caller from an ungranted one without

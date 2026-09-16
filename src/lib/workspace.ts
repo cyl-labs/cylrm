@@ -164,8 +164,9 @@ export const EMAIL_PREFIXES = [
  * has to take `mine` into account or it will show a caller the floor.
  *
  * The Keypad was on this list until 2026-08-25. It is not a rank but a single
- * permission — `app_user.keypad_access`, granted per person — so it lives in
- * `KEYPAD_PREFIX` below instead. Admins keep it by being admins.
+ * permission — `app_user.keypad_access` — so it lives in `KEYPAD_PREFIX` below
+ * instead. On by default since 2026-09-16; the column now takes it away from
+ * one person rather than letting them in. Admins keep it by being admins.
  */
 export const ADMIN_ONLY_CALL_PREFIXES = [
   "/scoreboard",

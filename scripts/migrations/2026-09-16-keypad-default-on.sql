@@ -1,0 +1,33 @@
+-- The Keypad is on by default.
+--
+-- Safe to apply before or after the deploy, unlike most migrations here: the
+-- column already exists and nothing reads it differently. This only changes
+-- what a new account starts with, and switches it on for the people already
+-- here.
+--
+-- It was granted per person from 2026-08-25, on the reasoning that dialling
+-- off the books should be a deliberate decision. That reasoning was sound and
+-- the mechanism still failed in the ordinary way: the grant was the step
+-- nobody remembered. Four of eleven active callers had it on 2026-09-16, and
+-- the ones without it included every person who had since been asked to ring a
+-- number that is not on a niche. A permission people have to be given one at a
+-- time, by somebody who is not in the room, is a permission that is missing
+-- exactly when it is wanted.
+--
+-- What it hands over is unchanged, and is the reason this is safe: the Keypad
+-- writes no `call` row, so nothing dialled from it reaches Stats, the pipeline
+-- board, the Scoreboard, a lead's state or anyone's pay. The screen says so
+-- itself at the bottom. The `keypad_call` record it does write is the audit
+-- trail, which is the part that makes handing it out cheap rather than risky.
+--
+-- The Team toggle stays exactly as it is, so it can still be taken away from
+-- one person. Admins are still not stored here: they have it by being admins,
+-- and writing that into the data would make revoking it look possible when it
+-- is not.
+alter table app_user alter column keypad_access set default true;
+
+-- Everyone already on the floor, so "on by default" means something today
+-- rather than only for the next hire. Deactivated accounts are deliberately
+-- left as they are: switching somebody off is not the moment to grant them a
+-- phone.
+update app_user set keypad_access = true where role = 'caller' and active;

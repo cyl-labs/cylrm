@@ -140,11 +140,21 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   a tab closed on the hangup still files it. `line.reset()` is called before
   each dial: the hook's timer keeps its last value, so a no-answer after a
   two-minute call would otherwise be filed as two minutes.
-  **Granted per person** via `app_user.keypad_access`, toggled on the Team
-  screen; admins have it by being admins and `canUseKeypad` never reads the
-  column for them, which is why their row says "Always" rather than offering a
-  switch. It was admin-only until 2026-08-25 — a rank was the wrong shape for
-  one permission that grants nothing else. Enforced by the page redirecting,
+  **On by default since 2026-09-16** (`2026-09-16-keypad-default-on.sql`), held
+  per person via `app_user.keypad_access` and still toggled on the Team screen;
+  admins have it by being admins and `canUseKeypad` never reads the column for
+  them, which is why their row says "Always" rather than offering a switch. It
+  was admin-only until 2026-08-25 — a rank was the wrong shape for one
+  permission that grants nothing else — then off-by-default and granted one at
+  a time until 2026-09-16. That failed the ordinary way: four of eleven active
+  callers had it, and the ones without included everybody since asked to ring a
+  number that is not on a niche. **The column is now a way to take the Keypad
+  away from one person, not a gate everybody waits at.** Safe because what it
+  grants is unchanged — no `call` row, so nothing reaches Stats, the board, the
+  Scoreboard or anyone's pay, and `keypad_call` is the audit trail that makes
+  handing it out cheap. The migration may be applied before or after the
+  deploy, unlike most here: the column already exists and nothing reads it
+  differently. Enforced by the page redirecting,
   not the middleware, which only has the session cookie and so could not tell a
   granted caller from an ungranted one without signing everybody out; the
   sidebar link is the courtesy and a bookmark walks past it. Recording still happens (it is set on the outbound

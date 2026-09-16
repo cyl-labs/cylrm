@@ -477,7 +477,7 @@ export const appUser = pgTable("app_user", {
    *  row. Granted per person rather than by role: admins have it by being
    *  admins, and a caller gets it when there is a reason to ring numbers that
    *  are not on a niche. One permission, not a tier. */
-  keypadAccess: boolean("keypad_access").notNull().default(false),
+  keypadAccess: boolean("keypad_access").notNull().default(true),
   /** Live objection hints on the dialler. Granted per person while the feature
    *  is being tested — and unlike keypadAccess, admins are not implicitly in:
    *  this one can be wrong in front of a prospect. */
