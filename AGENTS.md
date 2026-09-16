@@ -2348,6 +2348,24 @@ accident. `telnyx-numbers.tsx` names **every** holder (`holders`, not `find`)
 and colours a shared row red, so an existing collision is findable at a glance
 rather than hidden behind whichever name `find` happened to return.
 
+**Reserve must never be a one-way door** (fixed 2026-09-16). That button was
+`disabled={!n.available && !!who}` — refusing "Make available" while somebody
+held the number, tooltip "Unassign it from that person first." The guard was on
+the wrong side: reserving an assigned number is the questionable act,
+un-reserving it is purely additive, so one mis-click locked the undo behind
+unassigning a caller. A founder hit it and could not get back. Making a number
+available again changes nothing about who holds it or what Telnyx does; it only
+lets it appear as an option, and `offerFor` already labels a held one "in use
+by <name>" and asks before handing it out twice.
+
+**Assigning a number does not clear the previous holder.** `PATCH
+/api/users/[id]` sets `telnyxDid` on the target and calls `provisionLine`,
+which repoints the number at *that person's* connection — but it leaves the old
+row claiming it. Moving a number between people is therefore two calls, clear
+then assign, in that order: skip the first and inbound rings the new holder
+while the old one still dials out from a number that is no longer theirs, which
+is the shared-number failure above arrived at by a different road.
+
 **A number needs a connection, not just a DID.** Buying one and setting
 `telnyx_did` gets outbound working and leaves the person unreachable: inbound
 rings whatever is registered on the *connection* the number points at. The full

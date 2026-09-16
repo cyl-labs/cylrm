@@ -220,14 +220,25 @@ export function TelnyxNumbers({
                       : "Nobody yet"
                     : "Reserved"}
                 </span>
+                {/* Never disabled. It used to refuse "Make available" while
+                    somebody held the number — `!n.available && !!who` — which
+                    put the guard on the wrong side: reserving an assigned
+                    number is the questionable act, un-reserving it is purely
+                    additive. One mis-click on Reserve therefore locked the
+                    undo behind unassigning a caller, a destructive detour to
+                    escape a slip. A founder hit exactly that on 2026-09-16.
+
+                    Making it available again changes nothing about who holds
+                    it or what Telnyx does; it only lets the number appear as
+                    an option again, and `offerFor` already labels a held one
+                    "in use by <name>" and asks before handing it out twice. */}
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 shrink-0"
-                  disabled={!n.available && !!who}
                   title={
                     !n.available && who
-                      ? "Unassign it from that person first."
+                      ? `Still assigned to ${who.name}. Making it available only puts it back in the dropdowns.`
                       : undefined
                   }
                   onClick={() => toggle(n.phoneNumber, !n.available)}
