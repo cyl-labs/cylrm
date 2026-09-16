@@ -80,6 +80,11 @@ export function LogFilter({
             exactly why each needs an entry of its own to be picked out by. */}
         <SelectItem value="outside_hours">Outside 9&ndash;5 there</SelectItem>
         <SelectItem value="keypad">Keypad</SelectItem>
+        {/* The calls that produced a booking, which is a different question
+            from "logged as Demo booked": that outcome is the lead's current
+            state and a demo since cancelled or rebooked no longer carries it,
+            while the call that won it is a fact that does not change. */}
+        <SelectItem value="meetings">Meetings</SelectItem>
       </SelectContent>
     </Select>
   );

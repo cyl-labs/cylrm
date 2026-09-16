@@ -616,12 +616,42 @@ export const CALL_LOG_LIMIT = 300;
  * question being asked of this table ("show me only the…"), and each needs an
  * entry of its own precisely because no outcome can stand for it.
  */
-export type LogFilterValue = CallOutcome | "keypad" | "outside_hours";
+/**
+ * What the call log can be narrowed to.
+ *
+ * Three values that are not outcomes, each because it is a question this table
+ * gets asked that no outcome can stand for: `keypad` (rows with no outcome at
+ * all), `outside_hours` (was it placed at four in the morning their time), and
+ * `meetings` (did this call produce a booking).
+ *
+ * `meetings` is deliberately not the same as filtering to `demo_booked`. That
+ * outcome is the lead's *current* state, so a demo since rebooked or moved to
+ * Trial no longer carries it — while the call that won the booking is a fact
+ * that does not change. `call_meeting.call_id` is the record of which call
+ * that was.
+ */
+export type LogFilterValue =
+  | CallOutcome
+  | "keypad"
+  | "outside_hours"
+  | "meetings";
 
-/** The filter values that are not outcomes, for parsing a URL. */
+/**
+ * The filter values that are not outcomes, for parsing a URL.
+ *
+ * **Every non-outcome value has to be listed here or it is silently dropped.**
+ * The page tests this first and then falls back to `rawOutcome in
+ * OUTCOME_LABELS`, so a value that is neither resolves to `undefined` and the
+ * log quietly shows everything — which reads as "the filter found all of these"
+ * rather than as a broken filter. Nothing catches it: the compiler is happy,
+ * because this guard's return type is narrower than `LogFilterValue` by design.
+ * `meetings` was added on 2026-09-17 and missing it here would have shipped a
+ * dropdown entry that did nothing.
+ */
 export const isNonOutcomeLogFilter = (
   v: unknown,
-): v is "keypad" | "outside_hours" => v === "keypad" || v === "outside_hours";
+): v is "keypad" | "outside_hours" | "meetings" =>
+  v === "keypad" || v === "outside_hours" || v === "meetings";
 
 /** The recording for a call session, newest first within it. One session can
  *  produce more than one file, and both `call` and `keypad_call` reach them
@@ -722,9 +752,16 @@ export async function getCallLog(
       ${
         filter === "outside_hours"
           ? sql`and z.tz is not null and ${RANG} and not ${withinLeadHours(sql`c.called_at`)}`
-          : filter && filter !== "keypad"
-            ? sql`and c.outcome = ${filter}`
-            : sql``
+          : // Before the outcome branch, and that order is load-bearing: the
+            // clause below would emit `c.outcome = 'meetings'`, and Postgres
+            // refuses a value the call_outcome enum does not have.
+            filter === "meetings"
+            ? sql`and exists (
+                select 1 from call_meeting m where m.call_id = c.id
+              )`
+            : filter && filter !== "keypad"
+              ? sql`and c.outcome = ${filter}`
+              : sql``
       }
   `;
 

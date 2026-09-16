@@ -28,6 +28,7 @@ export function LogRecording({
   company,
   callerName,
   mine = false,
+  label = "Listen back",
 }: {
   recordingId: string;
   recordingMs: number | null;
@@ -39,6 +40,19 @@ export function LogRecording({
    *  every row on that screen is yours — so it comes off the sheet's subtitle,
    *  and the transcript calls the near side "You" instead. */
   mine?: boolean;
+  /**
+   * What the control is called, where the row knows something the call log
+   * does not.
+   *
+   * On Stats a row is one dial among three hundred and "Listen back" is the
+   * whole truth. On a Meetings row it is specifically the cold call that *won*
+   * the booking — `meetings.ts` reads it off the `demo_booked` call's session —
+   * and a meeting will soon carry a second recording from the demo itself, at
+   * which point two buttons both saying "Listen back" would be a guess. Named
+   * by the caller rather than derived here, because only the caller knows which
+   * call it is holding.
+   */
+  label?: string;
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -53,7 +67,7 @@ export function LogRecording({
         className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
       >
         <CirclePlay className="size-3.5" strokeWidth={2} />
-        Listen back
+        {label}
         {recordingMs && (
           <span className="font-medium text-muted-foreground">
             {mmss(recordingMs)}

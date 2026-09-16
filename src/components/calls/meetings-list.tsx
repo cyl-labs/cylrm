@@ -700,12 +700,20 @@ export function MeetingsList({
                 )}
                 {/* The same sheet the call log opens: audio, and a transcript
                     whose turns seek it. Made on request in there, not here. */}
+                {/* "Cold call", not "Listen back": this is the call that won
+                    the booking, read off the `demo_booked` call's session in
+                    `meetings.ts` — the same recording the notes below it came
+                    from. Naming it matters now that the demo itself is also
+                    recorded, because two unlabelled play buttons on one row
+                    would leave a founder guessing which call they were about
+                    to hear. */}
                 {m.recordingId && (
                   <LogRecording
                     recordingId={m.recordingId}
                     recordingMs={m.recordingMs}
                     company={m.company ?? m.attendeeName ?? "Booking call"}
                     callerName={m.bookedBy ?? "Caller"}
+                    label="Cold call"
                   />
                 )}
                 {/* Founders only, and not for tidiness: this is a one-tap join

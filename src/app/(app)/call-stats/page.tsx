@@ -798,9 +798,14 @@ export default async function CallStatsPage({
                   : "Nothing dialled from the keypad in this range."
                 : outcome === "outside_hours"
                   ? "Every call in this range was placed inside 9am to 5pm where the prospect is."
-                  : outcome
-                    ? `Nothing logged as ${OUTCOME_LABELS[outcome].toLowerCase()} in this range.`
-                    : "No calls logged in this range."}
+                  : // Its own branch, not a fall-through: the line below reads
+                    // OUTCOME_LABELS, and "meetings" is not an outcome, so it
+                    // would render "Nothing logged as undefined in this range".
+                    outcome === "meetings"
+                    ? "No call in this range produced a booking."
+                    : outcome
+                      ? `Nothing logged as ${OUTCOME_LABELS[outcome].toLowerCase()} in this range.`
+                      : "No calls logged in this range."}
             </p>
           ) : (
             <div className="max-h-[32rem] overflow-auto">
