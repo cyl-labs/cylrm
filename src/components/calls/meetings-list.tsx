@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
 import { CallBackButton } from "@/components/calls/call-back-button";
+import { MeetingCallButton } from "@/components/calls/meeting-call-button";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
 
 /**
@@ -637,11 +638,29 @@ export function MeetingsList({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+                {/* Rings from here rather than sending you to the lead's dial
+                    card and asking for a second press. The redirect was a
+                    leftover from when the diary could not dial at all, and it
+                    is what split the call from the outcome: you rang on one
+                    screen and said how it went on another, so the recording had
+                    nothing to attach to. */}
+                <MeetingCallButton
+                  who={m.company ?? m.attendeeName ?? "this prospect"}
+                  to={m.dialTo}
+                  from={m.dialFrom}
+                  leadId={m.leadId}
+                  blocked={m.dncBlock}
+                  note={m.needsRingBack ? "They did not turn up to this one." : undefined}
+                  label={m.needsRingBack ? "Ring them back" : "Call them"}
+                />
+                {/* Still offered when the browser cannot dial — a founder on a
+                    handset needs the number in their hand. */}
                 {m.listId !== null && m.leadId !== null && !m.dncBlock && (
                   <CallBackButton
                     listId={m.listId}
                     leadId={m.leadId}
-                    label={m.needsRingBack ? "Ring them back" : "Call them"}
+                    label="Open lead"
+                    className="bg-transparent text-foreground border hover:bg-muted"
                   />
                 )}
                 {m.phone && (

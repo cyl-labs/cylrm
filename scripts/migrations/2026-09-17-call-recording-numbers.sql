@@ -28,10 +28,20 @@
 -- keeping. `scripts/backfill-recording-numbers.mjs` fills the history from the
 -- API; the webhook fills new ones as they arrive.
 --
--- Safe to apply before or after the deploy, unlike most migrations here: no
--- read path selects these columns until the code that uses them ships, and the
--- webhook tolerates their absence. Adding a nullable column takes no table
--- rewrite in Postgres, so it does not block the floor.
+-- APPLY THIS BEFORE DEPLOYING, and never after. An earlier version of this note
+-- said either order was fine, which was true only while the code sat
+-- uncommitted: `meetingSelect` now selects to_number, and `getMeetings` is what
+-- draws the Meetings screen -- so deploying first means that screen errors for
+-- everybody until this runs. The same trap `2026-08-30-call-meeting.sql`
+-- documents, where a missing table took out every screen rather than one.
+--
+-- The webhook tolerates their absence in the other direction, so applying this
+-- early costs nothing. Adding a nullable column takes no table rewrite in
+-- Postgres, so it does not block the floor either.
+--
+-- Nothing appears on a meeting row until `scripts/backfill-recording-numbers.mjs`
+-- has also run: the column exists but is null on all 122 existing recordings
+-- until then, so the order is migration, deploy, backfill.
 alter table call_recording
   add column if not exists to_number text,
   add column if not exists from_number text;

@@ -2,7 +2,10 @@ import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { dncBlockReason } from "@/lib/dnc";
-import { dialCountry } from "@/lib/phone";
+import { dialCountry, e164 } from "@/lib/phone";
+// The meeting row dials in place now, so it needs what the dial card needs.
+// No cycle: the calls module does not import this one.
+import { didFor, getDids, type DidMap } from "@/lib/calls";
 import { callScope, type CurrentUser } from "@/lib/session";
 import { callRegionOf, statsRegionOf } from "@/lib/users";
 import { statsZone } from "@/lib/stats-zones";
@@ -339,6 +342,25 @@ export type Meeting = {
   demoRecordingMs: number | null;
 
   /**
+   * What the row needs to ring them without leaving the screen.
+   *
+   * The diary used to link to the lead's dial card instead, because the phone
+   * only lived there. That stopped being true when the line moved into the app
+   * layout, and nobody revisited it -- so a demo meant a redirect, a second
+   * press, and an outcome logged on a different screen from the meeting it
+   * belonged to. That is exactly how the demo recording ended up attached to
+   * nothing.
+   *
+   * `dialFrom` is the signed-in person's own number, not one chosen by the
+   * prospect's country: `getDids` reads `telnyx_did` for whoever is asking and
+   * returns it under every country key. Null when they have no number assigned,
+   * which is two accounts today -- the row says so rather than hiding the
+   * button, since a missing control reads as the phone being broken.
+   */
+  dialTo: string | null;
+  dialFrom: string | null;
+
+  /**
    * The call that booked it, when the meeting is linked to one.
    *
    * What "did they turn up" is recorded against — the same key Payroll uses, so
@@ -598,7 +620,10 @@ const joins = sql`
   ${latestFollowup}
 `;
 
-function toMeeting(r: Row): Meeting {
+// `dids` is threaded in rather than read here, exactly as `toLead` takes it:
+// `getDids` is async and cached per request, and a mapper that awaited would
+// make every row its own round trip.
+function toMeeting(r: Row, dids: DidMap): Meeting {
   const phone = (r.phone as string | null) ?? null;
   return {
     id: n(r.id),
@@ -642,6 +667,10 @@ function toMeeting(r: Row): Meeting {
           dialCountry(phone),
         )
       : null,
+    // Built exactly as the dial card builds them, so a number that can be rung
+    // from one screen can be rung from the other.
+    dialTo: phone ? e164(phone) : null,
+    dialFrom: didFor(dialCountry(phone ?? ""), dids),
     bookedBy: (r.booked_by as string | null) ?? null,
     bookedAt: iso(r.booked_at),
     bookingNotes: (r.booking_notes as string | null) ?? null,
@@ -696,7 +725,8 @@ export async function getMeetings(
     order by m.start_at asc, m.id asc
   `)) as Row[];
 
-  return rows.map(toMeeting);
+  const dids = await getDids();
+  return rows.map((r) => toMeeting(r, dids));
 }
 
 /**
@@ -1060,5 +1090,6 @@ export async function getMeeting(
     where m.id = ${id} ${ownedBy(ownerId)}
     limit 1
   `)) as Row[];
-  return rows[0] ? toMeeting(rows[0]) : null;
+  const dids = await getDids();
+  return rows[0] ? toMeeting(rows[0], dids) : null;
 }
