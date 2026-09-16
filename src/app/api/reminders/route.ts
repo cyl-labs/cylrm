@@ -4,35 +4,62 @@ import { appSetting } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
 
 /**
- * When the founders get the payday reminder.
+ * When the founders get each weekly reminder.
  *
- * Its own route rather than an addition to `/api/settings`, which is an Email
- * CRM screen guarded by `denyIfNotEmailUser` — the wrong gate entirely for a
- * Call CRM setting, and one that would let an email user change when the
- * calling floor gets paid.
+ * One route for both rather than a pair of near-identical ones: the guard, the
+ * validation and the single-row upsert are the same three things whichever
+ * reminder is being moved, and two copies of "is 8 a valid hour" is how they
+ * end up disagreeing. `which` names the reminder; everything else is shared.
+ *
+ * Not an addition to `/api/settings`, which is an Email CRM screen guarded by
+ * `denyIfNotEmailUser` — the wrong gate entirely, and one that would let an
+ * email user change when the calling floor is told about its own numbers.
  *
  * Admin-only, checked with `getCurrentUser` rather than the session flag:
  * `/api` is outside the middleware matcher, so this guard is the only one
  * there is, and `session.loggedIn` is a cookie flag that says nothing about
- * who is holding it or whether they are still switched on.
+ * who holds it or whether they are still switched on.
  */
+
+const FIELDS = {
+  payroll: {
+    on: "payrollReminderOn",
+    weekday: "payrollReminderWeekday",
+    hour: "payrollReminderHour",
+  },
+  quota: {
+    on: "quotaDigestOn",
+    weekday: "quotaDigestWeekday",
+    hour: "quotaDigestHour",
+  },
+} as const;
+
+type Which = keyof typeof FIELDS;
+
 export async function PATCH(request: Request) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
   if (me.role !== "admin") {
     return Response.json(
-      { error: "Only founders can change the payday reminder." },
+      { error: "Only founders can change these reminders." },
       { status: 403 },
     );
   }
 
-  let body: { on?: unknown; weekday?: unknown; hour?: unknown };
+  let body: { which?: unknown; on?: unknown; weekday?: unknown; hour?: unknown };
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
+  const which = body.which as Which;
+  if (which !== "payroll" && which !== "quota") {
+    return Response.json(
+      { error: 'which must be "payroll" or "quota".' },
+      { status: 400 },
+    );
+  }
   if (typeof body.on !== "boolean") {
     return Response.json({ error: "on must be a boolean." }, { status: 400 });
   }
@@ -49,10 +76,11 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "hour must be 0 to 23." }, { status: 400 });
   }
 
+  const f = FIELDS[which];
   const values = {
-    payrollReminderOn: body.on,
-    payrollReminderWeekday: weekday,
-    payrollReminderHour: hour,
+    [f.on]: body.on,
+    [f.weekday]: weekday,
+    [f.hour]: hour,
   };
 
   // The single-row settings table, created with its defaults if nothing has

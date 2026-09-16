@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { appSetting } from "@/db/schema";
 import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
 import { getWeekProgress, payWeekStart } from "@/lib/call-stats";
-import { STATS_TZ } from "@/lib/stats-zones";
+import { STATS_TZ, statsZone } from "@/lib/stats-zones";
 import { pushConfigured, pushToUser } from "@/lib/push";
 
 /**
@@ -28,19 +29,71 @@ type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
 
 /**
- * Friday evening, Eastern — and on through the weekend.
- *
- * The clock is `STATS_TZ` rather than each founder's own, because the quota
- * week is cut in `STATS_TZ`: reading it in a founder's local zone would report
- * a partly-finished week to whoever happened to be furthest ahead. It is the
- * same reason `payWeekStart` ignores the timezone picker.
- *
- * The window runs to the end of Sunday rather than stopping at midnight on
- * Friday. The claim is per week, so a late send cannot duplicate an earlier
- * one, and that turns a worker outage on Friday night from a missed week into
- * a digest that lands on Saturday.
+ * ISO weekday order, so a stored 1-7 indexes straight into what `Intl` says
+ * and the comparison below reads as "later in the week than".
  */
-const SEND_FROM_HOUR = 17;
+const ISO_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/**
+ * The schedule, creating the settings row with its defaults if nothing has
+ * asked for it yet. Shared by the cron job and the card on Stats, so the
+ * screen cannot show a schedule the sender is not using.
+ */
+export async function getQuotaSchedule(): Promise<{
+  on: boolean;
+  weekday: number;
+  hour: number;
+}> {
+  let [setting] = await db.select().from(appSetting).limit(1);
+  if (!setting) [setting] = await db.insert(appSetting).values({}).returning();
+  return {
+    on: setting.quotaDigestOn,
+    weekday: setting.quotaDigestWeekday,
+    hour: setting.quotaDigestHour,
+  };
+}
+
+/**
+ * Their local weekday and hour.
+ *
+ * `Intl` rather than arithmetic so daylight saving stays the zone database's
+ * problem, the same way `callback-reminders.ts` reads a person's day.
+ */
+function localNow(tz: string, now: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    hour: "numeric",
+    // h23, since hour12:false renders midnight as 24 in some locales.
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  // 1-7, Monday first. 0 for a name we do not know, which fails closed: it
+  // never matches a configured day.
+  const iso = ISO_DAYS.indexOf(weekday as (typeof ISO_DAYS)[number]) + 1;
+  return { iso, hour };
+}
+
+/**
+ * Past the configured moment, and still inside the same pay week.
+ *
+ * **Judged in the recipient's own zone, not `STATS_TZ`.** It was fixed at
+ * Friday 17:00 Eastern on the reasoning that the quota *week* is cut in
+ * Eastern — but that confused the window being measured with the moment
+ * somebody is told about it, and delivered at 05:00 on Saturday to founders in
+ * Singapore. The week stays Eastern; the send follows the reader's clock, as
+ * the payday reminder does.
+ *
+ * The "later in the week" half is what turns a worker outage on Friday evening
+ * into a digest on Saturday rather than a week nobody was told about; the
+ * per-week claim is what stops that becoming two.
+ */
+function inWindowFor(tz: string, wantDay: number, wantHour: number, now: Date) {
+  const { iso, hour } = localNow(tz, now);
+  if (iso === 0) return false;
+  return iso > wantDay || (iso === wantDay && hour >= wantHour);
+}
 
 /**
  * How many names the push body carries before it starts counting instead.
@@ -53,28 +106,8 @@ const SEND_FROM_HOUR = 17;
  */
 const NAMES_IN_BODY = 5;
 
-function statsNow(now: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: STATS_TZ,
-    weekday: "short",
-    hour: "numeric",
-    // h23, since hour12:false renders midnight as 24 in some locales.
-    hourCycle: "h23",
-  }).formatToParts(now);
-  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
-  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
-  return { weekday, hour };
-}
-
-/** Is it late enough in the week to report on it? */
-function inWindow(now: Date) {
-  const { weekday, hour } = statsNow(now);
-  if (weekday === "Sat" || weekday === "Sun") return true;
-  return weekday === "Fri" && hour >= SEND_FROM_HOUR;
-}
-
 export type QuotaDigestResult = {
-  skipped?: "unconfigured" | "not-friday-yet";
+  skipped?: "unconfigured" | "switched-off" | "not-due-yet";
   weekStart?: string;
   /** Callers the digest judged, i.e. those with a niche to work. */
   considered?: number;
@@ -155,7 +188,30 @@ export async function sendQuotaDigest(
   now: Date = new Date(),
 ): Promise<QuotaDigestResult> {
   if (!pushConfigured()) return { skipped: "unconfigured" };
-  if (!inWindow(now)) return { skipped: "not-friday-yet" };
+
+  const schedule = await getQuotaSchedule();
+  if (!schedule.on) return { skipped: "switched-off" };
+
+  // Founders first, and the window judged per founder in their own zone, so
+  // the standings are only computed once somebody is actually due one. That
+  // ordering matters: working out where eight callers stand costs a query
+  // each, and on all but one tick a week the answer is thrown away.
+  const founders = (await db.execute(sql`
+    select distinct u.id, u.stats_region, u.call_region
+    from app_user u
+    join push_subscription ps on ps.user_id = u.id
+    where u.active and u.role = 'admin'
+  `)) as Row[];
+
+  const due = founders.filter((f) =>
+    inWindowFor(
+      statsZone(f.stats_region ?? f.call_region).tz,
+      schedule.weekday,
+      schedule.hour,
+      now,
+    ),
+  );
+  if (due.length === 0) return { skipped: "not-due-yet" };
 
   const weekStart = payWeekStart();
 
@@ -165,13 +221,6 @@ export async function sendQuotaDigest(
   // sorted worst first.
   const { standings } = await getQuotaStandings();
   const under = standings.filter((s) => s.calls < WEEKLY_CALL_QUOTA);
-
-  const founders = (await db.execute(sql`
-    select distinct u.id
-    from app_user u
-    join push_subscription ps on ps.user_id = u.id
-    where u.active and u.role = 'admin'
-  `)) as Row[];
 
   const result: QuotaDigestResult = {
     weekStart,
@@ -208,7 +257,7 @@ export async function sendQuotaDigest(
           .filter(Boolean)
           .join(" · ");
 
-  for (const f of founders) {
+  for (const f of due) {
     const id = n(f.id);
     // Claimed by an insert rather than decided by a check: the worker ticks
     // every five minutes and two overlapping ticks can both pass a check.

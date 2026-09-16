@@ -179,6 +179,24 @@ export const appSetting = pgTable("app_setting", {
     .default(5),
   /** Hour of that day, 0-23, in the recipient's own zone. */
   payrollReminderHour: integer("payroll_reminder_hour").notNull().default(17),
+  /**
+   * When the founders get the "who missed the quota" digest.
+   *
+   * Same three columns as the payday reminder above and read the same way,
+   * because two reminders that behave differently for no defensible reason is
+   * what this repaired: one was asked for as "Friday" and hard-coded, the
+   * other as "settable" and built settable.
+   *
+   * **Also read in the recipient's own zone.** It was fixed at Friday 17:00
+   * Eastern, on the reasoning that the quota week is cut in `STATS_TZ` — which
+   * confused the window being measured with the moment somebody is told about
+   * it, and delivered at 05:00 on Saturday in Singapore.
+   */
+  quotaDigestOn: boolean("quota_digest_on").notNull().default(true),
+  /** ISO weekday: 1 = Monday … 7 = Sunday. */
+  quotaDigestWeekday: integer("quota_digest_weekday").notNull().default(5),
+  /** Hour of that day, 0-23, in the recipient's own zone. */
+  quotaDigestHour: integer("quota_digest_hour").notNull().default(17),
 });
 
 export const leadList = pgTable("lead_list", {

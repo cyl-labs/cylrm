@@ -23,8 +23,9 @@ import {
 import { DEFAULT_STATS_REGION, isStatsRegion } from "@/lib/stats-zones";
 // The same standings the Friday notification sends, so the screen and the
 // push cannot disagree about who is behind.
-import { getQuotaStandings } from "@/lib/quota-digest";
+import { getQuotaSchedule, getQuotaStandings } from "@/lib/quota-digest";
 import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
+import { ReminderScheduleCard } from "@/components/calls/reminder-schedule";
 import { CallCalendar } from "@/components/calls/call-calendar";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
 import { getCurrentUser } from "@/lib/session";
@@ -232,7 +233,7 @@ export default async function CallStatsPage({
     (l) => l.total - l.uncalled > 0 || l.id === listId,
   );
 
-  const [totals, outcomes, lists, monthDays, people, log, quota] =
+  const [totals, outcomes, lists, monthDays, people, log, quota, quotaSchedule] =
     await Promise.all([
     getCallTotals(w, listId, personId, await hoursAckOf(me?.id)),
     getOutcomeCounts(w, listId, personId),
@@ -251,6 +252,9 @@ export default async function CallStatsPage({
     mine
       ? Promise.resolve({ weekStart: "", standings: [] })
       : getQuotaStandings(),
+    // When the digest goes out, so the card can offer to move it. Founders
+    // only, like the standings it sits under.
+    mine ? Promise.resolve(null) : getQuotaSchedule(),
   ]);
 
   // Every row in the screen's own zone, and never the reader's browser zone,
@@ -701,6 +705,28 @@ export default async function CallStatsPage({
                 );
               })}
             </ul>
+            {/* When to be told about all this. It sits on the card it reports
+                on rather than in a settings screen, for the reason the payday
+                reminder sits at the foot of Payroll: the moment you wonder
+                when you get told is the moment you are looking at the thing
+                being told about. */}
+            {quotaSchedule && (
+              <div className="border-t border-border/60">
+                <ReminderScheduleCard
+                  which="quota"
+                  initial={quotaSchedule}
+                  carries="with who is under the quota"
+                  caveat={
+                    <>
+                      At Friday 5pm Singapore it is Friday 5am in New York, so
+                      the US floor has not worked that day yet — move it to
+                      Saturday morning for the finished week.
+                    </>
+                  }
+                  offNote="Switched off — nothing will tell you who missed. The standings above are still here whenever you open Stats."
+                />
+              </div>
+            )}
           </div>
         )}
 

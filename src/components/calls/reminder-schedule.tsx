@@ -15,18 +15,20 @@ import {
 } from "@/components/ui/select";
 
 /**
- * When the founders get told it is payday.
+ * When a weekly reminder goes out, for whichever reminder it is handed.
  *
- * Settable rather than a constant because payday is a business decision, and
- * the only certain thing about it is that it moves. Defaults to Friday 5pm,
- * which is what the floor is paid on today.
+ * One control for both the payday reminder and the quota digest. They were
+ * built a couple of hours apart and ended up behaving differently for no
+ * reason anybody could defend — one hard-coded to Friday because that is how
+ * it was asked for, the other settable because that is how *it* was asked for.
+ * A second copy of this card would have been the same mistake one level down.
  *
- * The sentence under the controls is the whole point of the card: a weekday
- * number and an hour number tell you what was stored, not what will happen, and
- * the thing worth being sure of here is the hour landing in the right zone.
+ * The sentence under the controls is the point of it: a weekday number and an
+ * hour tell you what was stored, not what will happen, and the thing worth
+ * being sure of is the hour landing in the right zone.
  */
 
-export type PayrollReminder = {
+export type ReminderSchedule = {
   on: boolean;
   /** ISO weekday: 1 = Monday … 7 = Sunday. */
   weekday: number;
@@ -52,7 +54,24 @@ function hourLabel(h: number) {
   return h < 12 ? `${h}am` : `${h - 12}pm`;
 }
 
-export function PayrollReminderCard({ initial }: { initial: PayrollReminder }) {
+export function ReminderScheduleCard({
+  which,
+  initial,
+  /** What this reminder is, finishing the sentence "…with". */
+  carries,
+  /** Anything a reader should know before choosing a time — the quota one
+   *  reports on a week the US floor has not finished at 5pm local. */
+  caveat,
+  /** Said when it is switched off, so the consequence is stated rather than
+   *  left to be inferred from an unticked box. */
+  offNote,
+}: {
+  which: "payroll" | "quota";
+  initial: ReminderSchedule;
+  carries: string;
+  caveat?: React.ReactNode;
+  offNote: string;
+}) {
   const router = useRouter();
   const [on, setOn] = React.useState(initial.on);
   const [weekday, setWeekday] = React.useState(initial.weekday);
@@ -60,25 +79,23 @@ export function PayrollReminderCard({ initial }: { initial: PayrollReminder }) {
   const [saving, setSaving] = React.useState(false);
 
   const dirty =
-    on !== initial.on ||
-    weekday !== initial.weekday ||
-    hour !== initial.hour;
+    on !== initial.on || weekday !== initial.weekday || hour !== initial.hour;
 
   async function save() {
     if (saving) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/payroll/reminder", {
+      const res = await fetch("/api/reminders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ on, weekday, hour }),
+        body: JSON.stringify({ which, on, weekday, hour }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? "Could not save the reminder.");
         return;
       }
-      toast.success("Payday reminder saved.");
+      toast.success("Reminder saved.");
       router.refresh();
     } catch {
       toast.error("Could not reach the CRM, so nothing was saved.");
@@ -93,19 +110,19 @@ export function PayrollReminderCard({ initial }: { initial: PayrollReminder }) {
     <div className="flex flex-col gap-3 px-5 py-4">
       <div className="flex items-start gap-2.5">
         <Checkbox
-          id="payday-on"
+          id={`${which}-on`}
           checked={on}
           onCheckedChange={(v) => setOn(v === true)}
           className="mt-0.5"
         />
-        <Label htmlFor="payday-on" className="font-normal">
-          Remind the founders that it is payday
+        <Label htmlFor={`${which}-on`} className="font-normal">
+          Send this reminder
         </Label>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="payday-day" className="text-[12px]">
+          <Label htmlFor={`${which}-day`} className="text-[12px]">
             Day
           </Label>
           <Select
@@ -113,7 +130,11 @@ export function PayrollReminderCard({ initial }: { initial: PayrollReminder }) {
             onValueChange={(v) => setWeekday(Number(v))}
             disabled={!on}
           >
-            <SelectTrigger id="payday-day" size="sm" className="w-full sm:w-40">
+            <SelectTrigger
+              id={`${which}-day`}
+              size="sm"
+              className="w-full sm:w-40"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -127,7 +148,7 @@ export function PayrollReminderCard({ initial }: { initial: PayrollReminder }) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="payday-hour" className="text-[12px]">
+          <Label htmlFor={`${which}-hour`} className="text-[12px]">
             Time
           </Label>
           <Select
@@ -135,7 +156,11 @@ export function PayrollReminderCard({ initial }: { initial: PayrollReminder }) {
             onValueChange={(v) => setHour(Number(v))}
             disabled={!on}
           >
-            <SelectTrigger id="payday-hour" size="sm" className="w-full sm:w-32">
+            <SelectTrigger
+              id={`${which}-hour`}
+              size="sm"
+              className="w-full sm:w-32"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -154,10 +179,9 @@ export function PayrollReminderCard({ initial }: { initial: PayrollReminder }) {
       </div>
 
       {/* What will actually happen, in the words somebody would use. The zone
-          is the half worth spelling out: every other payroll number is cut in
-          Eastern so that what a person is owed cannot depend on who is reading
-          it, but a reminder is a nudge to a human and 5pm has to mean 5pm
-          where that human is. */}
+          is the half worth spelling out: the numbers themselves are cut in
+          Eastern so they cannot depend on who is reading them, but a reminder
+          is a nudge to a human and 5pm has to mean 5pm where that human is. */}
       <p className="text-[12px] text-muted-foreground">
         {on ? (
           <>
@@ -166,14 +190,12 @@ export function PayrollReminderCard({ initial }: { initial: PayrollReminder }) {
             <span className="font-semibold text-foreground">
               {hourLabel(hour)}
             </span>{" "}
-            in your own timezone, with what everybody is owed. It goes to the
-            founders only, and needs notifications switched on in this browser.
+            in your own timezone, {carries}. Founders only, and it needs
+            notifications switched on in this browser.
+            {caveat ? <> {caveat}</> : null}
           </>
         ) : (
-          <>
-            Switched off — nothing will tell you it is payday. What is owed is
-            still on this screen whenever you open it.
-          </>
+          offNote
         )}
       </p>
     </div>

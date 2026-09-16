@@ -1326,8 +1326,10 @@ same worker loop. Schema in `2026-08-30-callback-reminder-sent.sql`.
 ### Friday quota digest (founders only)
 
 One push a week to the founders: who finished under `WEEKLY_CALL_QUOTA`.
-`src/lib/quota-digest.ts`, `/api/cron/quota` on the same worker loop. Schema in
-`2026-09-16-quota-digest-sent.sql`.
+`src/lib/quota-digest.ts`, `/api/cron/quota` on the same worker loop, settings
+at `/api/reminders` through `components/calls/reminder-schedule.tsx` — the same
+route and card the payday reminder uses. Schema in
+`2026-09-16-quota-digest-sent.sql` and `2026-09-16-quota-digest-schedule.sql`.
 
 - **It exists because the 300 was invisible to the people who set it.**
   `WEEKLY_CALL_QUOTA` was read in exactly one place — the strip `PageShell`
@@ -1360,15 +1362,31 @@ One push a week to the founders: who finished under `WEEKLY_CALL_QUOTA`.
     have hidden real work. Anyone who joined *before* the week began stays
     named however little they did, which is exactly the caller worth asking
     about.
-- **The clock is `STATS_TZ`, not each founder's own**, because the quota week
-  is cut in `STATS_TZ` — reading it locally would report a part-finished week
-  to whoever was furthest ahead. Same reason `payWeekStart` ignores the
-  timezone picker.
-- **The window is Friday 17:00 Eastern through the end of Sunday**, and the
-  claim is per *week* rather than per day (`quota_digest_sent`, unique on
-  `(user_id, week_start)`). That pairing is what makes a worker outage on
+- **Settable, and sent on the recipient's own clock** (`app_setting.quota_digest_*`,
+  `2026-09-16-quota-digest-schedule.sql`), defaulting to Friday 5pm. It was
+  hard-coded to Friday 17:00 **Eastern**, on the reasoning that the quota week
+  is cut in `STATS_TZ` and reading it locally would report a part-finished
+  week. That reasoning confused two different things: the window being
+  *measured* and the moment somebody is *told*. The week is still Eastern; the
+  send follows the reader's clock, because 17:00 Eastern is 05:00 on Saturday
+  in Singapore, where the founders are.
+  - It was also fixed while the payday reminder was settable, purely because
+    one was asked for as "on Friday" and the other as "make it settable". Two
+    instructions taken literally produced two reminders behaving differently
+    for no reason a reader could defend.
+  - **The trade-off the card names out loud**: at Friday 5pm Singapore it is
+    Friday 5am in New York, so the US floor has not worked that day and the
+    numbers read lower than they finish. Saturday morning gets the complete
+    week, and is one dropdown away.
+- **The window runs from the configured moment to the end of that pay week**,
+  and the claim is per *week* rather than per day (`quota_digest_sent`, unique
+  on `(user_id, week_start)`). That pairing is what makes a worker outage on
   Friday night a digest that lands on Saturday instead of a week with no
   report, while still making a second send impossible.
+- **Founders are fetched before the standings are computed**, and the window is
+  judged per founder in their own zone. Working out where eight callers stand
+  costs a query each, and on all but one tick a week that answer is thrown
+  away — so the cheap check comes first.
 - **Sent even when nobody missed.** Once a week is not noise, and silence is
   ambiguous: "everyone hit it" and "the job stopped running" must not look the
   same from outside. The title says which.
@@ -1394,8 +1412,14 @@ One push a week to the founders: who finished under `WEEKLY_CALL_QUOTA`.
 
 One push a week: what the floor is owed, on the day the money goes out.
 `src/lib/payroll-reminder.ts`, `/api/cron/payroll` on the same worker loop,
-settings at `/api/payroll/reminder` and `components/payroll/reminder-card.tsx`.
+settings at `/api/reminders` through `components/calls/reminder-schedule.tsx`.
 Schema in `2026-09-16-payroll-reminder.sql`.
+
+**That route and card are shared with the quota digest.** They started as a
+payroll-only pair and were generalised the same day, when the two reminders
+turned out to differ only in which three columns they wrote — the guard, the
+validation and the single-row upsert were identical, and two copies of "is 8 a
+valid hour" is how they drift.
 
 - **Payroll is manual on purpose**, which makes the one failure it cannot
   survive a founder forgetting it is Friday. Nothing on that screen resets on a

@@ -17,7 +17,7 @@ import {
 import { getPayrollReminderSetting } from "@/lib/payroll-reminder";
 import { PayrollTable } from "@/components/payroll/payroll-table";
 import { DemoConfirmList } from "@/components/payroll/demo-confirm-list";
-import { PayrollReminderCard } from "@/components/payroll/reminder-card";
+import { ReminderScheduleCard } from "@/components/calls/reminder-schedule";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -257,7 +257,12 @@ export default async function PayrollPage() {
               A notification to the founders with what everybody is owed.
             </p>
           </div>
-          <PayrollReminderCard initial={reminder} />
+          <ReminderScheduleCard
+            which="payroll"
+            initial={reminder}
+            carries="with what everybody is owed"
+            offNote="Switched off — nothing will tell you it is payday. What is owed is still on this screen whenever you open it."
+          />
         </div>
       </div>
     </PageShell>
