@@ -29,6 +29,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     callId?: unknown;
     status?: unknown;
+    notes?: unknown;
   } | null;
 
   const callId = Number(body?.callId);
@@ -46,6 +47,21 @@ export async function POST(request: Request) {
     );
   }
   const status: DemoStatus = body.status;
+
+  // Two different silences, and the write below turns on telling them apart.
+  //
+  // Payroll's confirm list posts {callId, status} and nothing else, so an
+  // answer given there must leave a note written on Meetings alone. The
+  // Meetings box always sends the field, prefilled with whatever is already
+  // stored — so when it arrives empty somebody looked at that note and deleted
+  // it, which is an instruction rather than an omission.
+  //
+  // Hence `given` rather than a null check: "said nothing" keeps, "said
+  // nothing in particular" clears. An answer with no note at all is the normal
+  // case and is never refused.
+  const given = typeof body.notes === "string";
+  const trimmed = given ? (body.notes as string).trim() : "";
+  const notes = trimmed === "" ? null : trimmed;
 
   // The lead id is denormalised onto the attendance row so the one-fee-per-
   // business index can exist, so it is read from the call rather than trusted
@@ -104,12 +120,22 @@ export async function POST(request: Request) {
   try {
     await db.execute(sql`
       insert into call_demo_attendance
-        (call_id, call_lead_id, status, marked_by_user_id)
-      values (${callId}, ${target.call_lead_id}, ${status}, ${me.id})
+        (call_id, call_lead_id, status, marked_by_user_id, notes)
+      values (${callId}, ${target.call_lead_id}, ${status}, ${me.id}, ${notes})
       on conflict (call_id) do update
         set status = excluded.status,
             marked_by_user_id = excluded.marked_by_user_id,
-            marked_at = now()
+            marked_at = now(),
+            -- Only a caller who mentioned notes can change them. Correcting an
+            -- answer from Payroll a day later must not silently delete what
+            -- somebody wrote here: the sentence about the receptionist is worth
+            -- more than the status it was attached to, and there is no way to
+            -- get it back. The cast is needed or Postgres cannot type the
+            -- parameter inside a case.
+            notes = case
+              when ${given}::boolean then excluded.notes
+              else call_demo_attendance.notes
+            end
     `);
   } catch (err) {
     // The index, as a backstop to the check above, for the race where two

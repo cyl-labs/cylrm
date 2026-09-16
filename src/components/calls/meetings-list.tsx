@@ -287,6 +287,24 @@ export function MeetingsList({
     notes: string;
   } | null>(null);
 
+  /**
+   * Answered but not yet saved.
+   *
+   * Picking one of the three used to fire on the tap, which is the gesture the
+   * dial card's own outcome menu was moved away from after a mis-tap became a
+   * call in the record — and it left nowhere to write down what the demo turned
+   * up. The ring back logger sits on this same row and already works this way,
+   * so it costs a tap and buys one behaviour instead of two.
+   *
+   * Prefilled from what is stored, so changing an answer carries the note with
+   * it rather than asking for it again.
+   */
+  const [answering, setAnswering] = React.useState<{
+    meetingId: number;
+    status: DemoStatus;
+    notes: string;
+  } | null>(null);
+
   const format = React.useMemo(
     () =>
       new Intl.DateTimeFormat("en-US", {
@@ -328,20 +346,28 @@ export function MeetingsList({
    * Admins only for that reason: a caller marking their own booking as having
    * shown up would be signing off their own commission.
    */
-  async function mark(meeting: Meeting, status: DemoStatus) {
+  async function mark(meeting: Meeting, status: DemoStatus, notes: string) {
     if (meeting.bookingCallId === null) return;
     setBusy(meeting.id);
     try {
       const res = await fetch("/api/payroll/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callId: meeting.bookingCallId, status }),
+        // Always sent, even empty: the route reads a missing field as "leave
+        // the note alone" and an empty one as "clear it", and this box has just
+        // shown somebody the note it is about to replace.
+        body: JSON.stringify({
+          callId: meeting.bookingCallId,
+          status,
+          notes: notes.trim(),
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? "Could not save that.");
         return;
       }
+      setAnswering(null);
       toast.success(
         `${ATTENDANCE_LABEL[status]}: ${meeting.company ?? meeting.attendeeName ?? "meeting"}`,
       );
@@ -576,13 +602,36 @@ export function MeetingsList({
               </p>
             )}
 
+            {/* What the demo turned up, whichever way it went. First because it
+                happened first: the ring back below is the call that follows it.
+
+                Both boxes are labelled now that there are two of them. Two
+                unlabelled grey blocks on one row leave a founder guessing which
+                call they are reading — the same reason the two play buttons say
+                "Cold call" and "Demo call" rather than both saying nothing. */}
+            {m.attendanceNotes && (
+              <div className="mt-2 rounded-lg bg-muted/50 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  From the demo
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap text-[13px]">
+                  {m.attendanceNotes}
+                </p>
+              </div>
+            )}
+
             {/* What that call turned up. Shown like the booking notes rather
                 than folded away: the founder walking into the demo reads this
                 row and nothing else. */}
             {m.followup?.notes && (
-              <p className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/50 px-3 py-2 text-[13px]">
-                {m.followup.notes}
-              </p>
+              <div className="mt-2 rounded-lg bg-muted/50 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  From the ring back
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap text-[13px]">
+                  {m.followup.notes}
+                </p>
+              </div>
             )}
 
 
@@ -630,7 +679,13 @@ export function MeetingsList({
                       ).map((sVal) => (
                         <DropdownMenuItem
                           key={sVal}
-                          onSelect={() => mark(m, sVal)}
+                          onSelect={() =>
+                            setAnswering({
+                              meetingId: m.id,
+                              status: sVal,
+                              notes: m.attendanceNotes ?? "",
+                            })
+                          }
                         >
                           {ATTENDANCE_LABEL[sVal]}
                         </DropdownMenuItem>
@@ -790,6 +845,44 @@ export function MeetingsList({
                     canDiscard={showWho}
                   />
                 )}
+              </div>
+            )}
+
+            {/* What the demo turned up, before the answer is saved. Deliberately
+                the same box, in the same place, with the same two buttons as the
+                ring back logger below: two loggers on one row that behaved
+                differently would be a thing to learn twice. */}
+            {answering?.meetingId === m.id && (
+              <div className="mt-3 rounded-lg border bg-background p-3">
+                <p className="text-[13px] font-bold">
+                  {ATTENDANCE_LABEL[answering.status]}
+                </p>
+                <Textarea
+                  autoFocus
+                  value={answering.notes}
+                  onChange={(e) =>
+                    setAnswering({ ...answering, notes: e.target.value })
+                  }
+                  placeholder="What happened? Who you spoke to, the best time to try again. (optional)"
+                  className="mt-2 min-h-[64px]"
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={busy === m.id}
+                    onClick={() => mark(m, answering.status, answering.notes)}
+                  >
+                    {busy === m.id ? "Saving…" : "Log it"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === m.id}
+                    onClick={() => setAnswering(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
             )}
 

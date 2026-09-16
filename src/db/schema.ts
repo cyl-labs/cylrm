@@ -1029,6 +1029,19 @@ export const callDemoAttendance = pgTable(
       .notNull()
       .defaultNow(),
     markedByUserId: integer("marked_by_user_id").references(() => appUser.id),
+    /**
+     * What happened, in words, beside the answer that decides the fee.
+     *
+     * The three statuses are the right shape for paying somebody and far too
+     * thin for what a founder comes away with. Gel Recycling was a no show and
+     * also 4m44s with a receptionist who named the manager and the time he is
+     * reachable — none of which had anywhere to go but Slack.
+     *
+     * Not `call.notes`: the demo call has no call row, which is the whole
+     * problem. Not `call_meeting_followup.notes`: that is the ring back after
+     * a miss, and only exists once a no show has been marked.
+     */
+    notes: text("notes"),
     /** Set when a payout claims this attendance; null means still owed.
      *
      *  Owed is deliberately a state and not a date range. Comparing a

@@ -312,6 +312,16 @@ export type Meeting = {
    * reads as work still owed.
    */
   attendance: "showed_up" | "no_show" | "invalid" | null;
+  /**
+   * What happened at the demo, in words.
+   *
+   * The three statuses answer the question the fee turns on and nothing else.
+   * A founder who rings at the booked time and spends five minutes with a
+   * receptionist has learned the manager's name and when he is reachable, and
+   * before this there was nowhere to put it: the demo call has no call row to
+   * hold notes, and the ring-back notes only exist once a no show is marked.
+   */
+  attendanceNotes: string | null;
   /** Why this number may not be rung, or null. Blocks the clipboard as well
    *  as any dial button, exactly as it does everywhere else. */
   dncBlock: string | null;
@@ -536,7 +546,16 @@ const meetingSelect = sql`
     select a.status from call_demo_attendance a
     where a.call_lead_id = l.id and a.marked_at >= m.start_at
     order by a.marked_at desc limit 1
-  ) as attendance
+  ) as attendance,
+  -- What happened, in words. Same row, same ordering as the answer above, so
+  -- the note and the status a reader sees always came from the same marking --
+  -- two subselects with different sorts could show one meeting's note beside
+  -- another's answer.
+  (
+    select a.notes from call_demo_attendance a
+    where a.call_lead_id = l.id and a.marked_at >= m.start_at
+    order by a.marked_at desc limit 1
+  ) as attendance_notes
 `;
 
 /**
@@ -652,6 +671,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     phone,
     website: (r.website as string | null) ?? null,
     attendance: (r.attendance as Meeting["attendance"]) ?? null,
+    attendanceNotes: (r.attendance_notes as string | null) ?? null,
     listId: r.list_id === null || r.list_id === undefined ? null : n(r.list_id),
     listName: (r.list_name as string | null) ?? null,
     niche: (r.niche as string | null) ?? null,

@@ -1,0 +1,31 @@
+-- What happened at the demo, in words.
+--
+-- Marking a demo has only ever stored one of three answers: showed up, no show,
+-- not a real booking. That is the right shape for the thing it decides -- the
+-- $30 fee -- and far too thin for what a founder actually comes away with.
+--
+-- The case that made it obvious: Gel Recycling on 2026-09-16. A founder rang at
+-- the booked time and spent 4 minutes 44 seconds with a receptionist who was
+-- not the decision maker and could not put the manager on. Correctly a no show,
+-- because nobody stayed on the line for the agent. But "no show" is the entire
+-- record: that the manager exists, that he is reachable on the main line around
+-- 9am, and that the business is still worth a second attempt were written down
+-- nowhere. It went into Slack instead, where no screen can find it.
+--
+-- WHY NOT THE EXISTING NOTES FIELDS, because there are two already and neither
+-- fits. `call.notes` belongs to a call row, and the demo call has no call row
+-- at all -- that is the gap the recording backfill exists to work around.
+-- `call_meeting_followup.notes` is the ring back *after* a missed demo, and it
+-- only appears once a no show has been marked, so it cannot hold what you
+-- learned during the demo itself.
+--
+-- Nullable, and stays null for every answer given before this: a note nobody
+-- wrote is not the same as an empty one, and backfilling blank strings would
+-- make "no notes" indistinguishable from "notes were considered and skipped".
+--
+-- Apply before deploying. `meetingSelect` reads it, and `getMeetings` draws the
+-- Meetings screen, so shipping the code first breaks that screen for everyone --
+-- the trap `2026-09-17-call-recording-numbers.sql` documents one migration
+-- earlier, and the one that took the whole app down on 2026-08-30.
+alter table call_demo_attendance
+  add column if not exists notes text;
