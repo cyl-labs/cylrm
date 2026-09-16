@@ -33,20 +33,17 @@ the company name.
 
 > **You say** Hi [name], it's [your name]. I've got the agent on the other line, give me two seconds and I'll bring it in.
 
-**No answer?** Press **Text** on their row on Meetings, send it, then ring
-again. Only ever after a call they missed, never before one.
+If they don't answer, text them, then ring again.
 
-**Bringing the agent in**, from the lead's dial card: call them as normal, press
-**Add call**, pick the agent's line, then **Merge calls** — press it while it is
-still ringing and it fires the moment the agent answers, which matters because
-the agent starts talking as soon as it picks up. Both legs are recorded. Keep
-the tab open: closing it drops both calls.
+**Bringing the agent in**, from the lead's dial card:
 
-**It counts as a meeting, and the caller who booked it is paid, once they pick
-up and stay on while you bring the agent in.** That is what **They showed up**
-means on Meetings and on Payroll. Still no answer after the text and a second
-call, or they picked up but could not stay: log **No show**, which puts a ring
-back on the caller's list to rebook.
+```
+Call them  →  Add call  →  pick the agent's line  →  Merge calls
+```
+
+Press **Merge calls** while it is still ringing. It fires the moment the agent
+answers, and the agent starts talking as soon as it picks up. Keep the tab open:
+closing it drops both calls.
 
 ## Before you dial the agent in
 
