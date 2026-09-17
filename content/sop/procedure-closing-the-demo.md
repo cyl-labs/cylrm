@@ -77,11 +77,6 @@ lost.
 
 ## Do the math out loud, with their numbers
 
-Their figures, never yours. The point is that they hear themselves say it, which
-is why there is no example sentence here to swap numbers into mid-call. **The
-calculator in the step above prints the line with their own figures already in
-it.** Read it straight off.
-
 _(let them answer)_
 
 Stop there and let the number sit. Do not name a price in the same breath: the
