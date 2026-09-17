@@ -67,6 +67,17 @@ export type Conversation = {
   last: { body: string; direction: "in" | "out"; status: SmsStatus; at: string } | null;
   /** Texts in it that the signed-in person has not opened. */
   unread: number;
+  /** Where their demo stands, or null for a business that never booked one.
+   *  These are the conversations worth reading; most of the rest are automatic
+   *  "sorry we missed your call" replies. */
+  demo: ConversationDemo | null;
+};
+
+export type ConversationDemo = {
+  /** When the booking is, or was. Null for a demo logged on a call and never
+   *  put on the calendar. */
+  at: string | null;
+  state: "upcoming" | "past" | "cancelled" | "showed_up" | "no_show" | "unbooked";
 };
 
 export type Thread = {
@@ -136,7 +147,10 @@ export async function getConversations(
       last.body, last.direction, last.status, last.created_at,
       l.company, l.name as lead_name, l.dnc_status, l.dnc_checked_at,
       cl.id as list_id, cl.name as list_name,
-      holder.name as ours_name
+      holder.name as ours_name,
+      mt.start_at as demo_at, mt.status as demo_status,
+      mt.upcoming as demo_upcoming, mt.attendance as demo_attendance,
+      d.has_demo
     from c
     join lateral (
       select body, direction, status, created_at from m
@@ -152,7 +166,36 @@ export async function getConversations(
       order by u.active desc, u.id
       limit 1
     ) holder on true
-    order by last.created_at desc
+    -- Their booking, live ones before cancelled ones: a prospect who cancelled
+    -- Thursday and rebooked for Wednesday is booked, not cancelled. The
+    -- attendance answer is read the way Meetings reads it — only one given
+    -- after the meeting began can be about it.
+    left join lateral (
+      select mm.start_at, mm.status, mm.start_at > now() as upcoming,
+        (
+          select a.status from call_demo_attendance a
+          where a.call_lead_id = mm.call_lead_id and a.marked_at >= mm.start_at
+          order by a.marked_at desc limit 1
+        ) as attendance
+      from call_meeting mm
+      where mm.call_lead_id = c.lead_id
+      order by (mm.status = 'accepted') desc, mm.start_at desc
+      limit 1
+    ) mt on true
+    -- A booking decides, unless a founder marked it "not a real booking" (a
+    -- test, a duplicate, the wrong lead). With no booking, a demo logged on a
+    -- call still counts: it is one nobody put on the calendar.
+    cross join lateral (
+      select case
+        when mt.start_at is not null then mt.attendance is distinct from 'invalid'
+        else exists (
+          select 1 from call dc
+          where dc.call_lead_id = c.lead_id and dc.outcome = 'demo_booked'
+        )
+      end as has_demo
+    ) d
+    -- Demo businesses first, so the limit can never push one off the list.
+    order by d.has_demo desc, last.created_at desc
     limit 200
   `)) as Row[];
 
@@ -172,8 +215,23 @@ export async function getConversations(
         at: iso(r.created_at),
       },
       unread: Number(r.unread ?? 0),
+      demo: demoOf(r),
     };
   });
+}
+
+function demoOf(r: Row): ConversationDemo | null {
+  if (r.has_demo !== true) return null;
+  if (!r.demo_at) return { at: null, state: "unbooked" };
+  const at = iso(r.demo_at);
+  // Cal.com's other refusal, "rejected", means the same to whoever reads this.
+  if (r.demo_status === "cancelled" || r.demo_status === "rejected") {
+    return { at, state: "cancelled" };
+  }
+  if (r.demo_attendance === "showed_up" || r.demo_attendance === "no_show") {
+    return { at, state: r.demo_attendance };
+  }
+  return { at, state: r.demo_upcoming === true ? "upcoming" : "past" };
 }
 
 /**
@@ -204,6 +262,9 @@ export async function blankConversation(
     dncBlock: found?.dncBlock ?? null,
     last: null,
     unread: 0,
+    // Only the conversation list reads this, and a blank conversation is
+    // never in the list.
+    demo: null,
   };
 }
 

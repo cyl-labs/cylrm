@@ -19,7 +19,12 @@ import { CopyNumber } from "@/components/calls/inbound-list";
 import { RingBackButton } from "@/components/calls/ring-back-button";
 import { classifyPhone, e164, spokenNumber } from "@/lib/phone";
 import { conversationHref } from "@/lib/text-key";
-import type { Conversation, TextMessage, Thread } from "@/lib/texts";
+import type {
+  Conversation,
+  ConversationDemo,
+  TextMessage,
+  Thread,
+} from "@/lib/texts";
 import { cn } from "@/lib/utils";
 
 /**
@@ -108,6 +113,26 @@ function listTime(iso: string, tz: string) {
     month: "numeric",
     day: "numeric",
     year: "2-digit",
+  }).format(new Date(iso));
+}
+
+/** A demo's day, either side of today: "today 1:00 PM", "Mon 1:00 PM",
+ *  "yesterday", "Sep 16". The time is only worth giving while it is ahead. */
+function demoDay(iso: string, tz: string) {
+  const d = daysAgo(iso, tz);
+  if (d === 0) return `today ${clock(iso, tz)}`;
+  if (d === -1) return `tomorrow ${clock(iso, tz)}`;
+  if (d === 1) return "yesterday";
+  if (d < 0 && d > -7) {
+    const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(
+      new Date(iso),
+    );
+    return `${day} ${clock(iso, tz)}`;
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    month: "short",
+    day: "numeric",
   }).format(new Date(iso));
 }
 
@@ -212,6 +237,19 @@ export function TextsApp({
   const unreadElsewhere = conversations
     .filter((c) => c.key !== selectedKey)
     .reduce((n, c) => n + c.unread, 0);
+  // Businesses with a demo go on top in a section of their own: most of the
+  // rest are automatic "sorry we missed your call" replies nobody answers.
+  const booked = shown.filter((c) => c.demo !== null);
+  const rest = shown.filter((c) => c.demo === null);
+  const row = (c: Conversation) => (
+    <ConversationRow
+      key={c.key}
+      c={c}
+      selected={c.key === selectedKey}
+      showWho={isAdmin}
+      tz={tz}
+    />
+  );
 
   return (
     <div
@@ -276,18 +314,29 @@ export function TextsApp({
             <p className="px-6 py-10 text-center text-[13px] text-muted-foreground">
               Nothing matches &ldquo;{query.trim()}&rdquo;.
             </p>
+          ) : booked.length === 0 ? (
+            <ul>{rest.map(row)}</ul>
           ) : (
-            <ul>
-              {shown.map((c) => (
-                <ConversationRow
-                  key={c.key}
-                  c={c}
-                  selected={c.key === selectedKey}
-                  showWho={isAdmin}
-                  tz={tz}
+            <>
+              <section aria-labelledby="texts-booked">
+                <SectionHeading
+                  id="texts-booked"
+                  title="Booked a demo"
+                  note="Businesses on Meetings. Read these first."
                 />
-              ))}
-            </ul>
+                <ul>{booked.map(row)}</ul>
+              </section>
+              {rest.length > 0 && (
+                <section aria-labelledby="texts-rest">
+                  <SectionHeading
+                    id="texts-rest"
+                    title="Everyone else"
+                    note="No demo booked. Many of these are automatic replies to our calls."
+                  />
+                  <ul>{rest.map(row)}</ul>
+                </section>
+              )}
+            </>
           )}
         </div>
       </aside>
@@ -426,20 +475,80 @@ function ConversationRow({
           >
             {c.last?.body ?? ""}
           </p>
-          {/* An admin reads every number's texts, so each row says whose. */}
-          {showWho && c.oursName && (
-            <p
-              className={cn(
-                "mt-0.5 truncate text-[12px]",
-                selected ? "text-white/70" : "text-muted-foreground/80",
+          {(c.demo || (showWho && c.oursName)) && (
+            <div className="mt-1 flex min-w-0 items-center gap-1.5">
+              {c.demo && <DemoLabel demo={c.demo} selected={selected} tz={tz} />}
+              {/* An admin reads every number's texts, so each row says whose. */}
+              {showWho && c.oursName && (
+                <span
+                  className={cn(
+                    "min-w-0 truncate text-[12px]",
+                    selected ? "text-white/70" : "text-muted-foreground/80",
+                  )}
+                >
+                  To {c.oursName}
+                </span>
               )}
-            >
-              To {c.oursName}
-            </p>
+            </div>
           )}
         </div>
       </Link>
     </li>
+  );
+}
+
+/** A section's name and what is in it. Sticky, so a long list still says
+ *  which half you are in, and opaque, since rows scroll underneath it. */
+function SectionHeading({ id, title, note }: { id: string; title: string; note: string }) {
+  return (
+    <div className="sticky top-0 z-10 border-b bg-card px-4 pb-1.5 pt-2.5">
+      <h2 id={id} className="text-[13px] font-semibold">
+        {title}
+      </h2>
+      <p className="text-[12px] leading-snug text-muted-foreground">{note}</p>
+    </div>
+  );
+}
+
+/** Where a business's demo stands, in the words Meetings and Payroll use. */
+function DemoLabel({
+  demo,
+  selected,
+  tz,
+}: {
+  demo: ConversationDemo;
+  selected: boolean;
+  tz: string;
+}) {
+  const day = demo.at ? demoDay(demo.at, tz) : "";
+  const text = {
+    upcoming: `Demo ${day}`,
+    past: `Demo was ${day}`,
+    no_show: `No show · ${day}`,
+    showed_up: `Showed up · ${day}`,
+    cancelled: "Cancelled their demo",
+    unbooked: "Demo not on the calendar",
+  }[demo.state];
+  return (
+    // Relative to today, so it can cross midnight between render and
+    // hydration — the same note as the row's time.
+    <span
+      suppressHydrationWarning
+      className={cn(
+        "shrink-0 rounded-full px-2 py-px text-[11px] font-semibold",
+        selected
+          ? "bg-white/20 text-white"
+          : demo.state === "upcoming"
+            ? "bg-[var(--imsg-sent)]/12 text-[var(--imsg-sent)]"
+            : demo.state === "no_show"
+              ? "bg-destructive/10 text-destructive"
+              : demo.state === "showed_up"
+                ? "bg-success/12 text-success"
+                : "bg-muted text-muted-foreground dark:bg-white/10",
+      )}
+    >
+      {text}
+    </span>
   );
 }
 

@@ -430,6 +430,23 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
   call with an automatic "sorry we missed your call" text; counting those would
   stop a caller's queue after nearly every dial. A texts section on Missed calls
   was built and reverted the same day for this screen.
+- **Businesses that booked a demo get their own section on top**
+  (2026-09-17, `demo` on `Conversation`, `demoOf` in `lib/texts.ts`,
+  `DemoLabel` in `texts-app.tsx`). Asked for by a founder who does not answer
+  the automatic replies and wanted the conversations worth reading picked out.
+  - **What counts** is the lead's booking, live ones before cancelled ones (a
+    prospect who cancelled Thursday and rebooked Wednesday is booked). A
+    booking marked "not a real booking" on Payroll does not count. With no
+    booking, a `demo_booked` call does: that is a demo nobody put on the
+    calendar, the same thing Meetings lists in red.
+  - **The label uses Meetings' and Payroll's words**: Demo tomorrow 9:00 AM,
+    Demo was Sep 16, No show, Showed up, Cancelled their demo, Demo not on the
+    calendar. Attendance is read the way `meetingSelect` reads it, only an
+    answer given after the meeting began, so the two screens cannot disagree.
+  - **The SQL sorts demo conversations first** as well as the screen
+    splitting them, so the 200-conversation limit can never drop one.
+  - No section headings at all when nobody has booked, so a list never shows
+    "Everyone else" on its own.
 - **The look is Apple's, not the app's palette.** systemBlue `#007AFF`
   (`#0A84FF` dark) for ours, the Messages grey `#E9E9EB` for theirs, and
   systemGray4 `#3A3A3C` for theirs in dark — Messages' own near-black would
