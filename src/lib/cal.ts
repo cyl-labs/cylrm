@@ -76,6 +76,9 @@ export type CalBooking = {
   status: string;
   attendeeName: string | null;
   attendeeEmail: string | null;
+  /** The booking form's "Best number to call you on". Often a mobile, where
+   *  the lead's own number is the company's main line. */
+  attendeePhone: string | null;
   attendeeTz: string | null;
   meetingUrl: string | null;
   eventTypeId: number | null;
@@ -113,6 +116,10 @@ function toBooking(raw: Json): CalBooking | null {
     status: str(raw.status) ?? "accepted",
     attendeeName: str(who.name) ?? str(responses.name),
     attendeeEmail: str(who.email) ?? str(responses.email),
+    // The response first: it is the field the dial card prefills and the
+    // prospect corrects. `attendees[0].phoneNumber` carries the same value on
+    // every booking seen so far, and is the fallback if that ever changes.
+    attendeePhone: str(responses.attendeePhoneNumber) ?? str(who.phoneNumber),
     attendeeTz: str(who.timeZone),
     meetingUrl: str(raw.meetingUrl),
     eventTypeId:

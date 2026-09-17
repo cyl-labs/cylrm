@@ -206,13 +206,14 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
       insert into call_meeting (
         cal_booking_uid, cal_booking_id, call_lead_id, call_id, matched_by,
         start_at, end_at, status, title,
-        attendee_name, attendee_email, attendee_tz, meeting_url, synced_at
+        attendee_name, attendee_email, attendee_phone, attendee_tz,
+        meeting_url, synced_at
       ) values (
         ${booking.uid}, ${booking.id}, ${lead?.id ?? null},
         ${lead?.callId ?? null}, ${matchedBy},
         ${booking.startAt}, ${booking.endAt}, ${booking.status}, ${booking.title},
-        ${booking.attendeeName}, ${booking.attendeeEmail}, ${booking.attendeeTz},
-        ${booking.meetingUrl}, now()
+        ${booking.attendeeName}, ${booking.attendeeEmail}, ${booking.attendeePhone},
+        ${booking.attendeeTz}, ${booking.meetingUrl}, now()
       )
       on conflict (cal_booking_uid) do update set
         cal_booking_id = excluded.cal_booking_id,
@@ -229,6 +230,9 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         title = excluded.title,
         attendee_name = excluded.attendee_name,
         attendee_email = excluded.attendee_email,
+        -- coalesce: a payload without the field must not blank a number the
+        -- prospect gave, the same rule the recording numbers follow.
+        attendee_phone = coalesce(excluded.attendee_phone, call_meeting.attendee_phone),
         attendee_tz = excluded.attendee_tz,
         meeting_url = excluded.meeting_url,
         synced_at = now()
@@ -286,7 +290,20 @@ export type Meeting = {
   /** Null for a booking that matched no lead — see `ownedBy`. */
   leadId: number | null;
   company: string | null;
+  /**
+   * The number this row rings, copies and texts: Cal.com's "Best number to
+   * call you on" where the prospect gave one, the lead's listed number
+   * otherwise.
+   *
+   * The dial card prefills the booking with the *listed* number and the
+   * prospect is asked for the better one, so on 2026-09-18 Call them reached a
+   * business's main line while the owner waited on his mobile. The booking had
+   * the right number all along.
+   */
   phone: string | null;
+  /** The lead's own number, when the booking's differs from it — so the row
+   *  can say which one it is about to ring. Null when they are the same. */
+  listedPhone: string | null;
   /** The company's own site, when the scrape found one. Rendered only through
    *  `websiteHref`, which admits http(s) and nothing else — this came off a
    *  scraped page, and `javascript:` in an href runs on click. */
@@ -442,7 +459,8 @@ const NO_SHOW_RING_DAYS = 7;
 
 const meetingSelect = sql`
   m.id, m.start_at, m.end_at, m.status, m.title,
-  m.attendee_name, m.attendee_email, m.attendee_tz, m.meeting_url,
+  m.attendee_name, m.attendee_email, m.attendee_phone, m.attendee_tz,
+  m.meeting_url,
   l.id as lead_id, l.company, l.name as lead_name, l.phone,
   l.dnc_status, l.dnc_checked_at,
   -- Read before a demo rather than during a cold call: "what do they actually
@@ -521,16 +539,18 @@ const meetingSelect = sql`
   -- Telnyx stores E.164 and phone_key is bare digits, hence the concatenation.
   -- Longest wins rather than earliest: a demo slot can contain a failed first
   -- attempt of a few seconds, and the conversation is the one worth hearing.
+  -- Either number: the row rings the booking's where there is one, and demos
+  -- booked before that was stored were rung on the lead's.
   (
     select cr.recording_id from call_recording cr
-    where cr.to_number = '+' || l.phone_key
+    where cr.to_number in ('+' || l.phone_key, m.attendee_phone)
       and cr.started_at between m.start_at - interval '30 minutes'
                            and m.start_at + interval '3 hours'
     order by cr.duration_ms desc nulls last, cr.id desc limit 1
   ) as demo_recording_id,
   (
     select cr.duration_ms from call_recording cr
-    where cr.to_number = '+' || l.phone_key
+    where cr.to_number in ('+' || l.phone_key, m.attendee_phone)
       and cr.started_at between m.start_at - interval '30 minutes'
                            and m.start_at + interval '3 hours'
     order by cr.duration_ms desc nulls last, cr.id desc limit 1
@@ -644,7 +664,10 @@ const joins = sql`
 // `getDids` is async and cached per request, and a mapper that awaited would
 // make every row its own round trip.
 function toMeeting(r: Row, dids: DidMap): Meeting {
-  const phone = (r.phone as string | null) ?? null;
+  const listed = (r.phone as string | null) ?? null;
+  const booked = (r.attendee_phone as string | null) ?? null;
+  // What the prospect asked to be rung on wins over the directory's number.
+  const phone = booked ?? listed;
   return {
     id: n(r.id),
     startAt: iso(r.start_at)!,
@@ -670,6 +693,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
       (r.lead_name as string | null) ||
       null,
     phone,
+    listedPhone: booked && listed && e164(booked) !== e164(listed) ? listed : null,
     website: (r.website as string | null) ?? null,
     attendance: (r.attendance as Meeting["attendance"]) ?? null,
     attendanceNotes: (r.attendance_notes as string | null) ?? null,

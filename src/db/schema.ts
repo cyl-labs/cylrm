@@ -1135,6 +1135,10 @@ export const callMeeting = pgTable(
     title: text("title"),
     attendeeName: text("attendee_name"),
     attendeeEmail: text("attendee_email"),
+    /** Cal.com's "Best number to call you on" — the number the prospect asked
+     *  to be rung on, which is often a mobile where the lead carries the
+     *  business's main line. */
+    attendeePhone: text("attendee_phone"),
     /** The prospect's own zone, which Cal.com knows and the SOP currently
      *  makes the caller work out by hand. */
     attendeeTz: text("attendee_tz"),

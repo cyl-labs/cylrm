@@ -472,6 +472,20 @@ export function MeetingsList({
                     .filter(Boolean)
                     .join(" · ") || "No contact on the booking"}
                 </p>
+                {/* Which number this row is about to ring, when it is not the
+                    one on the lead. The prospect is asked for the best number
+                    when they book, and it is usually a mobile where the lead
+                    carries the company's switchboard — so the row says which
+                    one it has, rather than quietly dialling the other. */}
+                {m.listedPhone && (
+                  <p className="mt-0.5 text-[12px] text-muted-foreground">
+                    Rings the number they gave when booking. The listed line is{" "}
+                    <span className="tabular-nums">
+                      {spokenNumber(m.listedPhone)}
+                    </span>
+                    .
+                  </p>
+                )}
                 {/* What the business actually does, which the booking notes
                     cannot answer and a founder wants thirty seconds before
                     the call. A new tab: leaving this page would drop a live
