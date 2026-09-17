@@ -88,6 +88,23 @@ export async function notifyMeeting(m: MeetingNotification): Promise<void> {
   await send(lines.join("\n"));
 }
 
+/**
+ * The morning list of what is coming up, to the founders' chat.
+ *
+ * Deliberately one message with every meeting in it rather than the per-meeting
+ * reminders repeated: this is the overview read with a coffee, and those are
+ * the nudges that arrive when something is about to start.
+ */
+export async function notifyMeetingDigest(
+  heading: string,
+  lines: string[],
+): Promise<void> {
+  const base = process.env.PUBLIC_APP_URL ?? "";
+  const out = [`📋 ${heading}`, ...lines];
+  if (base) out.push("", `${base}/meetings`);
+  await send(out.join("\n"));
+}
+
 /** Fired when the poller files a genuine human reply. */
 export async function notifyReply(r: ReplyNotification): Promise<void> {
   const who = r.contactName ?? r.contactEmail;

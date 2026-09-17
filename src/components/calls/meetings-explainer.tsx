@@ -102,7 +102,12 @@ export function MeetingsExplainer({
               </span>
               , in the same chat that reports email replies. Those go out at
               any hour, since the US demos run through the night here &mdash;
-              mute the chat in Telegram to silence them.
+              mute the chat in Telegram to silence them. There is also a{" "}
+              <span className="font-semibold text-foreground">
+                9:30am list
+              </span>{" "}
+              of every demo in the next 24 hours &mdash; a day ahead rather
+              than today, because a US afternoon is tomorrow morning here.
             </p>
           )}
         </section>

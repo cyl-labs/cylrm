@@ -1424,6 +1424,21 @@ export const quotaDigestSent = pgTable(
   ],
 );
 
+/**
+ * The morning Telegram digest's claim, one row a day.
+ *
+ * Keyed on the date alone, unlike the other claim tables: there is one chat,
+ * not one row per person. The date is the founders' own (`foundersZone`).
+ */
+export const meetingDigestSent = pgTable("meeting_digest_sent", {
+  sentOn: date("sent_on").primaryKey(),
+  /** How many meetings it reported, so what it said can be checked later. */
+  meetings: integer("meetings").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const callbackReminderSent = pgTable(
   "callback_reminder_sent",
   {

@@ -904,6 +904,31 @@ already in `/root/crm/.env`, and unset means it does nothing.
   far-off meeting, a refused send retried on the next tick, and a reschedule
   re-arming both.
 
+### The 9:30am Telegram digest (founders)
+
+One message each morning listing the demos ahead, separate from the per-meeting
+reminders. `src/lib/meeting-digest.ts`, run on the `/api/cron/meetings` tick.
+Schema in `2026-09-18-meeting-digest-sent.sql` — **apply before deploying**,
+since with Telegram configured the "nothing to do" branch is not taken and a
+missing table is that job throwing every five minutes.
+
+- **It looks 24 hours ahead, not at the founders' calendar day**, and that is
+  the design rather than an approximation. The demos run through the US
+  afternoon, which is the middle of the night in Singapore: a 9:30am list of
+  "today" on that clock would carry the ones that finished at 3am and miss
+  tonight's entirely, because a Friday afternoon in New York is a Saturday
+  morning here. The screen's explainer says so in those words.
+- **Claimed on the founders' local date** (`meeting_digest_sent`, one row a
+  day, keyed on the date alone — there is one chat, not a row per person). The
+  window runs 09:30 to 20:00 local, so a worker down all morning still
+  delivers late, and a failed send releases the claim for the next tick, as the
+  Telegram reminders do.
+- **Sent even when nothing is booked** ("No demos in the next 24 hours"), the
+  quota digest's rule: silence and a broken job must not look the same.
+- Each line is the time on the founders' clock, the prospect's own when it
+  differs, the business and who booked it. `foundersZone` is shared with the
+  reminders so the two cannot name one meeting at two different times.
+
 ### Browser push reminders
 
 A meeting reminder has to reach somebody who has not opened the CRM yet today.

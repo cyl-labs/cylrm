@@ -4,6 +4,7 @@ import {
   sendMeetingTelegrams,
   syncMeetings,
 } from "@/lib/meetings";
+import { sendMeetingDigest } from "@/lib/meeting-digest";
 
 /**
  * Pull the booked meetings off Cal.com.
@@ -26,5 +27,15 @@ export async function POST(request: Request) {
   // anything else on this tick to finish.
   const telegram = await sendMeetingTelegrams();
   const reminders = await sendMeetingReminders();
-  return NextResponse.json({ ok: true, job: "meetings", ...result, telegram, reminders });
+  // The morning list of what is coming up. A no-op on all but one tick a day,
+  // claimed on the founders' own date.
+  const digest = await sendMeetingDigest();
+  return NextResponse.json({
+    ok: true,
+    job: "meetings",
+    ...result,
+    telegram,
+    reminders,
+    digest,
+  });
 }

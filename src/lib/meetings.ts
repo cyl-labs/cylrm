@@ -1107,6 +1107,23 @@ const TELEGRAM_OFFSETS = [
   { kind: "telegram_day_before" as const, minutesBefore: 24 * 60 },
 ];
 
+/**
+ * The founders' clock, the one Meetings shows them in: their account's
+ * reporting zone, then its market, then Eastern.
+ *
+ * Shared by the Telegram reminders and the morning digest, so the two cannot
+ * name the same meeting at two different times.
+ */
+export async function foundersZone(): Promise<string> {
+  const [founder] = (await db.execute(sql`
+    select stats_region, call_region from app_user
+    where role = 'admin' and active
+    order by id
+    limit 1
+  `)) as Row[];
+  return statsZone(founder?.stats_region ?? founder?.call_region).tz;
+}
+
 export type TelegramReminderResult = {
   skipped?: "unconfigured";
   /** Meetings starting within the next day that were examined this tick. */
@@ -1147,15 +1164,7 @@ export async function sendMeetingTelegrams(
   const result: TelegramReminderResult = { considered: 0, sent: 0, failed: 0 };
   if (!notificationsConfigured()) return { ...result, skipped: "unconfigured" };
 
-  // The founders' clock, the one Meetings shows them in: their account's
-  // reporting zone, then its market, then Eastern.
-  const [founder] = (await db.execute(sql`
-    select stats_region, call_region from app_user
-    where role = 'admin' and active
-    order by id
-    limit 1
-  `)) as Row[];
-  const tz = statsZone(founder?.stats_region ?? founder?.call_region).tz;
+  const tz = await foundersZone();
   const clock = (d: Date, zone: string) =>
     new Intl.DateTimeFormat("en-US", {
       timeZone: zone,
