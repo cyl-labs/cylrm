@@ -10,22 +10,30 @@ import { notificationsConfigured, notifyMeetingDigest } from "@/lib/notify";
  * hour before. Those say "this one is about to start"; this one is the list
  * read with a coffee.
  *
- * **It looks 24 hours ahead rather than at the founders' calendar day**, and
+ * **It looks three days ahead rather than at the founders' calendar day**, and
  * that is the whole design decision. The demos run through the US afternoon,
- * which is the middle of the night in Singapore: a 9:30am list of "today" on
- * that clock would carry the ones that finished at 3am and miss tonight's
- * entirely, since a Friday afternoon in New York is a Saturday morning here.
- * The next 24 hours is the US day that has not happened yet, whichever side of
- * midnight it falls on.
+ * which is the middle of the night in Singapore: a list of "today" on that
+ * clock would carry the ones that finished at 3am and miss tonight's entirely,
+ * since a Friday afternoon in New York is a Saturday morning here. Three days
+ * covers tonight's shift and the two after it — at a demo a day, a single
+ * day's window reported "nothing" on most evenings while three were booked.
  *
  * Sent to the founders' chat — the one `lib/notify.ts` already reports email
  * replies to — so nothing has to be installed or switched on. Unset Telegram
  * settings mean it does nothing, like everything else in that module.
  */
 
-/** 9:30 in the morning, and 9:30 where the founders actually are. */
-const DIGEST_HOUR = 9;
-const DIGEST_MINUTE = 30;
+/**
+ * Eight in the evening, where the founders are.
+ *
+ * It was 9:30 in the morning for a day, which read well and was the wrong hour
+ * for this floor: the demos run between one and six in the morning here, so by
+ * half past nine they are finished and the next US day's are still 24 hours
+ * out. Eight in the evening is the hour before the US day opens — the list
+ * arrives while there is still time to act on it.
+ */
+const DIGEST_HOUR = 20;
+const DIGEST_MINUTE = 0;
 
 /**
  * The clock this whole message runs on: Singapore, because that is where the
@@ -46,22 +54,23 @@ const HOME_TZ = process.env.DIGEST_TZ ?? "Asia/Singapore";
 /** What that clock is called in the message. Moves with `HOME_TZ`. */
 const HOME_LABEL = process.env.DIGEST_TZ ? "local time" : "SGT";
 /**
- * How far ahead it looks. A full day, so the message covers every demo booked
- * for the coming US working day.
+ * How far ahead it looks: tonight's US day and the two after it. Wide enough
+ * that a quiet night still says what is coming, narrow enough to read at a
+ * glance.
  */
-const LOOKAHEAD_HOURS = 24;
+const LOOKAHEAD_HOURS = 72;
 /**
- * The window shuts in the evening. A worker down all morning should still
- * deliver the list late — it is a day's work either way — but one arriving at
- * midnight is about a day that is over.
+ * The window shuts before midnight. A worker down at eight should still
+ * deliver late — the evening is the evening — but the claim rolls with the
+ * local date, so a message at one in the morning would be the next day's.
  */
-const LATEST_HOUR = 20;
+const LATEST_HOUR = 23;
 
 type Row = Record<string, unknown>;
 
 export type MeetingDigestResult = {
   skipped?: "unconfigured" | "not-due" | "already-sent";
-  /** Meetings in the next 24 hours, as the message reported them. */
+  /** Meetings in the window, as the message reported them. */
   meetings?: number;
   sent?: boolean;
 };
@@ -95,22 +104,19 @@ const clock = (at: Date, tz: string) =>
     minute: "2-digit",
   }).format(at);
 
-/** "9:00 PM" for one later today, "Sat 5:30 AM" for one past midnight — the
- *  day only where it is not the one the message was sent on. */
-function at(start: Date, tz: string, today: string): string {
-  const day = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(start);
-  const time = clock(start, tz);
-  if (day === today) return time;
+/**
+ * "Fri 9:00 PM" — the weekday always, never "today" or "tonight".
+ *
+ * This is sent at eight in the evening and most of what it lists happens after
+ * midnight, so a relative word would be wrong as often as right: a demo at one
+ * in the morning is tonight's shift and tomorrow's date.
+ */
+function at(start: Date, tz: string): string {
   const weekday = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     weekday: "short",
   }).format(start);
-  return `${weekday} ${time}`;
+  return `${weekday} ${clock(start, tz)}`;
 }
 
 export async function sendMeetingDigest(
@@ -165,7 +171,7 @@ export async function sendMeetingDigest(
     }
     const who = (m.who as string | null) ?? "A meeting";
     const by = m.booked_by ? ` · booked by ${m.booked_by as string}` : "";
-    return `• ${at(start, tz, date)} — ${who}${theirs}${by}`;
+    return `• ${at(start, tz)} — ${who}${theirs}${by}`;
   });
 
   // The clock is named once: these arrive in the small hours here, and a bare
@@ -173,8 +179,8 @@ export async function sendMeetingDigest(
   // prospect's time.
   const heading =
     meetings.length === 0
-      ? "No demos in the next 24 hours"
-      : `${meetings.length} demo${meetings.length === 1 ? "" : "s"} in the next 24 hours · your time (${HOME_LABEL})`;
+      ? "No demos in the next 3 days"
+      : `${meetings.length} demo${meetings.length === 1 ? "" : "s"} in the next 3 days · your time (${HOME_LABEL})`;
 
   try {
     await notifyMeetingDigest(heading, lines);

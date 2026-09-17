@@ -904,20 +904,26 @@ already in `/root/crm/.env`, and unset means it does nothing.
   far-off meeting, a refused send retried on the next tick, and a reschedule
   re-arming both.
 
-### The 9:30am Telegram digest (founders)
+### The 8pm Telegram digest (founders)
 
-One message each morning listing the demos ahead, separate from the per-meeting
+One message each evening listing the demos ahead, separate from the per-meeting
 reminders. `src/lib/meeting-digest.ts`, run on the `/api/cron/meetings` tick.
 Schema in `2026-09-18-meeting-digest-sent.sql` — **apply before deploying**,
 since with Telegram configured the "nothing to do" branch is not taken and a
 missing table is that job throwing every five minutes.
 
-- **It looks 24 hours ahead, not at the founders' calendar day**, and that is
-  the design rather than an approximation. The demos run through the US
-  afternoon, which is the middle of the night in Singapore: a 9:30am list of
-  "today" on that clock would carry the ones that finished at 3am and miss
-  tonight's entirely, because a Friday afternoon in New York is a Saturday
-  morning here. The screen's explainer says so in those words.
+- **Eight in the evening, three days ahead, and both were the second answer.**
+  It shipped at 9:30am over 24 hours, which read well and was wrong twice: the
+  demos run between one and six in the morning here, so by half past nine they
+  are over, and the next US day's are still a day out — the first real morning
+  it would have said "no demos" with five on the board. Eight in the evening is
+  the hour before the US day opens, and three days covers tonight's shift and
+  the two after it. **Never the founders' calendar day**: a Friday afternoon in
+  New York is a Saturday morning here, so "today" on this clock is the wrong
+  question.
+- **Every line carries its weekday** ("Sat 1:00 AM"), never "tonight" or
+  "tomorrow": sent at eight, most of what it lists happens after midnight, so a
+  relative word would be wrong as often as right.
 - **Singapore, hard-coded (`HOME_TZ`), not `foundersZone`.** The 9:30, the
   claim's date and every time printed are the founders' own clock. It shipped
   reading the timezone picker on Stats and Meetings, which was set to Eastern

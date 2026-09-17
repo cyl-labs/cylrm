@@ -104,11 +104,11 @@ export function MeetingsExplainer({
               any hour, since the US demos run through the night here &mdash;
               mute the chat in Telegram to silence them. There is also a{" "}
               <span className="font-semibold text-foreground">
-                9:30am Singapore
+                8pm Singapore
               </span>{" "}
-              list of every demo in the next 24 hours, in Singapore time &mdash;
-              a day ahead rather than today, because a US afternoon is tomorrow
-              morning here.
+              list of every demo in the next three days, in Singapore time. It
+              lands just before the US day opens, and it is three days rather
+              than one because a US afternoon is the small hours here.
             </p>
           )}
         </section>
