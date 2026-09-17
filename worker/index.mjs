@@ -47,5 +47,26 @@ async function run() {
   await tick("payroll");
 }
 
+/**
+ * Wait for the app to answer before the first run.
+ *
+ * A deploy restarts the app and this worker together, and the app takes a few
+ * seconds to start listening. Firing straight away failed every job on every
+ * deploy and left the next attempt five minutes out — five minutes a
+ * 30-minute meeting warning could arrive late. Any response counts: this only
+ * asks whether something is listening.
+ */
+async function waitForApp() {
+  for (let i = 0; i < 60; i++) {
+    try {
+      await fetch(`${BASE}/login`, { method: "HEAD" });
+      return;
+    } catch {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+}
+
+await waitForApp();
 run();
 setInterval(run, INTERVAL_MS);
