@@ -918,16 +918,25 @@ missing table is that job throwing every five minutes.
   "today" on that clock would carry the ones that finished at 3am and miss
   tonight's entirely, because a Friday afternoon in New York is a Saturday
   morning here. The screen's explainer says so in those words.
-- **Claimed on the founders' local date** (`meeting_digest_sent`, one row a
-  day, keyed on the date alone — there is one chat, not a row per person). The
-  window runs 09:30 to 20:00 local, so a worker down all morning still
-  delivers late, and a failed send releases the claim for the next tick, as the
-  Telegram reminders do.
+- **Singapore, hard-coded (`HOME_TZ`), not `foundersZone`.** The 9:30, the
+  claim's date and every time printed are the founders' own clock. It shipped
+  reading the timezone picker on Stats and Meetings, which was set to Eastern
+  that afternoon: the first digest fired at 1:51am Singapore time — correct by
+  that rule, useless in practice — and listed the demos in a clock the reader
+  was not on. A reporting preference is not where somebody is. `DIGEST_TZ`
+  overrides it for a dev run, in the spirit of `TELEGRAM_API_BASE`; never set
+  it in prod. **If the founders move, that constant and `HOME_LABEL` move.**
+- **Claimed on that date** (`meeting_digest_sent`, one row a day, keyed on the
+  date alone — there is one chat, not a row per person). The window runs 09:30
+  to 20:00, so a worker down all morning still delivers late, and a failed send
+  releases the claim for the next tick, as the Telegram reminders do.
 - **Sent even when nothing is booked** ("No demos in the next 24 hours"), the
   quota digest's rule: silence and a broken job must not look the same.
-- Each line is the time on the founders' clock, the prospect's own when it
-  differs, the business and who booked it. `foundersZone` is shared with the
-  reminders so the two cannot name one meeting at two different times.
+- Each line is the Singapore time, the prospect's own when it differs, the
+  business and who booked it, and the heading names the clock — these arrive in
+  the small hours, and a bare "9:00 PM" is the one thing here that could be
+  read as the prospect's time. The per-meeting Telegram reminders still format
+  in `foundersZone`, since they are read beside the screens.
 
 ### Browser push reminders
 

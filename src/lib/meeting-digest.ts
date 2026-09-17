@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { foundersZone } from "@/lib/meetings";
 import { notificationsConfigured, notifyMeetingDigest } from "@/lib/notify";
 
 /**
@@ -24,9 +23,28 @@ import { notificationsConfigured, notifyMeetingDigest } from "@/lib/notify";
  * settings mean it does nothing, like everything else in that module.
  */
 
-/** 9:30 on the founders' clock. */
+/** 9:30 in the morning, and 9:30 where the founders actually are. */
 const DIGEST_HOUR = 9;
 const DIGEST_MINUTE = 30;
+
+/**
+ * The clock this whole message runs on: Singapore, because that is where the
+ * founders are. Both the 9:30 and every time printed.
+ *
+ * **Deliberately not `foundersZone`**, the timezone picker on Stats and
+ * Meetings, which is a reporting preference and was set to Eastern on
+ * 2026-09-17: the first digest fired at 1:51am Singapore time, correct by that
+ * rule and useless in practice, and listed the demos on a clock the reader was
+ * not on. "Half past nine" and "9pm tonight" are facts about the person
+ * holding the phone, not about which market they were last reading numbers in.
+ * The prospect's own time rides alongside each line where it differs.
+ *
+ * `DIGEST_TZ` overrides it so a dev run does not have to wait until half past
+ * nine, in the spirit of `TELEGRAM_API_BASE`. Never set it in prod.
+ */
+const HOME_TZ = process.env.DIGEST_TZ ?? "Asia/Singapore";
+/** What that clock is called in the message. Moves with `HOME_TZ`. */
+const HOME_LABEL = process.env.DIGEST_TZ ? "local time" : "SGT";
 /**
  * How far ahead it looks. A full day, so the message covers every demo booked
  * for the coming US working day.
@@ -100,10 +118,13 @@ export async function sendMeetingDigest(
 ): Promise<MeetingDigestResult> {
   if (!notificationsConfigured()) return { skipped: "unconfigured" };
 
-  const tz = await foundersZone();
-  const { date, minutes } = localClock(tz, now);
+  // Everything — the 9:30, the once-a-day claim and every time printed — is on
+  // the founders' own clock.
+  const { date, minutes } = localClock(HOME_TZ, now);
   const due = DIGEST_HOUR * 60 + DIGEST_MINUTE;
   if (minutes < due || minutes >= LATEST_HOUR * 60) return { skipped: "not-due" };
+
+  const tz = HOME_TZ;
 
   const meetings = (await db.execute(sql`
     select m.start_at, m.attendee_tz,
@@ -147,10 +168,13 @@ export async function sendMeetingDigest(
     return `• ${at(start, tz, date)} — ${who}${theirs}${by}`;
   });
 
+  // The clock is named once: these arrive in the small hours here, and a bare
+  // "9:00 PM" is the one thing on the message that could be read as the
+  // prospect's time.
   const heading =
     meetings.length === 0
       ? "No demos in the next 24 hours"
-      : `${meetings.length} demo${meetings.length === 1 ? "" : "s"} in the next 24 hours`;
+      : `${meetings.length} demo${meetings.length === 1 ? "" : "s"} in the next 24 hours · your time (${HOME_LABEL})`;
 
   try {
     await notifyMeetingDigest(heading, lines);
