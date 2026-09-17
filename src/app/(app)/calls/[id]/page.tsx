@@ -154,7 +154,10 @@ export default async function CallListPage({
   // whose time has come. One booked for Tuesday is not in it until Tuesday.
   // The badge on the dial card counts the same leads, so the two cannot
   // disagree.
-  const inQueue = list.uncalled + list.toRetry + list.callbacksDue;
+  // A callback waiting for its business to open is in that tab too, the same
+  // as a never-called lead that is closed right now.
+  const inQueue =
+    list.uncalled + list.toRetry + list.callbacksDue + list.callbacksWaiting;
   // Every lead is in exactly one of these, so they sum to the total.
   const breakdown = [
     { label: "never called", value: list.uncalled },
@@ -169,6 +172,7 @@ export default async function CallListPage({
       value: list.triedOut,
     },
     { label: "callback due", value: list.callbacksDue },
+    { label: "callback waiting for them to open", value: list.callbacksWaiting },
     { label: "call later", value: list.callbacksLater },
     { label: "got a demo", value: list.demoBooked + list.trials + list.won },
     { label: "ruled out", value: list.ruledOut },

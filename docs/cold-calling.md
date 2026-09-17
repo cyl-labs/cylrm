@@ -231,6 +231,31 @@ opening a niche to check something is not somebody skipping their callbacks.
   blocks. One that waits leaves `countMissedCalls`, so the badge and the gate
   agree, and stays on Missed calls un-reddened, saying their time and that the
   list is not held up. It comes back into both the moment it is 9am there.
+- **A due callback waits while its business is closed, too** (2026-09-17,
+  `CALLBACK_WAITING` in `lib/calls.ts`). The dialler hides closed businesses
+  from callers with no way round it, but a due callback still counted, so one
+  falling due after a business shut sent the caller to a Callbacks tab showing
+  nothing. The only ways past were ringing a closed business from the diary or
+  logging a call that never happened: the lockout the rule above warns about.
+  Now a due callback at a closed business (same `withinLeadHours`) leaves the
+  sidebar badge, the gate and the list's "callbacks due", appears in the list's
+  breakdown as "callback waiting for them to open", and comes back the moment
+  they open. **An unknown zone never waits**, as with missed calls. No "within
+  the hour" clause: the prospect asked for the time, and nobody is awake
+  because of it.
+  - **The diary keeps the row, not red**, badged "Closed now" with today's
+    hours and "This isn't holding up your call lists". For a caller it has no
+    Call or copy button, since their dial card never loads a closed business
+    and would open somebody else's card. Founders keep both, matching the
+    dialler's "Show them anyway".
+  - **Counted in its own small query and subtracted** (`waitingCallbacksByList`),
+    not tested inline. Inline, the planner placed every one of 5,000 leads on
+    a clock before narrowing to the dozen callbacks: the sidebar count went
+    from 30ms to 1.8s on prod, and `getCallLists` lost its tuning. The query
+    finds due callbacks first (`materialized`) and then checks only those;
+    the badge now costs about 50ms, and the list query is unchanged.
+  - The morning digest (`countCallbacksDueToday`) still counts every callback
+    promised for today, closed or not: it is a briefing, not a gate.
 - It gates the **dialler only**. The spreadsheet and the pipeline board can
   still log a call, and are deliberately left alone — they are reference
   screens rather than a queue, and blocking every way to touch a lead would

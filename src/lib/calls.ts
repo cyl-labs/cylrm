@@ -323,6 +323,60 @@ export const withinLeadHours = (at: SQL) => {
 
 const CALLABLE_NOW = withinLeadHours(sql`now()`);
 
+/**
+ * A due callback whose business is closed right now, so it can wait until
+ * they open (2026-09-17).
+ *
+ * Callbacks are the second stage of the work order and hold a caller's lists
+ * until they are cleared, but the dialler hides closed businesses from callers
+ * with no way round it. So a callback falling due after a business shut was a
+ * lockout: the gate sent the caller to a Callbacks tab that showed nothing,
+ * and the only ways past were ringing a closed business from the diary or
+ * logging a call that never happened. The same answer missed calls got in
+ * `CAN_WAIT`: it stays in the diary, labelled, leaves the badge and the gate,
+ * and comes back the moment they open. **An unknown zone never waits.**
+ *
+ * Expects `l` and `z` (`leadZone`) in scope.
+ */
+const CALLBACK_WAITING = sql`(z.tz is not null and not ${CALLABLE_NOW})`;
+
+/** Due and not waiting: a callback the caller owes right now. */
+const CALLBACK_OWED = sql`(${CALLBACK_DUE} and not ${CALLBACK_WAITING})`;
+
+/**
+ * Due callbacks waiting for their business to open, counted per list.
+ *
+ * The badge and each list's "callbacks due" subtract these from what they
+ * already count, rather than testing the hours inline. Inline, the planner
+ * worked out a timezone and the opening hours for every one of five thousand
+ * leads before narrowing to the dozen callbacks: the sidebar count, which runs
+ * on every page, went from 30ms to 1.8s on prod, and `getCallLists` lost its
+ * hand tuning. Here the due callbacks are found first (`materialized` holds
+ * the planner to that order) and only those are placed on a clock.
+ */
+const waitingCallbacksByList = cache(
+  async (ownerId?: number): Promise<Map<number, number>> => {
+    const rows = (await db.execute(sql`
+      with due as materialized (
+        select l.id, l.call_list_id, l.phone_key, l.source_fields, l.opening_hours
+        from call_lead l
+        join call_list cl on cl.id = l.call_list_id
+        ${latestCall}
+        where l.duplicate_of_lead_id is null
+          ${ownedBy(ownerId)}
+          and lc.outcome = 'callback'
+          and ${CALLBACK_DUE}
+      )
+      select l.call_list_id, count(*) as n
+      from due l
+      ${leadZone}
+      where ${CALLBACK_WAITING}
+      group by l.call_list_id
+    `)) as Row[];
+    return new Map(rows.map((r) => [n(r.call_list_id), n(r.n)]));
+  },
+);
+
 export type CallListSummary = {
   id: number;
   name: string;
@@ -358,9 +412,12 @@ export type CallListSummary = {
   /** In a trial, or signed. What the calling is actually for. */
   trials: number;
   won: number;
-  /** Owed a call back now — the time has passed, or none was set. In the
-   *  queue. */
+  /** Owed a call back now — the time has passed, or none was set — and the
+   *  business is open. In the queue, and what holds a caller's lists. */
   callbacksDue: number;
+  /** Time has passed, but the business is closed right now
+   *  (`CALLBACK_WAITING`). In the queue for when they open; holds nobody up. */
+  callbacksWaiting: number;
   /** Owed a call back at a time still ahead. Deliberately out of the queue
    *  until then. */
   callbacksLater: number;
@@ -465,6 +522,8 @@ export async function getCallLists(
       count(l.id) filter (where lc.outcome = 'demo_booked') as demo_booked,
       count(l.id) filter (where lc.outcome = 'trial') as trials,
       count(l.id) filter (where lc.outcome = 'won') as won,
+      -- Every due callback, closed businesses included; the ones waiting for
+      -- them to open are taken off in JS (waitingCallbacksByList).
       count(l.id) filter (where lc.outcome = 'callback' and ${CALLBACK_DUE}) as callbacks_due,
       count(l.id) filter (
         where lc.outcome = 'callback' and lc.callback_at > now()
@@ -512,6 +571,7 @@ export async function getCallLists(
     group by cl.id, cl.name, cl.niche, cl.created_at, cl.assigned_user_id
     order by cl.created_at desc, cl.id desc
   `)) as Row[];
+  const waiting = await waitingCallbacksByList(ownerId);
 
   return rows.map((r) => ({
     id: n(r.id),
@@ -531,7 +591,8 @@ export async function getCallLists(
     demoBooked: n(r.demo_booked),
     trials: n(r.trials),
     won: n(r.won),
-    callbacksDue: n(r.callbacks_due),
+    callbacksDue: n(r.callbacks_due) - (waiting.get(n(r.id)) ?? 0),
+    callbacksWaiting: waiting.get(n(r.id)) ?? 0,
     callbacksLater: n(r.callbacks_later),
     duplicates: n(r.duplicates),
     assignedUserId: r.assigned_user_id === null ? null : n(r.assigned_user_id),
@@ -799,11 +860,15 @@ export type BoardCard = SheetLead & { stage: CallStage };
  * outcome can leave it null — sorts last rather than being dropped.
  */
 export type CallbackLead = SheetLead & {
-  /** Whether the time has passed, decided by the database's clock. Read off a
-   *  row rather than recomputed while rendering: `Date.now()` during render is
-   *  impure, and the server and the browser would answer differently for a
-   *  callback due within a minute of the page loading. */
+  /** Owed now: the time has passed and the business is open. Decided by the
+   *  database's clock and read off the row rather than recomputed while
+   *  rendering: `Date.now()` during render is impure, and the server and the
+   *  browser would answer differently for a callback due within a minute of
+   *  the page loading. */
   due: boolean;
+  /** The time has passed but the business is closed right now, so it waits
+   *  for them to open and holds nobody's lists up (`CALLBACK_WAITING`). */
+  waiting: boolean;
 };
 
 export async function getCallbacks(
@@ -814,7 +879,8 @@ export async function getCallbacks(
 
   const rows = (await db.execute(sql`
     select ${leadColumns}, cl.id as list_id, cl.name as list_name,
-      ${CALLBACK_DUE} as due
+      ${CALLBACK_OWED} as due,
+      (${CALLBACK_DUE} and ${CALLBACK_WAITING}) as waiting
     from call_lead l
     join call_list cl on cl.id = l.call_list_id
     ${latestCall}
@@ -833,12 +899,15 @@ export async function getCallbacks(
     listId: n(r.list_id),
     listName: String(r.list_name),
     due: r.due === true,
+    waiting: r.waiting === true,
   }));
 }
 
-/** How many callbacks are owed right now — the sidebar badge. Cached because
- *  the sidebar and `PageShell` both ask while rendering one page, the same
- *  reason `countUnreadReplies` is. */
+/** How many callbacks are owed right now — the sidebar badge, and the work
+ *  order's second stage. One at a closed business is not owed yet
+ *  (`CALLBACK_WAITING`), or it would hold a caller's lists with nothing they
+ *  can ring. Cached because the sidebar and `PageShell` both ask while
+ *  rendering one page, the same reason `countUnreadReplies` is. */
 export const countCallbacksDue = cache(
   async (ownerId?: number): Promise<number> => {
     const [row] = (await db.execute(sql`
@@ -853,7 +922,9 @@ export const countCallbacksDue = cache(
         and lc.outcome = 'callback'
         and ${CALLBACK_DUE}
     `)) as Row[];
-    return n(row?.n);
+    let waiting = 0;
+    for (const v of (await waitingCallbacksByList(ownerId)).values()) waiting += v;
+    return n(row?.n) - waiting;
   },
 );
 
@@ -1103,6 +1174,7 @@ export type CallListDetail = {
   | "trials"
   | "won"
   | "callbacksDue"
+  | "callbacksWaiting"
   | "callbacksLater"
   | "duplicates"
 >;

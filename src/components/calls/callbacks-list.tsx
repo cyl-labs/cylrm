@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, PhoneOutgoing, ShieldAlert } from "lucide-react";
+import { Check, Copy, Moon, PhoneOutgoing, ShieldAlert } from "lucide-react";
+import { LEAD_HOURS_LABEL } from "@/lib/call-hours";
+import { describeDayHours } from "@/lib/opening-hours.mjs";
 import { toast } from "sonner";
 import type { CallbackLead, CallOutcome } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
@@ -127,11 +129,16 @@ function CopyNumber({
 export function CallbacksList({
   leads,
   showWho = false,
+  canRingClosed = false,
 }: {
   leads: CallbackLead[];
   /** Whose callback it is. Only for admins: a caller's diary is entirely
    *  their own, so stamping their name on every row is noise. */
   showWho?: boolean;
+  /** Founders only, matching the dialler's "Show them anyway". A caller's dial
+   *  card never loads a closed business, so the buttons on a waiting row would
+   *  open some other lead's card or hand them a number they should not ring. */
+  canRingClosed?: boolean;
 }) {
   const router = useRouter();
   // The app-wide line, so an outcome logged here can carry the call that was
@@ -271,10 +278,18 @@ export function CallbacksList({
                   suppressHydrationWarning
                   // Red means late. One with no time is actionable — it is in
                   // the queue and counted as due — but it is not late, since
-                  // no time was ever promised.
+                  // no time was ever promised. One waiting for the business to
+                  // open is not late either: nobody can ring it yet.
                   variant={l.due && l.callbackAt ? "destructive" : "secondary"}
                 >
-                  {due.label}
+                  {l.waiting ? (
+                    <>
+                      <Moon className="size-3" strokeWidth={2.4} />
+                      Closed now
+                    </>
+                  ) : (
+                    due.label
+                  )}
                 </Badge>
                 <Badge variant="outline" className="max-w-32">
                   <span className="min-w-0 truncate">{l.listName}</span>
@@ -302,6 +317,28 @@ export function CallbacksList({
               )}
             </p>
 
+            {/* Why a time that has passed is not red, and what happens next.
+                The same promise the Missed calls screen makes. */}
+            {l.waiting && (
+              <p className="mt-2 flex gap-1.5 rounded-lg bg-muted/50 px-3 py-2 text-[13px]">
+                <Moon
+                  className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                  strokeWidth={2.2}
+                />
+                <span>
+                  <span className="font-semibold">
+                    {l.hoursToday === null
+                      ? `Closed right now (we go by ${LEAD_HOURS_LABEL} their time).`
+                      : l.hoursToday.length === 0
+                        ? "Closed all day today."
+                        : `Closed right now. Open today ${describeDayHours(l.hoursToday)}.`}
+                  </span>{" "}
+                  This isn&apos;t holding up your call lists. Ring them once
+                  they open.
+                </span>
+              </p>
+            )}
+
             {l.lastNotes && (
               <p className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/50 px-3 py-2 text-[13px]">
                 {l.lastNotes}
@@ -313,10 +350,12 @@ export function CallbacksList({
                   Copying the number and dialling it on the Keypad was what
                   people did instead, which hides the company while they talk
                   and drops the call on the way back here. */}
-              {!l.dncBlock && (
+              {!l.dncBlock && (!l.waiting || canRingClosed) && (
                 <CallBackButton listId={l.listId} leadId={l.id} />
               )}
-              <CopyNumber phone={l.phone} blocked={l.dncBlock} />
+              {(!l.waiting || canRingClosed) && (
+                <CopyNumber phone={l.phone} blocked={l.dncBlock} />
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted">
                   <PhoneOutgoing className="size-3.5" />

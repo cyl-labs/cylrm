@@ -27,8 +27,14 @@ export default async function CallbacksPage({
   const listId = lists.some((l) => l.id === wanted) ? wanted : undefined;
 
   const leads = await getCallbacks(listId, callScope(me));
-  // `due` is decided by the database's clock, not this render's.
+  // `due` and `waiting` are decided by the database's clock, not this render's.
   const due = leads.filter((l) => l.due).length;
+  const waiting = leads.filter((l) => l.waiting).length;
+  const later = leads.length - due - waiting;
+  const rest = [
+    waiting > 0 && `${waiting} waiting for them to open`,
+    later > 0 && `${later} later`,
+  ].filter(Boolean);
 
   return (
     <PageShell
@@ -48,15 +54,21 @@ export default async function CallbacksPage({
                 <span className="font-bold text-destructive">
                   {due} due now
                 </span>
-                {leads.length > due && `, ${leads.length - due} later`}
+                {rest.length > 0 && `, ${rest.join(", ")}`}
               </>
+            ) : waiting > 0 ? (
+              `None due right now: ${rest.join(", ")}`
             ) : (
               `${leads.length} scheduled, none due yet`
             )}
             . Times are where the prospect is, and each row says which clock.
           </p>
         )}
-        <CallbacksList leads={leads} showWho={me?.role === "admin"} />
+        <CallbacksList
+          leads={leads}
+          showWho={me?.role === "admin"}
+          canRingClosed={me?.role === "admin"}
+        />
       </div>
     </PageShell>
   );

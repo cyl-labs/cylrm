@@ -164,8 +164,9 @@ and by its browser copy `isOpenAt` in `lib/call-hours.ts`.
   clock.
 - **Everything that used the window follows it**, because they all go through
   `withinLeadHours`: the queue and its split count, missed calls waiting
-  until they open, and the Stats flag and its log filter (now "Rung while
-  closed"). The words moved with it: "asleep" became "closed", and
+  until they open, due callbacks waiting until they open (so a closed business
+  never locks a caller out, see the work order in `docs/cold-calling.md`), and
+  the Stats flag and its log filter (now "Rung while closed"). The words moved with it: "asleep" became "closed", and
   `CALLING_HOURS_LABEL` is the one phrase for the rule.
   - **Stats judges old calls by today's rule and today's week**, not the rule
     in force when they were made. So calls between 5 and 6 PM stop being
