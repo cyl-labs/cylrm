@@ -79,16 +79,10 @@ lost.
 
 _(let them answer)_
 
-Stop there and let the number sit. Do not name a price in the same breath: the
-whole point of the arithmetic is that they say the loss out loud first, so that
-whatever you quote next is measured against it.
-
-The calculator in the step above has already worked all of this out from the two
-numbers you typed in: the loss, and what each package would cost at their
-volume. Read it straight off, and only once they have said the loss out loud. It
-marks the cheapest option at their volume: **do not talk somebody up a tier on
-price**, because the arithmetic will not back you up and a prospect who does the
-sum afterwards has caught you overselling.
+Let the number sit. Don't name a price or say anything else until they've taken
+in the loss. Then read out the package the calculator marks **cheapest**. It's
+already the best fit for their volume, so **don't upsell them to one they don't
+need**.
 
 ## If they say it's too expensive
 
