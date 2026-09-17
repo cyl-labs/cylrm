@@ -89,7 +89,7 @@ export function LocalTime({
     <span
       suppressHydrationWarning
       className={cn(
-        "inline-flex flex-wrap items-center gap-x-1 tabular-nums",
+        "inline-flex flex-wrap items-center justify-center gap-x-1 tabular-nums",
         open ? "text-success" : "text-destructive",
         className,
       )}
@@ -105,9 +105,13 @@ export function LocalTime({
         <Moon className="size-3.5 shrink-0" strokeWidth={2.2} />
       )}
       {time} there
+      {/* Its own line at every width: a split day is long, and wrapping it
+          after the clock left a stray separator at the start of a line. */}
       {known && (
-        <span className="text-muted-foreground">
-          · {hoursToday.length === 0 ? "Closed today" : `Open today ${describeDayHours(hoursToday)}`}
+        <span className="basis-full text-center text-muted-foreground">
+          {hoursToday.length === 0
+            ? "Closed today"
+            : `Open today ${describeDayHours(hoursToday)}`}
         </span>
       )}
     </span>
