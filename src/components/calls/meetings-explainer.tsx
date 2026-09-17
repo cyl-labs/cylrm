@@ -17,8 +17,11 @@ export function MeetingsExplainer({
   /** Named rather than described, so a reader can check it against the clock
    *  in the corner of their own screen. */
   zoneName,
+  isAdmin,
 }: {
   zoneName: string;
+  /** Founders also get the Telegram reminders, which callers never see. */
+  isAdmin: boolean;
 }) {
   return (
     <details className="group rounded-xl border bg-card">
@@ -89,6 +92,19 @@ export function MeetingsExplainer({
             on your own clock ({zoneName}). One that falls due overnight is not
             thrown away &mdash; it waits and arrives once the morning opens.
           </p>
+          {isAdmin && (
+            <p className="mt-2 text-muted-foreground">
+              Founders also get a{" "}
+              <span className="font-semibold text-foreground">Telegram</span>{" "}
+              message for every meeting,{" "}
+              <span className="font-semibold text-foreground">
+                a day before and 30 minutes before
+              </span>
+              , in the same chat that reports email replies. Those go out at
+              any hour, since the US demos run through the night here &mdash;
+              mute the chat in Telegram to silence them.
+            </p>
+          )}
         </section>
 
         <section>

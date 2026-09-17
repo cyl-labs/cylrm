@@ -869,6 +869,41 @@ valid hour" is how they drift.
 - **Sent even when nothing is owed**, like the quota digest: silence cannot be
   told apart from the job having stopped.
 
+### Telegram reminders (founders)
+
+The founders' Telegram chat, the one that already reports email replies
+(`docs/reply-alerts.md`), gets a message **a day before and 30 minutes before
+every meeting** (2026-09-17). `sendMeetingTelegrams` in `lib/meetings.ts`,
+`notifyMeeting` in `lib/notify.ts`, run first on the `/api/cron/meetings` tick.
+No migration and no new setting: `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` were
+already in `/root/crm/.env`, and unset means it does nothing.
+
+- **Every meeting, not a fallback.** The browser push goes to the niche owner
+  and only reaches a founder when that fails. The founders take every demo, so
+  this goes for all of them.
+- **No quiet hours, unlike the push.** The US demos run through the Singapore
+  night (a 1pm Eastern demo is 1am here), and a half-hour warning held until
+  8am is a warning about a meeting that has already happened. The day-before
+  one therefore arrives at night too; the Meetings explainer tells founders to
+  mute the chat in Telegram if that is a problem.
+- **Claimed in `meeting_reminder_sent` under `telegram_day_before` and
+  `telegram_30_min`**, so the push reminders' claims and these never block
+  each other, and `for_start_at` re-arms both when a meeting moves. Every offset
+  already past is claimed and one message goes out, as with the push: a demo
+  booked for later today gets its "Demo today at …" message on the next tick
+  and then the 30-minute one, never a stale day-before one after it.
+- **A failed send releases its claim**, the one place this differs from the
+  push on purpose. A lost 30-minute warning is a late founder, so the next
+  tick retries; the cost is a possible duplicate if Telegram took the message
+  and then failed to answer.
+- **Times are the founders' clock** (the first active admin's reporting zone,
+  then market, then Eastern — how Meetings resolves it), with the prospect's
+  own time added when it differs, plus the contact's name and who booked it.
+- **Verified against a local sink** (`TELEGRAM_API_BASE`): one message per
+  meeting per offset, nothing on a repeat tick, nothing for a cancelled or
+  far-off meeting, a refused send retried on the next tick, and a reschedule
+  re-arming both.
+
 ### Browser push reminders
 
 A meeting reminder has to reach somebody who has not opened the CRM yet today.

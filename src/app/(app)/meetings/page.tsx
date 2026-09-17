@@ -101,7 +101,7 @@ export default async function MeetingsPage({
             answers ("where did all this come from and what do I do?") is asked
             on the way in, and shut by default so it costs one line of height
             to everybody who already knows. */}
-        <MeetingsExplainer zoneName={zone.name} />
+        <MeetingsExplainer zoneName={zone.name} isAdmin={me?.role === "admin"} />
         {/* Demos logged in the CRM with no Cal.com booking behind them: the
             one thing on this screen that is a job with a deadline. */}
         <UnbookedDemos

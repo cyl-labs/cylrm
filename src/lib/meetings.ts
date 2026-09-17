@@ -10,6 +10,7 @@ import { callScope, type CurrentUser } from "@/lib/session";
 import { callRegionOf, statsRegionOf } from "@/lib/users";
 import { statsZone } from "@/lib/stats-zones";
 import { pushConfigured, pushToUser } from "@/lib/push";
+import { notificationsConfigured, notifyMeeting } from "@/lib/notify";
 import {
   bookingPhoneKey,
   calConfigured,
@@ -1087,6 +1088,152 @@ export async function sendMeetingReminders(
 
       result.sent += 1;
       result.deliveries += deliveries;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * When the founders' Telegram chat hears about each meeting, as minutes before
+ * it starts. Most urgent first, like `REMINDER_OFFSETS`.
+ *
+ * Asked for on 2026-09-17: a day before, and half an hour before. The founders
+ * take every demo, so these go for every meeting, not only the ones whose niche
+ * has nobody to push to.
+ */
+const TELEGRAM_OFFSETS = [
+  { kind: "telegram_30_min" as const, minutesBefore: 30 },
+  { kind: "telegram_day_before" as const, minutesBefore: 24 * 60 },
+];
+
+export type TelegramReminderResult = {
+  skipped?: "unconfigured";
+  /** Meetings starting within the next day that were examined this tick. */
+  considered: number;
+  sent: number;
+  /** Telegram refused or did not answer. The claim is released, so the next
+   *  tick tries again. */
+  failed: number;
+};
+
+/**
+ * Tell the founders' Telegram chat about each meeting, a day and 30 minutes
+ * before it starts.
+ *
+ * The chat is the one the email side already reports replies to
+ * (`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`), so nobody has to install or
+ * switch on anything, which is the gap the browser push has.
+ *
+ * - **No quiet hours, unlike the browser push.** The US demos run through the
+ *   Singapore night, and a half-hour warning held until 8am is a warning about
+ *   a meeting that has already happened. Telegram's own mute is the way to
+ *   silence the chat.
+ * - **Claimed through `meeting_reminder_sent`**, the push reminders' table,
+ *   under kinds of its own so the two never block each other. The same unique
+ *   key makes two overlapping ticks send once, and `for_start_at` re-arms both
+ *   reminders when a meeting moves.
+ * - **Every offset already past is claimed and one message goes out**, for the
+ *   reason `dueOffsets` gives: a demo booked in the last day would otherwise get
+ *   its day-before message now and the same again five minutes later.
+ * - **A failed send releases its claim**, the opposite of the push reminders.
+ *   A 30-minute warning lost to a Telegram blip is a demo somebody is late
+ *   for, and a retry every five minutes delivers nothing twice unless Telegram
+ *   received a message it then failed to acknowledge.
+ */
+export async function sendMeetingTelegrams(
+  now: Date = new Date(),
+): Promise<TelegramReminderResult> {
+  const result: TelegramReminderResult = { considered: 0, sent: 0, failed: 0 };
+  if (!notificationsConfigured()) return { ...result, skipped: "unconfigured" };
+
+  // The founders' clock, the one Meetings shows them in: their account's
+  // reporting zone, then its market, then Eastern.
+  const [founder] = (await db.execute(sql`
+    select stats_region, call_region from app_user
+    where role = 'admin' and active
+    order by id
+    limit 1
+  `)) as Row[];
+  const tz = statsZone(founder?.stats_region ?? founder?.call_region).tz;
+  const clock = (d: Date, zone: string) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(d);
+
+  // Only a meeting inside the longest offset can have anything due.
+  const longest = TELEGRAM_OFFSETS[TELEGRAM_OFFSETS.length - 1].minutesBefore;
+  const meetings = (await db.execute(sql`
+    select m.id, m.start_at, m.attendee_name, m.attendee_tz,
+      coalesce(l.company, l.name, m.attendee_name) as who,
+      u.name as booked_by
+    from call_meeting m
+    left join call_lead l on l.id = m.call_lead_id
+    left join call c on c.id = m.call_id
+    left join app_user u on u.id = c.user_id
+    where m.status = 'accepted'
+      and m.start_at > ${now.toISOString()}::timestamptz
+      and m.start_at <= ${now.toISOString()}::timestamptz
+        + make_interval(mins => ${longest}::int)
+    order by m.start_at
+  `)) as Row[];
+  result.considered = meetings.length;
+
+  for (const m of meetings) {
+    const id = n(m.id);
+    const startAt = new Date(m.start_at as string);
+    const due = TELEGRAM_OFFSETS.filter(
+      (o) => now.getTime() >= startAt.getTime() - o.minutesBefore * 60_000,
+    );
+    if (due.length === 0) continue;
+
+    const claimed: string[] = [];
+    for (const o of due) {
+      const rows = (await db.execute(sql`
+        insert into meeting_reminder_sent (meeting_id, kind, for_start_at)
+        values (${id}, ${o.kind}, ${m.start_at as string})
+        on conflict (meeting_id, kind, for_start_at) do nothing
+        returning id
+      `)) as Row[];
+      if (rows.length > 0) claimed.push(o.kind);
+    }
+    if (claimed.length === 0) continue;
+
+    const urgent = due[0].kind === "telegram_30_min";
+    const minutesLeft = Math.max(1, Math.round((startAt.getTime() - now.getTime()) / 60_000));
+    const theirTz = typeof m.attendee_tz === "string" ? m.attendee_tz : null;
+    let theirTime: string | null = null;
+    if (theirTz && theirTz !== tz) {
+      try {
+        theirTime = `${clock(startAt, theirTz)} their time`;
+      } catch {
+        // A zone name Intl does not know. The founders' time still stands.
+      }
+    }
+
+    try {
+      await notifyMeeting({
+        urgent,
+        heading: urgent
+          ? `Demo in ${minutesLeft} minutes, at ${clock(startAt, tz)}`
+          : `Demo ${whenPhrase(startAt, tz, now)}`,
+        who: (m.who as string | null) ?? "A meeting",
+        theirTime,
+        contactName: (m.attendee_name as string | null) ?? null,
+        bookedBy: (m.booked_by as string | null) ?? null,
+      });
+      result.sent += 1;
+    } catch (err) {
+      console.error(`Telegram reminder for meeting ${id} failed:`, err);
+      await db.execute(sql`
+        delete from meeting_reminder_sent
+        where meeting_id = ${id}
+          and for_start_at = ${m.start_at as string}
+          and kind in (${sql.join(claimed.map((k) => sql`${k}`), sql`, `)})
+      `);
+      result.failed += 1;
     }
   }
 

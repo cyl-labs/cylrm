@@ -62,6 +62,32 @@ export type ReplyNotification = {
   variantLabel: string | null;
 };
 
+export type MeetingNotification = {
+  /** The last few minutes rather than the day before, so it gets the alarm. */
+  urgent: boolean;
+  /** Already worded: "Demo in 30 minutes, at 1:00 AM". */
+  heading: string;
+  who: string;
+  /** "1:00 PM their time", or null when they share the founders' clock. */
+  theirTime: string | null;
+  contactName: string | null;
+  bookedBy: string | null;
+};
+
+/** A demo coming up, to the founders' chat. */
+export async function notifyMeeting(m: MeetingNotification): Promise<void> {
+  const base = process.env.PUBLIC_APP_URL ?? "";
+  const lines = [`${m.urgent ? "⏰" : "📅"} ${m.heading}: ${m.who}`];
+  const details = [
+    m.theirTime,
+    m.contactName ? `with ${m.contactName}` : null,
+    m.bookedBy ? `booked by ${m.bookedBy}` : null,
+  ].filter(Boolean);
+  if (details.length > 0) lines.push(details.join(" · "));
+  if (base) lines.push("", `${base}/meetings`);
+  await send(lines.join("\n"));
+}
+
 /** Fired when the poller files a genuine human reply. */
 export async function notifyReply(r: ReplyNotification): Promise<void> {
   const who = r.contactName ?? r.contactEmail;

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { sendMeetingReminders, syncMeetings } from "@/lib/meetings";
+import {
+  sendMeetingReminders,
+  sendMeetingTelegrams,
+  syncMeetings,
+} from "@/lib/meetings";
 
 /**
  * Pull the booked meetings off Cal.com.
@@ -18,6 +22,9 @@ export async function POST(request: Request) {
   const result = await syncMeetings();
   // After the sync, never before: a meeting cancelled ten minutes ago should
   // not be in the count somebody is pushed about.
+  // Telegram first: its half-hour warning is the one that cannot wait for
+  // anything else on this tick to finish.
+  const telegram = await sendMeetingTelegrams();
   const reminders = await sendMeetingReminders();
-  return NextResponse.json({ ok: true, job: "meetings", ...result, reminders });
+  return NextResponse.json({ ok: true, job: "meetings", ...result, telegram, reminders });
 }

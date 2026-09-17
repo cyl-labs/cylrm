@@ -1312,10 +1312,14 @@ export const meetingReminderSent = pgTable(
     meetingId: integer("meeting_id")
       .notNull()
       .references(() => callMeeting.id, { onDelete: "cascade" }),
-    /** Which offset: `day_before` | `same_day`. Text rather than an enum so a
-     *  third needs no migration — and an enum that both drops and adds values
-     *  is the one thing `drizzle-kit push` cannot do without a TTY. */
-    kind: text("kind").notNull().$type<"day_before" | "same_day">(),
+    /** Which offset: `day_before` | `same_day` for the browser push, and
+     *  `telegram_day_before` | `telegram_30_min` for the founders' Telegram
+     *  chat. Text rather than an enum so a new one needs no migration — and an
+     *  enum that both drops and adds values is the one thing `drizzle-kit push`
+     *  cannot do without a TTY. */
+    kind: text("kind")
+      .notNull()
+      .$type<"day_before" | "same_day" | "telegram_day_before" | "telegram_30_min">(),
     /**
      * The meeting time this was sent for.
      *
