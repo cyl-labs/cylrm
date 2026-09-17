@@ -3,6 +3,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { dncBlockReason } from "@/lib/dnc";
 import { getCurrentUser } from "@/lib/session";
+import { recordingVisibleTo } from "@/lib/recordings";
 import { dialCountry, e164 } from "@/lib/phone";
 import { STATE_TZ } from "@/lib/us-states";
 import {
@@ -792,7 +793,18 @@ export const CALL_SHEET_LIMIT = 5000;
  * row is a second copy of a number already on another list, and showing it
  * would double-count the business.
  */
-export async function getSheetLeads(ownerId?: number): Promise<SheetLead[]> {
+/** A Spreadsheet row: the lead, plus how many recordings its number has. */
+export type SheetRow = SheetLead & {
+  /**
+   * Recordings of calls with this number that the reader may play, however
+   * they were dialled. Counted by number rather than off the lead's calls,
+   * because only a dial-card call links its recording: a Keypad dial, or an
+   * outcome logged here afterwards, leaves the audio under the number alone.
+   */
+  recordings: number;
+};
+
+export async function getSheetLeads(ownerId?: number): Promise<SheetRow[]> {
   const rows = (await db.execute(sql`
     select ${leadColumns}, cl.id as list_id, cl.name as list_name
     from call_lead l
@@ -808,12 +820,44 @@ export async function getSheetLeads(ownerId?: number): Promise<SheetLead[]> {
     limit ${CALL_SHEET_LIMIT}
   `)) as Row[];
 
-  const dids = await getDids();
+  const [dids, recordings] = await Promise.all([
+    getDids(),
+    recordingCountsByLead(ownerId),
+  ]);
   return rows.map((r) => ({
     ...toLead(r, dids),
     listId: n(r.list_id),
     listName: String(r.list_name),
+    recordings: recordings.get(n(r.id)) ?? 0,
   }));
+}
+
+/**
+ * How many recordings each lead's number has, that the reader may play.
+ *
+ * Its own query, merged in JS, rather than a join on the sheet's: joined in,
+ * it took the sheet from 2.1s to 5s on prod for an admin. Both directions,
+ * since a number that rang us back is the same lead, and one grouped pass over
+ * the recordings rather than a lookup per lead.
+ */
+async function recordingCountsByLead(ownerId?: number): Promise<Map<number, number>> {
+  const rows = (await db.execute(sql`
+    with nums as materialized (
+      select nums.num, r.recording_id
+      from call_recording r
+      cross join lateral (values (r.to_number), (r.from_number)) as nums(num)
+      where nums.num is not null
+        and ${recordingVisibleTo(ownerId)}
+    )
+    select l.id, count(distinct nums.recording_id) as n
+    from call_lead l
+    join call_list cl on cl.id = l.call_list_id
+    join nums on nums.num = '+' || l.phone_key
+    where l.duplicate_of_lead_id is null
+      ${ownedBy(ownerId)}
+    group by l.id
+  `)) as Row[];
+  return new Map(rows.map((r) => [n(r.id), n(r.n)]));
 }
 
 /**

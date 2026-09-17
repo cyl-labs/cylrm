@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { verifyTelnyxSignature } from "@/lib/telnyx";
+import { recordingNumbers, verifyTelnyxSignature } from "@/lib/telnyx";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { recordInboundText, smsEnabled, updateTextStatus } from "@/lib/sms";
 
@@ -133,14 +133,29 @@ export async function POST(request: Request) {
   // Conflict on the recording, not the session: a session that produces two
   // recordings keeps both, where uniqueness on the session id would make the
   // second silently overwrite the first.
-  // Who the call was with. Telnyx has always sent these and this route always
-  // threw them away, which is why 122 recordings whose call was never logged
-  // could not be reached from anywhere in the app: `call_recording` held only
-  // ids, so nothing could ask which business the audio was of. Kept as sent —
-  // matching a lead happens at read time, because a match made here would be
-  // frozen into the row and a number reassigned later would make it a lie.
-  const toNumber = p.to ? String(p.to) : null;
-  const fromNumber = p.from ? String(p.from) : null;
+  // Who the call was with, which is how a recording no call row points at is
+  // found again: Meetings finds the demo call by it, the Spreadsheet lists a
+  // lead's recordings by it. Kept as Telnyx gives them — matching a lead
+  // happens at read time, because a match made here would be frozen into the
+  // row and a number reassigned later would make it a lie.
+  //
+  // **This event does not carry them**, whatever the payload type suggests.
+  // The route read `p.to` alone from 2026-09-16 and stored no numbers on any
+  // recording for a day and a half; the recording resource has them, so they
+  // are fetched from there. Best effort: a Telnyx hiccup leaves the columns
+  // blank for `scripts/backfill-recording-numbers.mjs`, and must not fail the
+  // webhook, which Telnyx would retry and eventually disable.
+  let toNumber = p.to ? String(p.to) : null;
+  let fromNumber = p.from ? String(p.from) : null;
+  if (!toNumber && !fromNumber) {
+    try {
+      const found = await recordingNumbers(recordingId);
+      toNumber = found.to;
+      fromNumber = found.from;
+    } catch (err) {
+      console.log("[telnyx] could not fetch recording numbers:", String(err).slice(0, 200));
+    }
+  }
 
   await db.execute(sql`
     insert into call_recording

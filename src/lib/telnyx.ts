@@ -522,6 +522,22 @@ export async function recordingDownloadUrl(
   return body.data?.download_urls?.mp3 ?? body.data?.download_urls?.wav ?? null;
 }
 
+/**
+ * Who a recorded call was between.
+ *
+ * The `call.recording.saved` webhook does not carry the numbers; the recording
+ * resource does. Every recording saved between 2026-09-16 18:00 UTC and the
+ * fix was stored without them because the webhook assumed otherwise.
+ */
+export async function recordingNumbers(
+  recordingId: string,
+): Promise<{ to: string | null; from: string | null }> {
+  const body = (await telnyx(`/recordings/${recordingId}`)) as {
+    data?: { to?: string | null; from?: string | null };
+  };
+  return { to: body.data?.to ?? null, from: body.data?.from ?? null };
+}
+
 export type AccountNumber = {
   phoneNumber: string;
   country: string | null;

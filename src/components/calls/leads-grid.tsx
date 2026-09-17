@@ -19,7 +19,10 @@ import {
   Table2,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { CallCategory, CallOutcome, SheetLead } from "@/lib/calls";
+// The Spreadsheet's own row shape (a lead plus its recording count), under the
+// name this file has always used for its rows.
+import type { CallCategory, CallOutcome, SheetRow as SheetLead } from "@/lib/calls";
+import { LeadRecordings } from "@/components/calls/lead-recordings";
 import {
   CALL_CATEGORIES,
   categoryOf,
@@ -59,6 +62,7 @@ type ColKey =
   | "category"
   | "lastNotes"
   | "phone"
+  | "recordings"
   | "email"
   | "website"
   | "lastCalledBy"
@@ -80,6 +84,9 @@ const COLS: { key: ColKey; label: string; w: number; align?: "center" }[] = [
   { key: "category", label: "Category", w: 140 },
   { key: "lastNotes", label: "Notes", w: 300 },
   { key: "phone", label: "Phone", w: 140 },
+  // Beside the number it was a call to, and before anything wide, so it is on
+  // screen without scrolling sideways.
+  { key: "recordings", label: "Recordings", w: 150 },
   { key: "listName", label: "List", w: 160 },
   { key: "email", label: "Email", w: 220 },
   { key: "website", label: "Website", w: 200 },
@@ -165,6 +172,8 @@ function cellText(lead: SheetLead, key: ColKey): string {
       return CATEGORY_LABELS[categoryOf(lead)];
     case "attempts":
       return lead.attempts ? String(lead.attempts) : "";
+    case "recordings":
+      return lead.recordings ? String(lead.recordings) : "";
     case "lastCalledAt":
       return fmt(lead.lastCalledAt);
     // The prospect's clock, not the floor's — a callback is an appointment with
@@ -596,6 +605,7 @@ export function LeadsGrid({
       // other blanks — last, whichever way the column points — rather than
       // ahead of every "1" because zero is smaller.
       if (sort.key === "attempts") return l.attempts || null;
+      if (sort.key === "recordings") return l.recordings || null;
       if (sort.key === "lastCalledAt" || sort.key === "callbackAt") {
         const iso = l[sort.key];
         return iso ? new Date(iso).getTime() : null;
@@ -1297,6 +1307,14 @@ export function LeadsGrid({
                                   </>
                                 )}
                               </span>
+                            ) : c.key === "recordings" ? (
+                              l.recordings > 0 && (
+                                <LeadRecordings
+                                  leadId={l.id}
+                                  count={l.recordings}
+                                  title={l.company ?? l.name ?? l.phone}
+                                />
+                              )
                             ) : c.key === "website" ? (
                               <span className="flex items-center gap-1.5">
                                 <span className="min-w-0 truncate">

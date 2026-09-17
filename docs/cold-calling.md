@@ -746,11 +746,35 @@ inbound handled.
   everyone, like a stale `?list=` does, so the page never reports zeroes that
   read as the calling having stopped. Deactivated people stay in the picker:
   their calls are still in the numbers.
+- **The board has a search box and two filters** (2026-09-18, in
+  `call-board.tsx`): search over business, contact, email, notes, niche and
+  place, plus the number by its digits (three or more); when the last call was
+  (today on the floor's Singapore day, 7 or 30 days, over 30 days, never);
+  and who made the last call, shown only when more than one name appears. All
+  in the browser over every card the page sent, before the 60-per-column cap,
+  so a search finds a lead past the first sixty. Asked for as "no search and
+  the filter is very poor". The date filter reads the clock in its change
+  handler, since the React lint refuses `Date.now()` during render.
 - Board and stats both take `?list=<id>` to narrow to one niche. Both selects live in `src/components/calls/call-filters.tsx` **together** on purpose: a range select that rebuilt the query string on its own dropped `?list=` every time it fired, quietly widening the numbers back to every niche.
 - The board carries **every** lead now that Lost is a column of its own; there is no exclusion set left. Watch the older trap if one is ever reintroduced: `TERMINAL` means "out of the cold-calling queue", which includes `demo_booked`, `trial` and `won` — filtering the board by it emptied the columns those leads belong in.
 - The call outcome enum lost `interested` and gained `trial`, `won`, `lost` on 2026-08-03 (`scripts/migrations/2026-08-03-call-outcome-pipeline.sql`). Postgres cannot drop an enum value, so the type is rebuilt; `drizzle-kit push` cannot do it either (a diff that both drops and adds enum values goes interactive and crashes with no TTY). **Apply the SQL before deploying the code** — the new code writes outcomes the old type does not have.
 - `gatekeeper` was dropped and put back the same day (`2026-08-05-drop-gatekeeper.sql`, then `-restore-gatekeeper.sql`). Both files are kept: the drop is what the four production rows were mapped through, and the restore names those ids so the round trip is auditable. It also shows the cheap direction — `ALTER TYPE ... ADD VALUE ... BEFORE` needs no rebuild, but must commit before anything uses the value, so that file has no `BEGIN`.
 - Spreadsheet detail (`src/components/calls/leads-grid.tsx`) — every calling lead in a Google-Sheets-style grid, with column letters, a formula bar, arrow-key cell selection, and a sheet tab per call list. Rows are windowed on a fixed `ROW_H`, so the row height and the virtualisation constants have to stay in step. It loads one payload (`getSheetLeads`, capped at `CALL_SHEET_LIMIT`) and does every tab, filter and search in the browser.
+  - **A Recordings column** (2026-09-18, `components/calls/lead-recordings.tsx`,
+    `GET /api/call-leads/[id]/recordings`, `getRecordingsForNumber` in
+    `lib/recordings.ts`). "Listen back" with a count opens every recording
+    of a call with that number, newest first, labelled with who and what was
+    logged (or "Rung from the Keypad", or "They rang us"), each playable.
+    **Matched on the number, not the lead's calls**: only a dial-card call
+    links its recording, so a caller who rang from the Keypad and logged in
+    the Spreadsheet (Brian, every call on 2026-09-17) had no recording on any
+    outcome. The count is its own query merged in JS
+    (`recordingCountsByLead`, ~50ms for an admin): joined into the sheet's
+    query it took the page from 2s to 5s. The list itself is fetched on click.
+    Both apply `recordingVisibleTo`, the rule the play button uses, so nothing
+    listed refuses to play. The menu and player stop keys and clicks at their
+    wrapper, since as portals they otherwise bubble into the grid's arrow-key
+    handling.
 - Cells on the spreadsheet that belong to the lead itself (company, phone, name, title, email) are edited through `PATCH /api/call-leads/[id]`, which re-derives `phone_key` — a number changed without it would go on being deduped against the old one — and refuses a number that fails `classifyPhone` or already exists on that list (the `(call_list_id, phone_key)` unique index would otherwise surface as a raw database error).
 - **The Notes cell is editable too, but it saves onto the latest call, not the lead** (2026-09-15, after a caller reported he could not edit notes). The column is `lastNotes`, the latest `call` row's notes, so the grid sends it to `PATCH /api/calls` with `{ callLeadId, notes }` and no `outcome`. That rewrites the notes in place and touches nothing else: not the outcome, not `user_id`, not `called_at`. A lead nobody has rung has no call to hold notes, so the cell is not editable there and the route refuses it too. The editor is a textarea for this one column (Enter saves, Shift+Enter is a new line), because an `<input>` silently drops line breaks and saving would flatten a multi-line note written on the dial card. The saved value is laid over the row like any field edit and is dropped the moment a new call is logged or the latest one corrected away, or the old note would sit over the new call's.
 - Leads are classified by **category** — the outcome enum plus "never called" — and the category cell is where one gets corrected: `PATCH /api/calls` overwrites the latest call's outcome instead of inserting another, so fixing a mis-tap does not read as a second dial, and `DELETE /api/calls?callLeadId=` drops that call to return a lead to never-called.

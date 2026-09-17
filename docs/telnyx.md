@@ -116,6 +116,18 @@ mints a fresh one per play. That is why a recording opened a month later still
 works. Nothing deletes them: `DELETE /v2/recordings/{id}` is the lever if a
 retention policy is ever wanted.
 
+**Each recording also stores who the call was between** (`to_number`,
+`from_number`), which is how audio that no `call` row points at is found:
+the demo call on a Meetings row, and a lead's recordings on the Spreadsheet.
+**The `call.recording.saved` webhook does not carry the numbers.** The route
+read `p.to` from 2026-09-16 and stored nothing on any recording for a day and
+a half (362 rows, found on 2026-09-18 when a caller's Keypad calls would not
+show up on his leads). It now fetches them from `GET /v2/recordings/{id}`
+(`recordingNumbers`) when the payload has none, best effort, and
+`scripts/backfill-recording-numbers.mjs --write` filled the gap; every row on
+prod has numbers. If new recordings start arriving blank again, run that
+script and check the webhook's log for "could not fetch recording numbers".
+
 The outbound voice profile records **dual-channel** — caller on one track, the
 prospect on the other — so a transcript's speaker labels come from which track
 the audio is on rather than from diarisation guessing over a noisy line. It
