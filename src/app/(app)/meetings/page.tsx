@@ -5,11 +5,12 @@ import { PushToggle } from "@/components/calls/push-toggle";
 import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
+import { getSavedLines } from "@/lib/calls";
 import { UnbookedDemos } from "@/components/calls/unbooked-demos";
 import { getTextsByLead, smsEnabled, type Texting } from "@/lib/sms";
 import { classifyPhone } from "@/lib/phone";
 import { callScope, getCurrentUser } from "@/lib/session";
-import { callerNumberOf, callRegionOf, statsRegionOf } from "@/lib/users";
+import { callerNumberOf, callRegionOf, dialMethodOf, statsRegionOf } from "@/lib/users";
 import {
   statsZone,
   isStatsRegion,
@@ -139,6 +140,12 @@ export default async function MeetingsPage({
         )}
         <MeetingsList
           meetings={meetings}
+          // The voice agent's own number among them, so the demo can be merged
+          // in from the row rather than from the lead's dial card. Empty for a
+          // handset caller, who has no browser line to merge onto.
+          lines={
+            (await dialMethodOf(me?.id)) === "browser" ? await getSavedLines() : []
+          }
           tz={zone.tz}
           zoneLabel={zone.label}
           showWho={me?.role === "admin"}

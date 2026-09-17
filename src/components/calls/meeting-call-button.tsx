@@ -1,9 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { PhoneCall } from "lucide-react";
+import { Mic, MicOff, PhoneCall, PhoneOff, UserPlus } from "lucide-react";
 import { useCallLine } from "@/components/calls/call-line";
 import { ConfirmCall } from "@/components/calls/confirm-call";
+import { Button } from "@/components/ui/button";
+import {
+  LinePair,
+  MergeControls,
+  SavedLineList,
+  mmss,
+  type SavedLine,
+} from "@/components/calls/second-line";
+import { e164 } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,6 +46,7 @@ export function MeetingCallButton({
   blocked,
   note,
   label,
+  lines: linesProp,
   className,
 }: {
   /** The business, named as the row names it. */
@@ -51,10 +61,31 @@ export function MeetingCallButton({
   /** Shown in the confirmation, so the demo time is in front of you. */
   note?: string;
   label: string;
+  /** The labelled lines worth a button — the voice agent's demo number among
+   *  them. Empty means no "Add call", as on the dial card. */
+  lines?: SavedLine[];
   className?: string;
 }) {
+  const lines = linesProp ?? [];
   const { line, live, setActiveLead } = useCallLine();
   const [asking, setAsking] = React.useState(false);
+  /**
+   * This row is the one on the call.
+   *
+   * Held here rather than read off `activeLeadId`, which is the *lead* and
+   * would put the controls on both rows of a prospect who booked twice — and
+   * on none at all for a booking that matched no lead.
+   */
+  const [dialled, setDialled] = React.useState(false);
+  const [adding, setAdding] = React.useState(false);
+  const [secondName, setSecondName] = React.useState<string | null>(null);
+  // Cleared when the call ends, during render rather than in an effect —
+  // React's own way of adjusting state when something it derives from changes.
+  if (dialled && line.state === "idle") {
+    setDialled(false);
+    setAdding(false);
+    setSecondName(null);
+  }
 
   // Screened out. The copy button beside this says "Do not call", so adding a
   // second explanation here would be noise.
@@ -75,6 +106,97 @@ export function MeetingCallButton({
   }
 
   const busy = line.state !== "idle";
+
+  /**
+   * The call, once it is this row's.
+   *
+   * It shipped as a button and nothing else: a founder rang a prospect from
+   * here, wanted to put the voice agent on the line, and had no way to — the
+   * merge lived only on the dial card and the Keypad. So the demo, which is the
+   * whole point of this screen, had to be run from somewhere else.
+   *
+   * The same pieces those two screens use (`second-line.tsx`), so the hold and
+   * the merge behave identically wherever you dial from.
+   */
+  if (dialled && busy) {
+    if (line.second) {
+      return (
+        <div className="w-full space-y-2">
+          <LinePair
+            line={line}
+            firstLabel={who}
+            secondLabel={secondName || "Second call"}
+          />
+          <MergeControls line={line} />
+        </div>
+      );
+    }
+    return (
+      <div className="w-full space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border bg-muted/40 text-sm font-bold">
+            {line.state === "active" ? (
+              <span className="tabular-nums">{mmss(line.seconds)}</span>
+            ) : (
+              <span className="text-muted-foreground">
+                {line.state === "ringing" ? "Ringing…" : "Connecting…"}
+              </span>
+            )}
+          </span>
+          <Button
+            variant="outline"
+            className="h-12 w-12 p-0"
+            aria-label={line.muted ? "Unmute" : "Mute"}
+            onClick={line.toggleMute}
+          >
+            {line.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+          </Button>
+          <Button
+            variant="destructive"
+            className="h-12 w-12 p-0"
+            aria-label="Hang up"
+            onClick={line.hangup}
+          >
+            <PhoneOff className="size-4" />
+          </Button>
+        </div>
+        {/* Only once they have answered: there is nobody to hear the agent
+            while it is still ringing. */}
+        {lines.length > 0 && line.state === "active" && (
+          adding ? (
+            <>
+              <SavedLineList
+                lines={lines}
+                onPick={(picked) => {
+                  const second = e164(picked.phoneNumber);
+                  if (!second || !from) return;
+                  setAdding(false);
+                  setSecondName(picked.label);
+                  line.addCall(second, from);
+                }}
+              />
+              <Button
+                variant="ghost"
+                className="h-10 w-full text-muted-foreground"
+                onClick={() => setAdding(false)}
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              className="h-11 w-full"
+              onClick={() => setAdding(true)}
+            >
+              <UserPlus data-icon="inline-start" />
+              Add call
+            </Button>
+          )
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -104,6 +226,7 @@ export function MeetingCallButton({
           // this lead — which is what lets an outcome logged afterwards pick up
           // the recording instead of orphaning it.
           if (leadId !== null) setActiveLead(leadId);
+          setDialled(true);
           line.reset();
           line.dial(to!, from!);
         }}

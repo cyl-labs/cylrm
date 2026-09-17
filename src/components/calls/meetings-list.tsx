@@ -36,6 +36,7 @@ import { LogRecording } from "@/components/calls/log-recording";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
 import { CallBackButton } from "@/components/calls/call-back-button";
 import { MeetingCallButton } from "@/components/calls/meeting-call-button";
+import type { SavedLine } from "@/components/calls/second-line";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
 
 /**
@@ -190,6 +191,7 @@ export function MeetingsList({
   showWho = false,
   signingBase = "",
   texting = null,
+  lines = [],
 }: {
   meetings: Meeting[];
   /** The screen's clock, chosen on the server. Passed rather than read from
@@ -207,6 +209,9 @@ export function MeetingsList({
   /** Texts to the prospect and their replies. Null when texting is switched
    *  off or the reader is not an admin, which draws no button and no thread. */
   texting?: Texting | null;
+  /** The labelled lines a call from here can be merged with — the voice
+   *  agent's demo number among them. */
+  lines?: SavedLine[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<number | null>(null);
@@ -707,6 +712,7 @@ export function MeetingsList({
                   blocked={m.dncBlock}
                   note={m.needsRingBack ? "They did not turn up to this one." : undefined}
                   label={m.needsRingBack ? "Ring them back" : "Call them"}
+                  lines={lines}
                 />
                 {/* Still offered when the browser cannot dial — a founder on a
                     handset needs the number in their hand. */}
