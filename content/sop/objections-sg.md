@@ -234,7 +234,7 @@ Receptionists at these services read answers off a sheet, and people leave those
 
 _(let them answer)_
 
-> **You say** Got it. Ours depends on your call volume and starts as low as $99 a month, so it's more affordable than most services out there. Do you have 15 minutes this week to take a look?
+> **You say** Got it. Ours depends on your call volume and starts as low as $99 a month, so it's cheaper than a lot of services out there. Do you have 15 minutes this week to take a look?
 
 If they are unhappy with it, skip the price question — that is already your opening:
 
