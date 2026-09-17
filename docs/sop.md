@@ -77,6 +77,31 @@ deleted is removed from the table too.
     range and a wrongly-chunked number reads as a different one.
   - `[your name]` and `[their trade]` are not filled today. A caller knows
     their own name, and the trade belongs to the lead rather than to them.
+- **The closing procedure's "too expensive" line is filled from the demo
+  calculator as it is typed** (2026-09-17, `lib/demo-calc.ts`,
+  `components/sop/demo-numbers.tsx`). `[their calls]`, `[their average job]`
+  and `[the package price]` became the prospect's own figures, so a founder
+  answering a price objection no longer scrolls back up to cross-reference.
+  - **This one is filled in the browser, not on the markdown**, unlike
+    `[your number]`: the values do not exist until somebody types them. The
+    two boxes moved out of `PricingCalculator` into `DemoNumbersProvider`,
+    which wraps every section on the document page, and a section whose HTML
+    holds one of those tokens renders through `DemoFilledProse` instead of
+    `SopProse`. Every other section stays server-only.
+  - **The package price is the cheapest package's bill at their volume**,
+    overage included — the figure the calculator marks and the procedure says
+    to quote — said in whole dollars. An empty box leaves its bracket
+    standing, the `[your number]` rule.
+  - **The sums live in `lib/demo-calc.ts`** so the calculator and the line
+    cannot disagree, and in a plain module because the page, a server
+    component, calls `hasDemoFills`: a function exported from a `"use client"`
+    file reaches a server component as a reference, not something it can call.
+  - **A month is 4 weeks**, at the founders' request, because ×4 is the sum a
+    prospect can follow out loud. It was 4.33, and the calculator explained
+    why under the figure. At ×4 the minutes run about 8% under a real month,
+    so somebody right at a plan's limit can end up a little over it.
+  - The term-discount line in that section still quotes Phone Professional's
+    $212.50 and $187.50 by hand, whatever package the calculator picked.
 - **An objection handle must be a `##` branch, never a `###` sub-beat.** A
   `###` never becomes a section of its own, so on the dial card it renders as a
   small muted heading *inside* the parent step's expansion, directly above a

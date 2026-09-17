@@ -3,13 +3,19 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDemoInputs } from "@/components/sop/demo-numbers";
+import {
+  MINUTES_PER_CALL,
+  WEEKS_PER_MONTH,
+  spokenMoney,
+  workOut,
+} from "@/lib/demo-calc";
 import {
   PACKAGES,
   TERMS,
   commitmentCents,
   money,
   monthlyCents,
-  type Package,
 } from "@/lib/packages";
 import { cn } from "@/lib/utils";
 
@@ -24,67 +30,16 @@ import { cn } from "@/lib/utils";
  *
  * It reads its prices from `lib/packages.ts`, the same module the contracts are
  * drafted from, so a quote here and the agreement that follows cannot disagree.
- * The two rules of thumb are the calculator's own and are stated in the
- * document beside it: **two minutes a call**, and a month is 4.33 weeks. If
- * either changes, it changes in both places.
+ * The sums themselves are in `lib/demo-calc.ts`, shared with the script lines
+ * further down the document that say these figures back. The two boxes live in
+ * `DemoNumbersProvider` for the same reason.
  */
-
-/** What an answered call runs to. The whole estimate hangs off this one
- *  number, so it is named rather than buried in an expression. */
-const MINUTES_PER_CALL = 2;
-/** Weeks in a month. 4.33 rather than 4: over a year the difference is a
- *  fortnight of calls, which is enough to move somebody a tier. */
-const WEEKS_PER_MONTH = 4.33;
-
-/** What this package would actually cost at that many minutes — the included
- *  price plus whatever overage the volume runs into. Unlimited never overruns
- *  by definition. */
-function costAt(pkg: Package, minutes: number): number {
-  if (pkg.minutes === null) return pkg.monthlyCents;
-  const over = Math.max(0, minutes - pkg.minutes);
-  return pkg.monthlyCents + over * pkg.overageCents;
-}
-
-/**
- * Money the way somebody says it out loud: "$8,660", never "$8,660.00".
- *
- * `money` from `lib/packages` is the written form and stays right everywhere a
- * figure is read off a table or put on a contract. The one line below is spoken
- * to a prospect, and nobody reads the cents on a number this size.
- */
-const spokenMoney = (cents: number): string =>
-  Math.round(cents / 100).toLocaleString("en-US");
-
 export function PricingCalculator() {
-  // Blank rather than pre-filled: a number already in the box gets read out as
-  // though the prospect said it.
-  const [callsPerWeek, setCallsPerWeek] = React.useState("");
-  const [ticket, setTicket] = React.useState("");
-
-  const calls = Number(callsPerWeek);
-  const job = Number(ticket);
-  const hasCalls = callsPerWeek.trim() !== "" && Number.isFinite(calls) && calls > 0;
-  const hasTicket = ticket.trim() !== "" && Number.isFinite(job) && job > 0;
-
-  const callsMonthly = hasCalls ? calls * WEEKS_PER_MONTH : 0;
-  const minutes = Math.round(callsMonthly * MINUTES_PER_CALL);
-  // What they are losing, in cents, to keep every figure in the same unit.
-  const lossCents = hasCalls && hasTicket ? Math.round(callsMonthly * job * 100) : 0;
-
-  const priced = PACKAGES.map((p) => ({ pkg: p, cents: costAt(p, minutes) }));
-  const cheapest = hasCalls
-    ? priced.reduce((a, b) => (b.cents < a.cents ? b : a)).pkg.id
-    : null;
-  /**
-   * The smallest package that covers them with no overage at all.
-   *
-   * Shown as a fact, never as the recommendation. Marking it "fits" and
-   * highlighting it was actively wrong: at thirty missed calls a week it
-   * pointed at Call Commander's $2,000 while Phone Professional would have
-   * billed $271 for the same month.
-   */
-  const noOverage =
-    PACKAGES.find((p) => p.minutes === null || minutes <= p.minutes) ?? PACKAGES[0];
+  const { callsPerWeek, ticket, setCallsPerWeek, setTicket } = useDemoInputs();
+  const n = workOut(callsPerWeek, ticket);
+  const { calls, job, hasCalls, hasTicket, callsMonthly, minutes, lossCents } = n;
+  const { priced, noOverage } = n;
+  const cheapest = n.cheapest?.pkg.id ?? null;
 
   return (
     <div className="rounded-xl border bg-card p-4">
@@ -168,9 +123,8 @@ export function PricingCalculator() {
             About{" "}
             <span className="font-bold">{Math.round(callsMonthly)} calls</span> a
             month{" "}
-            {/* Said out loud because 10 a week reading as 43 a month looks
-                like a bug otherwise. 52 weeks over 12 months is 4.33, not 4 —
-                rounding to 4 loses a month of calls across a year. */}
+            {/* The sum shown, so the monthly figure can be checked at a
+                glance and said the same way to the prospect. */}
             <span className="text-muted-foreground">
               ({calls} × {WEEKS_PER_MONTH} weeks)
             </span>
@@ -190,12 +144,6 @@ export function PricingCalculator() {
                 a month walking out of the door.
               </>
             )}
-          </p>
-          {/* Why 4.33 and not 4, because it reads as a typo until you see
-              where it comes from — and getting it wrong moves people a tier. */}
-          <p className="mt-1 text-[12px] text-muted-foreground">
-            A month is {WEEKS_PER_MONTH} weeks, not 4: the year is 52 weeks, and
-            multiplying by four counts only 48 of them.
           </p>
 
           {/* Every package at their volume, not just the recommended one. A

@@ -4,6 +4,11 @@ import { ChevronLeft, ChevronRight, FileDown } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { SopProse } from "@/components/sop/sop-prose";
 import { PricingCalculator } from "@/components/sop/pricing-calculator";
+import {
+  DemoFilledProse,
+  DemoNumbersProvider,
+} from "@/components/sop/demo-numbers";
+import { hasDemoFills } from "@/lib/demo-calc";
 import { getCurrentUser } from "@/lib/session";
 import { callerNumberOf, callRegionOf } from "@/lib/users";
 import { sopRegionFor } from "@/lib/calls";
@@ -59,6 +64,7 @@ export default async function SopDocumentPage({
   if (!doc) notFound();
 
   const showToc = doc.sections.length > TOC_THRESHOLD;
+  const hasCalculator = doc.sections.some((s) => s.html.includes(CALCULATOR_MARKER));
   // Founders only, and only for a document that may leave the building.
   const canExport =
     me?.role === "admin" && !doc.adminOnly && Boolean(process.env.GOTENBERG_URL);
@@ -187,101 +193,108 @@ export default async function SopDocumentPage({
                 className="mb-6 text-muted-foreground"
               />
             )}
-            {/* Steps are numbered; branches are not. Numbering a conditional
-                "If they say not interested" as step 06 says you always reach
-                it, which is the opposite of true — so branches indent off the
-                step above and carry a ↳ instead of a number. */}
-            {(() => {
-              let step = 0;
-              let depth = 0;
-              return doc.sections.map((s, i) => {
-                if (s.branch) depth = Math.min(depth + 1, 2);
-                else {
-                  step += 1;
-                  depth = 0;
-                }
-                const newGroup =
-                  s.category && s.category !== doc.sections[i - 1]?.category;
-                return (
-                  <section
-                    key={s.title}
-                    data-group={newGroup ? s.category : undefined}
-                    className={cn(
-                      // A step is a thing you do, then stop, then do the next
-                      // one. Run together they read as one wall of dialogue,
-                      // so each gets a rule above it and room to breathe, the
-                      // way the printed sheet separates them.
-                      "mt-10 border-t pt-7 first:mt-0 first:border-t-0 first:pt-0",
-                      s.branch &&
-                        "mt-5 border-t-0 pt-0 border-l-2 border-dashed border-border pl-4 sm:pl-5",
-                      s.branch && depth === 1 && "ml-1 sm:ml-3",
-                      s.branch && depth >= 2 && "ml-6 sm:ml-10",
-                    )}
-                  >
-                    {newGroup && (
-                      <p className="mb-5 text-lg font-extrabold tracking-[-0.02em] text-primary">
-                        {s.category}
-                      </p>
-                    )}
-                    <h2
-                      id={anchor(s.title, i)}
+            {/* The calculator's two boxes are held here, above every section,
+                so a script line further down can say the figures back. */}
+            <DemoNumbersProvider>
+              {/* Steps are numbered; branches are not. Numbering a conditional
+                  "If they say not interested" as step 06 says you always reach
+                  it, which is the opposite of true — so branches indent off the
+                  step above and carry a ↳ instead of a number. */}
+              {(() => {
+                let step = 0;
+                let depth = 0;
+                return doc.sections.map((s, i) => {
+                  const html = s.html.replace(`<p>${CALCULATOR_MARKER}</p>`, "");
+                  if (s.branch) depth = Math.min(depth + 1, 2);
+                  else {
+                    step += 1;
+                    depth = 0;
+                  }
+                  const newGroup =
+                    s.category && s.category !== doc.sections[i - 1]?.category;
+                  return (
+                    <section
+                      key={s.title}
+                      data-group={newGroup ? s.category : undefined}
                       className={cn(
-                        "scroll-mt-6 tracking-[-0.01em]",
-                        s.branch
-                          ? "text-[13px] font-bold text-muted-foreground"
-                          : "text-[15px] font-extrabold",
+                        // A step is a thing you do, then stop, then do the next
+                        // one. Run together they read as one wall of dialogue,
+                        // so each gets a rule above it and room to breathe, the
+                        // way the printed sheet separates them.
+                        "mt-10 border-t pt-7 first:mt-0 first:border-t-0 first:pt-0",
+                        s.branch &&
+                          "mt-5 border-t-0 pt-0 border-l-2 border-dashed border-border pl-4 sm:pl-5",
+                        s.branch && depth === 1 && "ml-1 sm:ml-3",
+                        s.branch && depth >= 2 && "ml-6 sm:ml-10",
                       )}
                     >
-                      <span
-                        aria-hidden
-                        className="mr-2 text-muted-foreground/70 tabular-nums"
+                      {newGroup && (
+                        <p className="mb-5 text-lg font-extrabold tracking-[-0.02em] text-primary">
+                          {s.category}
+                        </p>
+                      )}
+                      <h2
+                        id={anchor(s.title, i)}
+                        className={cn(
+                          "scroll-mt-6 tracking-[-0.01em]",
+                          s.branch
+                            ? "text-[13px] font-bold text-muted-foreground"
+                            : "text-[15px] font-extrabold",
+                        )}
                       >
-                        {s.branch ? "↳" : String(step).padStart(2, "0")}
-                      </span>
-                      {/* An objection is quoted speech, so it gets the
-                          highlighter the printed sheet gives it. The rest of
-                          the headings are instructions and stay plain. */}
-                      {s.title.startsWith("Prospect:") ? (
-                        <span className="rounded-[3px] bg-[#EDEDED] px-1.5 py-0.5 dark:bg-[#3a3a37]">
-                          {s.title}
+                        <span
+                          aria-hidden
+                          className="mr-2 text-muted-foreground/70 tabular-nums"
+                        >
+                          {s.branch ? "↳" : String(step).padStart(2, "0")}
                         </span>
+                        {/* An objection is quoted speech, so it gets the
+                            highlighter the printed sheet gives it. The rest of
+                            the headings are instructions and stay plain. */}
+                        {s.title.startsWith("Prospect:") ? (
+                          <span className="rounded-[3px] bg-[#EDEDED] px-1.5 py-0.5 dark:bg-[#3a3a37]">
+                            {s.title}
+                          </span>
+                        ) : (
+                          s.title
+                        )}
+                      </h2>
+                      {/* "[their calls]" and the rest, written in as the
+                          founder types them. Only where the document has a
+                          calculator to answer them, and only in the sections
+                          that ask, so every other section stays server-only. */}
+                      {hasCalculator && hasDemoFills(html) ? (
+                        <DemoFilledProse html={html} className="mt-3" />
                       ) : (
-                        s.title
+                        <SopProse html={html} className="mt-3" />
                       )}
-                    </h2>
-                    <SopProse
-                      html={s.html.replace(
-                        `<p>${CALCULATOR_MARKER}</p>`,
-                        "",
-                      )}
-                      className="mt-3"
-                    />
-                    {/* Where the numbers are collected, not beside the
-                        arithmetic they feed. Its two boxes are the two
-                        questions in "get their numbers", so a founder types
-                        each figure as the prospect says it. It sat under "do
-                        the math out loud" until 2026-09-16, one step further
-                        down, which asked somebody mid-demo to hold both numbers
-                        in their head across a scroll — and they didn't, which
-                        is the complaint that moved it. Still never at the top
-                        of the page: a calculator away from the words is one
-                        they scroll past and do the sum without.
+                      {/* Where the numbers are collected, not beside the
+                          arithmetic they feed. Its two boxes are the two
+                          questions in "get their numbers", so a founder types
+                          each figure as the prospect says it. It sat under "do
+                          the math out loud" until 2026-09-16, one step further
+                          down, which asked somebody mid-demo to hold both numbers
+                          in their head across a scroll — and they didn't, which
+                          is the complaint that moved it. Still never at the top
+                          of the page: a calculator away from the words is one
+                          they scroll past and do the sum without.
 
-                        The marker's position *within* a section does not
-                        matter. The section's prose renders first and this is
-                        appended after it, so the calculator always lands at the
-                        foot of whichever section carries the marker. Move it by
-                        moving it between sections, and expect it at the bottom
-                        of the one it lands in. */}
-                    {s.html.includes(CALCULATOR_MARKER) && (
-                      <div className="mt-4">
-                        <PricingCalculator />
-                      </div>
-                    )}
-                  </section>
-                );
-              });
-            })()}
+                          The marker's position *within* a section does not
+                          matter. The section's prose renders first and this is
+                          appended after it, so the calculator always lands at the
+                          foot of whichever section carries the marker. Move it by
+                          moving it between sections, and expect it at the bottom
+                          of the one it lands in. */}
+                      {s.html.includes(CALCULATOR_MARKER) && (
+                        <div className="mt-4">
+                          <PricingCalculator />
+                        </div>
+                      )}
+                    </section>
+                  );
+                });
+              })()}
+            </DemoNumbersProvider>
           </article>
         </div>
       </div>
