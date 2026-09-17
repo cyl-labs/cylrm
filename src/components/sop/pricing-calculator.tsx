@@ -119,31 +119,26 @@ export function PricingCalculator() {
             </p>
           )}
 
-          <p className="mt-3.5 text-[13px] leading-relaxed">
-            About{" "}
-            <span className="font-bold">{Math.round(callsMonthly)} calls</span> a
-            month{" "}
-            {/* The sum shown, so the monthly figure can be checked at a
-                glance and said the same way to the prospect. */}
-            <span className="text-muted-foreground">
-              ({calls} × {WEEKS_PER_MONTH} weeks)
-            </span>
-            , so roughly{" "}
-            <span className="font-bold tabular-nums">{minutes} minutes</span>{" "}
-            <span className="text-muted-foreground">
-              (at {MINUTES_PER_CALL} min a call)
-            </span>
-            .
-            {hasTicket && (
-              <>
-                {" "}
-                At ${job.toLocaleString()} a job that is{" "}
-                <span className="font-bold tabular-nums">
-                  ${money(lossCents)}
-                </span>{" "}
-                a month walking out of the door.
-              </>
-            )}
+          {/* The working behind the table, not a second version of the line
+              above. It used to end by restating the monthly loss, which had
+              just been said out loud to the prospect — so the founder read the
+              figure, then the call volume, then the same figure again. Labelled
+              rather than removed: the minutes are how the package is picked,
+              and a bare count of calls under a spoken line reads as more of the
+              pitch. */}
+          <p className="mt-3.5 text-[13px] leading-relaxed text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              For the package:
+            </span>{" "}
+            about{" "}
+            <span className="font-bold text-foreground tabular-nums">
+              {Math.round(callsMonthly)} calls
+            </span>{" "}
+            a month ({calls} × {WEEKS_PER_MONTH} weeks), so roughly{" "}
+            <span className="font-bold text-foreground tabular-nums">
+              {minutes} minutes
+            </span>{" "}
+            (at {MINUTES_PER_CALL} min a call).
           </p>
 
           {/* Every package at their volume, not just the recommended one. A

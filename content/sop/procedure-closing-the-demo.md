@@ -180,19 +180,6 @@ in a decision rather than in silence. We do not do that today and this does not
 ask you to — but it is the one part of his close worth stealing later, if
 trials keep lapsing without an answer either way.
 
-## Confirm the carrier
-
-Call forwarding is carrier-specific, so ask now rather than discovering it on
-setup day.
-
-> **You say** What mobile carrier are you on — T-Mobile, Verizon, AT&T?
-
-_(let them answer)_
-
-> **You say** We've got a lot of [carrier] clients. It's conditional call forwarding, just a short dial-in code on your phone with the forwarding number for your agent. Once that's set, instead of going to voicemail we answer those calls and send you a summary after each one, plus your own dashboard.
-
-_(let them answer)_
-
 ## Send the doc while you are still on the call
 
 **Don't narrate the plumbing.** Naming the tools — a form, a text message, a
