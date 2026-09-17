@@ -8,6 +8,9 @@ import { STATE_TZ } from "@/lib/us-states";
 import {
   LEAD_HOURS_END,
   LEAD_HOURS_START,
+  OPEN_HOURS_EARLIEST,
+  OPEN_HOURS_LATEST,
+  type OpenRange,
 } from "@/lib/call-hours";
 import { listAccountNumbers } from "@/lib/telnyx";
 import type { CallRegion, DialCountry } from "@/lib/phone";
@@ -25,6 +28,7 @@ import type { CallRegion, DialCountry } from "@/lib/phone";
 export { classifyPhone, dialCountry, e164 } from "@/lib/phone";
 export type { CallRegion, DialCountry } from "@/lib/phone";
 export {
+  CALLING_HOURS_LABEL,
   LEAD_HOURS_END,
   LEAD_HOURS_LABEL,
   LEAD_HOURS_START,
@@ -272,31 +276,50 @@ export const leadZone = sql`
 `;
 
 /**
- * Business hours where the lead is: 9am to 5pm, their time.
+ * Was the business open where the lead is, at some instant?
  *
  * The whole point of the feature — a caller starting at 10pm Singapore can
  * ring the east coast and must not be handed Honolulu, where it is half past
  * three in the morning.
- */
-/**
- * Was it business hours where the lead is, at some instant?
  *
  * Takes the instant so one rule serves both questions asked of it: the queue
  * asks about `now()`, and Stats asks about `called_at` after the fact. Two
- * copies of "9 to 5 their time" would be two answers to the same question, and
- * the one on the report had better be the one the dialler filtered by.
+ * copies of the rule would be two answers to the same question, and the one
+ * on the report had better be the one the dialler filtered by. `isOpenAt` in
+ * `lib/call-hours.ts` is the browser's copy for the dial card's clock; change
+ * one, change both.
+ *
+ * **The business's own hours where the scrape gave them** (`opening_hours`,
+ * parsed by `lib/opening-hours.mjs`), held inside 8am to 8pm, and 9am to 6pm
+ * their time everywhere else (2026-09-17; it was 9 to 5 for every lead). A
+ * known week with no entry for today is closed today. Stats reads the week as
+ * it is now, not as it was when an old call was made.
  *
  * A null zone is never in hours. Toll-free belongs to no place and an unknown
  * area code is not worth guessing at, so those are excluded here and reported
  * separately rather than being flagged as an out-of-hours call nobody made.
  *
- * Expects the `leadZone` lateral aliased as `z`.
+ * Expects `call_lead` as `l` and the `leadZone` lateral as `z`.
  */
-export const withinLeadHours = (at: SQL) => sql`(
+const hhmm = (v: string) => sql.raw(`time '${v}'`);
+export const withinLeadHours = (at: SQL) => {
+  const local = sql`(${at} at time zone z.tz)`;
+  return sql`(
   z.tz is not null
-  and (${at} at time zone z.tz)::time >= time ${sql.raw(`'${LEAD_HOURS_START}'`)}
-  and (${at} at time zone z.tz)::time < time ${sql.raw(`'${LEAD_HOURS_END}'`)}
+  and case
+    when l.opening_hours is not null then exists (
+      select 1
+      from jsonb_array_elements(
+        l.opening_hours -> extract(isodow from ${local})::int::text
+      ) as oh(r)
+      where ${local}::time >= greatest((oh.r->>0)::time, ${hhmm(OPEN_HOURS_EARLIEST)})
+        and ${local}::time < least((oh.r->>1)::time, ${hhmm(OPEN_HOURS_LATEST)})
+    )
+    else ${local}::time >= ${hhmm(LEAD_HOURS_START)}
+      and ${local}::time < ${hhmm(LEAD_HOURS_END)}
+  end
 )`;
+};
 
 const CALLABLE_NOW = withinLeadHours(sql`now()`);
 
@@ -592,6 +615,12 @@ export type QueueLead = {
    * out.
    */
   tz: string | null;
+  /**
+   * The business's opening hours today, their day, or null when the scrape
+   * did not give a week. `[]` is closed today. Only today, not the week: the
+   * Spreadsheet carries thousands of these, and the card only asks about now.
+   */
+  hoursToday: OpenRange[] | null;
 };
 
 export type CallQueueFilter = "queue" | "callbacks" | "closed" | "all";
@@ -626,7 +655,15 @@ const leadColumns = sql`
   lc.voicemail_at,
   lr.recording_id, lr.duration_ms as recording_ms,
   (select count(*) from call c where c.call_lead_id = l.id) as attempts,
-  z.tz
+  z.tz,
+  -- Today in their zone, so the card can say "open until 4:30". A known week
+  -- with no zone gives nothing: without a clock there is no "today".
+  case when z.tz is not null and l.opening_hours is not null
+    then coalesce(
+      l.opening_hours -> extract(isodow from now() at time zone z.tz)::int::text,
+      '[]'::jsonb
+    )
+  end as hours_today
 `;
 
 function toLead(r: Row, dids: DidMap): QueueLead {
@@ -667,6 +704,9 @@ function toLead(r: Row, dids: DidMap): QueueLead {
       dialCountry(String(r.phone)),
     ),
     tz: (r.tz as string | null) ?? null,
+    hoursToday: Array.isArray(r.hours_today)
+      ? (r.hours_today as OpenRange[])
+      : null,
   };
 }
 

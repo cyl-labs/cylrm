@@ -201,7 +201,7 @@ export function InboundList({
             <>
               {" "}
               <span className="font-semibold text-foreground">
-                {waiting} can wait until morning
+                {waiting} can wait until they open
               </span>{" "}
               where they are.
             </>
@@ -300,8 +300,8 @@ export function InboundList({
                     <span className="font-semibold text-foreground">
                       It&apos;s {c.theirNow} where they are, so this can wait.
                     </span>{" "}
-                    Ring back after 9am their time. It isn&apos;t holding up
-                    your call list.
+                    They&apos;re closed now, so ring back once they open. It
+                    isn&apos;t holding up your call list.
                   </p>
                 )}
 

@@ -23,8 +23,9 @@ business hours where they actually are. Measured on the live data: 51% Eastern,
   place, and an area code with no row is not worth inventing. Those leads show
   no clock and are excluded from "open now" — being an hour out is cheap, being
   nine hours out is the whole problem.
-- **The dialler filters to leads it is 09:00–17:00 for, and does so by
-  default** (`CALLABLE_NOW`). It shipped off, on the reasoning that a filter
+- **The dialler filters to businesses open right now, and does so by
+  default** (`CALLABLE_NOW`). "Open" was 09:00–17:00 their time for every lead
+  until 2026-09-17; see **A business's own hours** below for what it is now. It shipped off, on the reasoning that a filter
   hiding work should be asked for; that was the wrong trade for a floor calling
   the US from overseas, where a third of the leads are outside their own hours
   at any moment, so the default handed over numbers that should not be rung.
@@ -108,3 +109,69 @@ business hours where they actually are. Measured on the live data: 51% Eastern,
 - A few area codes genuinely straddle two zones (208 Idaho, 850 Florida, 605
   South Dakota); they are mapped to the majority zone rather than pretending to
   certainty.
+
+## A business's own hours (2026-09-17)
+
+`call_lead.opening_hours` (`2026-09-17-opening-hours.sql`, **applied before
+the deploy**, since every queue query reads it), parsed by
+`src/lib/opening-hours.mjs`, applied by `withinLeadHours` in `lib/calls.ts`
+and by its browser copy `isOpenAt` in `lib/call-hours.ts`.
+
+- **Why.** Akshansh dials 1 to 5 PM Eastern and pointed out that most
+  businesses are open until 6, so the 9-to-5 rule dropped East Coast leads
+  from his queue while they were still open. The Apify Google Places scrapes
+  carry each business's week. On that day, the Monday closing times of the
+  leads with hours were: about 80 before 5 PM, 240 at 5, about 200 between
+  5:30 and 6:30, about 650 at 7 or later, and 503 "Open 24 hours".
+- **The rule.** Where the week is known, the business must be open at that
+  moment in its own zone, **and** it must be between 8am and 8pm there
+  (`OPEN_HOURS_EARLIEST` / `OPEN_HOURS_LATEST`). Where the week is not known,
+  it is 9am to 6pm (`LEAD_HOURS_START` / `LEAD_HOURS_END`, 9 to 5 until
+  then). A known week with nothing for today means closed today. An unknown
+  zone is still never open.
+  - **The 8-to-8 bound is the reason "Open 24 hours" is safe to believe.**
+    That is a third of all the day entries. On Google it usually means a
+    one-person business that listed its mobile, and Junk King lists 4 AM, so a
+    business's own hours only ever narrow the day, never widen it.
+- **Who has hours.** Only the Google Places lists: Junk Removal 1.1, 1.2,
+  2.1, 2.2, 3.1, 3.2 and 4.1–4.5, 1,763 of their 1,827 leads. Every other list
+  (Junk Removal 1.3–1.5, Landscaping, Locksmith, Movers, Septic, Auto
+  Detailing, Trucking, London, all of Singapore) came from a different scraper
+  with no hours, and sits on 9 to 6. No lead there was flagged permanently
+  or temporarily closed, so those fields are not read.
+- **Parsed once and stored**, not read out of `source_fields` in the query.
+  The scrape writes the week as fourteen flat columns of text like
+  "7 AM to 4:30 PM" (a narrow no-break space before AM/PM), and a
+  text parser inside every queue query would be both slow and a second copy of
+  the rules. Stored shape: `{"1": [["07:00","16:30"]], …, "7": []}`, ISO
+  weekday. A close of `"24:00"` is midnight, which Postgres takes as a time.
+  - Forms handled, all seen in the data: single ranges, "Open 24 hours",
+    "Closed", split days ("8:15 AM to 12 PM, 12:30 to 4 PM"), a start with no
+    AM/PM (it takes the end's), and a closing "12 AM" (midnight). A range past
+    midnight keeps only the part before it, since 8pm comes first anyway.
+  - **One unreadable day makes the whole week null**, rather than half-believed,
+    and so does a week closed every day. Every week on prod parsed.
+  - `scripts/backfill-opening-hours.mjs` filled the leads imported before this
+    (dry run by default, `--apply`, `--all` to re-parse after a parser change).
+    It writes through the raw client, so it binds with `sql.json` and checks
+    `jsonb_typeof` afterwards; see the jsonb Gotcha in `AGENTS.md`. The
+    importer parses as it goes.
+- **Today's hours ride on every lead** (`hoursToday` on `QueueLead`, computed
+  in `leadColumns` in the lead's zone), not the week: the Spreadsheet carries
+  thousands of leads and the card only asks about now. `LocalTime` uses them
+  for its colour, via `isOpenAt`, where it used to have 9 and 17 written into
+  it, and says "Open today 7 AM to 4:30 PM" or "Closed today" beside the
+  clock.
+- **Everything that used the window follows it**, because they all go through
+  `withinLeadHours`: the queue and its split count, missed calls waiting
+  until they open, and the Stats flag and its log filter (now "Rung while
+  closed"). The words moved with it: "asleep" became "closed", and
+  `CALLING_HOURS_LABEL` is the one phrase for the rule.
+  - **Stats judges old calls by today's rule and today's week**, not the rule
+    in force when they were made. So calls between 5 and 6 PM stop being
+    flagged, and a call at 4:45 to a business that shuts at 4:30 starts
+    being flagged. The acknowledged watermark only counts calls after it, so
+    this does not re-raise the banner for calls already seen.
+- **Tested** on the SQL itself, across the fallback edges, the 8/8 bound,
+  split days, a closed Sunday and an unknown zone, with `isOpenAt` checked
+  against the same cases.

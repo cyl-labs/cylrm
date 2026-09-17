@@ -2,15 +2,10 @@ import { cache } from "react";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import type { CallOutcome } from "@/lib/calls";
-// The zone join and the 9-to-5 rule come from `calls.ts` rather than being
+// The zone join and the opening-hours rule come from `calls.ts` rather than being
 // restated: the dialler filters the queue by that rule, and a report saying a
 // call was out of hours had better agree with the screen that handed it over.
-import {
-  LEAD_HOURS_END,
-  LEAD_HOURS_START,
-  leadZone,
-  withinLeadHours,
-} from "@/lib/calls";
+import { leadZone, withinLeadHours } from "@/lib/calls";
 import { STATS_TZ } from "@/lib/stats-zones";
 
 type Row = Record<string, unknown>;

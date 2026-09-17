@@ -92,13 +92,14 @@ export const MISSED_CALL_FRESH_MINUTES = 60;
  * Waits only when **both** hold. It came in more than an hour ago: somebody who
  * rang within the hour is plainly awake whatever their clock says, and is the
  * warmest call of the day, so that one still goes first (the founders' rule).
- * And it is outside 9 to 5 where they are now, by the same `withinLeadHours`
- * the dial queue filters on. **An unknown zone never waits**: a warm lead we
+ * And the business is closed where they are now, by the same `withinLeadHours`
+ * the dial queue filters on (their own hours where known, 9 to 6 otherwise). **An unknown zone never waits**: a warm lead we
  * cannot place is not a reason to delay it.
  *
  * It stays on the Missed calls screen, labelled. It leaves the badge and the
  * work-order gate, which both read `countMissedCalls`, and comes back to them
- * the moment it is 9am there. Expects `leadZone` joined, giving `z`.
+ * the moment they open. Expects the lead as `l` and `leadZone` joined, giving
+ * `z`.
  */
 const CAN_WAIT = sql`(
   ic.started_at < now() - ${`${MISSED_CALL_FRESH_MINUTES} minutes`}::interval

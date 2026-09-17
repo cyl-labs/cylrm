@@ -18,7 +18,7 @@ import {
   dialMethodOf,
   panelLeftOf,
 } from "@/lib/users";
-import { sopRegionFor } from "@/lib/calls";
+import { CALLING_HOURS_LABEL, sopRegionFor } from "@/lib/calls";
 import { spokenNumber } from "@/lib/phone";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
@@ -63,7 +63,8 @@ export default async function CallListPage({
   // and the thing they are being made to do.
   const fallback: CallQueueFilter = work.blockedBy === "callbacks" ? "callbacks" : "queue";
   const filter: CallQueueFilter = isFilter(view) ? view : fallback;
-  // Only leads it is business hours for, where they are.
+  // Only businesses open right now, where they are: their own opening hours
+  // where the scrape gave them, 9 to 6 otherwise (`withinLeadHours`).
   //
   // On by default since 2026-08-31. It shipped off, on the reasoning that a
   // filter hiding work should be asked for rather than assumed, and that was
@@ -297,7 +298,7 @@ export default async function CallListPage({
               aria-label={
                 callableNow
                   ? "Show every lead, whatever time it is there"
-                  : "Show only leads it is business hours for"
+                  : "Show only businesses open right now"
               }
               className={cn(
                 "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] font-semibold transition-colors",
@@ -366,11 +367,11 @@ export default async function CallListPage({
                   <span className="font-bold text-foreground">
                     {split.callableNow}
                   </span>{" "}
-                  {split.callableNow === 1 ? "lead" : "leads"}{" "}
-                  it&rsquo;s business hours for.{" "}
+                  {split.callableNow === 1 ? "lead" : "leads"} open right
+                  now.{" "}
                   {split.total - split.callableNow} more{" "}
-                  {split.total - split.callableNow === 1 ? "is" : "are"} asleep
-                  where they are.
+                  {split.total - split.callableNow === 1 ? "is" : "are"} closed
+                  where they are: outside {CALLING_HOURS_LABEL}.
                 </>
               ) : (
                 <>

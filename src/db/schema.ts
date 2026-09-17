@@ -440,6 +440,11 @@ export const callLead = pgTable(
     website: text("website"),
     /** Raw CSV columns, mirroring contact.apollo_fields. */
     sourceFields: jsonb("source_fields").$type<Record<string, string>>(),
+    /** The business's week as the scrape listed it, parsed by
+     *  `lib/opening-hours.mjs`: ISO weekday "1"–"7" to "HH:MM" ranges, `[]`
+     *  for a closed day. Null when the scrape gave none, which leaves the lead
+     *  on the default 9–6 window. Read by `withinLeadHours`. */
+    openingHours: jsonb("opening_hours").$type<Record<string, [string, string][]>>(),
     /** Set at import when this number already exists on another lead. */
     duplicateOfLeadId: integer("duplicate_of_lead_id").references(
       (): AnyPgColumn => callLead.id,

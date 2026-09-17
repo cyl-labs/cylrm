@@ -52,7 +52,7 @@ import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
 import { dialableNumber, e164 } from "@/lib/phone";
 // From `call-hours`, not `calls`: that one reaches for the database, and this
 // is a client component. Same wall `outcome.ts` and `phone.ts` were built for.
-import { LEAD_HOURS_LABEL } from "@/lib/call-hours";
+import { CALLING_HOURS_LABEL } from "@/lib/call-hours";
 import { placeLabel, placeShort } from "@/lib/place";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { LocalTime } from "@/components/calls/local-time";
@@ -1011,7 +1011,7 @@ export function Dialler({
         <p className="text-sm font-semibold">
           {leads.length === 0
             ? hiddenByHours > 0
-              ? "Everyone here is asleep."
+              ? "Everyone here is closed right now."
               : retryLater > 0
                 ? "You've rung everyone you can today."
                 : "Nothing to call here."
@@ -1020,7 +1020,7 @@ export function Dialler({
         <p className="mt-1 text-[13px] text-muted-foreground">
           {leads.length === 0
             ? hiddenByHours > 0
-              ? `It is outside ${LEAD_HOURS_LABEL} for all ${hiddenByHours.toLocaleString()} of them. Come back later, or work another niche.`
+              ? `It is outside ${CALLING_HOURS_LABEL} for all ${hiddenByHours.toLocaleString()} of them. Come back later, or work another niche.`
               : retryLater > 0
                 ? // A fourth empty queue: the leads are all waiting for their next
                   // try. "Import a CSV" here would send a caller to ask for a new
@@ -1194,7 +1194,7 @@ export function Dialler({
               ·
             </span>
           )}
-          <LocalTime tz={current.tz} withZone />
+          <LocalTime tz={current.tz} hoursToday={current.hoursToday} withZone />
         </div>
         {/* Sizing a business up before dialling — is this one van or forty —
             is the question the number cannot answer. A new tab rather than

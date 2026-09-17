@@ -40,14 +40,20 @@ The dialler hands you one lead at a time, in this order:
 You can jump the queue by picking someone out of **Up next**, and the order
 resumes where it was afterwards.
 
-## You only get leads it is business hours for
+## You only get businesses that are open
 
-The queue hides anyone it is outside 9am to 5pm for, **where they are**. Your
-own clock says nothing about this: the US lists span five time zones, so at any
-hour of your day a large part of a list is asleep.
+The queue hides any business that is closed right now, **where they are**.
+Your own clock says nothing about this: the US lists span five time zones, so
+at any hour of your day a large part of a list is closed.
+
+"Open" means the business's own opening hours from Google where we have them,
+and 9am to 6pm their time where we don't. We never hand out a lead before 8am
+or after 8pm their time, even if Google says they are open 24 hours. The card
+shows their time and, when we know them, today's hours: "Open today 7 AM to
+4:30 PM". Green means now is a good time; red means they are closed.
 
 This is on by default and the **Open now** button at the top is how you turn it
-off. If a niche says everyone in it is asleep, that is the filter talking and
+off. If a niche says everyone in it is closed, that is the filter talking and
 the list is fine. Come back later or work another one.
 
 Turning it off is for a reason, not a habit. A callback promised for 8am their

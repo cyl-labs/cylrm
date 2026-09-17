@@ -3,6 +3,12 @@
 import * as React from "react";
 import { Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  CALLING_HOURS_LABEL,
+  isOpenAt,
+  type OpenRange,
+} from "@/lib/call-hours";
+import { describeDayHours } from "@/lib/opening-hours.mjs";
 
 /**
  * What time it is where the lead is.
@@ -21,11 +27,19 @@ import { cn } from "@/lib/utils";
  */
 export function LocalTime({
   tz,
+  hoursToday,
   className,
   /** Show the zone's short name too ("PDT"). Off in tight rows. */
   withZone = false,
 }: {
   tz: string | null;
+  /**
+   * The business's opening hours today, or null when we do not have them.
+   * Decides the colour, by the same rule the queue uses (`isOpenAt`), and is
+   * said out loud when known: "Open today 7 AM to 4:30 PM" is what tells a
+   * caller why a 4:45 call is red. Omitted in rows that only want the clock.
+   */
+  hoursToday?: OpenRange[] | null;
   className?: string;
   withZone?: boolean;
 }) {
@@ -46,7 +60,7 @@ export function LocalTime({
   if (!now) return null;
 
   let time: string;
-  let hour: number;
+  let minutes: number;
   try {
     time = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
@@ -54,30 +68,35 @@ export function LocalTime({
       minute: "2-digit",
       ...(withZone ? { timeZoneName: "short" as const } : {}),
     }).format(now);
-    hour = Number(
-      new Intl.DateTimeFormat("en-US", {
-        timeZone: tz,
-        hour: "numeric",
-        hourCycle: "h23",
-      }).format(now),
-    );
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "numeric",
+      minute: "numeric",
+      hourCycle: "h23",
+    }).formatToParts(now);
+    const part = (type: string) =>
+      Number(parts.find((p) => p.type === type)?.value ?? 0);
+    minutes = part("hour") * 60 + part("minute");
   } catch {
     // An unrecognised zone is not worth an error boundary on a dial card.
     return null;
   }
 
-  const open = hour >= 9 && hour < 17;
+  const known = hoursToday !== undefined && hoursToday !== null;
+  const open = isOpenAt(known ? hoursToday : null, minutes);
 
   return (
     <span
       suppressHydrationWarning
       className={cn(
-        "inline-flex items-center gap-1 tabular-nums",
+        "inline-flex flex-wrap items-center gap-x-1 tabular-nums",
         open ? "text-success" : "text-destructive",
         className,
       )}
       title={
-        open ? "Business hours where they are" : "Outside business hours there"
+        open
+          ? "A good time to call"
+          : `Outside ${CALLING_HOURS_LABEL}`
       }
     >
       {open ? (
@@ -86,6 +105,11 @@ export function LocalTime({
         <Moon className="size-3.5 shrink-0" strokeWidth={2.2} />
       )}
       {time} there
+      {known && (
+        <span className="text-muted-foreground">
+          · {hoursToday.length === 0 ? "Closed today" : `Open today ${describeDayHours(hoursToday)}`}
+        </span>
+      )}
     </span>
   );
 }

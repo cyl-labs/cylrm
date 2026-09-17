@@ -75,10 +75,10 @@ export function LogFilter({
           </SelectItem>
         ))}
         {/* Last, and after the outcomes rather than among them: neither is
-            one. A keypad dial has no outcome at all, and "outside 9-5" is a
+            one. A keypad dial has no outcome at all, and "while closed" is a
             fact about when a call was placed rather than how it went, which is
             exactly why each needs an entry of its own to be picked out by. */}
-        <SelectItem value="outside_hours">Outside 9&ndash;5 there</SelectItem>
+        <SelectItem value="outside_hours">Rung while closed</SelectItem>
         <SelectItem value="keypad">Keypad</SelectItem>
         {/* The calls that produced a booking, which is a different question
             from "logged as Demo booked": that outcome is the lead's current

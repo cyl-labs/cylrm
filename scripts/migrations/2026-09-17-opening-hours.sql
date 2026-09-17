@@ -1,0 +1,27 @@
+-- A business's own opening hours, parsed off the scrape.
+--
+-- APPLY BEFORE THE DEPLOY. `withinLeadHours` reads `l.opening_hours`, and
+-- that expression is in the dial queue, the queue's counts, missed calls and
+-- Stats. Deployed first, every one of those errors on a missing column and
+-- the Call CRM stops handing out leads. The column is nullable and null means
+-- "use 9 to 6", so applying it early changes nothing on the running app.
+--
+-- Why: the queue handed out a lead only between 9 and 5 its own time, and
+-- most of the businesses on the Google Places lists are open later (Akshansh,
+-- 2026-09-17). Those scrapes carry the week in fourteen flat columns under
+-- `source_fields` ("openingHours/0/day", "openingHours/0/hours" ...), on
+-- 1,763 of the 1,827 leads that came from that scraper. Reading those out of
+-- jsonb and parsing "7 AM to 4:30 PM" inside every queue query would be slow
+-- and would put a parser in SQL; parsing once and storing the result is
+-- neither.
+--
+-- Shape: {"1": [["07:00","16:30"]], ..., "7": []}. ISO weekday, Monday = "1".
+-- An empty list is closed that day. A close of "24:00" is midnight, which
+-- Postgres accepts as a time.
+--
+-- Filled by `scripts/backfill-opening-hours.mjs` for leads already imported,
+-- after the deploy (it imports the parser from the shipped code), and by the
+-- importer from then on. Declared in `schema.ts`, so `drizzle-kit push`
+-- leaves it alone.
+
+alter table call_lead add column if not exists opening_hours jsonb;

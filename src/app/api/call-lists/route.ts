@@ -7,6 +7,10 @@ import { getCurrentUser } from "@/lib/session";
 import { partName } from "@/lib/list-name";
 import { websiteHref } from "@/lib/website";
 import { findSameBusiness } from "@/lib/business-match.mjs";
+import {
+  openingHoursFromScrape,
+  type WeeklyHours,
+} from "@/lib/opening-hours.mjs";
 import { placeLabel } from "@/lib/place";
 import {
   asLookalike,
@@ -457,6 +461,8 @@ export async function POST(request: Request) {
     title: string | null;
     email: string | null;
     website: string | null;
+    /** The business's week when the scrape lists one; see opening-hours.mjs. */
+    openingHours: WeeklyHours | null;
     raw: CsvRecord;
   };
 
@@ -520,6 +526,9 @@ export async function POST(request: Request) {
       // than a mix of bare domains and junk. A value that will not parse is
       // dropped, not stored — source_fields still has the original.
       website: websiteHref(pickWebsite(rec, websiteCols)),
+      // Parsed once here so the queue can filter on it; the raw columns stay
+      // in source_fields. Null for any scrape that does not list a week.
+      openingHours: openingHoursFromScrape(rec),
       raw: rec,
     });
   }
@@ -747,6 +756,7 @@ export async function POST(request: Request) {
       email: r.email,
       website: r.website,
       sourceFields: r.raw,
+      openingHours: r.openingHours,
       duplicateOfLeadId: dup,
     });
     for (const [i, part] of parts.entries()) {

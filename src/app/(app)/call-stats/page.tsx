@@ -1,4 +1,4 @@
-import { getCallLists, LEAD_HOURS_LABEL } from "@/lib/calls";
+import { CALLING_HOURS_LABEL, getCallLists } from "@/lib/calls";
 import Link from "next/link";
 import {
   dayBackInStatsTz,
@@ -455,7 +455,7 @@ export default async function CallStatsPage({
             <span className="font-bold text-destructive">
               {totals.outsideHoursNew.toLocaleString()} new{" "}
               {totals.outsideHoursNew === 1 ? "call was" : "calls were"} placed
-              outside {LEAD_HOURS_LABEL} where the prospect is
+              while the business was closed: outside {CALLING_HOURS_LABEL}
             </span>
             <span className="text-muted-foreground">
               {" "}
@@ -797,7 +797,7 @@ export default async function CallStatsPage({
                   ? "Keypad calls belong to no niche, so none show while one is selected."
                   : "Nothing dialled from the keypad in this range."
                 : outcome === "outside_hours"
-                  ? "Every call in this range was placed inside 9am to 5pm where the prospect is."
+                  ? `Every call in this range was placed while the business was open: inside ${CALLING_HOURS_LABEL}.`
                   : // Its own branch, not a fall-through: the line below reads
                     // OUTCOME_LABELS, and "meetings" is not an outcome, so it
                     // would render "Nothing logged as undefined in this range".
@@ -892,7 +892,7 @@ export default async function CallStatsPage({
                           <span className="font-bold text-destructive">
                             {c.theirTime}
                             <span className="block text-[11px] font-semibold">
-                              outside 9&ndash;5
+                              while closed
                             </span>
                           </span>
                         ) : (
