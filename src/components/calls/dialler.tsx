@@ -32,6 +32,7 @@ import { useObjectionHints } from "@/components/calls/use-objection-hints";
 import { useClaimLine, useLineLeader } from "@/components/calls/line-presence";
 import { useCallLine } from "@/components/calls/call-line";
 import { type TelnyxLine } from "@/components/calls/use-telnyx-call";
+import { callFailure } from "@/components/calls/call-failure";
 import {
   LinePair,
   MergeControls,
@@ -181,7 +182,10 @@ function DialControls({
   const holder = useLineLeader();
   // Recorded as the call starts, so coming back to the dialler mid-call opens
   // on this lead rather than on whoever is top of the queue.
-  const { setActiveLead } = useCallLine();
+  const { setActiveLead, lastLeadId } = useCallLine();
+  // Why the last call to *this* lead did not go through. Keyed on the lead so
+  // moving on to the next card does not carry the warning with it.
+  const failure = lastLeadId === lead.id ? callFailure(line.ended) : null;
 
   // Nothing at all, not even the fallback line. Telling someone who always
   // dials from their own phone that there is "no caller ID yet" is an apology
@@ -220,18 +224,37 @@ function DialControls({
 
   if (!busy) {
     return (
-      <Button
-        className="mt-2 h-12 w-full text-[15px]"
-        onClick={() => {
-          // Whose call this is, so returning to the dialler mid-call opens on
-          // them rather than on whoever is top of the queue.
-          setActiveLead(lead.id);
-          line.dial(lead.dialTo!, lead.dialFrom!);
-        }}
-      >
-        <PhoneCall data-icon="inline-start" />
-        Call
-      </Button>
+      <>
+        {/* Said out loud, because a call the network refuses is over before
+            anything rings and the card is back at its Call button — which
+            reads as the button doing nothing. See `callFailure`. */}
+        {failure && (
+          <div
+            role="status"
+            className="mt-2 rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2.5"
+          >
+            <p className="text-[13px] font-bold text-destructive">
+              {failure.title}
+            </p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">
+              {failure.advice}
+            </p>
+          </div>
+        )}
+        <Button
+          className="mt-2 h-12 w-full text-[15px]"
+          variant={failure?.logAs === "bad_number" ? "outline" : "default"}
+          onClick={() => {
+            // Whose call this is, so returning to the dialler mid-call opens on
+            // them rather than on whoever is top of the queue.
+            setActiveLead(lead.id);
+            line.dial(lead.dialTo!, lead.dialFrom!);
+          }}
+        >
+          <PhoneCall data-icon="inline-start" />
+          {failure ? "Try again" : "Call"}
+        </Button>
+      </>
     );
   }
 

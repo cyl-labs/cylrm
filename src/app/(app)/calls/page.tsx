@@ -17,6 +17,7 @@ import { PageShell } from "@/components/page-shell";
 import { DailyReportCard } from "@/components/calls/slack-post";
 import { YourNumber } from "@/components/calls/your-number";
 import { CallImportDialog } from "@/components/calls/call-import-dialog";
+import { SameBusinessReview } from "@/components/calls/same-business-review";
 import { ListAssignment } from "@/components/calls/list-assignment";
 import { ListActions } from "@/components/calls/list-actions";
 import { ListRegion } from "@/components/calls/list-region";
@@ -123,6 +124,7 @@ export default async function CallsPage({
         // thing they do, and offering it invites a dead end.
         isAdmin ? (
           <div className="flex w-full items-center gap-2 sm:w-auto">
+            <SameBusinessReview />
             <CallImportDialog
               callLists={all.map((l) => ({ id: l.id, name: l.name }))}
               people={people}

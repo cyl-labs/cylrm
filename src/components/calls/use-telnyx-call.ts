@@ -30,6 +30,13 @@ type TelnyxCall = {
   hangup: () => void;
   muteAudio: () => void;
   unmuteAudio: () => void;
+  /** Why the call ended, as Telnyx told the SDK. Set only when the far end or
+   *  the network ended it: a hangup from our side leaves the code empty and the
+   *  cause at the SDK's own default. Read by `callFailure`. */
+  cause?: string | null;
+  causeCode?: number | null;
+  sipCode?: number | null;
+  sipReason?: string | null;
   /** Optional in the type because it is called on whatever the SDK hands
    *  back: a version without it should cost a silent keypress, not a crash
    *  in the middle of someone's call. */
@@ -58,6 +65,29 @@ type TelnyxCall = {
  */
 const REGISTER_TRIES = 4;
 const REGISTER_BACKOFF_MS = [2_000, 5_000, 12_000];
+
+/**
+ * How the last call ended, kept until the next dial or `reset()`.
+ *
+ * Exists because a call the network refuses ends in under a second and the
+ * screen goes straight back to a Call button, which reads as the button doing
+ * nothing. On 2026-09-16 Omar pressed Call on a dead number twenty times in
+ * 48 minutes — Telnyx answered SIP 404 every time — and concluded the CRM was
+ * refusing a business he had rung before. `callFailure` turns this into words.
+ */
+export type CallEnd = {
+  /** It was answered at some point. */
+  answered: boolean;
+  /** It got as far as ringing. */
+  rang: boolean;
+  /** Our own hangup, which is never a failure. */
+  byUs: boolean;
+  /** Dial to end, in milliseconds. */
+  lasted: number;
+  sipCode: number | null;
+  sipReason: string | null;
+  cause: string | null;
+};
 
 /** A call arriving, before it has been answered or refused. */
 export type Incoming = {
@@ -139,6 +169,8 @@ export type TelnyxLine = {
   muted: boolean;
   /** Telnyx's id for the last call, for the disposition to record. */
   sessionId: string | null;
+  /** How the last call ended, or null while one is up or after `reset()`. */
+  ended: CallEnd | null;
   /** The same for the second line, when there is one. Kept apart because the
    *  two legs are separate calls to Telnyx with a recording each — the Keypad
    *  writes a row per leg and would otherwise file both under one session.
@@ -153,7 +185,8 @@ export type TelnyxLine = {
    *  just dialled and so the one with a switchboard in front of it. No-op when
    *  nothing is connected. */
   sendDigit: (digit: string) => void;
-  /** Clears the timer and the session id, ready for the next lead. */
+  /** Clears the timer, the session id and how the last call ended, ready for
+   *  the next lead. */
   reset: () => void;
   /**
    * The far end's audio on the first call, or null before media is flowing.
@@ -255,6 +288,15 @@ export function useTelnyxCall(
   const [merged, setMerged] = React.useState(false);
   const [merging, setMerging] = React.useState(false);
   const [mergeProblem, setMergeProblem] = React.useState<string | null>(null);
+  const [ended, setEnded] = React.useState<CallEnd | null>(null);
+  // What the first call has done so far, for `ended`. Refs because the
+  // notification handler lives in the connection effect and must not re-run.
+  const progressRef = React.useRef({
+    at: 0,
+    rang: false,
+    answered: false,
+    byUs: false,
+  });
 
   /**
    * Unwind the second call and everything it turned on.
@@ -483,6 +525,13 @@ export function useTelnyxCall(
                 }
                 // From here it is simply the first line, so the timer, mute,
                 // hangup and the transcript tap all work on it unchanged.
+                progressRef.current = {
+                  at: Date.now(),
+                  rang: true,
+                  answered: false,
+                  byUs: false,
+                };
+                setEnded(null);
                 callRef.current = call;
                 firstIdRef.current = call.id ?? null;
                 incomingRef.current = null;
@@ -552,7 +601,21 @@ export function useTelnyxCall(
 
           if (!phase) return;
           setState(phase);
+          if (phase === "ringing") progressRef.current.rang = true;
+          if (phase === "active") progressRef.current.answered = true;
           if (phase === "idle") {
+            // Read now: the SDK fills these in from the far end's hangup
+            // before it announces the state, and nothing keeps them after.
+            const p = progressRef.current;
+            setEnded({
+              answered: p.answered,
+              rang: p.rang,
+              byUs: p.byUs,
+              lasted: p.at ? Date.now() - p.at : 0,
+              sipCode: call.sipCode ?? null,
+              sipReason: call.sipReason ?? null,
+              cause: call.cause ?? null,
+            });
             // The first call is the call. Whoever was conferenced in was
             // brought in to speak to this prospect, so they go too.
             dropSecondRef.current();
@@ -692,6 +755,13 @@ export function useTelnyxCall(
     (to: string, from: string) => {
       if (!clientRef.current || !ready || callRef.current) return;
       setSessionId(null);
+      setEnded(null);
+      progressRef.current = {
+        at: Date.now(),
+        rang: false,
+        answered: false,
+        byUs: false,
+      };
       setState("connecting");
       // Set before `newCall`, which can emit its first updates from inside the
       // call, before there is anywhere to have put its return value.
@@ -762,10 +832,17 @@ export function useTelnyxCall(
       setState("idle");
       return;
     }
+    // Ours, so however it ends it is not the network refusing the call.
+    progressRef.current.byUs = true;
     setState("ending");
     try {
       callRef.current.hangup();
     } catch {
+      // The call is gone as far as anyone can act on it, so the line lets go
+      // of it too. Keeping it here left `dial` returning early on every later
+      // press — a Call button that silently does nothing until a reload.
+      callRef.current = null;
+      firstIdRef.current = null;
       setState("idle");
     }
   }, []);
@@ -798,6 +875,7 @@ export function useTelnyxCall(
   const reset = React.useCallback(() => {
     setSessionId(null);
     setSeconds(0);
+    setEnded(null);
   }, []);
 
   const remoteStream = React.useCallback(
@@ -812,6 +890,7 @@ export function useTelnyxCall(
     seconds,
     muted,
     sessionId,
+    ended,
     secondSessionId,
     dial,
     hangup,

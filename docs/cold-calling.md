@@ -254,6 +254,72 @@ opening a niche to check something is not somebody skipping their callbacks.
   not a way round anything. The tab you are on is never struck through, which
   is the case that link lands in.
 
+### The same business under another number
+
+Rules in `src/lib/business-match.mjs` (plain ESM, like `handout.mjs`, so a
+bare-node script can use the same ones); database side in
+`src/lib/same-business.ts`; screens are the importer's review step and the
+**Repeated businesses** button on Call lists (`same-business-review.tsx`),
+sharing `same-business-rows.tsx`. Route `/api/call-leads/same-business`.
+
+- **Why.** Dedupe was on the phone number alone, and a Google Places scrape
+  lists one business once per location and tracking line, each with its own
+  place id. On 2026-09-16 Omar rang "EMPIRE STATE JUNK REMOVAL" at 15:39 UTC
+  and "Empire State Junk Removal NYC" at 15:40. Both reached the same
+  gatekeeper, who asked whether he had not just called. His list held five
+  copies of that business, the CRM twelve, and Flat Rate Junk Removal eighteen.
+  His other example, "JP junk removal" coming back, was **not** this: that is a
+  Houston firm and "JP's Junk Removal" is in Taunton, MA. Every call he logged
+  was saved and none of those leads came back. It was the list, not the queue.
+- **Suggestions only, at the founders' request.** A wrong name match hides a
+  real prospect from every caller, silently. So the phone number remains the
+  only automatic dedupe. A name or website match is listed with what it looks
+  like, **nothing is ticked to begin with**, and only a ticked row is treated as
+  a duplicate. Held out means the existing `duplicate_of_lead_id`, so it leaves
+  every queue, count and board exactly as a repeated number does, and is undone
+  by clearing that column.
+- **The rules**, each measured against the 5,238 prod leads that day:
+  - *same name* after folding case, punctuation, "'s" and a trailing
+    LLC/Inc;
+  - *one name is the other plus more words*, the shorter having at least three
+    (two-word names such as "Junk Removal" start half a niche);
+  - *same website*, but only when the site is on at most ten leads, one state
+    and two area codes. Without that it joined franchise locations with
+    different owners: Junk King, College Hunks, 1-800-GOT-JUNK, SERVPRO.
+    1-800-GOT-JUNK slipped through a state-only check because five of its six
+    leads had no state, which is why area codes are counted too. Social
+    profiles, site builders and `.gov` never count.
+  - Both name rules also need **the same place**: the same state when both
+    scrapes give one, otherwise the same area code. About half the junk removal
+    leads carry no state. There is no area code to state table, and one built
+    from memory would be quietly wrong, so this errs toward missing a match.
+- **A lead whose latest call is Bad number is never offered as the copy to
+  keep.** The business may only be reachable on the other number. Trash Panda
+  is the case: one of its two numbers is dead.
+- **Importer.** The dry run returns `sameBusiness`: each row with up to three
+  leads it resembles, or "earlier in this file". Ticked rows are posted as
+  `sameBusiness` (phone keys). The server matches again and ignores any key it
+  would not have suggested. A ticked row follows the importer's
+  **Remove them** choice, dropped or kept flagged, the same as a repeated
+  number. A row copying an earlier row of the same file is inserted after that
+  row, so its flag has an id to point at, even when a split puts the two in
+  different lists. The panel is open when it holds five or fewer, folded
+  otherwise.
+- **Leads already in the CRM** are grouped (one business can be five leads),
+  and each group keeps the first copy somebody has rung, else the first
+  imported. **Only leads nobody has rung are offered.** Flagging a lead with
+  calls would take it off the board and out of its list's counts. The groups
+  are rebuilt on submit, so a lead rung while the dialog was open is refused.
+  Leads that were copies of a held-out lead are re-pointed at the keeper, so a
+  flag is always one step from the lead that is worked (the importer follows
+  exactly one). Loaded when the dialog opens, never with the page. On the
+  day it shipped it offered 65 businesses and 112 leads, 8 of them on Omar's
+  list.
+- **Not solved: businesses already rung on two copies.** 35 of them that day.
+  Both copies keep their history, so neither is offered, and each comes back
+  on its own retry clock, so the same office can still be rung twice in a
+  week. Fixing that means making retry spacing business-aware, not lead-aware.
+
 ### Missed calls log an outcome, not a tick
 
 `PATCH /api/inbound-calls/[id]` takes an optional `outcome` (plus `notes` and
@@ -480,6 +546,8 @@ inbound handled.
     superset of "compare it to the list I already have in this niche", and
     ringing a business twice is worth preventing whichever list the other copy
     is on. A picker would only be a way to get it wrong.
+- **The same business under another number is suggested, never removed**
+  (2026-09-17). See the section of that name below.
 - **`split=N` turns one file into N lists**, so one niche can be handed to
   several callers — `partOwnerId` is sent once per part, in order, and each
   list is named by **`partName`** in `src/lib/list-name.ts`: `Movers.1`,

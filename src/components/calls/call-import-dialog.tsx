@@ -26,7 +26,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { partName } from "@/lib/list-name";
+import type { SameBusinessRow } from "@/lib/same-business";
 import { cn } from "@/lib/utils";
+import { SameBusinessList, TickAll } from "@/components/calls/same-business-rows";
 
 /**
  * Import one CSV or twenty, and set up each list before it exists.
@@ -51,6 +53,9 @@ type Scan = {
   skippedNoPhone: number;
   skippedRepeatedInFile: number;
   skippedBadNumber: { company: string; phone: string }[];
+  /** Rows that may be a business already held under another number, or an
+   *  earlier row of the file. Suggestions: see `sameBusiness` on Staged. */
+  sameBusiness: SameBusinessRow[];
 };
 
 type Staged = {
@@ -66,6 +71,9 @@ type Staged = {
   split: number;
   /** One owner per part, only read when split > 1. */
   partOwnerIds: string[];
+  /** Phone keys of the suggested rows a founder ticked as the same business.
+   *  Empty to begin with: nothing is treated as a copy until somebody says. */
+  sameBusiness: string[];
   scan: Scan | null;
   /** Why this file cannot be imported, from the server's own parser. */
   error: string | null;
@@ -76,7 +84,10 @@ type ImportResult = {
   appended: boolean;
   inserted: number;
   duplicates: number;
+  /** Kept but flagged, as a business ticked on the review. */
+  sameBusiness: number;
   removedDuplicates: number;
+  removedSameBusiness: number;
   alreadyInList: number;
   skippedNoPhone: number;
   skippedRepeatedInFile: number;
@@ -109,6 +120,74 @@ function guessRegion(name: string): CallRegion | "none" {
   if (/\b(us|usa|united states)\b/.test(t)) return "us";
   if (/\b(uk|gb|britain|united kingdom)\b/.test(t)) return "gb";
   return "none";
+}
+
+/**
+ * The rows that may be a business the CRM already has, under another number.
+ *
+ * Folded when there are many, because a big scrape can suggest dozens and the
+ * dialog also has to show the name, folder and owner below it. Opened by
+ * default when there are only a few, which is the usual case and one glance.
+ */
+function SameBusinessPanel({
+  rows,
+  ticked,
+  onChange,
+}: {
+  rows: SameBusinessRow[];
+  ticked: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const items = rows.map((r) => ({
+    key: r.key,
+    lead: {
+      id: null,
+      company: r.company,
+      phone: r.phone,
+      where: r.where,
+      list: null,
+      owner: null,
+      lastOutcome: null,
+    },
+    looksLike: r.looksLike,
+    more: r.more,
+  }));
+  return (
+    <details
+      open={rows.length <= 5}
+      className="group mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-2.5 py-2"
+    >
+      <summary className="cursor-pointer list-none text-[12px]">
+        <span className="font-semibold text-foreground">
+          {rows.length} may be a business you already have
+        </span>{" "}
+        <span className="text-muted-foreground">
+          under a different number
+          {ticked.length > 0 && ` · ${ticked.length} ticked`}
+          <span className="group-open:hidden"> · show</span>
+        </span>
+      </summary>
+      <div className="mt-1.5 flex items-start justify-between gap-3">
+        <p className="text-[12px] text-muted-foreground">
+          Matched on the name or website, so check each one. Tick the ones
+          that are the same business — only those are held back. Anything left
+          unticked is imported as a new lead.
+        </p>
+        <TickAll
+          keys={rows.map((r) => r.key)}
+          ticked={ticked}
+          onChange={onChange}
+        />
+      </div>
+      <SameBusinessList
+        items={items}
+        ticked={ticked}
+        onChange={onChange}
+        offLabel="Keep as new"
+        className="mt-1 max-h-72 overflow-y-auto"
+      />
+    </details>
+  );
 }
 
 export function CallImportDialog({
@@ -152,8 +231,12 @@ export function CallImportDialog({
    */
   const scanFile = React.useCallback(
     async (key: string, file: File, region: CallRegion | "none") => {
+      // The ticks go with the old reading: a different folder can read the
+      // numbers differently, and the keys they were given by with them.
       setStaged((prev) =>
-        prev.map((s) => (s.key === key ? { ...s, scan: null, error: null } : s)),
+        prev.map((s) =>
+          s.key === key ? { ...s, scan: null, error: null, sameBusiness: [] } : s,
+        ),
       );
       const body = new FormData();
       body.append("file", file);
@@ -201,6 +284,7 @@ export function CallImportDialog({
         dropDuplicates: true,
         split: 1,
         partOwnerIds: [],
+        sameBusiness: [],
         scan: null,
         error: null,
       };
@@ -224,12 +308,16 @@ export function CallImportDialog({
   }
 
   // What will actually be written: usable rows, less the ones the CRM already
-  // has when they are being dropped. This is the number the split is dealt
-  // from, so it is the one the screen counts with.
+  // has when they are being dropped — by number, or as a business somebody
+  // ticked. This is the number the split is dealt from, so it is the one the
+  // screen counts with.
   const toImport = (s: Staged) =>
     s.scan === null
       ? 0
-      : s.scan.usable - (s.dropDuplicates ? s.scan.duplicatesInCrm : 0);
+      : s.scan.usable -
+        (s.dropDuplicates
+          ? s.scan.duplicatesInCrm + s.sameBusiness.length
+          : 0);
 
   // Staged but not importable: a file whose numbers are all national format
   // reads as zero usable until a folder is chosen, and it has to stay on
@@ -257,6 +345,7 @@ export function CallImportDialog({
         const body = new FormData();
         body.append("file", s.file);
         if (s.dropDuplicates) body.append("dropDuplicates", "1");
+        for (const key of s.sameBusiness) body.append("sameBusiness", key);
         if (appending) {
           body.append("callListId", target);
         } else {
@@ -343,8 +432,12 @@ export function CallImportDialog({
                     {r.inserted} imported
                     {r.removedDuplicates > 0 &&
                       ` · ${r.removedDuplicates} removed, already in the CRM`}
+                    {r.removedSameBusiness > 0 &&
+                      ` · ${r.removedSameBusiness} removed as a business you already have`}
                     {r.duplicates > 0 &&
                       ` · ${r.duplicates} already on another list, held out of the queue`}
+                    {r.sameBusiness > 0 &&
+                      ` · ${r.sameBusiness} kept as a business you already have, held out of the queue`}
                     {r.alreadyInList > 0 && ` · ${r.alreadyInList} already here`}
                     {r.skippedRepeatedInFile > 0 &&
                       ` · ${r.skippedRepeatedInFile} repeated in the file`}
@@ -459,29 +552,53 @@ export function CallImportDialog({
                                   holds, wherever it sits — last month's scrape
                                   of this niche is the usual answer, and the
                                   list names are how you tell. */}
-                              {s.scan.duplicatesInCrm > 0 && (
+                              {s.scan.sameBusiness.length > 0 && (
+                                <SameBusinessPanel
+                                  rows={s.scan.sameBusiness}
+                                  ticked={s.sameBusiness}
+                                  onChange={(next) =>
+                                    update(s.key, { sameBusiness: next })
+                                  }
+                                />
+                              )}
+
+                              {(s.scan.duplicatesInCrm > 0 ||
+                                s.sameBusiness.length > 0) && (
                                 <div className="mt-2 rounded-md bg-muted/60 px-2.5 py-2">
-                                  <p className="text-[12px] text-muted-foreground">
-                                    <span className="font-semibold text-foreground">
-                                      {s.scan.duplicatesInCrm}
-                                    </span>{" "}
-                                    already in the CRM
-                                    {s.scan.duplicateLists.length > 0 && (
-                                      <>
-                                        {" "}
-                                        — on{" "}
-                                        {s.scan.duplicateLists
-                                          .map((d) => `${d.name} (${d.count})`)
-                                          .join(", ")}
-                                        {s.scan.otherListCount > 0 &&
-                                          ` and ${s.scan.otherListCount} other ${
-                                            s.scan.otherListCount === 1
-                                              ? "list"
-                                              : "lists"
-                                          }`}
-                                      </>
-                                    )}
-                                  </p>
+                                  {s.scan.duplicatesInCrm > 0 && (
+                                    <p className="text-[12px] text-muted-foreground">
+                                      <span className="font-semibold text-foreground">
+                                        {s.scan.duplicatesInCrm}
+                                      </span>{" "}
+                                      {s.scan.duplicatesInCrm === 1
+                                        ? "number is"
+                                        : "numbers are"}{" "}
+                                      already in the CRM
+                                      {s.scan.duplicateLists.length > 0 && (
+                                        <>
+                                          {" "}
+                                          — on{" "}
+                                          {s.scan.duplicateLists
+                                            .map((d) => `${d.name} (${d.count})`)
+                                            .join(", ")}
+                                          {s.scan.otherListCount > 0 &&
+                                            ` and ${s.scan.otherListCount} other ${
+                                              s.scan.otherListCount === 1
+                                                ? "list"
+                                                : "lists"
+                                            }`}
+                                        </>
+                                      )}
+                                    </p>
+                                  )}
+                                  {s.sameBusiness.length > 0 && (
+                                    <p className="text-[12px] text-muted-foreground">
+                                      <span className="font-semibold text-foreground">
+                                        {s.sameBusiness.length}
+                                      </span>{" "}
+                                      ticked as a business you already have
+                                    </p>
+                                  )}
                                   <label className="mt-1.5 flex items-center gap-2 text-[13px]">
                                     <input
                                       type="checkbox"
@@ -508,7 +625,7 @@ export function CallImportDialog({
                                     toImport(s) === 0 && (
                                       <p className="mt-1 text-[12px] font-semibold text-destructive">
                                         That is the whole file — you already
-                                        have every number in it.
+                                        have every row in it.
                                       </p>
                                     )
                                   )}

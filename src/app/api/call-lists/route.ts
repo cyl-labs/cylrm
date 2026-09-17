@@ -6,6 +6,16 @@ import { classifyPhone, e164, phoneKey } from "@/lib/calls";
 import { getCurrentUser } from "@/lib/session";
 import { partName } from "@/lib/list-name";
 import { websiteHref } from "@/lib/website";
+import { findSameBusiness } from "@/lib/business-match.mjs";
+import { placeLabel } from "@/lib/place";
+import {
+  asLookalike,
+  loadBusinessLeads,
+  type BusinessLead,
+  type LookalikeLead,
+  type MatchReason,
+  type SameBusinessRow,
+} from "@/lib/same-business";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 500;
@@ -17,6 +27,10 @@ const MAX_SPLIT = 10;
 /** Lists named in the "already in the CRM" line on the review screen. Enough
  *  to recognise the niche you imported last month, not a full report. */
 const OVERLAP_LISTS_SHOWN = 4;
+
+/** Leads shown beside each row that may be a business the CRM already has.
+ *  Enough to decide on; Empire State Junk Removal alone was twelve. */
+const LOOKALIKES_SHOWN = 3;
 
 /** The number kinds we hold a caller ID for. Anything else cannot be rung
  *  from this app, so it is refused at the door rather than sitting in a
@@ -291,6 +305,13 @@ export async function POST(request: Request) {
   // them out of the split, so each caller's share is the same size in leads
   // they can actually ring.
   const dropDuplicates = form.get("dropDuplicates") === "1";
+  // Rows a founder ticked as the same business as a lead the CRM already has,
+  // or as an earlier row of this file, named by phone key. Only these are
+  // treated as duplicates: a name match is a suggestion until somebody says
+  // otherwise. Dropped or flagged exactly as a repeated number is.
+  const confirmedSameBusiness = new Set(
+    form.getAll("sameBusiness").filter((v): v is string => typeof v === "string"),
+  );
   // One file into N lists, so one niche can be handed to several callers.
   const splitRaw = form.get("split");
   const split =
@@ -537,6 +558,58 @@ export async function POST(request: Request) {
   }
   const duplicatesInCrm = rows.filter((r) => canonicalByPhone.has(r.key)).length;
 
+  // The same business under another number: a scrape lists one firm once per
+  // location and tracking line, so the number check above lets every copy in.
+  // Compared against the whole CRM and against earlier rows of this file, by
+  // the rules in business-match.mjs. **Only ever a suggestion** — the review
+  // screen lists these and a founder ticks the real ones, which come back as
+  // `sameBusiness`. Rows already caught by number are left out, being settled.
+  type Entry = {
+    company: string | null;
+    website: string | null;
+    phoneKey: string;
+    state: string | null;
+    unreachable?: boolean;
+    lead?: BusinessLead;
+    row?: ParsedRow;
+  };
+  const crmLeads = await loadBusinessLeads();
+  const entries: Entry[] = [
+    ...crmLeads.map((lead) => ({
+      company: lead.company,
+      website: lead.website,
+      phoneKey: lead.phoneKey,
+      state: lead.state,
+      unreachable: lead.unreachable,
+      lead,
+    })),
+    ...rows
+      .filter((r) => !canonicalByPhone.has(r.key))
+      .map((row) => ({
+        company: row.company,
+        website: row.website,
+        phoneKey: row.key,
+        state: row.raw.state ?? null,
+        row,
+      })),
+  ];
+  const lookalikes = new Map<ParsedRow, { entry: Entry; reason: MatchReason }[]>();
+  for (const [entry, matches] of findSameBusiness(entries)) {
+    if (entry.row) lookalikes.set(entry.row, matches);
+  }
+  const describe = (entry: Entry): LookalikeLead =>
+    entry.lead
+      ? asLookalike(entry.lead)
+      : {
+          id: null,
+          company: entry.row!.company,
+          phone: entry.row!.phone,
+          where: placeLabel(entry.row!.raw),
+          list: null,
+          owner: null,
+          lastOutcome: null,
+        };
+
   // Reported before the empty check below, never as an error: a file whose
   // numbers are all national format has nothing usable *yet*, and telling the
   // review screen so is what lets it offer the folder that fixes it. Failing
@@ -561,7 +634,23 @@ export async function POST(request: Request) {
             )
         : [];
     const nameById = new Map(names.map((l) => [l.id, l.name]));
+    const sameBusiness: SameBusinessRow[] = rows
+      .filter((r) => lookalikes.has(r))
+      .map((r) => {
+        const matches = lookalikes.get(r)!;
+        return {
+          key: r.key,
+          company: r.company,
+          phone: r.phone,
+          where: placeLabel(r.raw),
+          looksLike: matches
+            .slice(0, LOOKALIKES_SHOWN)
+            .map((m) => ({ ...describe(m.entry), reason: m.reason })),
+          more: Math.max(0, matches.length - LOOKALIKES_SHOWN),
+        };
+      });
     return Response.json({
+      sameBusiness,
       dryRun: true,
       usable: rows.length,
       duplicatesInCrm,
@@ -583,17 +672,46 @@ export async function POST(request: Request) {
     );
   }
 
+  // What each ticked row is a copy of. A match in the CRM wins over one in
+  // this file, being a lead that already exists; its own copy-of is followed
+  // so the flag always points at the lead that is actually worked. Rows the
+  // server no longer thinks look alike are ignored, whatever was sent.
+  const sameAs = new Map<ParsedRow, number | ParsedRow>();
+  for (const r of rows) {
+    const matches = lookalikes.get(r);
+    if (!matches || !confirmedSameBusiness.has(r.key)) continue;
+    const lead = matches.find((m) => m.entry.lead)?.entry.lead;
+    sameAs.set(r, lead ? (lead.duplicateOfLeadId ?? lead.id) : matches[0].entry.row!);
+  }
+  /**
+   * The lead a row should point at: an id, or the earlier row of this file it
+   * copies, whose id only exists once that row is in. Terminates because a
+   * row only ever matches rows before it.
+   */
+  const copyOf = (r: ParsedRow): number | ParsedRow | undefined => {
+    const byNumber = canonicalByPhone.get(r.key);
+    if (byNumber !== undefined) return byNumber;
+    const target = sameAs.get(r);
+    if (target === undefined || typeof target === "number") return target;
+    return copyOf(target) ?? target;
+  };
+
   // A number already being worked elsewhere is either dropped outright or
   // stored flagged — flagged keeps the row visible while holding it out of
-  // every queue, count and board, which is what this has always done.
+  // every queue, count and board, which is what this has always done. A
+  // business a founder confirmed is treated the same way.
   const keep = dropDuplicates
-    ? rows.filter((r) => !canonicalByPhone.has(r.key))
+    ? rows.filter((r) => !canonicalByPhone.has(r.key) && !sameAs.has(r))
     : rows;
-  const removedDuplicates = rows.length - keep.length;
+  const removedSameBusiness = dropDuplicates ? sameAs.size : 0;
+  const removedDuplicates = rows.length - keep.length - removedSameBusiness;
 
   if (keep.length === 0) {
     return Response.json(
-      { error: "Every usable number in this file is already in the CRM." },
+      {
+        error:
+          "Every usable row in this file is already in the CRM, by number or as a business you ticked.",
+      },
       { status: 400 },
     );
   }
@@ -615,6 +733,22 @@ export async function POST(request: Request) {
   // having to import again.
   const result = await db.transaction(async (tx) => {
     const done = [];
+    // Rows that copy another row of this file wait until that row has an id.
+    // Phone keys are unique within a file, so the key finds it in any part.
+    const idByKey = new Map<string, number>();
+    const waiting: { part: number; listId: number; row: ParsedRow; of: ParsedRow }[] = [];
+    const leadValues = (listId: number, r: ParsedRow, dup: number | undefined) => ({
+      callListId: listId,
+      phone: r.phone,
+      phoneKey: r.key,
+      name: r.name,
+      company: r.company,
+      title: r.title,
+      email: r.email,
+      website: r.website,
+      sourceFields: r.raw,
+      duplicateOfLeadId: dup,
+    });
     for (const [i, part] of parts.entries()) {
       const list =
         existingList ??
@@ -635,23 +769,20 @@ export async function POST(request: Request) {
 
       let inserted = 0;
       let duplicates = 0;
+      let sameBusiness = 0;
       for (const batch of chunk(part, INSERT_CHUNK)) {
-        const values = batch.map((r) => {
-          const dup = canonicalByPhone.get(r.key);
-          if (dup !== undefined) duplicates++;
-          return {
-            callListId: list.id,
-            phone: r.phone,
-            phoneKey: r.key,
-            name: r.name,
-            company: r.company,
-            title: r.title,
-            email: r.email,
-            website: r.website,
-            sourceFields: r.raw,
-            duplicateOfLeadId: dup,
-          };
-        });
+        const values = [];
+        for (const r of batch) {
+          const dup = copyOf(r);
+          if (canonicalByPhone.has(r.key)) duplicates++;
+          else if (dup !== undefined) sameBusiness++;
+          if (dup !== undefined && typeof dup !== "number") {
+            waiting.push({ part: i, listId: list.id, row: r, of: dup });
+            continue;
+          }
+          values.push(leadValues(list.id, r, dup));
+        }
+        if (values.length === 0) continue;
         // Appending a batch that overlaps what the list already holds hits the
         // (call_list_id, phone_key) index; skipping is the right answer, the
         // number is already in this queue.
@@ -659,7 +790,8 @@ export async function POST(request: Request) {
           .insert(callLead)
           .values(values)
           .onConflictDoNothing()
-          .returning({ id: callLead.id });
+          .returning({ id: callLead.id, phoneKey: callLead.phoneKey });
+        for (const r of rowsIn) idByKey.set(r.phoneKey, r.id);
         inserted += rowsIn.length;
       }
 
@@ -669,15 +801,28 @@ export async function POST(request: Request) {
         appended: existingList !== null,
         inserted,
         duplicates,
+        sameBusiness,
         // Only the first part carries the file-wide numbers, so a split does
         // not report the same 12 unusable rows once per list.
         removedDuplicates: i === 0 ? removedDuplicates : 0,
-        alreadyInList: part.length - inserted,
+        removedSameBusiness: i === 0 ? removedSameBusiness : 0,
+        alreadyInList: part.length,
         skippedNoPhone: i === 0 ? skippedNoPhone : 0,
         skippedBadNumber: i === 0 ? skippedBadNumber : [],
         skippedRepeatedInFile: i === 0 ? skippedRepeatedInFile : 0,
       });
     }
+
+    for (const w of waiting) {
+      const rowsIn = await tx
+        .insert(callLead)
+        .values(leadValues(w.listId, w.row, idByKey.get(w.of.key)))
+        .onConflictDoNothing()
+        .returning({ id: callLead.id });
+      done[w.part].inserted += rowsIn.length;
+    }
+    // Whatever was not inserted was already on the list.
+    for (const d of done) d.alreadyInList -= d.inserted;
     return done;
   });
 

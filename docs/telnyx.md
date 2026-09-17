@@ -237,6 +237,49 @@ dialler, the Keypad and `InboundListener` all consume it through `useCallLine()`
   real call through two handsets. Rollback point is the tag
   `pre-call-provider`.
 
+### A call the network refuses says so (2026-09-17)
+
+`CallEnd` / `ended` on `useTelnyxCall`, turned into words by `callFailure`
+(`components/calls/call-failure.ts`), shown above the dial card's button.
+
+- **Why.** A number that does not exist is refused with SIP 404 in under a
+  second, before anything rings, and the card went straight back to its Call
+  button. That reads as the button doing nothing. On 2026-09-16 Omar pressed
+  Call on Trash Panda's +17132272632 **twenty times in 48 minutes** (19:43 to
+  20:31 UTC), every one `not_found` / 404, and reported that the CRM would not
+  let him ring a business he had called before. The business's other number
+  had connected at 19:36. He finally logged it as No answer, when it was a
+  Bad number.
+- **How it was found, since this is the next person's route too.** The
+  webhook logs have no timestamps, but Telnyx session ids are version 1 UUIDs
+  with the time inside them. Decoding the sessions in `crm-out.log` showed
+  bursts of `call.initiated` with no `call.bridged`, three or four within ten
+  seconds, which is somebody pressing a button again and again.
+  `GET /v2/call_events?filter[leg_id]=…` then gives `to`, `from` and the hangup
+  cause per leg. **`filter[call_session_id]` is silently ignored** and returns
+  the account's recent events instead, which looks like an answer.
+- **Only the far end's hangup counts.** The SDK copies `cause`, `causeCode`,
+  `sipCode` and `sipReason` off Telnyx's bye before it announces the hangup
+  state. Our own hangup sends none, and the SDK then *defaults* the cause to
+  `USER_BUSY` for any call not yet answered. So busy is only believed with a
+  486/600 behind it, and `hangup()` marks the call as ours.
+- **What it says.** 404/410/484/604 or an unallocated-number cause: "This
+  number does not exist", log it as Bad number, and the button reads Try again
+  in the outline style. Busy and declined: log it as No answer. Anything else
+  that ended before ringing, with a 4xx or inside five seconds: did not go
+  through, try once more. A call that rang, was answered, or that we hung up
+  says nothing.
+- **Keyed on the lead.** The card shows it only when `lastLeadId` is this
+  lead, and `reset()` (called after logging) clears it, so the warning does not
+  follow the caller to the next card.
+- **Also fixed in passing:** when `callRef.current.hangup()` threw, `hangup()`
+  went back to idle but kept the dead call, and `dial()` returns early while a
+  call is held. That was a Call button that silently did nothing until a
+  reload. Not what Omar hit, as the 404s show his presses reached Telnyx.
+- **Verified on the logic, not on a live call.** `callFailure` was checked
+  against the recorded 404 and the ordinary endings. The bye fields are read
+  from the SDK source (2.27.9), not observed in a browser.
+
 Not built and not optional before volume dialling: a recorded-line announcement
 in the opener (recording is per-profile, so there is no per-call toggle and no
 beep), a retention period, and Singapore DNC scrubbing.
