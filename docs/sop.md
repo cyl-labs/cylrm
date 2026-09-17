@@ -102,6 +102,21 @@ deleted is removed from the table too.
     so somebody right at a plan's limit can end up a little over it.
   - The term-discount line in that section still quotes Phone Professional's
     $212.50 and $187.50 by hand, whatever package the calculator picked.
+- **`## Objection handling | …` sections go in the left column on a wide
+  screen** (2026-09-17, `SIDE_CATEGORY` in `sop/[slug]/page.tsx`). Asked for on
+  Closing the Demo, whose three objections sat in the middle of the close under
+  step 04. A founder hit with "that's too expensive" mid-demo wants the answer
+  without losing their place, so each objection opens *in the column* (native
+  `details`, one open at a time via `name`) and the steps in the middle do not
+  move. The column replaces the contents list on that document, as asked.
+  - **Below `lg` they stay in the flow** where the markdown puts them, under an
+    "Objection handling" label, since a phone has no column. The inline copies
+    are `lg:hidden` rather than removed, so both layouts come from one render.
+  - **The category is the switch**, written in the content like the calculator
+    marker. Any document can use it; today only the close does. It changes
+    nothing about what counts as a branch, which still reads the title.
+  - `DemoNumbersProvider` wraps both columns now, because the "too expensive"
+    answer in the column is the one with the calculator's figures in it.
 - **An objection handle must be a `##` branch, never a `###` sub-beat.** A
   `###` never becomes a section of its own, so on the dial card it renders as a
   small muted heading *inside* the parent step's expansion, directly above a

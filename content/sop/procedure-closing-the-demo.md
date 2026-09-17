@@ -84,7 +84,7 @@ in the loss. Then read out the package the calculator marks **cheapest**. It's
 already the best fit for their volume, so **don't upsell them to one they don't
 need**.
 
-## If they say it's too expensive
+## Objection handling | If they say it's too expensive
 
 > **Prospect** That's too expensive. / That's a lot for me.
 
@@ -125,7 +125,7 @@ _(let them answer)_
 agreement locks them in for the term and makes the balance fall due if they
 leave early. Do not offer a discount you are not willing to hold somebody to.
 
-## If they say they don't get enough calls to justify it
+## Objection handling | If they say they don't get enough calls to justify it
 
 > **Prospect** I don't really get enough calls for this. / It's pretty quiet for me.
 
@@ -153,7 +153,7 @@ Then go back to the package that fits the calls they do get.
 The callers' objection sheets carry the same answer. If the wording changes,
 change it there too.
 
-## Only if they hesitate: the 30-day trial
+## Objection handling | Only if they hesitate: the 30-day trial
 
 The fallback, not the opening. Reach for it when the package price has landed
 and they are still not moving — hedging on the spend, "let me think about it",

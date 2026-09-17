@@ -33,6 +33,19 @@ const CALCULATOR_MARKER = "[calculator]";
 /** Long enough that finding a section by scrolling stops being reasonable. */
 const TOC_THRESHOLD = 6;
 
+/**
+ * Sections filed under this heading (`## Objection handling | If …`) move to
+ * the left column on a wide screen, in place of the contents list.
+ *
+ * Asked for on Closing the Demo (2026-09-17): its three objections sat in the
+ * middle of the close, and a founder mid-demo wants the answer to "that's too
+ * expensive" without losing their place in the steps. Each one opens in the
+ * column, so the close does not move. Below `lg` there is no column, and they
+ * stay where the document puts them. Written in the content, like the
+ * calculator marker, so the document decides what goes there.
+ */
+const SIDE_CATEGORY = "Objection handling";
+
 /** The heading's id, matching what the renderer emits. */
 const anchor = (title: string, i: number) =>
   `s${i}-${title
@@ -63,8 +76,25 @@ export default async function SopDocumentPage({
   );
   if (!doc) notFound();
 
-  const showToc = doc.sections.length > TOC_THRESHOLD;
+  const side = doc.sections.filter((s) => s.category === SIDE_CATEGORY);
+  const showToc = side.length === 0 && doc.sections.length > TOC_THRESHOLD;
   const hasCalculator = doc.sections.some((s) => s.html.includes(CALCULATOR_MARKER));
+
+  // A section's words, with the calculator's figures written in where the
+  // document has a calculator to answer them. Only the sections that ask get
+  // the client version, so every other section stays server-only.
+  const prose = (
+    s: (typeof doc.sections)[number],
+    className: string,
+    gutter = true,
+  ) => {
+    const html = s.html.replace(`<p>${CALCULATOR_MARKER}</p>`, "");
+    return hasCalculator && hasDemoFills(html) ? (
+      <DemoFilledProse html={html} className={className} gutter={gutter} />
+    ) : (
+      <SopProse html={html} className={className} gutter={gutter} />
+    );
+  };
   // Founders only, and only for a document that may leave the building.
   const canExport =
     me?.role === "admin" && !doc.adminOnly && Boolean(process.env.GOTENBERG_URL);
@@ -110,92 +140,126 @@ export default async function SopDocumentPage({
           )}
         </div>
 
-        <div className="mt-4 gap-8 lg:flex">
-          {showToc && (
-            // Sticky rather than fixed so it scrolls with the page on a phone
-            // and parks itself on a desktop, and hidden below lg because a
-            // narrow screen has no room to spare beside the words.
-            <nav className="hidden shrink-0 lg:block lg:w-64">
-              {/* Collapsed chapters rather than one long list. Fifteen
-                  objections under five headings overflowed any screen, and a
-                  box that scrolls inside a page that also scrolls gives two
-                  scrollbars fighting under one cursor. Closed, the whole nav
-                  is five rows and never needs to scroll at all.
-
-                  Native <details>, so this stays a server component and the
-                  open/closed state survives without any JavaScript. */}
-              <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto pr-2">
-                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-                  On this page
-                </p>
-                <div className="mt-3 flex flex-col gap-1">
-                  {tocGroups.map((g) => {
-                    const links = (
-                      // Hairlines between entries, not just spacing: these
-                      // titles are whole sentences that wrap to two lines, so
-                      // without a rule the second line of one reads as the
-                      // start of the next.
-                      <ul className="flex flex-col divide-y divide-border/60">
-                        {g.items.map(({ section, index }) => (
-                          <li key={section.title}>
-                            <a
-                              href={`#${anchor(section.title, index)}`}
-                              className={cn(
-                                "-ml-px block border-l-2 border-transparent py-2 pl-3 text-[13px] leading-snug text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
-                                g.category && "ml-2",
-                                section.branch && "pl-6 text-[12px] opacity-75",
-                              )}
-                            >
-                              {section.branch && (
-                                <span aria-hidden className="mr-1">
-                                  ↳
-                                </span>
-                              )}
-                              {section.title}
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
-                    );
-
-                    // No heading to hang them under, so nothing to collapse.
-                    if (!g.category) {
-                      return <div key="ungrouped">{links}</div>;
-                    }
-
-                    return (
-                      <details key={g.category} className="group/toc">
-                        <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[13px] font-extrabold tracking-[-0.01em] text-primary [&::-webkit-details-marker]:hidden">
+        {/* The calculator's two boxes are held here, above both columns, so a
+            script line anywhere on the page can say the figures back. */}
+        <DemoNumbersProvider>
+          <div className="mt-4 gap-8 lg:flex">
+            {side.length > 0 && (
+              // Open one when they push back; the close in the middle stays
+              // where it was. One open at a time (`name`), since two long
+              // answers stacked is a column that has to be scrolled to find
+              // the second. Its own scroll, sticky, the same as the contents
+              // list it replaces.
+              <aside
+                aria-label={SIDE_CATEGORY}
+                className="hidden shrink-0 lg:block lg:w-72 xl:w-80"
+              >
+                <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto pr-2">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                    {SIDE_CATEGORY}
+                  </p>
+                  <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+                    Open one when they push back. The close stays where you left it.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {side.map((s) => (
+                      <details key={s.title} name="objection-handling" className="group/obj">
+                        <summary className="flex cursor-pointer list-none items-start gap-1 rounded-md bg-primary/10 px-2 py-1.5 text-[13px] font-bold leading-snug text-primary [&::-webkit-details-marker]:hidden">
                           <ChevronRight
                             aria-hidden
-                            className="size-3.5 shrink-0 transition-transform group-open/toc:rotate-90"
+                            className="mt-0.5 size-3.5 shrink-0 transition-transform group-open/obj:rotate-90"
                           />
-                          <span className="min-w-0">{g.category}</span>
-                          <span className="ml-auto text-[11px] font-bold opacity-60">
-                            {g.items.length}
-                          </span>
+                          <span className="min-w-0">{s.title}</span>
                         </summary>
-                        <div className="mt-1 mb-1">{links}</div>
+                        {prose(s, "mt-2 mb-4 px-1 text-[14px]", false)}
                       </details>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </nav>
-          )}
-
-          {/* A readable measure: prose past roughly 70 characters a line is
-              hard to scan, and this is read under pressure. */}
-          <article className="min-w-0 max-w-[68ch] flex-1">
-            {doc.introHtml && (
-              <SopProse
-                html={doc.introHtml}
-                className="mb-6 text-muted-foreground"
-              />
+              </aside>
             )}
-            {/* The calculator's two boxes are held here, above every section,
-                so a script line further down can say the figures back. */}
-            <DemoNumbersProvider>
+            {showToc && (
+              // Sticky rather than fixed so it scrolls with the page on a phone
+              // and parks itself on a desktop, and hidden below lg because a
+              // narrow screen has no room to spare beside the words.
+              <nav className="hidden shrink-0 lg:block lg:w-64">
+                {/* Collapsed chapters rather than one long list. Fifteen
+                    objections under five headings overflowed any screen, and a
+                    box that scrolls inside a page that also scrolls gives two
+                    scrollbars fighting under one cursor. Closed, the whole nav
+                    is five rows and never needs to scroll at all.
+
+                    Native <details>, so this stays a server component and the
+                    open/closed state survives without any JavaScript. */}
+                <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto pr-2">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                    On this page
+                  </p>
+                  <div className="mt-3 flex flex-col gap-1">
+                    {tocGroups.map((g) => {
+                      const links = (
+                        // Hairlines between entries, not just spacing: these
+                        // titles are whole sentences that wrap to two lines, so
+                        // without a rule the second line of one reads as the
+                        // start of the next.
+                        <ul className="flex flex-col divide-y divide-border/60">
+                          {g.items.map(({ section, index }) => (
+                            <li key={section.title}>
+                              <a
+                                href={`#${anchor(section.title, index)}`}
+                                className={cn(
+                                  "-ml-px block border-l-2 border-transparent py-2 pl-3 text-[13px] leading-snug text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
+                                  g.category && "ml-2",
+                                  section.branch && "pl-6 text-[12px] opacity-75",
+                                )}
+                              >
+                                {section.branch && (
+                                  <span aria-hidden className="mr-1">
+                                    ↳
+                                  </span>
+                                )}
+                                {section.title}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      );
+
+                      // No heading to hang them under, so nothing to collapse.
+                      if (!g.category) {
+                        return <div key="ungrouped">{links}</div>;
+                      }
+
+                      return (
+                        <details key={g.category} className="group/toc">
+                          <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[13px] font-extrabold tracking-[-0.01em] text-primary [&::-webkit-details-marker]:hidden">
+                            <ChevronRight
+                              aria-hidden
+                              className="size-3.5 shrink-0 transition-transform group-open/toc:rotate-90"
+                            />
+                            <span className="min-w-0">{g.category}</span>
+                            <span className="ml-auto text-[11px] font-bold opacity-60">
+                              {g.items.length}
+                            </span>
+                          </summary>
+                          <div className="mt-1 mb-1">{links}</div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                </div>
+              </nav>
+            )}
+
+            {/* A readable measure: prose past roughly 70 characters a line is
+                hard to scan, and this is read under pressure. */}
+            <article className="min-w-0 max-w-[68ch] flex-1">
+              {doc.introHtml && (
+                <SopProse
+                  html={doc.introHtml}
+                  className="mb-6 text-muted-foreground"
+                />
+              )}
               {/* Steps are numbered; branches are not. Numbering a conditional
                   "If they say not interested" as step 06 says you always reach
                   it, which is the opposite of true — so branches indent off the
@@ -204,7 +268,6 @@ export default async function SopDocumentPage({
                 let step = 0;
                 let depth = 0;
                 return doc.sections.map((s, i) => {
-                  const html = s.html.replace(`<p>${CALCULATOR_MARKER}</p>`, "");
                   if (s.branch) depth = Math.min(depth + 1, 2);
                   else {
                     step += 1;
@@ -226,6 +289,8 @@ export default async function SopDocumentPage({
                           "mt-5 border-t-0 pt-0 border-l-2 border-dashed border-border pl-4 sm:pl-5",
                         s.branch && depth === 1 && "ml-1 sm:ml-3",
                         s.branch && depth >= 2 && "ml-6 sm:ml-10",
+                        // In the left column instead, where there is one.
+                        s.category === SIDE_CATEGORY && "lg:hidden",
                       )}
                     >
                       {newGroup && (
@@ -259,15 +324,7 @@ export default async function SopDocumentPage({
                           s.title
                         )}
                       </h2>
-                      {/* "[their calls]" and the rest, written in as the
-                          founder types them. Only where the document has a
-                          calculator to answer them, and only in the sections
-                          that ask, so every other section stays server-only. */}
-                      {hasCalculator && hasDemoFills(html) ? (
-                        <DemoFilledProse html={html} className="mt-3" />
-                      ) : (
-                        <SopProse html={html} className="mt-3" />
-                      )}
+                      {prose(s, "mt-3")}
                       {/* Where the numbers are collected, not beside the
                           arithmetic they feed. Its two boxes are the two
                           questions in "get their numbers", so a founder types
@@ -294,9 +351,9 @@ export default async function SopDocumentPage({
                   );
                 });
               })()}
-            </DemoNumbersProvider>
-          </article>
-        </div>
+            </article>
+          </div>
+        </DemoNumbersProvider>
       </div>
     </PageShell>
   );

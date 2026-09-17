@@ -40,12 +40,21 @@ export function useDemoInputs(): DemoInputs {
 
 /** A section of the document with the calculator's figures written into its
  *  placeholders, updating as they are typed. */
-export function DemoFilledProse({ html, className }: { html: string; className?: string }) {
+export function DemoFilledProse({
+  html,
+  className,
+  gutter,
+}: {
+  html: string;
+  className?: string;
+  gutter?: boolean;
+}) {
   const { callsPerWeek, ticket } = useDemoInputs();
   return (
     <SopProse
       html={fillDemoNumbers(html, workOut(callsPerWeek, ticket))}
       className={className}
+      gutter={gutter}
     />
   );
 }
