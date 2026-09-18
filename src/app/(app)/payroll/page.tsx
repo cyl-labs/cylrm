@@ -85,8 +85,9 @@ export default async function PayrollPage() {
             {formatMoney(MEETING_CENTS)} each
           </span>,
           however long ago they were booked. Showed up means they picked up at
-          the booked time and stayed on while the agent was brought in. Nothing here pays anybody — press
-          the button once the money has actually gone out.
+          the booked time and stayed on while the agent was brought in. Most
+          owed first. Nothing here pays anybody — press the button once the
+          money has actually gone out.
         </p>
 
         {/* Owed now. The button at the end of each row is the only thing on

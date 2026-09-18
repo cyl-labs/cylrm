@@ -17,6 +17,14 @@ from then on and rewrites nothing already recorded. The Payroll screen reads the
 constants rather than spelling the figures out, so a rate change cannot leave a
 sentence claiming a rate nobody is paid.
 
+- **Owed now is sorted most-owed first** (2026-09-19), not alphabetically: the
+  screen is worked top to bottom on a Friday and a name says nothing about who
+  is waiting for money. Sorted in JS rather than in the `order by`, because the
+  total is the bonus plus the commission and the bonus is `pickupBonusCents` —
+  restating that rounding in SQL would be a second definition of what somebody
+  is paid. Pickups break a tie, so among the rows owed nothing the person
+  closest to their next fifty is highest; the name breaks that in turn, so the
+  order does not shuffle between loads.
 - **The pickup counter runs from the last payout, not from a Monday.** The
   requirement was that it reset only when someone presses the button, and a
   counter that resets only on payout is necessarily counting since the payout.

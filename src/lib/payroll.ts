@@ -138,10 +138,12 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
       limit 1
     ) p on true
     where u.role = 'caller'
+    -- Name order here is only a stable base for the sort below; what the
+    -- screen shows is decided in JS, where the total actually exists.
     order by u.name asc
   `)) as Row[];
 
-  return rows.map((r) => {
+  const mapped = rows.map((r) => {
     const pickups = n(r.pickups);
     const meetings = n(r.meetings);
     const bonus = pickupBonusCents(pickups);
@@ -162,6 +164,26 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
       paymentMethod: (r.payment_method as string | null) ?? null,
     };
   });
+
+  /**
+   * Most owed first, because this screen is worked top to bottom on a Friday
+   * and alphabetical order says nothing about who is waiting for money.
+   *
+   * Sorted here rather than in SQL because the total is the bonus plus the
+   * commission and the bonus is `pickupBonusCents` — restating that rounding
+   * in the order-by would be a second definition of what somebody is paid,
+   * which is the one thing this file cannot afford.
+   *
+   * Pickups break a tie, so among the rows owed nothing the person closest to
+   * their next fifty is at the top; the name breaks that in turn, so the order
+   * is stable between loads.
+   */
+  return mapped.sort(
+    (a, b) =>
+      b.totalCents - a.totalCents ||
+      b.pickups - a.pickups ||
+      a.name.localeCompare(b.name),
+  );
 }
 
 /** Active callers, plus any deactivated one still owed money — switching
