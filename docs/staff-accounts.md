@@ -32,3 +32,8 @@ Employees sign in individually so every call has a name on it. The single shared
   - One helper does it: `callScope(me)` in `src/lib/session.ts` returns `undefined` for an admin and the user id for a caller, and every calling query takes it as `ownerId` and applies `ownedBy` (`src/lib/calls.ts`). A session with no user resolves to `-1`, so a bug upstream fails closed to an empty screen rather than open to the whole database. `getCallList` is scoped too, so a caller typing another team's list id into the URL gets the same not-found as a list that never existed.
   - **The consequence to remember: an unassigned niche is invisible to every caller.** Nobody is refused a call they can reach, but they cannot reach what is not theirs, so a new employee with nothing assigned sees an empty app. Assign before they start.
   - Deactivated people stay assignable on purpose: switching someone off for a fortnight should not silently strip their niches. The assign control is positioned over the card rather than inside it, since the card is one big link and a dropdown nested in an anchor navigates as it opens.
+- **The Team table says how long somebody has been with us** (2026-09-18,
+  "With us"), in words — "3 days", "5 weeks", "1 year 2 mo" — off
+  `app_user.created_at`, with the join date on the tooltip. Words rather than a
+  date because the question it answers is "is this person new", and a date
+  makes the reader do the arithmetic.

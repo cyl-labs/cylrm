@@ -41,6 +41,37 @@ const fmt = (iso: string | null) =>
       })
     : null;
 
+/** The join date in full, for the column's tooltip. `fmt` drops the year,
+ *  which is fine for "last dialled" and wrong for somebody who started in
+ *  March. */
+const joined = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Singapore",
+  });
+
+/**
+ * How long they have been with us, in the largest unit that reads plainly.
+ *
+ * Words rather than a date, because the question this answers is "is this
+ * person new" — a date makes you do the arithmetic, which is the reason the
+ * column was asked for at all. The exact day is on the tooltip.
+ */
+function tenure(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "1 day";
+  if (days < 14) return `${days} days`;
+  if (days < 60) return `${Math.floor(days / 7)} weeks`;
+  if (days < 365) return `${Math.floor(days / 30)} months`;
+  const years = Math.floor(days / 365);
+  const months = Math.floor((days % 365) / 30);
+  const y = `${years} year${years === 1 ? "" : "s"}`;
+  return months > 0 ? `${y} ${months} mo` : y;
+}
+
 const NO_DID = "__market__";
 
 /** Only that person's market. A US number ringing Singapore leads is worse
@@ -66,6 +97,7 @@ const COLUMNS = [
   "Hints",
   "Calls",
   "Last dialled",
+  "With us",
   "",
 ];
 
@@ -507,6 +539,15 @@ export function TeamManager({
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
                       {fmt(m.lastDialedAt) ?? "Never dialled"}
+                    </td>
+                    <td
+                      className="whitespace-nowrap px-4 py-2.5 text-muted-foreground"
+                      title={`Joined ${joined(m.createdAt)}`}
+                    >
+                      {/* Counted from now, so it can cross a day boundary
+                          between the server render and the hydration — the
+                          same note the relative times elsewhere carry. */}
+                      <span suppressHydrationWarning>{tenure(m.createdAt)}</span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
                       {canManage && (
