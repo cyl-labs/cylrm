@@ -7,6 +7,8 @@ import type { CallOutcome } from "@/lib/calls";
 // call was out of hours had better agree with the screen that handed it over.
 import { leadZone, withinLeadHours } from "@/lib/calls";
 import { STATS_TZ } from "@/lib/stats-zones";
+import { appSetting } from "@/db/schema";
+import { wallClockIn } from "@/lib/call-time";
 
 type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
@@ -82,11 +84,71 @@ export function payWeekStart(today = todayInStatsTz()): string {
   return d.toISOString().slice(0, 10);
 }
 
-export type WeekProgress = {
-  /** Calls this person has logged since Monday. */
-  calls: number;
-  /** The Monday it is counting from, YYYY-MM-DD, for the label. */
+/**
+ * When the quota week last began: the payday reminder's weekday and hour, in
+ * `STATS_TZ`, most recently passed.
+ *
+ * The bar used to run Monday to Monday while the money went out on a Friday,
+ * so a caller finishing Friday evening started the next week's count two days
+ * before being paid for the last one. It now resets when payday does, and
+ * moves with it: the schedule is `app_setting.payroll_reminder_weekday` /
+ * `_hour`, the same pair the reminder is sent on, so changing payday changes
+ * both together.
+ *
+ * **Eastern, not the reader's zone, and not the reminder's.** The reminder
+ * arrives at 5pm wherever the person reading it is; a quota week has to be one
+ * instant for everybody, or two callers on one floor would owe their 300 over
+ * different days. Eastern is the clock Payroll already cuts its week in.
+ */
+export async function quotaWeekStart(now = new Date()): Promise<{
+  /** The instant the week began. */
+  at: Date;
+  /** Its date in `STATS_TZ`, which is what claims and labels key on. */
   weekStart: string;
+}> {
+  const [setting] = await db
+    .select({
+      weekday: appSetting.payrollReminderWeekday,
+      hour: appSetting.payrollReminderHour,
+    })
+    .from(appSetting)
+    .limit(1);
+  // Defaults rather than creating the row: this runs on every page render for
+  // every caller, and a read must not write.
+  const weekday = setting?.weekday ?? 5;
+  const hour = setting?.hour ?? 17;
+  const hh = String(hour).padStart(2, "0");
+
+  // Step back a day at a time from today in Eastern until the weekday matches
+  // and the hour has passed. Eight tries covers the case where today *is*
+  // payday but the hour has not come round yet, which belongs to last week.
+  const today = todayInStatsTz(STATS_TZ);
+  for (let back = 0; back <= 7; back += 1) {
+    const d = new Date(`${today}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - back);
+    const date = d.toISOString().slice(0, 10);
+    const iso = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+    if (iso !== weekday) continue;
+    // Built through `wallClockIn` rather than arithmetic: Eastern moves twice
+    // a year, and a fixed offset would put the reset an hour out for half of
+    // it — the trap `parseCallbackAt` documents.
+    const at = wallClockIn(`${date}T${hh}:00`, STATS_TZ);
+    if (at && at.getTime() <= now.getTime()) return { at, weekStart: date };
+  }
+  // Unreachable unless the weekday is out of range; fall back to the Monday
+  // rather than counting nothing.
+  const weekStart = payWeekStart();
+  return { at: new Date(`${weekStart}T00:00:00Z`), weekStart };
+}
+
+export type WeekProgress = {
+  /** Calls this person has logged since the quota week began. */
+  calls: number;
+  /** The date that week began, YYYY-MM-DD in `STATS_TZ`, for labels and for
+   *  the digest's once-a-week claim. */
+  weekStart: string;
+  /** The exact moment it began, so a screen can say when it resets. */
+  since: string;
 };
 
 /**
@@ -106,18 +168,13 @@ export type WeekProgress = {
  */
 export const getWeekProgress = cache(
   async (userId: number): Promise<WeekProgress> => {
-    const weekStart = payWeekStart();
+    const { at, weekStart } = await quotaWeekStart();
     const totals = await getCallTotals(
-      {
-        kind: "between",
-        from: weekStart,
-        to: todayInStatsTz(STATS_TZ),
-        tz: STATS_TZ,
-      },
+      { kind: "since", at: at.toISOString() },
       undefined,
       userId,
     );
-    return { calls: totals.calls, weekStart };
+    return { calls: totals.calls, weekStart, since: at.toISOString() };
   },
 );
 
@@ -181,6 +238,10 @@ export type StatsWindow = (
    *  `Date`: parsing one gives UTC midnight, which reads as the previous day
    *  in every zone west of it. */
   | { kind: "between"; from: string; to: string }
+  /** Everything since one instant. The quota week starts at the payday
+   *  reminder — an hour on a weekday, not a date — so it cannot be expressed
+   *  as calendar days the way every other window here can. */
+  | { kind: "since"; at: string }
 ) & {
   /**
    * The zone a "day" in this window is measured in. Absent means Eastern.
@@ -229,6 +290,10 @@ const since = (w: StatsWindow): SQL => {
   if (w.kind === "day") {
     return sql`(c.called_at at time zone ${tz})::date = ${w.date}::date`;
   }
+  // An instant, so no zone is involved: `called_at` is a timestamptz and both
+  // sides are absolute. The zone on the window is what a *date* means, and
+  // this window has none.
+  if (w.kind === "since") return sql`c.called_at >= ${w.at}::timestamptz`;
   if (w.kind === "between") {
     // Both ends inclusive: someone picking 1st to 31st means the whole month,
     // and a range that quietly dropped its last day would under-report the

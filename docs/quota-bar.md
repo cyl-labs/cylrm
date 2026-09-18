@@ -18,10 +18,28 @@ database-free module for the reason `payroll-rates.ts` is one). Rendered by
   with the screen underneath it would be worse than no bar. `cache()`d, like
   `countUnreadReplies` and `countCallbacksDue`, since the shell asks on every
   page render.
-- **The week is Payroll's week**: Monday, cut in `STATS_TZ`, not in whatever
-  the reader picked with the timezone picker. A quota week that moved with a
-  dropdown would let somebody change how much work they owe by changing a
-  setting, and it would drift from the week they are paid on.
+- **The week resets at payday, and moves with it** (2026-09-18). It ran Monday
+  to Monday while the money went out on a Friday, so a caller finishing Friday
+  evening had already started the next week's count two days before being paid
+  for the last one. `quotaWeekStart` in `call-stats.ts` reads
+  `app_setting.payroll_reminder_weekday` / `_hour` — the same pair the payday
+  reminder is sent on — and counts from the most recent one, so changing payday
+  changes both together. On prod that is Friday 21:00, which lands after the US
+  shift rather than in the middle of it.
+  - **Cut in `STATS_TZ`, not the reader's zone and not the recipient's.** The
+    reminder arrives at the configured hour wherever the person reading it is;
+    a quota week has to be one instant for everybody, or two callers on one
+    floor would owe their 300 over different days. Eastern is the clock Payroll
+    already cuts its week in. The bar names it — "This week from Fri 9 PM EDT" —
+    because a window that moves with a setting has to say what it covers.
+  - **It needed an instant-based window** (`{ kind: "since" }` on
+    `StatsWindow`): every other window here is calendar dates, and an hour on a
+    weekday cannot be expressed as one. Built through `wallClockIn` so the two
+    Eastern daylight-saving boundaries cannot put the reset an hour out.
+  - **`payWeekStart` is untouched and still Monday.** Payout rows and the
+    payroll and quota-digest claims key on it, and re-cutting those would
+    reshuffle which week an old payment belongs to — the thing that helper
+    exists to prevent.
 - **`payWeekStart` moved to `call-stats.ts`** on 2026-09-01 and is re-exported
   from `payroll.ts`. That module already imports `PICKUP` from call-stats, so
   importing the week helper back would have closed a cycle; the definition

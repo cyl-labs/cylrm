@@ -8,6 +8,7 @@ import { countUnreadTexts } from "@/lib/texts";
 import { MobileNav } from "@/components/mobile-nav";
 import { QuotaBar } from "@/components/calls/quota-bar";
 import { getWeekProgress } from "@/lib/call-stats";
+import { STATS_TZ } from "@/lib/stats-zones";
 import { canUseKeypad } from "@/lib/users";
 
 export async function PageShell({
@@ -55,7 +56,21 @@ export async function PageShell({
           <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
         )}
       </header>
-      {week && <QuotaBar calls={week.calls} />}
+      {week && (
+        <QuotaBar
+          calls={week.calls}
+          // Eastern, because that is the clock the quota week is cut in — not
+          // the reader's, which would name an hour the reset does not happen
+          // at. Formatted here rather than in the bar: the shell is a server
+          // component, and a time built in the browser would not match.
+          since={new Intl.DateTimeFormat("en-US", {
+            timeZone: STATS_TZ,
+            weekday: "short",
+            hour: "numeric",
+            timeZoneName: "short",
+          }).format(new Date(week.since))}
+        />
+      )}
       {/* `relative` makes this the containing block for absolutely positioned
           descendants. Without it, `sr-only` spans (position: absolute, no
           positioned ancestor) resolve against the viewport instead, escape the

@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appSetting } from "@/db/schema";
 import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
-import { getWeekProgress, payWeekStart } from "@/lib/call-stats";
+import { getWeekProgress, quotaWeekStart } from "@/lib/call-stats";
 import { STATS_TZ, statsZone } from "@/lib/stats-zones";
 import { pushConfigured, pushToUser } from "@/lib/push";
 
@@ -136,7 +136,9 @@ export async function getQuotaStandings(): Promise<{
   weekStart: string;
   standings: QuotaStanding[];
 }> {
-  const weekStart = payWeekStart();
+  // The same week the caller's own bar counts: from the last payday, not from
+  // a Monday. Two definitions would put two numbers in front of one person.
+  const { weekStart } = await quotaWeekStart();
 
   // **Only callers who could actually have rung somebody**, which takes two
   // conditions and not one. A niche to work, and a way to dial it: a number of
@@ -213,13 +215,12 @@ export async function sendQuotaDigest(
   );
   if (due.length === 0) return { skipped: "not-due-yet" };
 
-  const weekStart = payWeekStart();
-
   // The same roster and the same counts the card on Stats renders — one
   // definition of "is this person behind", shared, rather than a copy here and
   // a copy there that drift into disagreeing about who to chase. Already
-  // sorted worst first.
-  const { standings } = await getQuotaStandings();
+  // sorted worst first, and it carries the week it counted, which is what the
+  // claim below is keyed on.
+  const { standings, weekStart } = await getQuotaStandings();
   const under = standings.filter((s) => s.calls < WEEKLY_CALL_QUOTA);
 
   const result: QuotaDigestResult = {

@@ -22,7 +22,21 @@ import { cn } from "@/lib/utils";
  * Callers only. The founders are the ones setting the quota, and a bar telling
  * them they owe 300 calls would be furniture on every page they open.
  */
-export function QuotaBar({ calls }: { calls: number }) {
+export function QuotaBar({
+  calls,
+  since,
+}: {
+  calls: number;
+  /**
+   * When this week's count started, already worded ("Fri 5pm ET").
+   *
+   * Worth the space now that it moves: the week resets at payday, payday is a
+   * setting, and a bar that only said "This week" would leave a caller to
+   * guess which days it covers. Formatted on the server — building it here
+   * would render one string on the droplet and another in the browser.
+   */
+  since?: string;
+}) {
   const left = callsRemaining(calls);
   const met = left === 0;
   const pct = Math.round(quotaFraction(calls) * 100);
@@ -32,6 +46,11 @@ export function QuotaBar({ calls }: { calls: number }) {
     <div className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-2 sm:px-7">
       <p className="shrink-0 text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
         This week
+        {since && (
+          <span className="ml-1.5 hidden font-medium normal-case tracking-normal opacity-80 md:inline">
+            from {since}
+          </span>
+        )}
       </p>
 
       <div
