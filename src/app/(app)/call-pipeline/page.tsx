@@ -3,6 +3,7 @@ import { PageShell } from "@/components/page-shell";
 import { CallBoard } from "@/components/calls/call-board";
 import { CallFilters } from "@/components/calls/call-filters";
 import { callScope, getCurrentUser } from "@/lib/session";
+import { readerZone } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,8 @@ export default async function CallPipelinePage({
 }) {
   const { list } = await searchParams;
   const me = await getCurrentUser();
-  const lists = await getCallLists(callScope(me));
+  const zone = await readerZone(me?.id);
+  const lists = await getCallLists(callScope(me), zone.tz);
 
   // A `?list=` naming a niche that has gone shows everything rather than an
   // empty board with no way to tell why.
@@ -59,6 +61,7 @@ export default async function CallPipelinePage({
               not put there.
             </p>
             <CallBoard
+              tz={zone.tz}
               showDealStages={me?.role === "admin"}
               cards={cards}
               columnLimit={BOARD_COLUMN_LIMIT}

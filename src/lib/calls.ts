@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/session";
 import { recordingVisibleTo } from "@/lib/recordings";
 import { dialCountry, e164 } from "@/lib/phone";
 import { STATE_TZ } from "@/lib/us-states";
+import { STATS_TZ } from "@/lib/stats-zones";
 import {
   LEAD_HOURS_END,
   LEAD_HOURS_START,
@@ -146,10 +147,6 @@ const RETRY_READY = sql`(
  * actionable rather than disappearing until someone sets one.
  */
 const CALLBACK_DUE = sql`(lc.callback_at is null or lc.callback_at <= now())`;
-
-/** Calls are made in Singapore, so "today" is a Singapore day — a 7am call
- *  would otherwise count against yesterday, the droplet being on UTC. */
-const CALL_TZ = "Asia/Singapore";
 
 /** Somebody answered. Gatekeeper counts: a receptionist is a person, and
  *  getting past one is the job. Mirrors PICKUP in call-stats. */
@@ -451,6 +448,11 @@ const ownedBy = (ownerId?: number) =>
 
 export async function getCallLists(
   ownerId?: number,
+  /** The clock "today" is counted on — the reader's, from `readerZone`. It was
+   *  pinned to Singapore here while Stats and the Scoreboard cut their day in
+   *  the reporting zone, so one caller could see two different answers to "how
+   *  many calls today". Defaulted so an older call site still works. */
+  tz: string = STATS_TZ,
 ): Promise<CallListSummary[]> {
   // Every aggregate counts l.id rather than *, because a list whose leads are
   // all duplicates joins to no rows and a LEFT JOIN then hands back one row of
@@ -467,7 +469,7 @@ export async function getCallLists(
   // timezone only where `RETRY_READY` reads it: 0.26s, measured on prod on
   // 2026-09-16 with identical results for all 41 lists. **If the latest-call,
   // retry or timezone rules change, change them here as well.**
-  const calledToday = sql`(c.called_at at time zone ${CALL_TZ})::date = (now() at time zone ${CALL_TZ})::date`;
+  const calledToday = sql`(c.called_at at time zone ${tz})::date = (now() at time zone ${tz})::date`;
   const notReached = sql`('no_answer','voicemail','gatekeeper')`;
   const rows = (await db.execute(sql`
     with tries as (
@@ -1226,6 +1228,7 @@ export type CallListDetail = {
 export async function getCallList(
   id: number,
   ownerId?: number,
+  tz?: string,
 ): Promise<CallListDetail | null> {
   // `called_today` comes back with the summary now, so there is no second
   // query and no chance of the card and the detail screen disagreeing.
@@ -1233,7 +1236,7 @@ export async function getCallList(
   // Scoped, so a caller who types another team's list id into the URL gets the
   // same not-found as a list that never existed — the dialler reads its queue
   // only after this returns.
-  const lists = await getCallLists(ownerId);
+  const lists = await getCallLists(ownerId, tz);
   return lists.find((l) => l.id === id) ?? null;
 }
 

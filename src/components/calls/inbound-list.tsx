@@ -106,10 +106,14 @@ export function InboundList({
   calls,
   all,
   missed,
+  readerTz,
   waiting = 0,
   showWho,
 }: {
   calls: InboundCall[];
+  /** The clock this reader picked, used where the number that rang belongs to
+   *  no place — a toll-free line. See `callbackZoneLabel`. */
+  readerTz: string;
   all: boolean;
   /** Owed a ring back now — the same count as the badge. */
   missed: number;
@@ -358,7 +362,7 @@ export function InboundList({
                                   id: c.id,
                                   outcome: o,
                                   notes: "",
-                                  callbackAt: defaultCallbackAt(c.tz),
+                                  callbackAt: defaultCallbackAt(c.tz, readerTz),
                                 })
                               }
                             >
@@ -416,7 +420,7 @@ export function InboundList({
                           htmlFor={`cb-${c.id}`}
                           className="text-[12px] font-semibold"
                         >
-                          {callbackZoneLabel(c.tz)}
+                          {callbackZoneLabel(c.tz, readerTz)}
                         </label>
                         <Input
                           id={`cb-${c.id}`}

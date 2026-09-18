@@ -14,24 +14,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-/** The Spreadsheet's clock for things we did, pinned for the reason
- *  `leads-grid.tsx` gives. */
-const CALL_TZ = "Asia/Singapore";
-
 function mmss(ms: number | null) {
   if (ms === null) return null;
   const total = Math.round(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-function when(iso: string | null) {
+function when(iso: string | null, tz: string) {
   if (!iso) return "Unknown time";
   return new Date(iso).toLocaleString("en-US", {
     day: "numeric",
     month: "short",
     hour: "numeric",
     minute: "2-digit",
-    timeZone: CALL_TZ,
+    timeZone: tz,
   });
 }
 
@@ -57,10 +53,16 @@ export function LeadRecordings({
   leadId,
   count,
   title,
+  tz,
+  zoneLabel,
 }: {
   leadId: number;
   count: number;
   title: string;
+  /** The sheet's clock, so these times read the same as the column beside
+   *  them. */
+  tz: string;
+  zoneLabel: string;
 }) {
   const [items, setItems] = React.useState<LeadRecording[] | null>(null);
   const [failed, setFailed] = React.useState(false);
@@ -96,7 +98,7 @@ export function LeadRecordings({
           <DropdownMenuLabel className="text-[12px]">
             Calls with {title}
             <span className="block font-normal text-muted-foreground">
-              Newest first, Singapore time
+              Newest first, times in {zoneLabel}
             </span>
           </DropdownMenuLabel>
           {failed ? (
@@ -120,7 +122,7 @@ export function LeadRecordings({
               >
                 <span className="flex w-full items-center gap-1.5 text-[13px]">
                   <CirclePlay className="size-3.5 shrink-0 text-primary" strokeWidth={2} />
-                  {when(r.startedAt)}
+                  {when(r.startedAt, tz)}
                   <span className="ml-auto tabular-nums text-muted-foreground">
                     {mmss(r.durationMs)}
                   </span>
@@ -140,7 +142,7 @@ export function LeadRecordings({
           recordingId={playing.recordingId}
           recordingMs={playing.durationMs}
           title={title}
-          subtitle={`${when(playing.startedAt)} · ${what(playing)}`}
+          subtitle={`${when(playing.startedAt, tz)} · ${what(playing)}`}
           callerLabel={playing.byName ?? "Us"}
           open
           onOpenChange={(open) => !open && setPlaying(null)}

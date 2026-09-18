@@ -486,12 +486,16 @@ function relative(iso: string | null) {
  */
 function CallForm({
   lead,
+  readerTz,
   onLogged,
   onSkip,
   calBookingUrl,
   line,
 }: {
   lead: QueueLead;
+  /** The caller's own clock, used only where the lead's number belongs to no
+   *  place — a toll-free line. See `callbackZoneLabel`. */
+  readerTz: string;
   /** Handed the outcome, not just the fact that something was saved: a booking
    *  is the one that owes Slack a post, and only this knows which was logged. */
   onLogged: (outcome: CallOutcome) => void;
@@ -510,7 +514,7 @@ function CallForm({
   // Opens on the prospect's tomorrow morning, not the floor's: a callback is an
   // appointment with them. A lazy initialiser because it now takes an argument.
   const [callbackAt, setCallbackAt] = React.useState(() =>
-    defaultCallbackAt(lead.tz),
+    defaultCallbackAt(lead.tz, readerTz),
   );
   // Picked but not yet saved. Nothing is written until the confirm button is
   // pressed: one tap next to another used to be the whole gesture, and a
@@ -591,7 +595,9 @@ function CallForm({
 
       {picked === "callback" && (
         <div className="mt-3 space-y-1.5">
-          <Label htmlFor="callback-at">{callbackZoneLabel(lead.tz)}</Label>
+          <Label htmlFor="callback-at">
+            {callbackZoneLabel(lead.tz, readerTz)}
+          </Label>
           <Input
             id="callback-at"
             type="datetime-local"
@@ -681,6 +687,7 @@ function CallForm({
 
 export function Dialler({
   leads,
+  readerTz,
   focusLeadId = null,
   script,
   objections,
@@ -698,6 +705,9 @@ export function Dialler({
   panelLeft: initialPanel = "objections",
 }: {
   leads: QueueLead[];
+  /** The clock this caller reads the app in, from the picker at the top of
+   *  Stats. Only reached for a lead whose number belongs to no place. */
+  readerTz: string;
   /** A lead to open on, from a `?lead=` link — Missed calls and the callbacks
    *  diary both point here so the ring back can be placed and logged in the
    *  one place. It only seeds the first card; working it hands the queue back
@@ -1266,6 +1276,7 @@ export function Dialler({
           // notes and the callback picker reset by construction rather than by
           // an effect that clears them after the fact.
           <CallForm
+            readerTz={readerTz}
             key={`form-${current.id}`}
             lead={current}
             onLogged={(outcome) => handleLogged(current, outcome)}

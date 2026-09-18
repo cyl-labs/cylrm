@@ -162,8 +162,11 @@ export function CallBoard({
   columnLimit,
   showList = true,
   showDealStages = true,
+  tz,
 }: {
   cards: BoardCard[];
+  /** The clock "called today" is judged on, from the reader's reporting zone. */
+  tz: string;
   columnLimit: number;
   /** Trial, Won and Lost are the founders' view of a deal, not a caller's. A
    *  caller works the phone up to Demo booked; what the deal does over the
@@ -234,7 +237,7 @@ export function CallBoard({
     const q = query.trim().toLowerCase();
     const digits = q.replace(/\D/g, "");
     const now = pickedAt;
-    const today = sgDay(now);
+    const today = dayIn(now, tz);
     return rows.filter((c) => {
       if (q) {
         const text = [c.company, c.name, c.email, c.lastNotes, c.listName, placeShort(c)]
@@ -251,14 +254,14 @@ export function CallBoard({
         if (!c.lastCalledAt) return false;
         const at = Date.parse(c.lastCalledAt);
         const days = (now - at) / 864e5;
-        if (lastCall === "today" && sgDay(at) !== today) return false;
+        if (lastCall === "today" && dayIn(at, tz) !== today) return false;
         if (lastCall === "7" && days > 7) return false;
         if (lastCall === "30" && days > 30) return false;
         if (lastCall === "older" && days <= 30) return false;
       }
       return true;
     });
-  }, [rows, filtering, query, lastCall, calledBy, pickedAt]);
+  }, [rows, filtering, query, lastCall, calledBy, pickedAt, tz]);
 
   // Which card's recording is open. The sheet is mounted once, below the
   // board, rather than one per card: a Radix portal per card is a hundred
@@ -661,9 +664,11 @@ const LAST_CALL: { value: LastCallFilter; label: string }[] = [
   { value: "never", label: "Never called" },
 ];
 
-const sgDay = (ms: number) =>
+/** A calendar day on the reader's clock — the same one Stats and the Call
+ *  lists cards count "today" on. It was Singapore here regardless. */
+const dayIn = (ms: number, tz: string) =>
   new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Singapore",
+    timeZone: tz,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

@@ -4,6 +4,7 @@ import { call } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
 import { parseCallbackAt } from "@/lib/call-time";
 import { zoneForLead } from "@/lib/calls";
+import { readerZone } from "@/lib/users";
 import type { CallOutcome } from "@/lib/calls";
 
 const OUTCOMES: CallOutcome[] = [
@@ -118,8 +119,10 @@ export async function PATCH(
     // The prospect's zone, exactly as the dialler reads it: a datetime-local
     // field sends no offset, the droplet is UTC, and "9am" means their morning.
     callbackAt =
-      parseCallbackAt(body?.callbackAt, await zoneForLead(leadId)) ??
-      new Date(Date.now() + 24 * 60 * 60 * 1000);
+      parseCallbackAt(
+        body?.callbackAt,
+        (await zoneForLead(leadId)) ?? (await readerZone(me.id)).tz,
+      ) ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
   }
 
   await db.transaction(async (tx) => {

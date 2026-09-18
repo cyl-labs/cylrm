@@ -4,6 +4,7 @@ import { db } from "@/db";
 import type { CallRegion } from "@/lib/calls";
 import { appUser, call } from "@/db/schema";
 import { hashPassword, normaliseUsername } from "@/lib/password";
+import { DEFAULT_STATS_REGION, statsZone } from "@/lib/stats-zones";
 
 export type TeamMember = {
   id: number;
@@ -159,6 +160,24 @@ export const callRegionOf = cache(
  * Kept apart from `callRegion`, which is the market they *work*: a founder in
  * Singapore reading a US floor's numbers has every market and one clock.
  */
+/**
+ * The clock this person reads the app in: their reporting zone, then the
+ * market they call, then Eastern.
+ *
+ * One helper because four screens resolved it the same way inline and four
+ * more did not resolve it at all — the Spreadsheet, Team, the pipeline's
+ * "called today" filter and the Call lists counts were pinned to Singapore
+ * from before the timezone picker existed, so a caller could read two
+ * different answers to "how many calls today" depending on the screen.
+ * Anything about the *prospect* still shows their own clock, labelled.
+ */
+export const readerZone = cache(
+  async (userId: number | null | undefined) =>
+    statsZone(
+      (await statsRegionOf(userId)) ?? (await callRegionOf(userId)) ?? DEFAULT_STATS_REGION,
+    ),
+);
+
 export const statsRegionOf = cache(
   async (userId: number | null | undefined): Promise<CallRegion | null> => {
     if (!userId) return null;

@@ -749,12 +749,38 @@ inbound handled.
 - **The board has a search box and two filters** (2026-09-18, in
   `call-board.tsx`): search over business, contact, email, notes, niche and
   place, plus the number by its digits (three or more); when the last call was
-  (today on the floor's Singapore day, 7 or 30 days, over 30 days, never);
-  and who made the last call, shown only when more than one name appears. All
+  (today on the reader's own clock, 7 or 30 days, over 30 days, never); and
+  who made the last call, shown only when more than one name appears. All
   in the browser over every card the page sent, before the 60-per-column cap,
   so a search finds a lead past the first sixty. Asked for as "no search and
   the filter is very poor". The date filter reads the clock in its change
   handler, since the React lint refuses `Date.now()` during render.
+- **Every screen's clock is the one the reader picked** (2026-09-18,
+  `readerZone` in `lib/users.ts`: the timezone picker on Stats, then the
+  caller's market, then Eastern). It shipped as `Asia/Singapore` in four
+  places, which was the floor's clock before the picker existed and nobody's
+  since — the app told callers so in as many words, and the founders asked why,
+  given the standard is Eastern.
+  - The **Spreadsheet** was the visible one: a US caller read "Last call
+    3:04 PM" against a call they placed at 3am their own time, with nothing on
+    the screen naming the clock. It now carries the zone in the Recordings
+    menu's label too ("times in ET"), since that list sits inside the sheet.
+  - The **Pipeline's "called today"** was the one that changed a number rather
+    than a label. Which calendar day a call falls on decides whether it is in
+    the filter at all, and a Singapore day is twelve hours off an Eastern one —
+    so an afternoon's calls could be missing from "today" while a caller was
+    still making them.
+  - **Team's join dates** and the **callbacks diary's no-zone fallback** were
+    the other two. The diary's is the only one that also writes: a lead with no
+    zone of its own is now stored *and* shown on the reader's clock, with the
+    row saying "your clock, no zone for this number". The fallback is resolved
+    by the caller and handed to `parseCallbackAt` as one zone rather than
+    defaulted inside it — a constant on the write path and a different one on
+    the read path is precisely how a stored time drifts from a displayed one.
+  - `CALL_TZ` and `callTzDate` are gone. Do not add a display-zone constant
+    back; the prospect's own zone (`zoneForLead`) and the reader's
+    (`readerZone`) are the only two answers, and which one a screen wants is a
+    question about whose appointment it is.
 - Board and stats both take `?list=<id>` to narrow to one niche. Both selects live in `src/components/calls/call-filters.tsx` **together** on purpose: a range select that rebuilt the query string on its own dropped `?list=` every time it fired, quietly widening the numbers back to every niche.
 - The board carries **every** lead now that Lost is a column of its own; there is no exclusion set left. Watch the older trap if one is ever reintroduced: `TERMINAL` means "out of the cold-calling queue", which includes `demo_booked`, `trial` and `won` — filtering the board by it emptied the columns those leads belong in.
 - The call outcome enum lost `interested` and gained `trial`, `won`, `lost` on 2026-08-03 (`scripts/migrations/2026-08-03-call-outcome-pipeline.sql`). Postgres cannot drop an enum value, so the type is rebuilt; `drizzle-kit push` cannot do it either (a diff that both drops and adds enum values goes interactive and crashes with no TTY). **Apply the SQL before deploying the code** — the new code writes outcomes the old type does not have.

@@ -17,6 +17,7 @@ import {
   canUseLiveHints,
   dialMethodOf,
   panelLeftOf,
+  readerZone,
 } from "@/lib/users";
 import { CALLING_HOURS_LABEL, sopRegionFor } from "@/lib/calls";
 import { spokenNumber } from "@/lib/phone";
@@ -408,6 +409,7 @@ export default async function CallListPage({
       )}
       {/* The Closed view is read-only: those calls are already finished. */}
       <Dialler
+        readerTz={(await readerZone(me?.id)).tz}
             calBookingUrl={process.env.CAL_BOOKING_URL}
             canDialFromBrowser={dialMethod === "browser"}
             // Read on the server so the key never reaches the browser. Unset

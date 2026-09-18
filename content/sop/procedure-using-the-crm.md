@@ -4,8 +4,16 @@ region: null
 title: Using the Call CRM
 ---
 
-Everything here applies whichever region you call. Times shown anywhere in the
-app are **Singapore time**.
+Everything here applies whichever region you call.
+
+**Times are shown in the clock you pick.** Eastern to start with, because that
+is where the work is. The timezone box on **Stats**, next to the other
+filters, changes it — pick Singapore there and every screen follows, not just
+that one.
+
+The exception is anything about the **prospect**: when to call them back, when
+their office opens. Those are always their time, and the row says so. If a
+time is not labelled, it is yours.
 
 ## Watch this first
 

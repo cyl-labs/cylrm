@@ -2,6 +2,7 @@ import { PageShell } from "@/components/page-shell";
 import { InboundList } from "@/components/calls/inbound-list";
 import { getInboundCalls } from "@/lib/inbound";
 import { getCurrentUser } from "@/lib/session";
+import { readerZone } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function MissedCallsPage({
     <PageShell title="Missed calls">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 sm:px-6">
         <InboundList
+          readerTz={(await readerZone(me?.id)).tz}
           calls={calls}
           all={all}
           missed={missed}

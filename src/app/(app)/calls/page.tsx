@@ -6,6 +6,7 @@ import {
   type CallListSummary,
 } from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
+import { readerZone } from "@/lib/users";
 import { callerNumberOf, listTeam, statsRegionOf } from "@/lib/users";
 import { spokenNumber } from "@/lib/phone";
 import {
@@ -55,7 +56,7 @@ export default async function CallsPage({
     searchParams,
     // A caller is only ever handed their own niches; the filters below are an
     // admin convenience on top of the full set.
-    getCallLists(callScope(me)),
+    getCallLists(callScope(me), (await readerZone(me?.id)).tz),
     listTeam(),
   ]);
 

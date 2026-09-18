@@ -32,24 +32,24 @@ const CARD = "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05
 /** Pinned like every other date in the calling screens: the droplet is UTC
  *  and the team is in Singapore, and an unpinned date is a hydration
  *  mismatch on every row. */
-const fmt = (iso: string | null) =>
+const fmt = (iso: string | null, tz: string) =>
   iso
     ? new Date(iso).toLocaleDateString("en-US", {
         day: "numeric",
         month: "short",
-        timeZone: "Asia/Singapore",
+        timeZone: tz,
       })
     : null;
 
 /** The join date in full, for the column's tooltip. `fmt` drops the year,
  *  which is fine for "last dialled" and wrong for somebody who started in
  *  March. */
-const joined = (iso: string) =>
+const joined = (iso: string, tz: string) =>
   new Date(iso).toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
-    timeZone: "Asia/Singapore",
+    timeZone: tz,
   });
 
 /**
@@ -106,11 +106,16 @@ export function TeamManager({
   team,
   meId,
   canManage,
+  tz,
 }: {
   numbers: { phoneNumber: string; available: boolean }[];
   team: TeamMember[];
   meId: number | null;
   canManage: boolean;
+  /** The clock this screen's dates are read in — the reader's reporting zone,
+   *  the same one Stats and the Spreadsheet use. Pinned to Singapore until
+   *  2026-09-18. */
+  tz: string;
 }) {
   const router = useRouter();
   const iAmOwner = team.some((t) => t.id === meId && t.isOwner);
@@ -538,11 +543,11 @@ export function TeamManager({
                       {m.calls.toLocaleString()}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
-                      {fmt(m.lastDialedAt) ?? "Never dialled"}
+                      {fmt(m.lastDialedAt, tz) ?? "Never dialled"}
                     </td>
                     <td
                       className="whitespace-nowrap px-4 py-2.5 text-muted-foreground"
-                      title={`Joined ${joined(m.createdAt)}`}
+                      title={`Joined ${joined(m.createdAt, tz)}`}
                     >
                       {/* Counted from now, so it can cross a day boundary
                           between the server render and the hydration — the

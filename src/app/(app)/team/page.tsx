@@ -1,6 +1,6 @@
 import { PageShell } from "@/components/page-shell";
 import { getCurrentUser } from "@/lib/session";
-import { listTeam } from "@/lib/users";
+import { listTeam, readerZone } from "@/lib/users";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { listAccountNumbers } from "@/lib/telnyx";
@@ -67,6 +67,7 @@ export default async function TeamPage() {
           />
         )}
         <TeamManager
+          tz={(await readerZone(me?.id)).tz}
           numbers={numbers}
           team={team}
           meId={me?.id ?? null}

@@ -1,29 +1,18 @@
 /**
- * Times for the calling side, which are Singapore times.
+ * How a zone names itself right now — "EDT", "SGT", "GMT+1".
  *
- * Singapore has been UTC+8 with no daylight saving since 1982, so the offset
- * is a constant rather than a lookup. If that ever changes, this is the one
- * place to change it.
+ * Right now and not in the abstract: an abbreviation is a fact about an
+ * instant, not about a zone, and Eastern answers this differently in January
+ * and in July.
  */
-export const CALL_TZ = "Asia/Singapore";
+function shortName(tz: string): string {
+  return (
+    new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" })
+      .formatToParts(new Date())
+      .find((p) => p.type === "timeZoneName")?.value ?? tz
+  );
+}
 
-/** Today in Singapore as YYYY-MM-DD, whatever zone the caller is in. */
-export const callTzDate = (at: Date = new Date()) =>
-  at.toLocaleDateString("en-CA", { timeZone: CALL_TZ });
-
-/**
- * Read a callback time as the wall clock the caller typed.
- *
- * `<input type="datetime-local">` sends "2026-08-06T13:00" with no zone, and
- * `new Date()` reads that as the *server's* local time. On the droplet that is
- * UTC, so 1pm typed in Singapore was stored as 1pm UTC and read back as 9pm —
- * every callback landing eight hours late.
- *
- * The fix is to say which zone the wall clock belongs to rather than letting
- * two machines guess: what the caller types is Singapore time, which is also
- * how every screen displays it. A value that already carries a zone (an `Z` or
- * an offset) is an instant and is passed through untouched.
- */
 /**
  * Tomorrow at 10am Singapore time — what a callback box opens on.
  *
@@ -45,22 +34,25 @@ export const callTzDate = (at: Date = new Date()) =>
  *
  * A null zone is said out loud rather than papered over. Toll-free numbers
  * belong to no place and an unmapped area code is not worth guessing at, so
- * those fall back to the floor's own clock — and the label admits it, because a
- * quiet fallback is how somebody books an evening call believing otherwise.
+ * those fall back to `readerTz` — the clock the reader picked at the top of
+ * Stats, Eastern unless they changed it. The label names it either way, because
+ * a quiet fallback is how somebody books an evening call believing otherwise.
  */
-export function callbackZoneLabel(tz?: string | null): string {
-  if (!tz) return "Call back at (Singapore time — no zone for this number)";
-  const short = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    timeZoneName: "short",
-  })
-    .formatToParts(new Date())
-    .find((p) => p.type === "timeZoneName")?.value;
-  return `Call back at (${short ?? tz} — their time)`;
+export function callbackZoneLabel(
+  tz: string | null | undefined,
+  readerTz: string,
+): string {
+  const short = shortName(tz || readerTz);
+  return tz
+    ? `Call back at (${short} — their time)`
+    : `Call back at (${short} — your clock, no zone for this number)`;
 }
 
-export function defaultCallbackAt(tz?: string | null): string {
-  const zone = tz || CALL_TZ;
+export function defaultCallbackAt(
+  tz: string | null | undefined,
+  readerTz: string,
+): string {
+  const zone = tz || readerTz;
   // Tomorrow *where the prospect is*. Built from their date rather than the
   // browser's for the same reason the parse reads their zone: the two have to
   // mean the same thing, or the default alone would shift the appointment. It
@@ -153,17 +145,19 @@ export function wallClockIn(wall: string, tz: string): Date | null {
  * `tz` comes from `leadZone`, which already resolves a US state, then the area
  * code, then Singapore and UK by prefix. **Null is a real answer**: toll-free
  * numbers belong to no place, and an unmapped area code is not worth guessing
- * at. Those fall back to the calling floor's own clock, which is the only
- * defensible answer left, and the screen says so rather than implying it knows.
+ * at. Those are read on the reader's own clock, so the caller resolves the
+ * fallback and passes one zone — a hidden constant here is how the time a
+ * callback is *stored* in drifts from the time it is *shown* in, which is the
+ * whole subject of this file.
  *
  * A value that already carries a zone (a `Z` or an offset) is an instant and is
  * passed through untouched.
  */
-export function parseCallbackAt(raw: unknown, tz?: string | null): Date | null {
+export function parseCallbackAt(raw: unknown, tz: string): Date | null {
   if (typeof raw !== "string" || raw.trim() === "") return null;
   const value = raw.trim();
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) {
-    return wallClockIn(value, tz || CALL_TZ);
+    return wallClockIn(value, tz);
   }
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;

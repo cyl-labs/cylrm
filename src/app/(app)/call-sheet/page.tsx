@@ -1,5 +1,6 @@
 import { CALL_SHEET_LIMIT, getCallLists, getSheetLeads } from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
+import { readerZone } from "@/lib/users";
 import { PageShell } from "@/components/page-shell";
 import { LeadsGrid } from "@/components/calls/leads-grid";
 
@@ -17,9 +18,14 @@ export default async function CallSheetPage({
   searchParams: Promise<{ list?: string }>;
 }) {
   const me = await getCurrentUser();
+  // One clock for the sheet, the one this person reads Stats and Meetings in.
+  const zone = await readerZone(me?.id);
   const [{ list }, [leads, lists]] = await Promise.all([
     searchParams,
-    Promise.all([getSheetLeads(callScope(me)), getCallLists(callScope(me))]),
+    Promise.all([
+      getSheetLeads(callScope(me)),
+      getCallLists(callScope(me), zone.tz),
+    ]),
   ]);
 
   // A `?list=` naming a list that has since gone opens on everything rather
@@ -40,6 +46,8 @@ export default async function CallSheetPage({
         <LeadsGrid
           showDealStages={me?.role === "admin"}
           leads={leads}
+          tz={zone.tz}
+          zoneLabel={zone.label}
           // Every niche goes down, with a flag for whether anyone has called
           // it: the called ones get tabs, the rest fold under "Not called
           // yet". Nothing is unreachable, and the strip is readable.

@@ -25,11 +25,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { callbackZoneLabel, defaultCallbackAt } from "@/lib/call-time";
 import { cn } from "@/lib/utils";
 
-/** Callbacks are Singapore appointments, and the zone is pinned for the same
- *  reason the spreadsheet's is: the server renders in UTC and the browser in
- *  SGT, and left to themselves they disagree and React rebuilds the tree. */
-const CALL_TZ = "Asia/Singapore";
-
 /**
  * The promised time on the prospect's clock, with the zone named.
  *
@@ -41,8 +36,8 @@ const CALL_TZ = "Asia/Singapore";
  * The zone name is part of the value, not decoration: this diary lists leads
  * from every market at once, so two adjacent rows can be different clocks.
  */
-function whenFor(iso: string, tz: string | null) {
-  const zone = tz || CALL_TZ;
+function whenFor(iso: string, tz: string | null, readerTz: string) {
+  const zone = tz || readerTz;
   const at = new Intl.DateTimeFormat("en-US", {
     weekday: "short",
     day: "numeric",
@@ -52,7 +47,7 @@ function whenFor(iso: string, tz: string | null) {
     timeZone: zone,
     timeZoneName: "short",
   }).format(new Date(iso));
-  return tz ? `${at} their time` : `${at} (no zone for this number)`;
+  return tz ? `${at} their time` : `${at} (your clock, no zone for this number)`;
 }
 
 /**
@@ -128,10 +123,16 @@ function CopyNumber({
 
 export function CallbacksList({
   leads,
+  readerTz,
   showWho = false,
   canRingClosed = false,
 }: {
   leads: CallbackLead[];
+  /** The clock this reader picked, used where a lead's number belongs to no
+   *  place. A zone is always passed rather than left to the browser: the
+   *  server renders in UTC and they would disagree, and React rebuilds the
+   *  tree. */
+  readerTz: string;
   /** Whose callback it is. Only for admins: a caller's diary is entirely
    *  their own, so stamping their name on every row is noise. */
   showWho?: boolean;
@@ -301,7 +302,7 @@ export function CallbacksList({
                 on, the date is what you check it against. */}
             <p className="mt-1.5 text-[13px] text-muted-foreground">
               {l.callbackAt
-                ? whenFor(l.callbackAt, l.tz)
+                ? whenFor(l.callbackAt, l.tz, readerTz)
                 : "No time was set on this callback"}
               {l.attempts > 0 &&
                 ` · ${l.attempts} ${l.attempts === 1 ? "try" : "tries"}`}
@@ -371,7 +372,7 @@ export function CallbacksList({
                           leadId: l.id,
                           outcome: o,
                           notes: "",
-                          callbackAt: defaultCallbackAt(l.tz),
+                          callbackAt: defaultCallbackAt(l.tz, readerTz),
                         })
                       }
                     >
@@ -413,7 +414,7 @@ export function CallbacksList({
                       htmlFor={`cb-${l.id}`}
                       className="text-[12px] font-semibold"
                     >
-                      {callbackZoneLabel(l.tz)}
+                      {callbackZoneLabel(l.tz, readerTz)}
                     </label>
                     <Input
                       id={`cb-${l.id}`}

@@ -123,24 +123,27 @@ const canEditCell = (lead: SheetLead, key: ColKey): key is EditableKey =>
 const colLetter = (i: number) => String.fromCharCode(65 + i);
 
 /**
- * Call times are shown as Singapore times, and the locale is pinned.
+ * The clock this sheet is read in, chosen on the server and passed down.
  *
- * Not a preference: the calling is done in Singapore, and leaving either to
- * the viewer made every dated cell a hydration mismatch. The server renders
- * this HTML on a droplet running UTC and the browser hydrates it in SGT, so
- * the two disagreed on every row and React threw the tree away and rebuilt
- * it. Fixing the zone makes both sides produce the same string.
+ * A zone, never the viewer's: the server renders this HTML on a droplet
+ * running UTC and the browser hydrates it somewhere else, so leaving it to
+ * `toLocaleString(undefined, …)` made every dated cell a hydration mismatch
+ * and React threw the tree away on every load.
+ *
+ * It was pinned to Singapore from before the timezone picker existed, which
+ * left this sheet disagreeing with Stats and Meetings about when a call
+ * happened. It now follows the same picker they do — Eastern unless somebody
+ * changes it — while the callback column stays on the prospect's own clock,
+ * because that one is an appointment with them.
  */
-const CALL_TZ = "Asia/Singapore";
-
-function fmt(iso: string | null) {
+function fmt(iso: string | null, tz: string) {
   if (!iso) return "";
   return new Date(iso).toLocaleString("en-US", {
     day: "numeric",
     month: "short",
     hour: "numeric",
     minute: "2-digit",
-    timeZone: CALL_TZ,
+    timeZone: tz,
   });
 }
 
@@ -153,20 +156,20 @@ function fmt(iso: string | null) {
  * the area code, and Singapore and the UK by prefix, so what reaches here as
  * null genuinely belongs to no place.
  */
-function fmtFor(iso: string | null, tz: string | null) {
+function fmtFor(iso: string | null, leadTz: string | null, readerTz: string) {
   if (!iso) return "";
   return new Date(iso).toLocaleString("en-US", {
     day: "numeric",
     month: "short",
     hour: "numeric",
     minute: "2-digit",
-    timeZone: tz || CALL_TZ,
+    timeZone: leadTz || readerTz,
   });
 }
 
 /** The cell's value as text — what the formula bar shows, what Ctrl+C copies
  *  and what lands in the CSV, so all three can never disagree. */
-function cellText(lead: SheetLead, key: ColKey): string {
+function cellText(lead: SheetLead, key: ColKey, tz: string): string {
   switch (key) {
     case "category":
       return CATEGORY_LABELS[categoryOf(lead)];
@@ -175,7 +178,7 @@ function cellText(lead: SheetLead, key: ColKey): string {
     case "recordings":
       return lead.recordings ? String(lead.recordings) : "";
     case "lastCalledAt":
-      return fmt(lead.lastCalledAt);
+      return fmt(lead.lastCalledAt, tz);
     // The prospect's clock, not the floor's — a callback is an appointment with
     // them, and the time was agreed in their morning. Deliberately *not* `fmt`,
     // which this column shared until 2026-09-17: that one also renders "last
@@ -183,7 +186,7 @@ function cellText(lead: SheetLead, key: ColKey): string {
     // clock. Moving both would have been a silent regression on the column
     // nobody asked to change.
     case "callbackAt":
-      return fmtFor(lead.callbackAt, lead.tz);
+      return fmtFor(lead.callbackAt, lead.tz, tz);
     case "phone":
       return lead.phone;
     // The tidied form, not the stored one, so the cell, the formula bar, a
@@ -211,10 +214,10 @@ function csvCell(value: string) {
 
 type Col = (typeof COLS)[number];
 
-function downloadCsv(rows: SheetLead[], cols: Col[], name: string) {
+function downloadCsv(rows: SheetLead[], cols: Col[], name: string, tz: string) {
   const lines = [cols.map((c) => csvCell(c.label)).join(",")];
   for (const l of rows) {
-    lines.push(cols.map((c) => csvCell(cellText(l, c.key))).join(","));
+    lines.push(cols.map((c) => csvCell(cellText(l, c.key, tz))).join(","));
   }
   // The BOM is what makes Excel read the file as UTF-8.
   const blob = new Blob(["﻿" + lines.join("\r\n")], {
@@ -485,8 +488,17 @@ export function LeadsGrid({
   truncated = false,
   meName = null,
   showDealStages = true,
+  tz,
+  zoneLabel,
 }: {
   leads: SheetLead[];
+  /** The clock this sheet is read in — the reader's reporting zone, chosen on
+   *  the server. Pinned to Singapore until 2026-09-18, which left it
+   *  disagreeing with Stats and Meetings about when a call happened. */
+  tz: string;
+  /** What that clock is called — "ET", "SGT" — so a column of times says which
+   *  one it is in. */
+  zoneLabel: string;
   /** Same rule as the board: Trial, Won and Lost belong to the founders, so a
    *  caller neither sees those categories nor can set one. */
   showDealStages?: boolean;
@@ -588,9 +600,9 @@ export function LeadsGrid({
     return inTab.filter((l) => {
       if (category !== "all" && categoryOf(l) !== category) return false;
       if (q === "") return true;
-      return cols.some((c) => cellText(l, c.key).toLowerCase().includes(q));
+      return cols.some((c) => cellText(l, c.key, tz).toLowerCase().includes(q));
     });
-  }, [inTab, cols, category, search]);
+  }, [inTab, cols, category, search, tz]);
 
   /**
    * Column sort, or null for the order the server sent — most recently called
@@ -610,7 +622,7 @@ export function LeadsGrid({
         const iso = l[sort.key];
         return iso ? new Date(iso).getTime() : null;
       }
-      return cellText(l, sort.key).toLowerCase() || null;
+      return cellText(l, sort.key, tz).toLowerCase() || null;
     };
     return [...matching].sort((a, b) => {
       const x = value(a);
@@ -622,7 +634,7 @@ export function LeadsGrid({
       if (typeof x === "number" && typeof y === "number") return (x - y) * dir;
       return String(x).localeCompare(String(y)) * dir;
     });
-  }, [matching, sort]);
+  }, [matching, sort, tz]);
 
   /** Counts for the category picker, over the current tab only — the number
    *  beside a category should match what picking it shows. */
@@ -715,7 +727,7 @@ export function LeadsGrid({
 
   function copySelection() {
     if (selected) {
-      copy(cellText(selected, selCol.key), undefined, selCol.key === "phone");
+      copy(cellText(selected, selCol.key, tz), undefined, selCol.key === "phone");
     }
   }
 
@@ -730,7 +742,7 @@ export function LeadsGrid({
       return;
     }
     setEditing({ leadId: lead.id, key });
-    setDraft(cellText(lead, key));
+    setDraft(cellText(lead, key, tz));
     // The input mounts this tick; focusing after paint puts the caret in it
     // without the grid stealing it back.
     requestAnimationFrame(() =>
@@ -759,7 +771,7 @@ export function LeadsGrid({
     if (!editing || saving) return;
     const target = rows.find((l) => l.id === editing.leadId);
     const next = draft.trim();
-    if (!target || next === cellText(target, editing.key)) {
+    if (!target || next === cellText(target, editing.key, tz)) {
       cancelEditing();
       return;
     }
@@ -943,6 +955,7 @@ export function LeadsGrid({
               filtered,
               cols,
               tabs.find((t) => t.key === tab)?.label ?? "call-leads",
+              tz,
             )
           }
         >
@@ -1004,7 +1017,7 @@ export function LeadsGrid({
             className="min-w-0 flex-1 truncate text-[13px]"
             onDoubleClick={startEditing}
           >
-            {selected ? cellText(selected, selCol.key) : ""}
+            {selected ? cellText(selected, selCol.key, tz) : ""}
           </span>
         )}
         {editing ? (
@@ -1313,6 +1326,8 @@ export function LeadsGrid({
                                   leadId={l.id}
                                   count={l.recordings}
                                   title={l.company ?? l.name ?? l.phone}
+                                  tz={tz}
+                                  zoneLabel={zoneLabel}
                                 />
                               )
                             ) : c.key === "website" ? (
@@ -1342,7 +1357,7 @@ export function LeadsGrid({
                                 )}
                               </span>
                             ) : (
-                              cellText(l, c.key)
+                              cellText(l, c.key, tz)
                             )}
                           </td>
                         );

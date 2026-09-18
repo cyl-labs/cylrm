@@ -3,6 +3,7 @@ import { PageShell } from "@/components/page-shell";
 import { CallbacksList } from "@/components/calls/callbacks-list";
 import { CallFilters } from "@/components/calls/call-filters";
 import { callScope, getCurrentUser } from "@/lib/session";
+import { readerZone } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,7 @@ export default async function CallbacksPage({
           </p>
         )}
         <CallbacksList
+          readerTz={(await readerZone(me?.id)).tz}
           leads={leads}
           showWho={me?.role === "admin"}
           canRingClosed={me?.role === "admin"}
