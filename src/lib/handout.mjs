@@ -33,7 +33,23 @@ export function parseHandoutDoc(raw, slug) {
   };
 }
 
-const md = (s) => marked.parse(s, { async: false });
+/**
+ * Markers the app renders as something live — the demo calculator, a video
+ * guide — cannot be printed, so a handout says where to find them instead of
+ * carrying "[video: crm-guide]" as literal text on the page.
+ */
+const forPrint = (s) =>
+  s
+    .replace(
+      /^\[video:\s*[a-z0-9-]+\]$/gm,
+      "_The video guide is on the Scripts screen in the CRM._",
+    )
+    .replace(
+      /^\[calculator\]$/gm,
+      "_The calculator for this step is on the Scripts screen in the CRM._",
+    );
+
+const md = (s) => marked.parse(forPrint(s), { async: false });
 
 /** Tag each blockquote by who is speaking, exactly as `SopProse` does: the
  *  label is the first <strong> inside the quote, so the match is on that shape

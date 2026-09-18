@@ -30,6 +30,16 @@ export const dynamic = "force-dynamic";
  */
 const CALCULATOR_MARKER = "[calculator]";
 
+/**
+ * Where a video guide goes: a line reading `[video: crm-guide]` in the
+ * markdown, named like the calculator's marker so a document decides both what
+ * it shows and where.
+ *
+ * The file itself is not in the repo — see `/api/guides/[slug]`, which is also
+ * what keeps it behind the login.
+ */
+const VIDEO_MARKER = /\[video:\s*([a-z0-9][a-z0-9-]{0,60})\]/;
+
 /** Long enough that finding a section by scrolling stops being reasonable. */
 const TOC_THRESHOLD = 6;
 
@@ -88,7 +98,9 @@ export default async function SopDocumentPage({
     className: string,
     gutter = true,
   ) => {
-    const html = s.html.replace(`<p>${CALCULATOR_MARKER}</p>`, "");
+    const html = s.html
+      .replace(`<p>${CALCULATOR_MARKER}</p>`, "")
+      .replace(new RegExp(`<p>${VIDEO_MARKER.source}</p>`), "");
     return hasCalculator && hasDemoFills(html) ? (
       <DemoFilledProse html={html} className={className} gutter={gutter} />
     ) : (
@@ -346,6 +358,19 @@ export default async function SopDocumentPage({
                         <div className="mt-4">
                           <PricingCalculator />
                         </div>
+                      )}
+                      {/* `preload="metadata"`: the file is tens of megabytes
+                          and this page is opened to read the script far more
+                          often than to watch anything, so nothing is fetched
+                          until somebody presses play. */}
+                      {VIDEO_MARKER.exec(s.html)?.[1] && (
+                        <video
+                          className="mt-4 w-full rounded-xl border bg-black"
+                          controls
+                          preload="metadata"
+                          playsInline
+                          src={`/api/guides/${VIDEO_MARKER.exec(s.html)![1]}`}
+                        />
                       )}
                     </section>
                   );

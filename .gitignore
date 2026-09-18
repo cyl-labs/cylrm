@@ -44,3 +44,8 @@ next-env.d.ts
 # so committing them would be a second copy to keep in step - which is the
 # problem the exporter exists to solve.
 /handouts/
+
+# Video guides and other large media. Kept out of git on purpose: a 128MB
+# file in the history is in every clone and every deploy forever. The copy
+# people watch lives on the droplet outside the repo.
+/media

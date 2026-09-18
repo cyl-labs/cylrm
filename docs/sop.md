@@ -253,3 +253,32 @@ advance. Two of the three are prompted in the app by
   (`whitespace-pre-wrap`), never a horizontal scroller: the line breaks in a
   template are its content, and a caller reading this on a phone has to see the
   whole thing.
+
+### The video guide
+
+A six-minute screen recording of the CRM plays at the top of
+**Using the Call CRM** (2026-09-18). `[video: crm-guide]` in the markdown,
+rendered by `sop/[slug]/page.tsx` the way `[calculator]` is — the document
+decides what it shows and where.
+
+- **The file is not in the repo.** It arrived at 122MB, and a file that size in
+  git is in every clone and every deploy from then on; `deploy.sh` also rsyncs
+  the repo with `--delete`, so anything kept inside it would be shipped up and
+  down on every release. `/media` is gitignored and the copy people watch lives
+  at `GUIDE_DIR` on the droplet (`/root/crm-media/guides`), beside the
+  text-message cache and for the same reason. Unset means no guide and nothing
+  else changes.
+- **Behind the login** (`/api/guides/[slug]`), because it is a tour of real
+  businesses, real numbers and the Payroll screen. `getCurrentUser` first, a
+  slug that can only be a plain name, and the resolved path checked to be
+  inside the directory.
+- **Range requests are answered properly** — 206 with `Content-Range`, or the
+  player cannot seek and Safari will not play at all: it asks for `bytes=0-1`
+  and expects a partial response.
+- **Compressed to 720p before uploading**: 122MB to 7.1MB with ffmpeg
+  (`-vf scale=1280:-2 -crf 28 -movflags +faststart`), SSIM 0.993 against the
+  original, which matters for a floor calling from overseas connections.
+  `+faststart` is what lets it start before the whole file arrives.
+- **A handout cannot print a video**, so `forPrint` in `lib/handout.mjs` swaps
+  that marker — and `[calculator]` — for a line saying where to find it in the
+  CRM. Without it the PDF carried "[video: crm-guide]" as text.

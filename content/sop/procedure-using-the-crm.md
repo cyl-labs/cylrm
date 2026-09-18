@@ -7,14 +7,26 @@ title: Using the Call CRM
 Everything here applies whichever region you call. Times shown anywhere in the
 app are **Singapore time**.
 
+## Watch this first
+
+Six minutes, start to finish: where the calls come from, how to work a list,
+and what to do after each one. The rest of this page is the same thing in
+words, to come back to when you need one answer rather than the whole tour.
+
+[video: crm-guide]
+
 ## The bar at the top is your week
 
 **300 calls a week.** The strip under the page title is where you are against
 it, on every screen, all day. You never have to go and look it up.
 
-It counts calls you have **logged**, from Monday, and it is your own calls and
-nobody else's. A call you made and did not log is not on it, which is the same
-rule your pay runs on.
+It counts calls you have **logged**, and it is your own calls and nobody
+else's. A call you made and did not log is not on it, which is the same rule
+your pay runs on.
+
+The week **resets when payday does** — the bar says what it is counting from,
+for example "from Fri 9 PM" — so the calls you are judged on are the calls in
+the week you are paid for.
 
 It does not stop at 300. Go past and it says so and keeps counting, because
 the target is the floor and not the ceiling.
