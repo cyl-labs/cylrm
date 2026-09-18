@@ -44,6 +44,43 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   time passed. `past` is excluded because it would re-upsert the hundred most
   recent finished meetings on every one of the day's 288 ticks; a one-off
   backfill of history is that array plus one word.
+### List or calendar (2026-09-18)
+
+`?view=calendar` draws the month as a grid above the list; `?view=list`, the
+default, draws the list alone. `MeetingsCalendar` and `MeetingsView`.
+
+- **Asked for because a founder was opening Cal.com to check what was coming.**
+  He had forgotten this screen existed; the complaint that survived finding it
+  was "even if it's like this I still need to read the time". A list answers
+  *what is next* in one glance and *how busy is Saturday* in none, because
+  every row has to be read and its date held in your head. A grid puts the day
+  in the position instead.
+- **The list stays under the calendar rather than being replaced by it.** Every
+  job on this screen — ring them, log what happened, draft a contract, merge a
+  line in — lives on a row, so switching view must never take the work away.
+  The grid links nowhere for the same reason.
+- **Server-rendered, every control a URL**, like `CallCalendar`: nothing for the
+  browser to do, the back button works, and a pasted link opens on what its
+  sender was looking at. `tz` is carried across a view switch and a month turn,
+  the bug `call-filters.tsx` documents.
+- **A second calendar, deliberately.** `CallCalendar` paints one number per day
+  and links each cell into a Stats filter; this paints named appointments and
+  links nothing. They share their date conventions — Monday first, noon-UTC
+  parsing, `columnOf` — and no markup. Keep those in step: a date parsed at
+  midnight lands on the previous day in half the world, which is exactly the
+  bug a calendar puts on screen.
+- **A meeting's day is the reader's day.** `dayOf` formats in the zone from the
+  picker, so a demo at 8am Singapore sits on Saturday for somebody reading in
+  Singapore and on Friday for somebody in New York, and each is right about
+  their own Saturday.
+- **"Today" is dropped below `sm`.** A phone cell is about 50px and the word ran
+  over the next day's number; the tint and the coloured date already say which
+  day it is. Checked at 390px and 1280px with `scrollWidth === clientWidth`.
+- The chip puts the time on its own line above the company: at ~100px wide
+  "10AM Tiger Fluids Pte. Ltd." truncated to "10AM TIGER F…", and the name is
+  what people scan for. Cancelled rows are struck through rather than dropped,
+  so the grid and the list cannot disagree about what is booked.
+
 ### Booking a demo from any screen, and demos nobody booked (2026-09-15)
 
 A demo agreed on 2026-09-15 reached the CRM as Demo booked with nothing on

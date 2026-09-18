@@ -17,6 +17,8 @@ import {
   DEFAULT_STATS_REGION,
 } from "@/lib/stats-zones";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
+import { MeetingsCalendar } from "@/components/calls/meetings-calendar";
+import { MeetingsView } from "@/components/calls/meetings-view";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +38,10 @@ export const dynamic = "force-dynamic";
 export default async function MeetingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tz?: string }>;
+  searchParams: Promise<{ tz?: string; view?: string; month?: string }>;
 }) {
   const me = await getCurrentUser();
-  const { tz: rawTz } = await searchParams;
+  const { tz: rawTz, view: rawView, month: rawMonth } = await searchParams;
 
   // Their own clock: the zone in the link if there is one, else the reporting
   // zone they picked, else the market they work, else Eastern — the same order
@@ -58,6 +60,27 @@ export default async function MeetingsPage({
   const zone = statsZone(region);
 
   const meetings = await getMeetings(callScope(me), zone.tz);
+
+  // List unless the calendar was asked for, and a month only the calendar
+  // reads. Both live in the URL rather than in the browser, so the screen is
+  // the same server render either way and a pasted link opens on what its
+  // sender was looking at.
+  const view = rawView === "calendar" ? "calendar" : "list";
+  // Today and the opening month on the reader's own clock, not the droplet's
+  // UTC — a demo at 8am Singapore is Friday in New York, and each of them is
+  // right about their own Friday.
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: zone.tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const month = /^\d{4}-\d{2}$/.test(rawMonth ?? "")
+    ? (rawMonth as string)
+    : today.slice(0, 7);
+  // What to carry across a view switch or a page turn. Written out rather than
+  // rebuilt from `searchParams`, since only these two ever belong in it.
+  const keepTz = isStatsRegion(rawTz) ? `&tz=${rawTz}` : "";
   // The database's clock decided this, not this render's.
   const soon = meetings.filter((m) => m.startingSoon).length;
   const ringBack = meetings.filter((m) => m.needsRingBack).length;
@@ -85,6 +108,11 @@ export default async function MeetingsPage({
           {/* Refresh first: it is the one people reach for, right after
               booking something on Cal.com. */}
           <RefreshMeetings />
+          {/* Beside Refresh rather than above the list: it changes what the
+              page is, so it belongs with the page's controls. Both labels are
+              drawn, so nobody has to work out whether the word on the button
+              is what they are looking at or what they would get. */}
+          <MeetingsView view={view} query={keepTz} />
           {/* Per browser, not per person — see PushToggle. Renders nothing at
               all where push cannot work, rather than a dead button. */}
           <PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
@@ -138,6 +166,20 @@ export default async function MeetingsPage({
             {zone.name} time.
           </p>
         )}
+        {view === "calendar" && (
+          <MeetingsCalendar
+            month={month}
+            meetings={meetings}
+            tz={zone.tz}
+            zoneLabel={zone.label}
+            today={today}
+            query={keepTz}
+          />
+        )}
+        {/* The list is rendered under the calendar rather than instead of it.
+            The grid answers "which day", and every job on this screen — ring
+            them, log what happened, draft a contract — is on a row, so
+            switching view must not take the work away. */}
         <MeetingsList
           meetings={meetings}
           // The voice agent's own number among them, so the demo can be merged
