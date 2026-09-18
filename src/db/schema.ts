@@ -1145,6 +1145,11 @@ export const callMeeting = pgTable(
      *  to be rung on, which is often a mobile where the lead carries the
      *  business's main line. */
     attendeePhone: text("attendee_phone"),
+    /** "demo" or "follow_up", from the Cal.com event type the booking was made
+     *  on. Only a demo carries the caller's attendance fee, and
+     *  `call_demo_attendance` allows one paid attendance per business — so a
+     *  follow-up must never be mistaken for a second demo. */
+    kind: text("kind").notNull().default("demo"),
     /** The prospect's own zone, which Cal.com knows and the SOP currently
      *  makes the caller work out by hand. */
     attendeeTz: text("attendee_tz"),

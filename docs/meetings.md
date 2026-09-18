@@ -81,6 +81,34 @@ default, draws the list alone. `MeetingsCalendar` and `MeetingsView`.
   what people scan for. Cancelled rows are struck through rather than dropped,
   so the grid and the list cannot disagree about what is booked.
 
+### Booking the follow-up (2026-09-19)
+
+**Book a follow-up** on a meeting row opens Cal.com prefilled, so the next call
+goes in the diary without retyping the prospect. Asked for straight after the
+logger: "book a follow up logging is important also but i cant book."
+
+- **Its own Cal.com event type**, `voice-agent-follow-up` (30 min, phone, the
+  same "Best number to call you on" field and 7-hour notice as the demo;
+  created through the API on 2026-09-19, id 7134827). Not the demo event type,
+  and this is the load-bearing part: a follow-up booked on that one is
+  indistinguishable from a second demo, so the row would ask "did they turn
+  up?" again and saving it would **fail** — `call_demo_attendance` has a unique
+  index allowing one paid attendance per business, deliberately, so a rebooked
+  demo cannot pay the $30 twice.
+- **`call_meeting.kind`** is `demo` or `follow_up`, written by the sync from the
+  booking's event-type slug (`2026-09-19-meeting-kind.sql`, default `demo` so
+  everything already synced keeps its meaning). `needsRingBack` and
+  `needsFollowUp` both require `kind = 'demo'`, and the attendance logger is
+  hidden on a follow-up row.
+- **`calEventFilter` now keeps both slugs.** It filtered to one, so a follow-up
+  booking would have been dropped by the sync and never appeared at all.
+  `CAL_FOLLOWUP_URL` holds the second link; unset means no button and no second
+  slug, the rule every unconfigured feature here follows.
+- The href is built by the same `calBookingHref` every other booking uses. That
+  notes line is load-bearing — `Company (+1…)` is how the sync matches a
+  booking back to its lead — so a screen building it differently would book
+  meetings nothing can find.
+
 ### The follow-up call after a demo (2026-09-19)
 
 The founders ring a prospect back after the demo to show them a mock-up, often

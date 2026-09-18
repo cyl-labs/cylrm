@@ -191,6 +191,9 @@ export default async function MeetingsPage({
           tz={zone.tz}
           zoneLabel={zone.label}
           showWho={me?.role === "admin"}
+          // The second Cal.com event type, for the call after the demo. Unset
+          // means no button rather than one that cannot work.
+          followUpBookingUrl={process.env.CAL_FOLLOWUP_URL ?? null}
           texting={texting}
           // The host a person clicks, which is not the one the server fetches
           // from: in production the API is reached on localhost and the link

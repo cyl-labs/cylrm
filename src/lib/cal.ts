@@ -52,15 +52,30 @@ export const calConfigured = () => Boolean(process.env.CAL_API_KEY);
  * the one already in the environment answers it. `CAL_EVENT_TYPE_ID` is there
  * to override that if the booking link ever changes shape.
  */
+/** The slug at the end of a Cal.com booking link — ".../cyllabs/voice-agent-demo"
+ *  gives "voice-agent-demo". Query strings and a trailing slash both appear in
+ *  links people paste. */
+function slugOf(url: string | undefined): string | null {
+  if (!url) return null;
+  return url.split("?")[0].replace(/\/+$/, "").split("/").pop() || null;
+}
+
+/**
+ * The follow-up event type's slug, from `CAL_FOLLOWUP_URL`.
+ *
+ * Its own event type rather than a second booking on the demo one, because the
+ * CRM has to tell them apart: a demo carries the caller's $30 attendance fee
+ * and a follow-up does not, and `call_demo_attendance` allows one paid
+ * attendance per business. Unset means no follow-up bookings exist, and
+ * nothing changes.
+ */
+export const followUpSlug = () => slugOf(process.env.CAL_FOLLOWUP_URL);
+
 export function calEventFilter(): { id?: number; slug?: string } | null {
   const id = Number(process.env.CAL_EVENT_TYPE_ID);
   if (Number.isFinite(id) && id > 0) return { id };
 
-  const url = process.env.CAL_BOOKING_URL;
-  if (!url) return null;
-  // ".../cyllabs/voice-agent-demo" -> "voice-agent-demo". Query strings and a
-  // trailing slash both appear in links people paste.
-  const slug = url.split("?")[0].replace(/\/+$/, "").split("/").pop();
+  const slug = slugOf(process.env.CAL_BOOKING_URL);
   return slug ? { slug } : null;
 }
 
@@ -198,7 +213,10 @@ export async function listCalBookings(): Promise<{
   // here. Fail closed: a booking whose event type we cannot read is not
   // assumed to be the cold-calling team's.
   if (!filter.id && filter.slug) {
-    bookings = bookings.filter((b) => b.eventTypeSlug === filter.slug);
+    // The follow-up event type is ours too. Both are kept and told apart
+    // later by their slug, since only the demo carries an attendance fee.
+    const ours = new Set([filter.slug, followUpSlug()].filter(Boolean));
+    bookings = bookings.filter((b) => ours.has(b.eventTypeSlug ?? ""));
   }
 
   return { bookings, hasMore: pages.some((p) => p.hasMore) };

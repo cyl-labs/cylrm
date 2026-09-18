@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  CalendarPlus,
   Check,
   CalendarX2,
   ChevronRight,
@@ -21,6 +22,7 @@ import type { CallOutcome } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import type { SmsStatus, Texting } from "@/lib/sms";
 import { classifyPhone, dialableNumber, spokenNumber } from "@/lib/phone";
+import { calBookingHref } from "@/lib/cal-link";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -208,6 +210,7 @@ export function MeetingsList({
   tz,
   zoneLabel,
   showWho = false,
+  followUpBookingUrl = null,
   signingBase = "",
   texting = null,
   lines = [],
@@ -222,6 +225,9 @@ export function MeetingsList({
   /** Who booked it. Admins only, like the callbacks diary — a caller's own
    *  diary has their name on every row, which is noise. */
   showWho?: boolean;
+  /** `CAL_FOLLOWUP_URL`, the second Cal.com event type. Null means no button,
+   *  the rule every unconfigured feature here follows. */
+  followUpBookingUrl?: string | null;
   /** DocuSeal's public host. Empty when it is not configured, which is what
    *  hides the contract buttons rather than offering ones that cannot work. */
   signingBase?: string;
@@ -739,7 +745,8 @@ export function MeetingsList({
                     can ask anybody to chase a no-show until somebody has said
                     it was one. Offered from the moment it starts, since that is
                     when it is either happening or not. */}
-                {showWho && m.started && m.bookingCallId !== null && (
+                {showWho && m.started && m.bookingCallId !== null &&
+                  m.kind === "demo" && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       disabled={busy === m.id}
@@ -781,6 +788,28 @@ export function MeetingsList({
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
+                )}
+                {/* Book the next call from the row the last one is on, rather
+                    than opening Cal.com and typing the prospect in again. The
+                    link is prefilled exactly as the demo's is — that notes
+                    line is load-bearing, since the sync matches a booking back
+                    to its lead by the number in it. A new tab, never a
+                    navigation: Cal.com's own flow sends the invite. */}
+                {showWho && followUpBookingUrl && m.leadId !== null &&
+                  m.started && m.kind === "demo" && (
+                  <a
+                    href={calBookingHref(
+                      followUpBookingUrl,
+                      { company: m.company, phone: m.phone ?? "" },
+                      { name: m.attendeeName, email: m.attendeeEmail },
+                    )}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
+                  >
+                    <CalendarPlus className="size-3.5 shrink-0" strokeWidth={2.2} />
+                    Book a follow-up
+                  </a>
                 )}
                 {/* The call after the demo — the mock-up call and whatever
                     follows it. Founders only, because they are the ones who

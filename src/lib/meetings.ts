@@ -15,6 +15,7 @@ import {
   bookingPhoneKey,
   calConfigured,
   calEventFilter,
+  followUpSlug,
   listCalBookings,
   type CalBooking,
 } from "@/lib/cal";
@@ -190,6 +191,10 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
     if (c.email) byEmail.set(c.email, best(byEmail.get(c.email), c));
   }
 
+  // Read once rather than per booking: it is an environment lookup and a
+  // string split, and this loop runs over every booking on the account.
+  const followUp = followUpSlug();
+
   const result = { ...empty, hasMore, seen: bookings.length };
 
   for (const { booking, phoneKey, email } of keyed) {
@@ -207,13 +212,15 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         cal_booking_uid, cal_booking_id, call_lead_id, call_id, matched_by,
         start_at, end_at, status, title,
         attendee_name, attendee_email, attendee_phone, attendee_tz,
-        meeting_url, synced_at
+        meeting_url, kind, synced_at
       ) values (
         ${booking.uid}, ${booking.id}, ${lead?.id ?? null},
         ${lead?.callId ?? null}, ${matchedBy},
         ${booking.startAt}, ${booking.endAt}, ${booking.status}, ${booking.title},
         ${booking.attendeeName}, ${booking.attendeeEmail}, ${booking.attendeePhone},
-        ${booking.attendeeTz}, ${booking.meetingUrl}, now()
+        ${booking.attendeeTz}, ${booking.meetingUrl},
+        ${followUp && booking.eventTypeSlug === followUp ? "follow_up" : "demo"},
+        now()
       )
       on conflict (cal_booking_uid) do update set
         cal_booking_id = excluded.cal_booking_id,
@@ -235,6 +242,7 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         attendee_phone = coalesce(excluded.attendee_phone, call_meeting.attendee_phone),
         attendee_tz = excluded.attendee_tz,
         meeting_url = excluded.meeting_url,
+        kind = excluded.kind,
         synced_at = now()
       -- Postgres sets xmax to the locking transaction on an updated row and
       -- leaves it 0 on a freshly inserted one, which is the only way an
@@ -417,6 +425,9 @@ export type Meeting = {
    *  are logged from this row, and it stays until one says trial, won or
    *  lost. */
   needsFollowUp: boolean;
+  /** "demo" or "follow_up". A follow-up is never asked the attendance
+   *  question: the fee belongs to the demo, once per business. */
+  kind: "demo" | "follow_up";
   followup: {
     result: MeetingFollowupResult;
     at: string;
@@ -479,7 +490,7 @@ const NO_SHOW_RING_DAYS = 7;
 const meetingSelect = sql`
   m.id, m.start_at, m.end_at, m.status, m.title,
   m.attendee_name, m.attendee_email, m.attendee_phone, m.attendee_tz,
-  m.meeting_url,
+  m.meeting_url, m.kind,
   l.id as lead_id, l.company, l.name as lead_name, l.phone,
   l.dnc_status, l.dnc_checked_at,
   -- Read before a demo rather than during a cold call: "what do they actually
@@ -619,7 +630,10 @@ const meetingSelect = sql`
  * follow-up must not answer for a meeting it was not made about.
  */
 const needsRingBack = sql`coalesce(
-  m.status = 'accepted'
+  -- A follow-up is not the demo, so it never asks for the ring back that a
+  -- missed demo asks for, and never earns the attendance fee.
+  m.kind = 'demo'
+  and m.status = 'accepted'
   and m.start_at < now()
   and m.start_at > now() - make_interval(days => ${NO_SHOW_RING_DAYS}::int)
   and (
@@ -685,7 +699,8 @@ const latestFollowup = sql`
  * not be on `call_lead`: this query returns dozens of rows, not thousands.
  */
 const needsFollowUp = sql`coalesce(
-  m.status = 'accepted'
+  m.kind = 'demo'
+  and m.status = 'accepted'
   and m.start_at < now()
   and m.start_at > now() - make_interval(days => ${FOLLOW_UP_DAYS}::int)
   -- Only where they actually turned up. A no-show is the other branch's
@@ -790,6 +805,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     startingSoon: r.starting_soon === true,
     needsRingBack: r.needs_ring_back === true,
     needsFollowUp: r.needs_follow_up === true,
+    kind: r.kind === "follow_up" ? "follow_up" : "demo",
     followup: r.followup_result
       ? {
           result: r.followup_result as MeetingFollowupResult,
