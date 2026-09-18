@@ -4,7 +4,7 @@ import { PageShell } from "@/components/page-shell";
 import { getCurrentUser } from "@/lib/session";
 import { callRegionOf } from "@/lib/users";
 import { sopRegionFor } from "@/lib/calls";
-import { listSopDocuments, type SopKind } from "@/lib/sop";
+import { GUIDE_SLUG, listSopDocuments, type SopKind } from "@/lib/sop";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +58,16 @@ export default async function SopPage() {
                     <span className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[-0.01em]">
                       {d.title}
                     </span>
+                    {/* Sorted first as well as marked: a badge on a row
+                        thirteenth down the page is not a signpost. It says
+                        "Start here" rather than "Guide" because a caller
+                        scanning this list is deciding what to open, and the
+                        useful answer is an instruction, not a category. */}
+                    {d.slug === GUIDE_SLUG && (
+                      <span className="shrink-0 rounded-[3px] bg-primary px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.06em] text-primary-foreground">
+                        Start here
+                      </span>
+                    )}
                     {/* Only worth saying when someone is seeing more than one
                         market's worth — otherwise every row says the same
                         thing. */}

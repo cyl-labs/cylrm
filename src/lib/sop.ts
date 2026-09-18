@@ -249,6 +249,16 @@ function toDoc(r: Row, fill?: SopFill): SopDoc {
  * fails closed — a founder seeing one document too few is a puzzle, a caller
  * seeing the commercial terms is the thing this exists to prevent.
  */
+/**
+ * The document that teaches the tool rather than the pitch.
+ *
+ * Named here because three places need to agree on it: the library sorts it
+ * first, the row marks it "Start here", and the card on Call lists links to
+ * it. A slug written out three times is how one of them ends up pointing at a
+ * document that has been renamed.
+ */
+export const GUIDE_SLUG = "procedure-using-the-crm";
+
 export async function listSopDocuments(
   region: SopRegion | null,
   isAdmin = false,
@@ -260,6 +270,11 @@ export async function listSopDocuments(
     where ${region ? sql`(region is null or region = ${region})` : sql`true`}
       and ${isAdmin ? sql`true` : sql`not admin_only`}
     order by
+      -- The guide first, above the scripts. It is the only document here that
+      -- is not read to a prospect, and it sat last because procedures sort
+      -- last — so the one thing a new caller needs was the furthest from the
+      -- top of the one screen they had been told about.
+      case when slug = ${GUIDE_SLUG} then 0 else 1 end,
       case kind when 'script' then 1 when 'objections' then 2 else 3 end,
       region nulls first,
       title

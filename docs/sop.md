@@ -282,3 +282,50 @@ decides what it shows and where.
 - **A handout cannot print a video**, so `forPrint` in `lib/handout.mjs` swaps
   that marker — and `[calculator]` — for a line saying where to find it in the
   CRM. Without it the PDF carried "[video: crm-guide]" as text.
+- **It remembers where you stopped** (`components/sop/guide-video.tsx`). A
+  caller watches this between calls, and the phone rings four minutes in.
+  Without it they scrub back to roughly where they were, which nobody does
+  twice — they stop watching instead. Saved per browser in localStorage, on
+  pause, on the tab being hidden and every five seconds while it plays: none of
+  those fires reliably alone, and `visibilitychange` is the one that survives
+  being interrupted by a call. Restored on `loadedmetadata`, never on mount —
+  seeking before the duration is known is silently ignored, and with
+  `preload="metadata"` that is most of the time the component is on screen.
+  Under 15 seconds is nothing to resume and within 20 of the end is finished,
+  so both start over rather than reopening on the credits. When it does resume
+  it says so under the player, with a way back to the start.
+
+### Getting the guide in front of somebody (2026-09-18)
+
+It was a row in a list of *calling scripts* — the one screen an experienced
+caller opens daily and a new one opens to read the pitch, not to learn the
+tool. Somebody who does not know how the CRM works had to already know where
+the answer lived. Asked for as "kind of buried in one of the many SOPs … how
+do we make it more visible without being annoying to experienced callers".
+
+- **`GUIDE_SLUG` in `lib/sop.ts`** names the document once. Three places agree
+  on it — the library's sort, the row's badge and the card on Call lists — and
+  a slug written out three times is how one of them ends up pointing at a
+  document that has been renamed.
+- **Sorted above the scripts and badged "Start here."** Both, because a badge
+  on a row thirteenth down the page is not a signpost. It reads as an
+  instruction rather than a category, since a caller scanning that list is
+  deciding what to open.
+- **A card on Call lists that expires by itself** (`components/calls/guide-card.tsx`),
+  shown to a **caller with fewer than 50 lifetime logged calls**. That count is
+  already on the page for the team list, so it costs no second query. Fifty
+  rather than an account age: somebody hired a fortnight ago who has not
+  started yet is exactly who still needs it, and anybody past fifty has worked
+  a list, logged outcomes and met every screen the video covers. **The
+  threshold is the whole design** — an experienced caller has never seen this
+  card and never will, and a prompt that stays forever is one people learn to
+  look past. Admins are excluded outright; the founders wrote it.
+- The X is a convenience on top of the threshold, not the mechanism, so it is
+  localStorage per browser. It uses `useSyncExternalStore` with a server
+  snapshot of "hidden": reading localStorage during render is a hydration
+  mismatch, and reading it into state in an effect is what the React compiler
+  refuses. Dismissing fires the listeners by hand, since `storage` only fires
+  in other tabs.
+- **No "Help" item in the nav.** Fifteen Call CRM screens already fold on a
+  phone, and a sixteenth that is only useful in week one is the annoying
+  version of this.

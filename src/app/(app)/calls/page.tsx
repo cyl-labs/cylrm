@@ -23,6 +23,8 @@ import { ListAssignment } from "@/components/calls/list-assignment";
 import { ListActions } from "@/components/calls/list-actions";
 import { ListRegion } from "@/components/calls/list-region";
 import { WorkGateBanner } from "@/components/calls/work-gate";
+import { GuideCard } from "@/components/calls/guide-card";
+import { GUIDE_SLUG } from "@/lib/sop";
 import { getWorkOrder } from "@/lib/work-order";
 import { REGION_LABELS, REGION_ORDER } from "@/components/calls/region";
 import { ListSortPicker } from "@/components/calls/list-sort-picker";
@@ -93,6 +95,17 @@ export default async function CallsPage({
   const report =
     me && me.role === "caller" ? await dailyReport(me.id, me.name) : null;
 
+  // The guide, offered while somebody is new and then never again. The count
+  // is already on the page for the team list, so this costs no second query.
+  //
+  // Fifty calls rather than a date: a person hired a fortnight ago who has not
+  // started yet is exactly who still needs it, and somebody who has logged
+  // fifty calls has worked a list, logged outcomes and booked or not booked —
+  // they have met every screen the video covers. Admins are excluded outright;
+  // the founders wrote the thing.
+  const myCalls = team.find((t) => t.id === me?.id)?.calls ?? 0;
+  const showGuide = me?.role === "caller" && myCalls < 50;
+
   // The number this person rings from, labelled where they start the day.
   // Callers always — "not assigned yet" is the answer that explains why their
   // script still says "[your number]", so hiding it would hide the diagnosis.
@@ -145,6 +158,7 @@ export default async function CallsPage({
             className="mb-4"
           />
         )}
+        {showGuide && <GuideCard href={`/sop/${GUIDE_SLUG}`} />}
         {showNumber && (
           <YourNumber number={myNumber ? spokenNumber(myNumber) : null} />
         )}

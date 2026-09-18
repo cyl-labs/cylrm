@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, FileDown } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { SopProse } from "@/components/sop/sop-prose";
 import { PricingCalculator } from "@/components/sop/pricing-calculator";
+import { GuideVideo } from "@/components/sop/guide-video";
 import {
   DemoFilledProse,
   DemoNumbersProvider,
@@ -359,18 +360,8 @@ export default async function SopDocumentPage({
                           <PricingCalculator />
                         </div>
                       )}
-                      {/* `preload="metadata"`: the file is tens of megabytes
-                          and this page is opened to read the script far more
-                          often than to watch anything, so nothing is fetched
-                          until somebody presses play. */}
                       {VIDEO_MARKER.exec(s.html)?.[1] && (
-                        <video
-                          className="mt-4 w-full rounded-xl border bg-black"
-                          controls
-                          preload="metadata"
-                          playsInline
-                          src={`/api/guides/${VIDEO_MARKER.exec(s.html)![1]}`}
-                        />
+                        <GuideVideo slug={VIDEO_MARKER.exec(s.html)![1]} />
                       )}
                     </section>
                   );
