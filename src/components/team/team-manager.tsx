@@ -87,6 +87,7 @@ const MARKET_LABEL: Record<string, string> = { sg: "Singapore", us: "US", gb: "U
 const COLUMNS = [
   "Name",
   "Username",
+  "With us",
   "Role",
   "Market",
   "Call lists",
@@ -97,7 +98,6 @@ const COLUMNS = [
   "Hints",
   "Calls",
   "Last dialled",
-  "With us",
   "",
 ];
 
@@ -283,6 +283,15 @@ export function TeamManager({
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
                       {m.username}
+                    </td>
+                    <td
+                      className="whitespace-nowrap px-4 py-2.5 text-muted-foreground"
+                      title={`Joined ${joined(m.createdAt, tz)}`}
+                    >
+                      {/* Counted from now, so it can cross a day boundary
+                          between the server render and the hydration — the
+                          same note the relative times elsewhere carry. */}
+                      <span suppressHydrationWarning>{tenure(m.createdAt)}</span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       <Badge variant={m.active ? "secondary" : "outline"}>
@@ -544,15 +553,6 @@ export function TeamManager({
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
                       {fmt(m.lastDialedAt, tz) ?? "Never dialled"}
-                    </td>
-                    <td
-                      className="whitespace-nowrap px-4 py-2.5 text-muted-foreground"
-                      title={`Joined ${joined(m.createdAt, tz)}`}
-                    >
-                      {/* Counted from now, so it can cross a day boundary
-                          between the server render and the hydration — the
-                          same note the relative times elsewhere carry. */}
-                      <span suppressHydrationWarning>{tenure(m.createdAt)}</span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
                       {canManage && (

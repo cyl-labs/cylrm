@@ -36,4 +36,8 @@ Employees sign in individually so every call has a name on it. The single shared
   "With us"), in words — "3 days", "5 weeks", "1 year 2 mo" — off
   `app_user.created_at`, with the join date on the tooltip. Words rather than a
   date because the question it answers is "is this person new", and a date
-  makes the reader do the arithmetic.
+  makes the reader do the arithmetic. It sits **next to Username**, not at the
+  end of the row: it went in last so it landed last, thirteen columns out past
+  the Telnyx settings, and the founders asked for it beside the person rather
+  than beyond a horizontal scroll. Who somebody is reads left to right — name,
+  login, how long — and how they are set up follows.
