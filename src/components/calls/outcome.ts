@@ -14,6 +14,7 @@ export const OUTCOME_LABELS: Record<CallOutcome, string> = {
   callback: "Call back",
   not_interested: "Not interested",
   demo_booked: "Demo booked",
+  following_up: "Following up",
   trial: "Trial",
   won: "Won",
   lost: "Lost",

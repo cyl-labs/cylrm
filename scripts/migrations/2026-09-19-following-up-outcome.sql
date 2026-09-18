@@ -1,0 +1,13 @@
+-- A stage between the demo and a decision.
+--
+-- The founders run a follow-up call after a demo to show the prospect a
+-- mock-up, and that call had nowhere to land: the lead stayed on "Demo booked"
+-- however many times it was chased, and moving it to Trial said something
+-- untrue ("not yet signed but probably not trial", 2026-09-19).
+--
+-- `ADD VALUE` rather than a type rebuild, which is what dropping a value would
+-- need. **Run this before deploying the code** — the new code writes an
+-- outcome the old type does not have, and every insert of it fails until this
+-- lands. It cannot run inside a transaction that then uses the value, so it
+-- stands alone.
+ALTER TYPE call_outcome ADD VALUE IF NOT EXISTS 'following_up' AFTER 'demo_booked';

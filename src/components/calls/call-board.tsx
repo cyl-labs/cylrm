@@ -72,6 +72,12 @@ const COLUMNS: {
     logs: "demo_booked",
     hint: "In the diary",
   },
+  {
+    key: "following_up",
+    label: "Following up",
+    logs: "following_up",
+    hint: "Demo done, being worked",
+  },
   { key: "trial", label: "Trial", logs: "trial", hint: "Trying the product" },
   { key: "won", label: "Won", logs: "won", hint: "Contract signed" },
   {
@@ -679,6 +685,7 @@ const dayIn = (ms: number, tz: string) =>
 function stageFor(outcome: CallOutcome): CallStage {
   if (outcome === "callback") return "callback";
   if (outcome === "demo_booked") return "demo_booked";
+  if (outcome === "following_up") return "following_up";
   if (outcome === "trial") return "trial";
   if (outcome === "won") return "won";
   if (outcome === "lost" || outcome === "not_interested" || outcome === "bad_number") {

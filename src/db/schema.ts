@@ -97,6 +97,11 @@ export const callOutcomeEnum = pgEnum("call_outcome", [
   "callback",
   "not_interested",
   "demo_booked",
+  /** The demo happened and the founders are working it — the mock-up call and
+   *  whatever follows. Not a trial: nothing has been signed and nothing is
+   *  running. Added 2026-09-19; see the migration of that date, which must be
+   *  applied before this ships. */
+  "following_up",
   "trial",
   "won",
   "lost",
@@ -109,6 +114,7 @@ export const callOutcomeEnum = pgEnum("call_outcome", [
 export const TERMINAL_CALL_OUTCOMES = [
   "not_interested",
   "demo_booked",
+  "following_up",
   "trial",
   "won",
   "lost",

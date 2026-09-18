@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Meeting, MeetingFollowupResult } from "@/lib/meetings";
+import type { CallOutcome } from "@/lib/calls";
+import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import type { SmsStatus, Texting } from "@/lib/sms";
 import { classifyPhone, dialableNumber, spokenNumber } from "@/lib/phone";
 import { websiteHref, websiteLabel } from "@/lib/website";
@@ -184,6 +186,23 @@ function CopyNumber({
   );
 }
 
+/**
+ * What a follow-up call can come to.
+ *
+ * Not every outcome: this is a conversation with somebody who has already sat
+ * through a demo, so "gatekeeper" and "bad number" say nothing, and a fresh
+ * "demo booked" would ask payroll to pay the attendance fee twice. Call back
+ * is left out too — it needs a time, and the dial card is where that box
+ * lives.
+ */
+const FOLLOW_UP_OUTCOMES: CallOutcome[] = [
+  "following_up",
+  "no_answer",
+  "trial",
+  "won",
+  "lost",
+];
+
 export function MeetingsList({
   meetings,
   tz,
@@ -309,6 +328,20 @@ export function MeetingsList({
     status: DemoStatus;
     notes: string;
   } | null>(null);
+  /**
+   * The follow-up call after a demo, picked but not yet saved.
+   *
+   * Confirmed in two steps like everything else on this row: one tap next to
+   * another was the whole gesture on the dial card once, and a mis-tap became
+   * a call in the record that had to be found and corrected later. The notes
+   * box is most of the point — what the mock-up call turned up is the thing
+   * nobody could write down before.
+   */
+  const [following, setFollowing] = React.useState<{
+    meetingId: number;
+    outcome: CallOutcome;
+    notes: string;
+  } | null>(null);
 
   const format = React.useMemo(
     () =>
@@ -351,6 +384,43 @@ export function MeetingsList({
    * Admins only for that reason: a caller marking their own booking as having
    * shown up would be signing off their own commission.
    */
+  /**
+   * Log a follow-up call against the lead.
+   *
+   * Straight to `/api/calls`, the same route the dial card posts to, so this
+   * is a call in the record like any other: it counts toward the day, moves
+   * the lead on the board, and carries its notes. That is the difference from
+   * the no-show ring back, which deliberately writes no call row — this one is
+   * a conversation that happened, and the founders asked for it to count.
+   */
+  async function logFollowUp(
+    meeting: Meeting,
+    outcome: CallOutcome,
+    notes: string,
+  ) {
+    if (meeting.leadId === null) return;
+    setBusy(meeting.id);
+    try {
+      const res = await fetch("/api/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          callLeadId: meeting.leadId,
+          outcome,
+          notes: notes.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setFollowing(null);
+      toast.success(`Logged: ${OUTCOME_LABELS[outcome]}`);
+      router.refresh();
+    } catch {
+      toast.error("Could not log that. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function mark(meeting: Meeting, status: DemoStatus, notes: string) {
     if (meeting.bookingCallId === null) return;
     setBusy(meeting.id);
@@ -712,6 +782,45 @@ export function MeetingsList({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+                {/* The call after the demo — the mock-up call and whatever
+                    follows it. Founders only, because they are the ones who
+                    make it, and only while the sale is still open: the row
+                    stops offering it the moment one says trial, won or lost.
+                    Unlike the no-show ring back, this writes a real call. */}
+                {showWho && m.needsFollowUp && m.leadId !== null && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      disabled={busy === m.id}
+                      className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
+                    >
+                      <ClipboardCheck className="size-3.5" />
+                      Log a follow-up
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuLabel>
+                        What came of the follow-up call?
+                      </DropdownMenuLabel>
+                      <p className="max-w-60 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
+                        This counts as a call. Following up keeps them on this
+                        screen; trial, won or lost closes it.
+                      </p>
+                      {FOLLOW_UP_OUTCOMES.map((o) => (
+                        <DropdownMenuItem
+                          key={o}
+                          onSelect={() =>
+                            setFollowing({
+                              meetingId: m.id,
+                              outcome: o,
+                              notes: "",
+                            })
+                          }
+                        >
+                          {OUTCOME_LABELS[o]}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
                 {/* Rings from here rather than sending you to the lead's dial
                     card and asking for a second press. The redirect was a
                     leftover from when the diary could not dial at all, and it
@@ -899,6 +1008,42 @@ export function MeetingsList({
                     variant="outline"
                     disabled={busy === m.id}
                     onClick={() => setAnswering(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {following?.meetingId === m.id && (
+              <div className="mt-3 rounded-lg border bg-background p-3">
+                <p className="text-[13px] font-bold">
+                  {OUTCOME_LABELS[following.outcome]}
+                </p>
+                <Textarea
+                  autoFocus
+                  value={following.notes}
+                  onChange={(e) =>
+                    setFollowing({ ...following, notes: e.target.value })
+                  }
+                  placeholder="What did they say? What the mock-up showed, what they want changed, when to ring again. (optional)"
+                  className="mt-2 min-h-[64px]"
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={busy === m.id}
+                    onClick={() =>
+                      logFollowUp(m, following.outcome, following.notes)
+                    }
+                  >
+                    {busy === m.id ? "Saving…" : "Log the call"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === m.id}
+                    onClick={() => setFollowing(null)}
                   >
                     Cancel
                   </Button>

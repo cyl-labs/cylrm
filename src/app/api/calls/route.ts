@@ -13,6 +13,7 @@ const OUTCOMES = [
   "callback",
   "not_interested",
   "demo_booked",
+  "following_up",
   "trial",
   "won",
   "lost",

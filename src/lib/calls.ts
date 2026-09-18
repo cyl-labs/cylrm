@@ -46,6 +46,10 @@ export type CallOutcome =
   | "callback"
   | "not_interested"
   | "demo_booked"
+  /** After the demo, while the founders work it: the mock-up call and what
+   *  comes of it. Never offered by the dialler — it happens days later and
+   *  only a founder logs it. */
+  | "following_up"
   | "trial"
   | "won"
   | "lost"
@@ -53,7 +57,7 @@ export type CallOutcome =
 
 /** Outcomes that take a lead out of the queue. Mirrors TERMINAL_CALL_OUTCOMES
  *  in the schema; kept as SQL here so the queue filter is one expression. */
-const TERMINAL = sql`('not_interested','demo_booked','trial','won','lost','bad_number')`;
+const TERMINAL = sql`('not_interested','demo_booked','following_up','trial','won','lost','bad_number')`;
 
 /**
  * Days to wait before ringing a lead again, by how many times it has not been
@@ -875,6 +879,7 @@ export type CallStage =
   | "tried"
   | "callback"
   | "demo_booked"
+  | "following_up"
   | "trial"
   | "won"
   | "lost";
@@ -883,6 +888,7 @@ export function stageOf(outcome: CallOutcome | null): CallStage {
   if (outcome === null) return "to_call";
   if (outcome === "callback") return "callback";
   if (outcome === "demo_booked") return "demo_booked";
+  if (outcome === "following_up") return "following_up";
   if (outcome === "trial") return "trial";
   if (outcome === "won") return "won";
   // Three ways of ending with no sale — refused on the phone, a number that

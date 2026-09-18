@@ -413,6 +413,10 @@ export type Meeting = {
    * whatever it turned out to be.
    */
   needsRingBack: boolean;
+  /** They turned up and the sale is still open — the founders' follow-up calls
+   *  are logged from this row, and it stays until one says trial, won or
+   *  lost. */
+  needsFollowUp: boolean;
   followup: {
     result: MeetingFollowupResult;
     at: string;
@@ -441,6 +445,21 @@ const SOON_DAYS_AHEAD = 1;
 /** Meetings that have started are kept on the screen for this long, so the
  *  one at 10am is still there at noon when somebody wonders how it went. */
 const KEEP_AFTER_START_HOURS = 12;
+
+/**
+ * How long a demo that happened stays on the screen to be followed up.
+ *
+ * The founders ring a prospect back after a demo to show them a mock-up, often
+ * more than once. The row used to vanish twelve hours after the meeting
+ * started, so by the time that call was made there was nothing left to log it
+ * against — and the lead sat on "Demo booked" however many times it was
+ * chased.
+ *
+ * Capped rather than open-ended: a demo nobody ever follows up would otherwise
+ * sit at the top of this screen for good, which is how a diary stops being
+ * read.
+ */
+const FOLLOW_UP_DAYS = 21;
 
 /**
  * How long a missed demo stays on the diary asking to be rung back.
@@ -653,6 +672,48 @@ const latestFollowup = sql`
   ) f on true
 `;
 
+/**
+ * A demo that happened and has not been settled yet.
+ *
+ * The opposite branch to `needsRingBack`: that one is for a prospect who did
+ * not turn up, this is for one who did and is being worked. Both keep a row on
+ * the screen past the twelve hours, and a meeting is never both.
+ *
+ * "Settled" is the lead's latest call saying trial, won or lost. While it
+ * still says the booking itself, or a follow-up, there is more to do and the
+ * row stays. A correlated subquery per meeting, which is fine here and would
+ * not be on `call_lead`: this query returns dozens of rows, not thousands.
+ */
+const needsFollowUp = sql`coalesce(
+  m.status = 'accepted'
+  and m.start_at < now()
+  and m.start_at > now() - make_interval(days => ${FOLLOW_UP_DAYS}::int)
+  -- Only where they actually turned up. A no-show is the other branch's
+  -- business, and an attendance question nobody has answered is not yet a
+  -- sale to work.
+  and (
+    select a.status from call_demo_attendance a
+    where a.call_lead_id = l.id and a.marked_at >= m.start_at
+    order by a.marked_at desc limit 1
+  ) = 'showed_up'
+  and (
+    select c.outcome::text from "call" c
+    where c.call_lead_id = l.id
+    order by c.called_at desc, c.id desc limit 1
+  ) in ('demo_booked', 'following_up')
+  -- Only the lead's latest booking, for the reason the ring-back rule above
+  -- documents: attendance is recorded per business, so an older row would
+  -- claim the same answer. (No backticks in here: this is inside a template
+  -- literal and one would end the string.)
+  and not exists (
+    select 1 from call_meeting m2
+    where m2.call_lead_id = m.call_lead_id
+      and m2.id <> m.id
+      and m2.status = 'accepted'
+      and m2.start_at > m.start_at
+  )
+, false)`;
+
 const joins = sql`
   left join call_lead l on l.id = m.call_lead_id
   left join call_list cl on cl.id = l.call_list_id
@@ -728,6 +789,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     started: r.started === true,
     startingSoon: r.starting_soon === true,
     needsRingBack: r.needs_ring_back === true,
+    needsFollowUp: r.needs_follow_up === true,
     followup: r.followup_result
       ? {
           result: r.followup_result as MeetingFollowupResult,
@@ -756,7 +818,8 @@ export async function getMeetings(
     select ${meetingSelect},
       (m.start_at <= now()) as started,
       (${startingSoon(tz)}) as starting_soon,
-      (${needsRingBack}) as needs_ring_back
+      (${needsRingBack}) as needs_ring_back,
+      (${needsFollowUp}) as needs_follow_up
     from call_meeting m
     ${joins}
     where (
@@ -764,6 +827,9 @@ export async function getMeetings(
         -- A missed demo outstays the twelve hours: it is the one call worth
         -- making, and a row that vanished overnight is a call nobody makes.
         or (${needsRingBack})
+        -- So does one that happened and is still being worked: the mock-up
+        -- call comes days later and is logged from this row.
+        or (${needsFollowUp})
       )
       and (m.status = 'accepted' or m.start_at > now())
       ${ownedBy(ownerId)}

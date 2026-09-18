@@ -81,6 +81,48 @@ default, draws the list alone. `MeetingsCalendar` and `MeetingsView`.
   what people scan for. Cancelled rows are struck through rather than dropped,
   so the grid and the list cannot disagree about what is booked.
 
+### The follow-up call after a demo (2026-09-19)
+
+The founders ring a prospect back after the demo to show them a mock-up, often
+more than once, and that call had nowhere to go. Asked for as "am I able to log
+follow up calls in the meetings menu?"
+
+- **Neither existing button was it.** "Log what happened" records attendance
+  only, because that is what decides the caller's fee; "Follow-up" appears only
+  on a demo somebody *missed* and its answers are confirmed / no answer /
+  rescheduled / cancelled — the ring back to rebook a no-show. A demo that went
+  well had no logger at all, and the row vanished twelve hours after it
+  started, so by the time the mock-up call happened there was nothing to log it
+  against.
+- **`following_up` is a new call outcome**, between `demo_booked` and `trial`
+  (`2026-09-19-following-up-outcome.sql`, **applied before the deploy** — every
+  insert of it fails until it lands). It exists because moving the lead to
+  Trial said something untrue: the founders' words were "not yet signed but
+  probably not trial". Terminal, so the lead stays out of the cold queue, and
+  it has its own column on the board between Demo booked and Trial. The
+  dialler never offers it — it happens days later and only a founder logs it.
+- **It writes a real `call` row, through `/api/calls`** — the same route the
+  dial card posts to — so it counts toward the day's calls, moves the lead on
+  the board and carries its notes. That is the deliberate difference from the
+  no-show ring back, which writes none: this is a conversation that happened,
+  and the founders asked for it to count. Safe because the outcome is not
+  `demo_booked`; a second one of those would ask payroll to pay the attendance
+  fee twice, which is the trap `/api/meetings/[id]/followup` documents.
+- **`needsFollowUp` keeps the row on screen** while the demo was attended
+  (`showed_up`) and the lead's latest call still says `demo_booked` or
+  `following_up`. Trial, won or lost is an answer and the row closes itself.
+  Capped at `FOLLOW_UP_DAYS` (21), because a demo nobody ever follows up would
+  otherwise sit at the top of this screen for good — which is how a diary stops
+  being read. It is the mirror of `needsRingBack`, and a meeting is never both.
+- **Founders only**, gated on the same `showWho` the attendance logger uses,
+  because they are the ones who make the call. The menu offers following up,
+  no answer, trial, won and lost — not gatekeeper or bad number, which say
+  nothing about somebody who sat through a demo, and not call back, which needs
+  a time box the dial card already has.
+- **No backticks inside the SQL template literals in this file.** `needsFollowUp`
+  was written with a backticked identifier in a comment and ended the string,
+  which surfaces as a parse error pointing at the line after it.
+
 ### Booking a demo from any screen, and demos nobody booked (2026-09-15)
 
 A demo agreed on 2026-09-15 reached the CRM as Demo booked with nothing on
