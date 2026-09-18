@@ -13,7 +13,7 @@ import { e164 } from "@/lib/phone";
  */
 export function calBookingHref(
   base: string,
-  lead: { company: string | null; phone: string },
+  lead: { company: string | null; phone: string; tz?: string | null },
   contact: { name?: string | null; email?: string | null } = {},
 ): string {
   // The demo is a phone call, so Cal.com asks for a number and requires one.
@@ -26,6 +26,14 @@ export function calBookingHref(
     ...(name ? { name } : {}),
     ...(email ? { email } : {}),
     ...(dial ? { attendeePhoneNumber: dial } : {}),
+    // The prospect's clock, so every slot on the page already reads in their
+    // local time. Without it Cal.com opens in the *caller's* zone, and the SOP
+    // has to ask them to change it by hand before offering a time — a step
+    // measured at nought out of four on the calls reviewed on 2026-09-18, with
+    // one prospect read a window of "12:30AM till 5AM" off somebody else's
+    // screen. `cal.tz` is the parameter Cal.com reads; `timeZone` and `tz` are
+    // both ignored, checked against the live booking page.
+    ...(lead.tz ? { "cal.tz": lead.tz } : {}),
     notes: `${lead.company ?? lead.phone} (${lead.phone})`,
   });
   return `${base}?${params.toString()}`;

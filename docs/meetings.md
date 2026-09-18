@@ -81,6 +81,33 @@ default, draws the list alone. `MeetingsCalendar` and `MeetingsView`.
   what people scan for. Cancelled rows are struck through rather than dropped,
   so the grid and the list cannot disagree about what is booked.
 
+### The booking page opens in the prospect's timezone (2026-09-19)
+
+`calBookingHref` adds **`cal.tz`**, so every slot on the Cal.com page already
+reads in the prospect's local time and nobody has to change the selector by
+hand. Every booking link in the CRM carries it: the dial card, the Spreadsheet,
+the board, the unbooked-demos list and Book a follow-up.
+
+- **It replaces a manual step the floor was failing.** The script says to set
+  the time zone before offering any times, and the review of 2026-09-18 scored
+  that **nought out of four** — every booking had the zone asked last, after the
+  prospect had already named a time, and one prospect in Florida was read a
+  window of "12:30AM till 5AM" straight off the caller's own screen.
+- **`cal.tz` is the parameter.** `timeZone` and `tz` are both silently ignored.
+  Checked against the live booking page from a browser pinned to Singapore: with
+  no parameter it opened on Asia/Singapore, with `cal.tz=America/New_York` it
+  opened on New York.
+- **The zone is `leadZone`'s**, the same fragment everything else uses: the
+  scraped state first, the area code second, Singapore and the UK by prefix.
+  Null for a toll-free number, and then the link is exactly what it was before —
+  no parameter rather than a guess. `getUnbookedDemos` gained the join for this;
+  Book a follow-up uses the booking's own `attendee_tz` instead, that being the
+  prospect's own answer rather than ours.
+- **Not a state field.** The first reading of the ask was to prefill where the
+  business is; the founders corrected it — the worry was the timezone selector
+  on the left of the booking page, not an address. A "State" booking field was
+  proposed and deliberately not built.
+
 ### Booking the follow-up (2026-09-19)
 
 **Book a follow-up** on a meeting row opens Cal.com prefilled, so the next call

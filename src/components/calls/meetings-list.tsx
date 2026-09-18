@@ -800,7 +800,13 @@ export function MeetingsList({
                   <a
                     href={calBookingHref(
                       followUpBookingUrl,
-                      { company: m.company, phone: m.phone ?? "" },
+                      // Their own zone off the booking they already made,
+                      // which is the prospect's own answer rather than ours.
+                      {
+                        company: m.company,
+                        phone: m.phone ?? "",
+                        tz: m.attendeeTz,
+                      },
                       { name: m.attendeeName, email: m.attendeeEmail },
                     )}
                     target="_blank"

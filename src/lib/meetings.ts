@@ -5,7 +5,7 @@ import { dncBlockReason } from "@/lib/dnc";
 import { dialCountry, e164 } from "@/lib/phone";
 // The meeting row dials in place now, so it needs what the dial card needs.
 // No cycle: the calls module does not import this one.
-import { didFor, getDids, type DidMap } from "@/lib/calls";
+import { didFor, getDids, leadZone, type DidMap } from "@/lib/calls";
 import { callScope, type CurrentUser } from "@/lib/session";
 import { callRegionOf, statsRegionOf } from "@/lib/users";
 import { statsZone } from "@/lib/stats-zones";
@@ -931,6 +931,10 @@ export type UnbookedDemo = {
   phone: string;
   loggedAt: string;
   byName: string | null;
+  /** The prospect's own clock, so the Cal.com link opens showing their local
+   *  times rather than the caller's. Null for a number that belongs to no
+   *  place. */
+  tz: string | null;
 };
 
 const unbookedDemosSql = (ownerId?: number) => sql`
@@ -943,6 +947,9 @@ const unbookedDemosSql = (ownerId?: number) => sql`
     limit 1
   ) lc on true
   left join app_user u on u.id = lc.user_id
+  -- The prospect's clock, for the Cal.com link. A cross join lateral over one
+  -- row per lead, and this query is capped at 50, so it costs nothing here.
+  ${leadZone}
   where l.duplicate_of_lead_id is null
     and lc.outcome = 'demo_booked'
     and lc.called_at < now() - interval '30 minutes'
@@ -958,7 +965,7 @@ const unbookedDemosSql = (ownerId?: number) => sql`
 export async function getUnbookedDemos(ownerId?: number): Promise<UnbookedDemo[]> {
   const rows = (await db.execute(sql`
     select l.id as lead_id, cl.id as list_id, l.company, l.name, l.email,
-      l.phone, lc.called_at, u.name as by_name
+      l.phone, lc.called_at, u.name as by_name, z.tz
     ${unbookedDemosSql(ownerId)}
     order by lc.called_at desc
     limit 50
@@ -972,6 +979,7 @@ export async function getUnbookedDemos(ownerId?: number): Promise<UnbookedDemo[]
     phone: String(r.phone),
     loggedAt: new Date(r.called_at as string).toISOString(),
     byName: (r.by_name as string | null) ?? null,
+    tz: (r.tz as string | null) ?? null,
   }));
 }
 

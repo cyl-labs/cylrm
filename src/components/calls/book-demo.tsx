@@ -51,6 +51,11 @@ export type DemoLead = {
   phone: string;
   name: string | null;
   email: string | null;
+  /** The prospect's own zone, from `leadZone` — the state, then the area code,
+   *  then Singapore and the UK by prefix. Passed to Cal.com so the slots read
+   *  in their local time rather than the caller's. Null for a number that
+   *  belongs to no place, and then the page opens as it always did. */
+  tz?: string | null;
 };
 
 /** What the booking step collects, in the shape `/api/calls` takes it: written

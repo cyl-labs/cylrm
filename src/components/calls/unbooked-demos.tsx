@@ -73,7 +73,7 @@ export async function UnbookedDemos({
                   <a
                     href={calBookingHref(
                       bookingUrl,
-                      { company: d.company, phone: d.phone },
+                      { company: d.company, phone: d.phone, tz: d.tz },
                       { name: d.contactName, email: d.email },
                     )}
                     target="_blank"
