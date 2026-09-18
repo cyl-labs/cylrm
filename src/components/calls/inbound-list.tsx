@@ -268,6 +268,11 @@ export function InboundList({
                       {c.answeredAt
                         ? ` · answered${c.seconds !== null ? `, ${mmss(c.seconds)}` : ""}`
                         : " · nobody picked up"}
+                      {/* Said out loud rather than hidden by the roll-up: a
+                          phone system redialling twenty times is worth
+                          knowing about, and "rang 17 times" is the readable
+                          version of seventeen identical rows. */}
+                      {c.rings > 1 && ` · rang ${c.rings} times`}
                       {/* Which of our numbers they rang. Only an admin sees
                           more than one, so only an admin is told. */}
                       {showWho && c.forName && ` · for ${c.forName}`}

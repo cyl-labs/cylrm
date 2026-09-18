@@ -782,6 +782,32 @@ inbound handled.
   so a search finds a lead past the first sixty. Asked for as "no search and
   the filter is very poor". The date filter reads the clock in its change
   handler, since the React lint refuses `Date.now()` during render.
+- **Missed calls lists one attempt, not one ring** (2026-09-19, `ROLLED_UP` in
+  `lib/inbound.ts`). Reported as "every single missed call is shown multiple
+  times in a row no matter what" — and the rows were real, not a join fanning
+  out. A prospect ringing a browser that is not registered is refused by Telnyx
+  in under a second and their phone system redials, so one person trying to
+  reach us once arrived as a burst of legs with distinct session ids. Measured
+  the day it was reported: **163 inbound legs over seven days, 13 answered, 80
+  shorter than two seconds**, and one number ringing **twenty-four times inside
+  thirty-five seconds**. Over thirty days, 96 unanswered legs are 19 attempts.
+  - **Gaps and islands, not one bucket per number.** Rings closer together than
+    `BURST_MINUTES` (15) are one attempt; a longer gap starts a new row, so a
+    prospect ringing again after lunch has genuinely tried twice and gets their
+    own row rather than a bigger number on the first. Asked for that way: "just
+    log it once and separately again if it happens more than in that burst
+    period interval."
+  - Grouped by `(from_number, user_id)`: the same business reaching two callers
+    is two ring backs, and the row says whose it is.
+  - **Rolled up before the lead join**, or the window functions run over the
+    joined set and `count(*)` counts join output rather than rings.
+  - The newest leg represents the burst and carries `rings`, shown on the row as
+    "rang 17 times" — nothing is hidden, it is just readable. `countMissedCalls`
+    uses the same fragment, because a badge that counted legs said 58 where
+    nineteen people were waiting.
+  - **The underlying cause is worth fixing separately**: 80 sub-two-second legs
+    is a browser that was not registered when the phone rang, which is the
+    `SUBSCRIBER_ABSENT` trap the deploy notes describe.
 - **Every screen's clock is the one the reader picked** (2026-09-18,
   `readerZone` in `lib/users.ts`: the timezone picker on Stats, then the
   caller's market, then Eastern). It shipped as `Asia/Singapore` in four

@@ -24,6 +24,13 @@ export type InboundCall = {
   from: string;
   /** Which of our numbers they rang. */
   to: string;
+  /** How many times this number rang in the period, rolled into this row. One
+   *  for an ordinary missed call; more when their phone system redialled
+   *  against a browser that was not registered. */
+  rings: number;
+  /** When the first of those rings came in. Equal to `at` when there was only
+   *  one. */
+  firstAt: string;
   /** Whose number it was. Null when it belongs to nobody, which only an admin
    *  ever sees and which means a number is routed somewhere unowned. */
   forName: string | null;
@@ -136,13 +143,90 @@ const RUNG_BACK_SINCE = sql`exists (
     and c.called_at > ic.started_at
 )`;
 
+/**
+ * How long a gap has to be before a redial counts as trying again.
+ *
+ * The bursts measured on prod are seconds apart — seventeen rings inside one
+ * minute — so anything on this scale collapses them. Fifteen minutes rather
+ * than an hour because somebody who rings, gives up, and tries again after
+ * lunch has genuinely tried twice, and the second attempt is worth its own
+ * row.
+ */
+const BURST_MINUTES = 15;
+
+/**
+ * One row per attempt to reach us, not one per ring.
+ *
+ * A prospect ringing a browser that is not registered gets refused by Telnyx
+ * in under a second, and their phone system simply redials — so one person
+ * trying to reach us once arrives here as a burst of legs with distinct
+ * session ids. Measured on 2026-09-18: 163 inbound legs over seven days, only
+ * 13 of them answered, **80 shorter than two seconds**, and one number ringing
+ * seventeen times inside a single minute. The screen listed every leg, so the
+ * same business appeared five times in a row and the badge counted seventeen
+ * calls owed where one person had tried once.
+ *
+ * Gaps and islands rather than one bucket per number: rings closer together
+ * than `BURST_MINUTES` are one attempt, and a longer gap starts a new one, so
+ * ringing again tomorrow is a second row rather than a bigger number on the
+ * first. Grouped by the number *and* whose line it rang, because that pair is
+ * what a caller owes — the same business reaching two callers is two ring
+ * backs, and the row says whose it is.
+ *
+ * The newest leg of a burst represents it and carries how many there were, so
+ * nothing is hidden: "rang 17 times" is the useful version of seventeen rows.
+ *
+ * Done before the lead join on purpose. Joining first and de-duplicating after
+ * would run the window functions over the joined set, where `count(*)` counts
+ * join output rather than rings.
+ */
+const ROLLED_UP = (me: CurrentUser | null, missedOnly: boolean) => sql`
+  select b.*,
+    count(*) over w as rings,
+    min(b.started_at) over w as first_at,
+    row_number() over (
+      partition by b.from_number, b.user_id, b.burst
+      order by b.started_at desc, b.id desc
+    ) as rn
+  from (
+    select m.*,
+      -- A running count of the gaps seen so far is the burst's number: it only
+      -- goes up when a ring lands more than BURST_MINUTES after the one before
+      -- it, so every ring inside one flurry shares a value.
+      sum(m.gap) over (
+        partition by m.from_number, m.user_id
+        order by m.started_at, m.id
+        rows unbounded preceding
+      ) as burst
+    from (
+      select ic.*,
+        case
+          when lag(ic.started_at) over (
+            partition by ic.from_number, ic.user_id
+            order by ic.started_at, ic.id
+          ) > ic.started_at - make_interval(mins => ${BURST_MINUTES}::int)
+          then 0
+          else 1
+        end as gap
+      from inbound_call ic
+      where ic.started_at > now() - ${`${KEEP_DAYS} days`}::interval
+        ${missedOnly
+          ? sql`and ic.answered_at is null and ic.handled_at is null
+                and not ${RUNG_BACK_SINCE}`
+          : sql``}
+        ${scoped(me)}
+    ) m
+  ) b
+  window w as (partition by b.from_number, b.user_id, b.burst)
+`;
+
 export async function getInboundCalls(
   me: CurrentUser | null,
   { missedOnly = false }: { missedOnly?: boolean } = {},
 ): Promise<InboundCall[]> {
   const rows = (await db.execute(sql`
     select ic.id, ic.from_number, ic.to_number, ic.started_at, ic.answered_at,
-      ic.ended_at, ic.handled_at,
+      ic.ended_at, ic.handled_at, ic.rings, ic.first_at,
       u.name as for_name,
       h.name as handled_by,
       l.id as lead_id, l.company, l.name as lead_name,
@@ -158,18 +242,13 @@ export async function getInboundCalls(
       -- from this row has to turn a typed wall time into an instant where the
       -- prospect is, and a formatted "3:35am" cannot be computed with.
       z.tz
-    from inbound_call ic
+    from (${ROLLED_UP(me, missedOnly)}) ic
     left join app_user u on u.id = ic.user_id
     left join app_user h on h.id = ic.handled_by
     left join call_lead l on l.id = ic.call_lead_id
     left join call_list cl on cl.id = l.call_list_id
     ${leadZone}
-    where ic.started_at > now() - ${`${KEEP_DAYS} days`}::interval
-      ${missedOnly
-        ? sql`and ic.answered_at is null and ic.handled_at is null
-              and not ${RUNG_BACK_SINCE}`
-        : sql``}
-      ${scoped(me)}
+    where ic.rn = 1
     order by ic.started_at desc
     limit 300
   `)) as Record<string, unknown>[];
@@ -182,6 +261,8 @@ export async function getInboundCalls(
       id: Number(r.id),
       from: phone,
       to: String(r.to_number),
+      rings: Number(r.rings ?? 1),
+      firstAt: new Date((r.first_at ?? r.started_at) as string).toISOString(),
       forName: (r.for_name as string | null) ?? null,
       at: new Date(r.started_at as string).toISOString(),
       answeredAt: answeredAt?.toISOString() ?? null,
@@ -230,16 +311,14 @@ export const countMissedCalls = cache(async function countMissedCalls(
   me: CurrentUser | null,
 ): Promise<number> {
   const [row] = (await db.execute(sql`
-    select count(*)::int as n from inbound_call ic
+    select count(*)::int as n
+    from (${ROLLED_UP(me, true)}) ic
     left join call_lead l on l.id = ic.call_lead_id
     ${leadZone}
-    where ic.answered_at is null and ic.handled_at is null
-      and ic.started_at > now() - ${`${KEEP_DAYS} days`}::interval
+    -- One per number owed a ring back, the same roll-up the list shows: a
+    -- badge that counted legs said seventeen where one person had rung once.
+    where ic.rn = 1
       and not ${CAN_WAIT}
-      -- The same clause the list applies, never a second copy of it: a badge
-      -- disagreeing with the screen beside it reads as a bug.
-      and not ${RUNG_BACK_SINCE}
-      ${scoped(me)}
   `)) as { n: number }[];
   return row?.n ?? 0;
 });
