@@ -11,6 +11,8 @@ import { callRegionOf, statsRegionOf } from "@/lib/users";
 import { statsZone } from "@/lib/stats-zones";
 import { pushConfigured, pushToUser } from "@/lib/push";
 import { notificationsConfigured, notifyMeeting } from "@/lib/notify";
+// No cycle: the digest imports the notifier and the database, never this file.
+import { DIGEST_TZ } from "@/lib/meeting-digest";
 import {
   bookingPhoneKey,
   calConfigured,
@@ -1210,23 +1212,35 @@ export async function sendMeetingReminders(
 
 /**
  * When the founders' Telegram chat hears about each meeting, as minutes before
- * it starts. Most urgent first, like `REMINDER_OFFSETS`.
+ * it starts.
  *
- * Asked for on 2026-09-17: a day before, and half an hour before. The founders
- * take every demo, so these go for every meeting, not only the ones whose niche
- * has nobody to push to.
+ * **One alert, half an hour before.** It was a day before as well until
+ * 2026-09-19, and that one was dropped at the founders' request: the 8:30pm
+ * digest already lists everything in the next three days, so a separate
+ * "tomorrow at…" for each meeting said the same thing again, a few hours out
+ * of step, and was the one people started ignoring. "I only want the daily
+ * alert at 8:30pm … then the alert for when its 30 minutes before the call.
+ * nothing else."
+ *
+ * The founders take every demo, so this goes for every meeting, not only the
+ * ones whose niche has nobody to push to.
  */
 const TELEGRAM_OFFSETS = [
   { kind: "telegram_30_min" as const, minutesBefore: 30 },
-  { kind: "telegram_day_before" as const, minutesBefore: 24 * 60 },
 ];
 
 /**
  * The founders' clock, the one Meetings shows them in: their account's
  * reporting zone, then its market, then Eastern.
  *
- * Shared by the Telegram reminders and the morning digest, so the two cannot
- * name the same meeting at two different times.
+ * **Not used by the Telegram alerts any more** (2026-09-19). They read
+ * `DIGEST_TZ` instead, the same constant the nightly digest is pinned to, so
+ * one bot cannot speak two clocks. It was doing exactly that: on 2026-09-18 the
+ * half-hour warning said "at 12:00 AM" (Singapore, right) while the day-before
+ * alerts for the same evening said "tomorrow at 9:00 AM" and "tomorrow at
+ * 1:00 PM" — both Eastern. `statsZone` falls back to Eastern for a null
+ * region, so any tick where the founders had not picked a zone silently
+ * renamed every hour in the message. Reported as "is it glitching".
  */
 export async function foundersZone(): Promise<string> {
   const [founder] = (await db.execute(sql`
@@ -1278,7 +1292,10 @@ export async function sendMeetingTelegrams(
   const result: TelegramReminderResult = { considered: 0, sent: 0, failed: 0 };
   if (!notificationsConfigured()) return { ...result, skipped: "unconfigured" };
 
-  const tz = await foundersZone();
+  // The digest's clock, not the picker's: these two land in the same chat and
+  // must name the same hour. See `foundersZone` for what happened when they
+  // did not.
+  const tz = DIGEST_TZ;
   const clock = (d: Date, zone: string) =>
     new Intl.DateTimeFormat("en-US", {
       timeZone: zone,

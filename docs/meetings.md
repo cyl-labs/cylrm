@@ -81,6 +81,31 @@ default, draws the list alone. `MeetingsCalendar` and `MeetingsView`.
   what people scan for. Cancelled rows are struck through rather than dropped,
   so the grid and the list cannot disagree about what is booked.
 
+### Two Telegram alerts, one clock (2026-09-19)
+
+Reported as "is it glitching": the half-hour warning said the demo was "at
+12:00 AM" while the day-before alerts for the same evening said "tomorrow at
+9:00 AM" and "tomorrow at 1:00 PM". All three were the same bot, the same
+chat, the same night.
+
+- **They were on different clocks.** The digest is pinned to `HOME_TZ`
+  (Singapore) — it was pinned in September after firing at 1:51am — but the
+  per-meeting reminders still called `foundersZone()`, which reads the timezone
+  picker on Stats and, through `statsZone`, **falls back to Eastern for a null
+  region**. So on any tick where the founders had not picked a zone, every hour
+  in the message was silently renamed. Verified against the rows: Pro Junk
+  Removal starts Sun 01:00 SGT / Sat 13:00 ET, and the alert said 1:00 PM.
+- **The reminders now read `DIGEST_TZ`**, exported from `meeting-digest.ts` and
+  the same constant the digest uses. One chat cannot speak two clocks. No cycle:
+  the digest imports the notifier and the database, never `meetings.ts`.
+- **Only two alerts now**, at the founders' request: the **8:30pm** digest of
+  the next three days, and **30 minutes before** each demo. The day-before
+  per-meeting alert is gone — the digest already lists everything three days
+  out, so it said the same thing again a few hours out of step. `TELEGRAM_OFFSETS`
+  is the whole of it, and `urgent` is now always true on that path.
+- `foundersZone` stays for the push notifications and for `schema.ts`'s dated
+  claim; only the Telegram sender moved off it.
+
 ### The booking page opens in the prospect's timezone (2026-09-19)
 
 `calBookingHref` adds **`cal.tz`**, so every slot on the Cal.com page already

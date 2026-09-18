@@ -98,17 +98,19 @@ export function MeetingsExplainer({
               <span className="font-semibold text-foreground">Telegram</span>{" "}
               message for every meeting,{" "}
               <span className="font-semibold text-foreground">
-                a day before and 30 minutes before
+                30 minutes before it starts
               </span>
               , in the same chat that reports email replies. Those go out at
               any hour, since the US demos run through the night here &mdash;
-              mute the chat in Telegram to silence them. There is also a{" "}
+              mute the chat in Telegram to silence them. Before that, a{" "}
               <span className="font-semibold text-foreground">
-                8pm Singapore
+                8:30pm Singapore
               </span>{" "}
               list of every demo in the next three days, in Singapore time. It
               lands just before the US day opens, and it is three days rather
-              than one because a US afternoon is the small hours here.
+              than one because a US afternoon is the small hours here. Those
+              two are the whole of it: a per-meeting alert the day before was
+              dropped in September, since the list already said so.
             </p>
           )}
         </section>

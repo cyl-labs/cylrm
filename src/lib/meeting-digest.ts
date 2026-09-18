@@ -33,7 +33,9 @@ import { notificationsConfigured, notifyMeetingDigest } from "@/lib/notify";
  * arrives while there is still time to act on it.
  */
 const DIGEST_HOUR = 20;
-const DIGEST_MINUTE = 0;
+/** 8:30pm, asked for on 2026-09-19 alongside dropping the day-before alert:
+ *  with that gone this is the only thing that says what tomorrow holds. */
+const DIGEST_MINUTE = 30;
 
 /**
  * The clock this whole message runs on: Singapore, because that is where the
@@ -51,6 +53,10 @@ const DIGEST_MINUTE = 0;
  * nine, in the spirit of `TELEGRAM_API_BASE`. Never set it in prod.
  */
 const HOME_TZ = process.env.DIGEST_TZ ?? "Asia/Singapore";
+/** The same clock, for the half-hour meeting alert — both land in one chat, so
+ *  both must name the same hour. See `foundersZone` in `lib/meetings.ts` for
+ *  what happened while they did not. */
+export const DIGEST_TZ = HOME_TZ;
 /** What that clock is called in the message. Moves with `HOME_TZ`. */
 const HOME_LABEL = process.env.DIGEST_TZ ? "local time" : "SGT";
 /**
