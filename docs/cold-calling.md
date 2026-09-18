@@ -287,6 +287,33 @@ bare-node script can use the same ones); database side in
 **Repeated businesses** button on Call lists (`same-business-review.tsx`),
 sharing `same-business-rows.tsx`. Route `/api/call-leads/same-business`.
 
+- **A set-aside repeat is kept, never deleted, and that is the point** (asked
+  2026-09-18: "should we just make the repeats deleted, what are we even gonna
+  do if it's set aside"). Two things the row does that a deletion cannot. The
+  importer screens an incoming file's phone keys against **every** `call_lead`
+  row, set-aside included, so the number stays blocked — delete it and the next
+  scrape re-imports it and somebody rings a business already ruled a repeat,
+  which matters because the niches arrive in batches (Junk Removal 5.1 to
+  5.10). And it records *which* lead it duplicates, so when the kept line turns
+  out dead it is the other number into that business. It costs nothing: out of
+  every queue, the Spreadsheet and the counts.
+- **The line on Call lists says "N repeats set aside"**, not "N already on
+  another list". The old wording read as an unresolved problem and sent both
+  founders hunting for something to fix, having already done the review that
+  produced the number. It is a receipt.
+- **The name rules trust names that are not names** (2026-09-18). 45 leads
+  called "U-Haul Neighborhood Dealer" were grouped as one business across
+  Florida, Minnesota, Hawaii, Alaska, Wyoming and Montana. It is a Google
+  Places category for any storage yard or hardware store that acts as an agent,
+  not a company, and the same-state guard fired happily on 45 Florida rows.
+  "SiteOne Landscape Supply" (5) and "Waste Pro" (5) collapse the same way:
+  national names over independently run branches. The founders judged U-Haul
+  dealers not worth calling at all, so the 48 never-dialled rows were deleted;
+  **the 14 with calls against them could not be**, `call.call_lead_id` having no
+  `onDelete`, which is the guard working. They were left live rather than set
+  aside on purpose: the per-list Stats query joins
+  `and l.duplicate_of_lead_id is null`, so setting one aside quietly drops its
+  calls out of that list's numbers.
 - **Why.** Dedupe was on the phone number alone, and a Google Places scrape
   lists one business once per location and tracking line, each with its own
   place id. On 2026-09-16 Omar rang "EMPIRE STATE JUNK REMOVAL" at 15:39 UTC

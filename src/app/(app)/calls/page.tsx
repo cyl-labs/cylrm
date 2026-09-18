@@ -414,8 +414,12 @@ function ListCard({
             {done} of {l.total} done
           </span>{" "}
           · {leftToCall} left to call · {l.uncalled} new touches
+          {/* Read as an unresolved problem — both founders went hunting for
+              something to fix, having already done the review that produced
+              it. It is the receipt: these are repeats somebody took out, held
+              out of every queue and count on this line. */}
           {l.duplicates > 0 &&
-            ` · ${l.duplicates} already on another list`}
+            ` · ${l.duplicates} repeats set aside`}
         </p>
         {/* "24 called today" said nothing about whether anyone was
             spoken to. The three parts sum to the total, so the
