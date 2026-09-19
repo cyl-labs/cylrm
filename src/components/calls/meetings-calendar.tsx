@@ -282,6 +282,88 @@ function placeFrom(rows: Meeting[], startMs: number, minutes: number): Placed[] 
   );
 }
 
+/** A folded stretch of empty hours. Tall enough to read its own label. */
+const GAP_PX = 34;
+/** Fold only a real run. Two empty hours are cheaper to scroll past than to
+ *  read a sentence about. */
+const MIN_COLLAPSE = 3;
+
+type GridRow =
+  | { kind: "hour"; i: number; top: number }
+  | { kind: "gap"; from: number; count: number; top: number };
+
+/**
+ * The rows of the grid, with empty stretches folded away.
+ *
+ * Why (2026-09-19, the same afternoon the grid shipped): this floor's demos
+ * cluster at both ends of a Singapore day — 2-4 AM is US business hours, and
+ * 9-11 PM is the rest of it. So a week ran 1 AM to 11 PM and put seventeen
+ * empty hours in the middle, about 1,100px of nothing to scroll past to reach
+ * the evening. "I need to scroll down really long."
+ *
+ * A run of empty hours therefore folds into one band that **says how many
+ * hours it stands for**, rather than being silently dropped: the distance
+ * between two appointments is what this view is for, and a fold that lied
+ * about it would be worse than the scrolling. An hour either side of every
+ * booking is kept, so nothing is ever pressed against the edge of a fold, and
+ * a booking can never run into one.
+ */
+function buildRows(
+  count: number,
+  isBusy: (i: number) => boolean,
+): { rows: GridRow[]; slots: { top: number; folded: boolean }[]; height: number } {
+  const keep = new Array<boolean>(count).fill(false);
+  for (let i = 0; i < count; i++) {
+    if (!isBusy(i)) continue;
+    keep[Math.max(0, i - 1)] = true;
+    keep[i] = true;
+    keep[Math.min(count - 1, i + 1)] = true;
+  }
+
+  const rows: GridRow[] = [];
+  const slots = new Array<{ top: number; folded: boolean }>(count);
+  let top = 0;
+  let i = 0;
+  while (i < count) {
+    if (keep[i]) {
+      rows.push({ kind: "hour", i, top });
+      slots[i] = { top, folded: false };
+      top += HOUR_PX;
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j < count && !keep[j]) j += 1;
+    const run = j - i;
+    if (run >= MIN_COLLAPSE) {
+      rows.push({ kind: "gap", from: i, count: run, top });
+      for (let k = i; k < j; k++) slots[k] = { top, folded: true };
+      top += GAP_PX;
+    } else {
+      for (let k = i; k < j; k++) {
+        rows.push({ kind: "hour", i: k, top });
+        slots[k] = { top, folded: false };
+        top += HOUR_PX;
+      }
+    }
+    i = j;
+  }
+  return { rows, slots, height: top };
+}
+
+/** Minutes from the top of the grid to a pixel offset, across the folds. */
+function yFor(
+  slots: { top: number; folded: boolean }[],
+  minutes: number,
+): number {
+  const i = Math.max(0, Math.min(slots.length - 1, Math.floor(minutes / 60)));
+  const slot = slots[i];
+  if (!slot) return 0;
+  // Nothing is ever placed inside a fold — an hour of padding either side sees
+  // to that — so landing on one means a rounding edge, and its top is right.
+  return slot.folded ? slot.top : slot.top + ((minutes - i * 60) / 60) * HOUR_PX;
+}
+
 /**
  * Which hours to draw.
  *
@@ -465,7 +547,17 @@ export function MeetingsCalendar({
       ? { from: 0, to: 0 }
       : hourWindow(days.flatMap((d) => placedByDay.get(d) ?? []));
   const hours = Array.from({ length: to - from }, (_, i) => from + i);
-  const bodyPx = hours.length * HOUR_PX;
+  // Which of those hours anything actually touches, so the empty stretches in
+  // between can be folded. Measured across every day on screen: a fold has to
+  // be the same height in all seven columns or the week stops lining up.
+  const grid = buildRows(hours.length, (i) => {
+    const lo = (from + i) * 60;
+    const hi = lo + 60;
+    return days.some((d) =>
+      (placedByDay.get(d) ?? []).some((pl) => pl.start < hi && pl.end > lo),
+    );
+  });
+  const bodyPx = grid.height;
 
   const header = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2.5">
@@ -612,6 +704,22 @@ export function MeetingsCalendar({
     // the gap between two appointments is the distance between them whichever
     // side of it they fall.
     const placedRoll = placeFrom(rolling, rollStart, NEXT_HOURS * 60);
+    // Folded like the other grids, with one extra rule: the hour a new day
+    // starts in is never folded away. That line is the entire point of this
+    // view, and a date label floating inside a "nothing booked" band would
+    // say neither thing clearly.
+    const rollGrid = buildRows(NEXT_HOURS, (i) => {
+      const lo = i * 60;
+      const hi = lo + 60;
+      if (
+        i > 0 &&
+        dayOf(new Date(rollStart + i * 3_600_000).toISOString(), tz) !==
+          dayOf(new Date(rollStart + (i - 1) * 3_600_000).toISOString(), tz)
+      ) {
+        return true;
+      }
+      return placedRoll.some((pl) => pl.start < hi && pl.end > lo);
+    });
     const marks = Array.from({ length: NEXT_HOURS }, (_, i) => {
       const at = new Date(rollStart + i * 3_600_000);
       return {
@@ -638,56 +746,74 @@ export function MeetingsCalendar({
     return (
       <div className="rounded-xl border bg-card">
         {header}
-        <div className="flex">
+        <div className="relative flex">
+          {rollGrid.rows.map((r) =>
+            r.kind === "gap" ? (
+              <div
+                key={`g${r.from}`}
+                // Starts after the time column rather than spanning everything: at
+              // `inset-x-0` the band lay over the gutter and cut the hour
+              // label sitting on its bottom edge in half.
+              className="absolute right-0 left-12 z-10 flex items-center justify-center border-y bg-muted/60 sm:left-14"
+                style={{ top: r.top, height: GAP_PX }}
+              >
+                <span className="text-[11px] text-muted-foreground">
+                  {r.count} hours, nothing booked
+                </span>
+              </div>
+            ) : null,
+          )}
           <div
             className={cn(GUTTER, "relative shrink-0")}
-            style={{ height: NEXT_HOURS * HOUR_PX }}
+            style={{ height: rollGrid.height }}
           >
-            {marks.map(({ i, label }) => (
-              <span
-                key={i}
-                className="absolute right-1.5 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
-                style={{ top: i * HOUR_PX }}
-              >
-                {i === 0 ? "" : label}
-              </span>
-            ))}
+            {rollGrid.rows.map((r) =>
+              r.kind === "hour" ? (
+                <span
+                  key={`h${r.i}`}
+                  className="absolute right-1.5 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
+                  style={{ top: r.top }}
+                >
+                  {r.i === 0 ? "" : marks[r.i].label}
+                </span>
+              ) : null,
+            )}
           </div>
           <div
             className="relative min-w-0 flex-1 border-l"
-            style={{ height: NEXT_HOURS * HOUR_PX }}
+            style={{ height: rollGrid.height }}
           >
-            {marks.map(({ i, dayBreak }) => (
-              <div key={i} aria-hidden={!dayBreak}>
+            {rollGrid.rows.map((r) => r.kind === "hour" ? (
+              <div key={`l${r.i}`} aria-hidden={!marks[r.i].dayBreak}>
                 <div
                   className={cn(
                     "absolute inset-x-0 border-t",
                     // The day change is drawn heavier than an hour line, and
                     // named. It is the boundary this view was built to stop
                     // people falling off.
-                    dayBreak ? "border-primary/40" : "border-border/60",
+                    marks[r.i].dayBreak ? "border-primary/40" : "border-border/60",
                   )}
-                  style={{ top: i * HOUR_PX }}
+                  style={{ top: r.top }}
                 />
-                {dayBreak && (
+                {marks[r.i].dayBreak && (
                   <span
-                    className="absolute left-2 -translate-y-1/2 rounded bg-card px-1 text-[10px] font-bold uppercase tracking-[0.06em] text-primary"
-                    style={{ top: i * HOUR_PX }}
+                    className="absolute left-2 z-20 -translate-y-1/2 rounded bg-card px-1 text-[10px] font-bold uppercase tracking-[0.06em] text-primary"
+                    style={{ top: r.top }}
                   >
-                    {dayBreak}
+                    {marks[r.i].dayBreak}
                   </span>
                 )}
               </div>
-            ))}
+            ) : null)}
             {placedRoll.map((pl) => (
               <div
                 key={pl.m.id}
                 className="absolute px-[2px]"
                 style={{
-                  top: (pl.start / 60) * HOUR_PX,
+                  top: yFor(rollGrid.slots, pl.start),
                   height: Math.max(
                     MIN_BLOCK_PX,
-                    ((pl.end - pl.start) / 60) * HOUR_PX,
+                    yFor(rollGrid.slots, pl.end) - yFor(rollGrid.slots, pl.start),
                   ),
                   left: `${(pl.col / pl.cols) * 100}%`,
                   width: `${(1 / pl.cols) * 100}%`,
@@ -742,22 +868,44 @@ export function MeetingsCalendar({
         ))}
       </div>
 
-      <div className="flex">
+      <div className="relative flex">
+        {/* One band across the whole grid rather than one per column: seven
+            copies of "17 hours, nothing booked" would be noise, and the thing
+            it describes is the same in every column. Drawn over the columns,
+            which is safe because a fold never contains an appointment. */}
+        {grid.rows.map((r) =>
+          r.kind === "gap" ? (
+            <div
+              key={`g${r.from}`}
+              // Starts after the time column rather than spanning everything: at
+              // `inset-x-0` the band lay over the gutter and cut the hour
+              // label sitting on its bottom edge in half.
+              className="absolute right-0 left-12 z-10 flex items-center justify-center border-y bg-muted/60 sm:left-14"
+              style={{ top: r.top, height: GAP_PX }}
+            >
+              <span className="text-[11px] text-muted-foreground">
+                {r.count} hours, nothing booked
+              </span>
+            </div>
+          ) : null,
+        )}
         {/* The hour labels. Each sits on its line rather than inside its row,
             which is where the eye looks for it — the line is the boundary the
             appointment starts at. */}
         <div className={cn(GUTTER, "relative shrink-0")} style={{ height: bodyPx }}>
-          {hours.map((h, i) => (
-            <span
-              key={h}
-              className="absolute right-1.5 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
-              style={{ top: i * HOUR_PX }}
-            >
-              {/* The first label would be clipped by the top edge, and the
-                  header above already names the day. */}
-              {i === 0 ? "" : hourLabel(h)}
-            </span>
-          ))}
+          {grid.rows.map((r) =>
+            r.kind === "hour" ? (
+              <span
+                key={`h${r.i}`}
+                className="absolute right-1.5 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
+                style={{ top: r.top }}
+              >
+                {/* The first label would be clipped by the top edge, and the
+                    header above already names the day. */}
+                {r.i === 0 ? "" : hourLabel(hours[r.i])}
+              </span>
+            ) : null,
+          )}
         </div>
 
         {days.map((date) => {
@@ -773,19 +921,21 @@ export function MeetingsCalendar({
               )}
               style={{ height: bodyPx }}
             >
-              {hours.map((h, i) => (
-                <div
-                  key={h}
-                  aria-hidden
-                  className="absolute inset-x-0 border-t border-border/60"
-                  style={{ top: i * HOUR_PX }}
-                />
-              ))}
+              {grid.rows.map((r) =>
+                r.kind === "hour" ? (
+                  <div
+                    key={`l${r.i}`}
+                    aria-hidden
+                    className="absolute inset-x-0 border-t border-border/60"
+                    style={{ top: r.top }}
+                  />
+                ) : null,
+              )}
               {placed.map((p) => {
-                const top = ((p.start - from * 60) / 60) * HOUR_PX;
+                const top = yFor(grid.slots, p.start - from * 60);
                 const height = Math.max(
                   MIN_BLOCK_PX,
-                  ((p.end - p.start) / 60) * HOUR_PX,
+                  yFor(grid.slots, p.end - from * 60) - top,
                 );
                 return (
                   <div

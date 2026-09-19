@@ -109,6 +109,29 @@ every span is built around.
     draw a three-hour calendar. The alternative was Google's 24-hour scroller,
     where a 9pm demo is below the fold on arrival and there is no client-side
     scroll-to-now on a server-rendered page.
+  - **Empty stretches fold into a band that says how long they are**
+    (`buildRows`, `yFor`). Reported within the hour of the grid shipping: "this
+    view is kind of awkward, I need to scroll down really long." The demos
+    cluster at both ends of a Singapore day — 2-4 AM is US business hours,
+    9-11 PM is the rest of it — so a week ran 1 AM to 11 PM with seventeen
+    empty hours in the middle, about 1,100px of nothing between the two halves
+    of the week. Measured on that shape afterwards: **1,400px down to 418**,
+    the whole week on one screen.
+    - **The band is labelled, never a silent cut.** "14 hours, nothing booked".
+      The distance between two appointments is the entire point of this view,
+      and a fold that quietly lied about it would be worse than the scrolling
+      it saved.
+    - **An hour either side of every booking is kept**, so nothing is ever
+      pressed against the edge of a fold and no appointment can run into one —
+      which is what lets `yFor` treat a fold as a single point.
+    - **Only runs of three or more fold.** Two empty hours are cheaper to
+      scroll past than to read a sentence about.
+    - **One band across the columns, not one per column** — seven copies of
+      the same sentence is noise — and it starts after the time gutter, since
+      at full width it lay over the hour label sitting on its own bottom edge.
+    - **The hour a new day starts in never folds**, in the rolling view. That
+      line is the whole point of it, and a date floating inside a "nothing
+      booked" band says neither thing clearly.
   - **One scale across all seven columns**, worked out once from the whole
     week. Seven days each on their own range would put 9am at a different
     height in each, which is the entire point of the grid gone.
