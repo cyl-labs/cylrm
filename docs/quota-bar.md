@@ -54,3 +54,37 @@ database-free module for the reason `payroll-rates.ts` is one). Rendered by
 - Under the header rather than inside it: the header already carries the page
   title and that page's own controls, and Stats has four. The "N to go" half is
   what gives below `sm`; the count is what is worth keeping.
+
+## How new they are, beside the number (2026-09-19)
+
+`QuotaStanding` carries `daysOnTeam`, `startedThisWeek` and `daysOfWeek`;
+the card on Stats prints them under the name, and the Friday push tags a
+first week with "(new)".
+
+- **Why.** A name at the bottom of "This week against quota" meant one of two
+  completely different things — somebody who started on Wednesday, or somebody
+  with a problem — and the list could not tell them apart. The founders' words:
+  "so I know if they missed it because they're new or if there's actually a
+  problem."
+- **It does not change what is owed.** The number stays out of 300. Pro-rating
+  a quota is a decision about pay, and this card is a report; showing someone
+  "40 / 86" would read as a target nobody set. The card says how much of the
+  week they have had and leaves the judgement where it belongs.
+- **A tag on every row would be noise**, so it stops at a month, and the note
+  above the list says what its absence means — "no note means they have had the
+  whole week". An absent label has to be readable too, or it is just missing.
+- **Days are floored off the instant**, not counted in calendar days: somebody
+  added yesterday evening has been here one day, not two, whichever side of
+  midnight the two timestamps fall. The share of the week is rounded *up*
+  instead — an afternoon on the phones is a day somebody was here to ring.
+- **The week's start is `quotaWeekStart().at`, the instant, not `weekStart`,
+  the date.** Reading the date as UTC midnight would put the share of the week
+  up to a day out, since the week actually begins at the payday hour on it
+  (Friday 21:00 on prod).
+- **Fixed in passing: the card said "Calls since Monday".** The quota week
+  moved to payday on 2026-09-18 and that line did not, so it had been naming a
+  day the count did not start on. It now says when the week actually reset,
+  worded and zoned the way the strip under the header words it.
+- The push body tags only `startedThisWeek`, and only with "(new)": it is
+  truncated near a hundred characters and already caps at `NAMES_IN_BODY`, so
+  six characters have to earn their place.

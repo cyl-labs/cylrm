@@ -116,7 +116,26 @@ export type QuotaDigestResult = {
   deliveries?: number;
 };
 
-export type QuotaStanding = { name: string; calls: number };
+export type QuotaStanding = {
+  name: string;
+  calls: number;
+  /**
+   * How long this person has been on the team, and how much of the quota week
+   * they have actually been here for.
+   *
+   * Asked for on 2026-09-19: a name at the bottom of this list means one of
+   * two completely different things — somebody who started on Wednesday, or
+   * somebody with a problem — and the list could not tell them apart. It does
+   * not change what is owed: the number stays out of 300, because pro-rating
+   * a quota is a decision about pay and this card is a report.
+   */
+  daysOnTeam: number;
+  /** Their first quota week, where a shortfall is arithmetic rather than news. */
+  startedThisWeek: boolean;
+  /** Days of the week they have been here for, when that is fewer than all of
+   *  it. Null once they have been here a full week. */
+  daysOfWeek: number | null;
+};
 
 /**
  * Where every caller stands against the quota this week.
@@ -134,11 +153,16 @@ export type QuotaStanding = { name: string; calls: number };
  */
 export async function getQuotaStandings(): Promise<{
   weekStart: string;
+  /** The instant the week began, so a screen can name the reset rather than
+   *  guessing at it. The card said "since Monday" for a day after the week
+   *  moved to payday on 2026-09-18, which is a label disagreeing with its own
+   *  number. */
+  since: string;
   standings: QuotaStanding[];
 }> {
   // The same week the caller's own bar counts: from the last payday, not from
   // a Monday. Two definitions would put two numbers in front of one person.
-  const { weekStart } = await quotaWeekStart();
+  const { at: weekStartedAt, weekStart } = await quotaWeekStart();
 
   // **Only callers who could actually have rung somebody**, which takes two
   // conditions and not one. A niche to work, and a way to dial it: a number of
@@ -159,7 +183,7 @@ export async function getQuotaStandings(): Promise<{
   // week, one of them a third of the way to quota already. So it excludes only
   // the pairing of both: new *and* never once dialled.
   const callers = (await db.execute(sql`
-    select u.id, u.name
+    select u.id, u.name, u.created_at
     from app_user u
     where u.role = 'caller' and u.active
       and (u.telnyx_did is not null or u.dial_method = 'handset')
@@ -177,13 +201,37 @@ export async function getQuotaStandings(): Promise<{
   // means what it means on the caller's own bar, on Stats and on the
   // Scoreboard.
   const standings: QuotaStanding[] = [];
+  // Whole days, floored, off the instant rather than the calendar: "joined
+  // yesterday evening" is one day on the team, not two, whichever side of
+  // midnight the two timestamps fall.
+  const nowMs = Date.now();
+  // The instant the week began, not its date: `weekStart` is that day in
+  // Eastern, and reading it as UTC midnight would put this up to a day out —
+  // the week actually starts at the payday hour on it (Friday 9 PM EDT).
+  const weekStartMs = weekStartedAt.getTime();
   for (const c of callers) {
     const { calls } = await getWeekProgress(n(c.id));
-    standings.push({ name: String(c.name ?? "Unknown"), calls });
+    const joinedMs = new Date(String(c.created_at)).getTime();
+    const daysOnTeam = Math.max(
+      0,
+      Math.floor((nowMs - joinedMs) / 86_400_000),
+    );
+    // Present for part of the week only: from whichever came later, their
+    // start or the week's, to now. Rounded up, since an afternoon on the
+    // phones is a day somebody was here to ring.
+    const heldMs = nowMs - Math.max(joinedMs, weekStartMs);
+    const daysOfWeek = Math.max(1, Math.ceil(heldMs / 86_400_000));
+    standings.push({
+      name: String(c.name ?? "Unknown"),
+      calls,
+      daysOnTeam,
+      startedThisWeek: joinedMs > weekStartMs,
+      daysOfWeek: daysOfWeek < 7 ? daysOfWeek : null,
+    });
   }
   // Worst first: the top of this list is the only part anybody needs to act on.
   standings.sort((a, b) => a.calls - b.calls);
-  return { weekStart, standings };
+  return { weekStart, since: weekStartedAt.toISOString(), standings };
 }
 
 export async function sendQuotaDigest(
@@ -249,7 +297,12 @@ export async function sendQuotaDigest(
       : [
           under
             .slice(0, NAMES_IN_BODY)
-            .map((s) => `${s.name} ${s.calls}`)
+            // "(new)" only for a first week, and only there. The body is
+            // truncated near a hundred characters, so the tag has to earn its
+            // six of them — and it earns them on exactly the rows where a low
+            // number means something different. The card on Stats has the
+            // room to say how many days; this does not.
+            .map((s) => `${s.name} ${s.calls}${s.startedThisWeek ? " (new)" : ""}`)
             .join(" · "),
           under.length > NAMES_IN_BODY
             ? `+${under.length - NAMES_IN_BODY} more`
