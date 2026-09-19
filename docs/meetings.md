@@ -117,9 +117,18 @@ every span is built around.
     halve the width of an untroubled 4pm call. Verified: two demos half an
     hour apart render at `left: 0%/50%, width: 50%`, and the untroubled ones
     at 100%.
+  - **An hour is 64px because a Cal.com demo is thirty minutes.** At 48 that
+    block is 24px and two lines of 11px text need about 30, so on prod every
+    real booking rendered as "2AM · D…" with its top sliced off. **The seeded
+    test data was hour-long and hid it completely** — seed the duration the
+    real thing uses, or the one case that matters is the one never drawn. The
+    name is also one line in the grid and two in a month cell, since a
+    half-hour block is exactly two lines tall and a wrapped name would push
+    itself out of its own block; the full name is on the title either way.
   - **A booking with no end time is 30 minutes**, and one running past
     midnight is clamped to the end of its day rather than drawn off the bottom
-    of the grid.
+    of the grid. Anything under half an hour is floored at 30px and runs a
+    little into the slot below, as Google's do.
   - **`hourCycle: "h23"`, not `hour12: false`** — the latter renders midnight
     as hour 24 in some engines, which would put a midnight demo an entire day
     below the grid.

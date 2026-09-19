@@ -36,16 +36,25 @@ export type CalendarSpan = "day" | "week" | "month";
  *  in one app must not disagree about where a week begins. */
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
-/** One hour of the time grid. Tall enough that a half-hour demo is still a
- *  readable block rather than a line. */
-const HOUR_PX = 48;
+/**
+ * One hour of the time grid.
+ *
+ * 64 rather than 48 because **a Cal.com demo is thirty minutes**, and at 48
+ * that block is 24px — two lines of 11px text need about 30, so every real
+ * booking on prod rendered as "2AM · D…" with its top clipped. The seeded
+ * hour-long test bookings hid it completely. A tall grid is the price of the
+ * common case being legible.
+ */
+const HOUR_PX = 64;
 /** The time gutter. Fits "12 AM" at 11px without wrapping. */
 const GUTTER = "w-12 sm:w-14";
 /** An appointment with no end time. Cal.com always sends one; this is for the
  *  rows that predate the column. */
 const DEFAULT_MINUTES = 30;
-/** Never smaller than this, or a 15-minute call is unreadable. */
-const MIN_BLOCK_PX = 22;
+/** Never smaller than this, or a 15-minute call is unreadable. Shorter
+ *  bookings than half an hour therefore run a little into the slot below,
+ *  which is what Google does with them too. */
+const MIN_BLOCK_PX = 30;
 
 /** Noon UTC, never midnight: a date parsed at midnight lands on the previous
  *  day in half the world, which is precisely the bug a calendar displays. */
@@ -304,7 +313,18 @@ function Chip({
         {" · "}
         {follow ? "Follow-up" : "Demo"}
       </span>
-      <span className="line-clamp-2 break-words">{nameOf(m)}</span>
+      {/* One line in the grid, two in a month cell. A grid block is sized by
+          how long the booking runs, and a half-hour one is 32px — exactly two
+          lines — so a name that wrapped would push itself out of its own
+          block. A month cell is 86px and can afford the second line. The
+          whole name is on the title either way. */}
+      <span
+        className={cn(
+          layout === "month" ? "line-clamp-2 break-words" : "truncate",
+        )}
+      >
+        {nameOf(m)}
+      </span>
     </span>
   );
 }
