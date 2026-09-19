@@ -21,6 +21,7 @@ export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     statsRegion?: unknown;
     panelLeft?: unknown;
+    hideAlwaysOpen?: unknown;
   } | null;
   if (!body) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
@@ -29,7 +30,15 @@ export async function PATCH(request: Request) {
   const values: {
     statsRegion?: "sg" | "us" | "gb" | null;
     panelLeft?: "objections" | "script";
+    hideAlwaysOpen?: boolean;
   } = {};
+
+  if ("hideAlwaysOpen" in body) {
+    if (typeof body.hideAlwaysOpen !== "boolean") {
+      return Response.json({ error: "Invalid setting." }, { status: 400 });
+    }
+    values.hideAlwaysOpen = body.hideAlwaysOpen;
+  }
 
   if ("panelLeft" in body) {
     if (body.panelLeft !== "objections" && body.panelLeft !== "script") {

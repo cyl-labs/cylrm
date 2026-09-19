@@ -310,6 +310,26 @@ export const dialMethodOf = cache(
   },
 );
 
+/**
+ * Whether this caller has asked to keep businesses open 24 hours out of their
+ * queue. Off for anyone not signed in, and off by default.
+ *
+ * `cache()`d like `dialMethodOf` beside it: the dial screen asks while
+ * building the queue and again while counting what the switch is holding back,
+ * and those two must be the same answer or the line under the queue disagrees
+ * with the queue.
+ */
+export const hidesAlwaysOpen = cache(
+  async (userId: number | null | undefined): Promise<boolean> => {
+    if (!userId) return false;
+    const [row] = await db
+      .select({ hide: appUser.hideAlwaysOpen })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.hide ?? false;
+  },
+);
+
 export async function findByUsername(username: string) {
   const [row] = await db
     .select()

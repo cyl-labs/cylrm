@@ -133,8 +133,17 @@ and by its browser copy `isOpenAt` in `lib/call-hours.ts`.
     That is a third of all the day entries. On Google it usually means a
     one-person business that listed its mobile, and Junk King lists 4 AM, so a
     business's own hours only ever narrow the day, never widen it.
-- **Who has hours.** Only the Google Places lists: Junk Removal 1.1, 1.2,
-  2.1, 2.2, 3.1, 3.2 and 4.1–4.5, 1,763 of their 1,827 leads. Every other list
+- **Who has hours.** Only the Google Places lists: Junk Removal 1.1–1.2,
+  2.1–2.2, 3.1–3.2, 4.1–4.5 and 5.1–5.10 — **3,332 of their 3,462 leads**
+  (the 5.x lists landed 2026-09-17, after this was first written; it said
+  1,763 of 1,827 across eleven lists).
+  **Those scrapes did not have Apify's "Scrape place detail page" switched
+  on**, and do not need it: the actor's schema lists `openingHours` among the
+  fields that option unlocks, but hours come back from the search pass anyway.
+  Measured across all three scrapes (1 Sep, 14 Sep, 17 Sep), hours were filled
+  on 96–97% of places while `peopleAlsoSearch` and `imageCategories`, named in
+  the same sentence of that schema, came back empty on every row. Turning it
+  on is charged per place and buys nothing here. Every other list
   (Junk Removal 1.3–1.5, Landscaping, Locksmith, Movers, Septic, Auto
   Detailing, Trucking, London, all of Singapore) came from a different scraper
   with no hours, and sits on 9 to 6. No lead there was flagged permanently
@@ -176,3 +185,48 @@ and by its browser copy `isOpenAt` in `lib/call-hours.ts`.
 - **Tested** on the SQL itself, across the fallback edges, the 8/8 bound,
   split days, a closed Sunday and an unknown zone, with `isOpenAt` checked
   against the same cases.
+
+## Hiding businesses open 24 hours (2026-09-19)
+
+`app_user.hide_always_open` (`2026-09-19-hide-always-open.sql`, **applied
+before the deploy** — the dial queue reads it on every render), the
+`ALWAYS_OPEN` fragment in `lib/calls.ts`, and the "No 24/7" chip
+(`components/calls/always-open-toggle.tsx`) beside "Open now".
+
+- **Why, and why it is a preference rather than a rule.** Brian asked for
+  24/7 places to be kept out of his queue: a business answering round the
+  clock is a harder sell for a receptionist. **The call record does not agree
+  with him.** Over every dialled call to the lists that carry hours, the 888
+  always-open leads were answered on **37%** of calls against 32% for the
+  rest, ruled themselves out at 81% against 80%, and booked a demo at 1.5%
+  against 1.7% (3 demos against 8 — too few to split hairs over, which is
+  itself the finding). On Google Maps "open 24 hours" is usually a one-person
+  business that listed its mobile, which is the customer rather than a company
+  with reception already covered. So it hides them for whoever asks and for
+  nobody else.
+- **Nothing is deleted and no import is filtered.** The leads stay in every
+  count, on every other screen, and in everyone else's queue. Stripping them
+  at import was the cheap version and could not be undone; 888 leads that
+  answer more often than the rest is not a thing to bin on an untested hunch.
+- **Stored on the account, not carried in the URL**, unlike `?open=0`. That
+  one is a founder's one-off look and should reset on the next link; this is
+  set once and worked with all day, and a caller who had to re-tap it after
+  every navigation would stop using it. Written through `/api/me`, which can
+  only ever write to the account making the request.
+- **The screen says what it is holding back.** `countQueueSplit` returns
+  `alwaysOpen` beside `total` and `callableNow`, counted in the same query for
+  the reason the other two are, and the dial screen prints "Hiding 6
+  businesses open 24 hours. Tap No 24/7 to put them back." Only when it is
+  actually hiding something, or a niche with none would carry a line about
+  nothing.
+- **`alwaysOpen` counts only leads that are open right now**, so an empty
+  queue can tell the two filters apart. "Everyone left here is open 24 hours"
+  takes precedence over "Everyone here is closed right now", because if any of
+  these exist they are callable and a tap brings them back — the hours message
+  would be false. That is the same rule the three empty queues already follow.
+- **A lead with no week is not always-open.** Unknown is a different answer,
+  and half the CRM's leads came from a scraper that carried no hours — they are
+  never hidden by this.
+- **Verified** at 1440px and 390px: the six seeded 24/7 leads left the queue
+  and came back on a second tap, the line and the empty state read correctly,
+  and neither width overflowed.

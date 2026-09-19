@@ -535,6 +535,27 @@ export const appUser = pgTable("app_user", {
   /** Which document holds the dialler's left column; the other is on "o".
    *  A working preference the caller sets, not a policy an admin assigns. */
   panelLeft: text("panel_left").notNull().default("objections").$type<"objections" | "script">(),
+  /**
+   * Keep businesses whose Google listing reads "Open 24 hours" out of my
+   * queue.
+   *
+   * A working preference like `panelLeft`, set by the caller on their own
+   * dialler, and off for everyone by default. It is stored rather than kept in
+   * the URL because a caller sets it once and works all day; `?open=0` is a
+   * founder's one-off look and resets on the next link, which is the right
+   * shape for that and the wrong shape for this.
+   *
+   * **The leads are not worse and this is not a fix for them.** Measured
+   * 2026-09-19 over every dialled call to the lists that carry hours: the 888
+   * always-open leads were answered on 37% of calls against 32% for the rest,
+   * and once someone was talking they ruled themselves out at 81% against 80%,
+   * booked a demo at 1.5% against 1.7%. On Google Maps "open 24 hours" is
+   * usually a one-person business that listed its mobile, which is the
+   * customer, not a company with a night shift. So this hides them from
+   * whoever asks and from nobody else, and it never deletes or skips an import
+   * — a list stripped of them could not be put back.
+   */
+  hideAlwaysOpen: boolean("hide_always_open").notNull().default(false),
   /** How this person prefers to be paid — a PayNow number, a bank and account,
    *  a Wise or PayPal link. Free text rather than a set of options, because any
    *  list of methods would be wrong within a month and the only reader is a

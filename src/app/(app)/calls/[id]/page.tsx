@@ -16,6 +16,7 @@ import {
   callRegionOf,
   canUseLiveHints,
   dialMethodOf,
+  hidesAlwaysOpen,
   panelLeftOf,
   readerZone,
 } from "@/lib/users";
@@ -23,6 +24,7 @@ import { CALLING_HOURS_LABEL, sopRegionFor } from "@/lib/calls";
 import { spokenNumber } from "@/lib/phone";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
+import { AlwaysOpenToggle } from "@/components/calls/always-open-toggle";
 import { WorkGateScreen } from "@/components/calls/work-gate";
 import { getWorkOrder, isRequiredLead } from "@/lib/work-order";
 import { cn } from "@/lib/utils";
@@ -140,8 +142,12 @@ export default async function CallListPage({
   // is the worst moment to discover you do not know what that is. Filled in
   // with the number assigned to whoever is signed in.
   const myNumber = await callerNumberOf(me?.id);
+  // This caller's own switch for businesses open round the clock. Read here
+  // and handed to both the queue and its count, so the line under the queue
+  // cannot disagree with the queue.
+  const hideAlwaysOpen = await hidesAlwaysOpen(me?.id);
   const [leads, sop, split] = await Promise.all([
-    getCallQueue(listId, filter, callableNow),
+    getCallQueue(listId, filter, callableNow, hideAlwaysOpen),
     getDiallerSop(sopRegion, {
       number: myNumber ? spokenNumber(myNumber) : null,
     }),
@@ -320,6 +326,11 @@ export default async function CallListPage({
               <span className="hidden sm:inline">Open now</span>
             </Link>
             )}
+            {/* A caller's own switch, so it is shown to everyone rather than
+                to founders alone: it takes nothing away that cannot be put
+                back with the same tap, and the line below says what it is
+                holding. */}
+            <AlwaysOpenToggle hiding={hideAlwaysOpen} />
             {/* Straight to this niche's tab on the Spreadsheet screen, rather
                 than to the whole workbook with the right tab to be found.
                 Label drops below `sm` so it cannot push the "All" filter off
@@ -395,6 +406,22 @@ export default async function CallListPage({
               )}
             </p>
           )}
+          {/* What the 24/7 switch is doing, in its own line rather than folded
+              into the one above: they hide different leads for different
+              reasons, and a sentence holding both numbers stops being read.
+              Only when it is actually holding something back — a niche with no
+              24/7 places in it would otherwise carry a line about nothing. */}
+          {hideAlwaysOpen && split.alwaysOpen > 0 && (
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Hiding{" "}
+              <span className="font-bold text-foreground">
+                {split.alwaysOpen}
+              </span>{" "}
+              {split.alwaysOpen === 1 ? "business" : "businesses"} open 24
+              hours. Tap <span className="font-semibold">No 24/7</span> to put{" "}
+              {split.alwaysOpen === 1 ? "it" : "them"} back.
+            </p>
+          )}
         </div>
       </div>
 
@@ -438,6 +465,10 @@ export default async function CallListPage({
         // Only while the filter is doing the hiding. With it off an empty
         // queue really is an empty queue.
         hiddenByHours={callableNow ? split.total - split.callableNow : 0}
+        // Same rule: only while this caller's switch is the thing doing the
+        // hiding. An empty queue has to name which filter emptied it, or a
+        // niche of nothing but 24/7 places reads as a list that is finished.
+        hiddenByAlwaysOpen={hideAlwaysOpen ? split.alwaysOpen : 0}
         // Only the To call view waits leads out, so only it can be empty
         // because of them.
         retryLater={filter === "queue" ? list.retryLater : 0}

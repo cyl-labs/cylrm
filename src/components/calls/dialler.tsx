@@ -733,6 +733,7 @@ export function Dialler({
   readOnly = false,
   callerName,
   hiddenByHours = 0,
+  hiddenByAlwaysOpen = 0,
   showAllHref,
   retryLater = 0,
   liveHints = false,
@@ -784,6 +785,10 @@ export function Dialler({
    *  the To call view. Lets an empty queue say "back on a later day" rather
    *  than "Nothing to call here" on a list with calls still owed. */
   retryLater?: number;
+  /** How many leads this caller's own "No 24/7" switch is keeping out of the
+   *  queue. Only ever leads that are open right now, so an empty queue with
+   *  any of these can say so and offer the tap that undoes it. */
+  hiddenByAlwaysOpen?: number;
   /** Listen to the live call and suggest which objection fits. Off unless
    *  `LIVE_HINTS=1` and an OpenAI key are set, in which case the dialler
    *  behaves exactly as it does today. */
@@ -1055,16 +1060,24 @@ export function Dialler({
             would act on by closing the niche. */}
         <p className="text-sm font-semibold">
           {leads.length === 0
-            ? hiddenByHours > 0
-              ? "Everyone here is closed right now."
-              : retryLater > 0
-                ? "You've rung everyone you can today."
-                : "Nothing to call here."
+            ? // Ahead of the hours message on purpose: `hiddenByAlwaysOpen`
+              // counts only leads that are open right now, so if there are
+              // any, the switch is what emptied this and a tap brings them
+              // straight back. "Everyone here is closed" would be false.
+              hiddenByAlwaysOpen > 0
+              ? "Everyone left here is open 24 hours."
+              : hiddenByHours > 0
+                ? "Everyone here is closed right now."
+                : retryLater > 0
+                  ? "You've rung everyone you can today."
+                  : "Nothing to call here."
             : "Queue cleared."}
         </p>
         <p className="mt-1 text-[13px] text-muted-foreground">
           {leads.length === 0
-            ? hiddenByHours > 0
+            ? hiddenByAlwaysOpen > 0
+              ? `You asked to hide businesses open 24 hours, and that is all ${hiddenByAlwaysOpen.toLocaleString()} of the ones left. Tap No 24/7 at the top to put them back, or work another niche.`
+              : hiddenByHours > 0
               ? `It is outside ${CALLING_HOURS_LABEL} for all ${hiddenByHours.toLocaleString()} of them. Come back later, or work another niche.`
               : retryLater > 0
                 ? // A fourth empty queue: the leads are all waiting for their next

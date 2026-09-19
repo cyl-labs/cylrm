@@ -326,6 +326,27 @@ export const withinLeadHours = (at: SQL) => {
 const CALLABLE_NOW = withinLeadHours(sql`now()`);
 
 /**
+ * A business whose listing says it never closes.
+ *
+ * All seven days open midnight to midnight, which is what `parseDayHours`
+ * stores for "Open 24 hours". A lead with no week at all is not one of these:
+ * unknown is not the same answer as always, and most of the CRM's leads came
+ * from a scraper that carried no hours.
+ *
+ * Only `hideAlwaysOpen` reads it, and only for the caller who asked. It says
+ * nothing about whether a lead is worth ringing — see the note on that column
+ * in `schema.ts` for what the call record actually shows.
+ */
+const ALWAYS_OPEN = sql`(
+  l.opening_hours is not null
+  and not exists (
+    select 1
+    from jsonb_each(l.opening_hours) as wk(d, r)
+    where wk.r <> '[["00:00","24:00"]]'::jsonb
+  )
+)`;
+
+/**
  * A due callback whose business is closed right now, so it can wait until
  * they open (2026-09-17).
  *
@@ -1133,10 +1154,16 @@ function queueWhere(filter: CallQueueFilter) {
 export async function countQueueSplit(
   callListId: number,
   filter: CallQueueFilter = "queue",
-): Promise<{ total: number; callableNow: number }> {
+): Promise<{ total: number; callableNow: number; alwaysOpen: number }> {
   const [row] = (await db.execute(sql`
     select count(l.id) as total,
-      count(l.id) filter (where ${CALLABLE_NOW}) as callable_now
+      count(l.id) filter (where ${CALLABLE_NOW}) as callable_now,
+      -- Counted whether or not this caller hides them, because the screen has
+      -- to be able to say what the switch is holding back. Both halves in the
+      -- one query for the reason the other two are: a second count of the same
+      -- leads is a second answer, and the one under the queue had better be
+      -- the queue's.
+      count(l.id) filter (where ${CALLABLE_NOW} and ${ALWAYS_OPEN}) as always_open
     from call_lead l
     ${latestCall}
     ${leadZone}
@@ -1144,7 +1171,11 @@ export async function countQueueSplit(
       and l.duplicate_of_lead_id is null
       ${queueWhere(filter)}
   `)) as Row[];
-  return { total: n(row?.total), callableNow: n(row?.callable_now) };
+  return {
+    total: n(row?.total),
+    callableNow: n(row?.callable_now),
+    alwaysOpen: n(row?.always_open),
+  };
 }
 
 /** Ceiling on one dialling view. Every lead below the current card is listed,
@@ -1165,6 +1196,13 @@ export async function getCallQueue(
    * five leads and call it a queue.
    */
   callableNow = false,
+  /**
+   * Leave out businesses whose listing says they never close, because this
+   * caller asked for that (`app_user.hide_always_open`). Applied in the query
+   * for the same reason as `callableNow`: the LIMIT below means anything
+   * filtered afterwards hands back a short page and calls it a queue.
+   */
+  hideAlwaysOpen = false,
 ): Promise<QueueLead[]> {
   const where = queueWhere(filter);
 
@@ -1177,6 +1215,7 @@ export async function getCallQueue(
       and l.duplicate_of_lead_id is null
       ${where}
       ${callableNow ? sql`and ${CALLABLE_NOW}` : sql``}
+      ${hideAlwaysOpen ? sql`and not ${ALWAYS_OPEN}` : sql``}
     order by
       -- Somebody asked to be rung at a time and that time has passed.
       (lc.outcome = 'callback' and (lc.callback_at is null or lc.callback_at <= now())) desc,
