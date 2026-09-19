@@ -317,6 +317,30 @@ demo and no way to say whether they turned up.
   arrives *after* the outcome — a prospect who books an hour later from the
   link in a text.
 
+### Cancelled off the grid, and a month cell that stays a cell (2026-09-20)
+
+Two changes after a founder read the month view as broken.
+
+- **Cancelled bookings are off the calendar entirely** — "i dont think theres a
+  point seeing cancelled on the calendar". They were struck through, which cost
+  a live booking's worth of room to say a thing that is not work; a day with
+  one cancelled and two real demos read as three. **The list underneath still
+  keeps them**, and that is where `getMeetings`' rule about a row never simply
+  vanishing applies: on a row it is news, on a grid it is furniture.
+- **A month cell draws three and then says how many more** (`MONTH_CHIPS`),
+  because a month row is as tall as its busiest day and one day with six demos
+  drags the whole week down with it. Six on a Tuesday took the row past 200px
+  before this.
+  - **The "+3 more" is a link into that day's view**, which is the only reason
+    a cap is acceptable: nothing is hidden, it is one tap to see all of them
+    against the hours. On a floor where a demo is the point, a screen that
+    quietly dropped one would be worse than a tall calendar.
+- **The last row is filled out too.** The lead-in blanks were always drawn and
+  the trailing ones were not, so a month ended mid-week with the vertical rules
+  stopping short — square at the top and torn at the bottom, which is exactly
+  what "the calendar seems bugged" was reaching for. Checked across three
+  months: 35, 35 and 42 cells, all whole weeks.
+
 ### Upcoming first, done underneath (2026-09-20)
 
 `order by` in `getMeetings`. It was `start_at asc` for everything.

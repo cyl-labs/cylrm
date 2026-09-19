@@ -282,6 +282,21 @@ function placeFrom(rows: Meeting[], startMs: number, minutes: number): Placed[] 
   );
 }
 
+/**
+ * How many appointments a month cell draws before it stops.
+ *
+ * A month row is as tall as its busiest day, so one day with six demos drags
+ * the whole week down with it and the grid stops being a grid. Three is about
+ * what fits at the 86px a row starts at.
+ *
+ * **Nothing is hidden by it**: the cell says how many more there are and the
+ * line is a link into that day, which shows every one of them against the
+ * hours. That is the whole reason a cap is acceptable here — on a floor where
+ * a demo is the point, a screen that quietly dropped one would be worse than
+ * a tall calendar.
+ */
+const MONTH_CHIPS = 3;
+
 /** A folded stretch of empty hours. Tall enough to read its own label. */
 const GAP_PX = 34;
 /** Fold only a real run. Two empty hours are cheaper to scroll past than to
@@ -486,6 +501,14 @@ export function MeetingsCalendar({
 }) {
   const byDay = new Map<string, Meeting[]>();
   for (const m of meetings) {
+    // Cancelled bookings are off the calendar entirely (2026-09-20, founders':
+    // "i dont think theres a point seeing cancelled on the calendar"). They
+    // used to be struck through here, which cost a live booking's worth of
+    // room to say a thing that is not work — and on a day with three of them
+    // that is what made the grid look full. **The list underneath still keeps
+    // them**, and that is where the rule in `getMeetings` about a row never
+    // simply vanishing applies: there it is news, here it is furniture.
+    if (m.status === "cancelled") continue;
     const key = dayOf(m.startAt, tz);
     const list = byDay.get(key);
     if (list) list.push(m);
@@ -684,13 +707,34 @@ export function MeetingsCalendar({
                   )}
                 </div>
                 <div className="mt-0.5 flex flex-col gap-0.5">
-                  {rows.map((m) => (
+                  {rows.slice(0, MONTH_CHIPS).map((m) => (
                     <Chip key={m.id} m={m} tz={tz} layout="month" />
                   ))}
+                  {rows.length > MONTH_CHIPS && (
+                    <Link
+                      href={at("day", date)}
+                      className="rounded px-1 py-0.5 text-[11px] font-semibold text-muted-foreground underline-offset-2 hover:bg-muted hover:text-foreground hover:underline"
+                    >
+                      +{rows.length - MONTH_CHIPS} more
+                    </Link>
+                  )}
                 </div>
               </div>
             );
           })}
+        {/* And the blanks after the last day. Without them the final row stops
+            mid-week and the grid ends ragged — the lead-in has always been
+            drawn, and a month that is square at the top and torn at the
+            bottom reads as something having gone wrong. */}
+        {Array.from(
+          { length: (7 - ((lead + days.length) % 7)) % 7 },
+          (_, i) => (
+            <div
+              key={`trail-${i}`}
+              className="min-h-[86px] border-b border-r bg-muted/20 last:border-r-0"
+            />
+          ),
+        )}
         </div>
       </div>
     );
