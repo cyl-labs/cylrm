@@ -86,7 +86,9 @@ export default async function MeetingsPage({
   // the URL rather than in the browser, so the screen is the same server
   // render either way and a pasted link opens on what its sender saw.
   const span: CalendarSpan =
-    rawSpan === "day" || rawSpan === "week" ? rawSpan : "month";
+    rawSpan === "day" || rawSpan === "week" || rawSpan === "next24"
+      ? rawSpan
+      : "month";
   // Today and the opening range on the reader's own clock, not the droplet's
   // UTC — a demo at 8am Singapore is Friday in New York, and each of them is
   // right about their own Friday.
@@ -96,7 +98,11 @@ export default async function MeetingsPage({
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-  // `on` is the one anchor for all three spans. `month=YYYY-MM` is still read
+  // The same instant the line above was formatted from, handed to the calendar
+  // so the rolling "next 24 hours" window and "today" cannot disagree — and so
+  // nothing reads the clock while rendering.
+  const now = new Date().toISOString();
+  // `on` is the one anchor for all three dated spans. `month=YYYY-MM` is still read
   // so links sent before this keep working, and means the first of that month.
   const anchor = /^\d{4}-\d{2}-\d{2}$/.test(rawOn ?? "")
     ? (rawOn as string)
@@ -205,6 +211,7 @@ export default async function MeetingsPage({
             tz={zone.tz}
             zoneLabel={zone.label}
             today={today}
+            now={now}
             query={keepTz}
           />
         )}

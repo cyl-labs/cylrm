@@ -86,7 +86,7 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   what people scan for. Cancelled rows are struck through rather than dropped,
   so the grid and the list cannot disagree about what is booked.
 
-#### Day, week and month (2026-09-19)
+#### Next 24 hours, day, week and month (2026-09-19)
 
 `?span=day|week|month` (month by default) and `?on=YYYY-MM-DD`, the one date
 every span is built around.
@@ -140,6 +140,28 @@ every span is built around.
     on a phone the week opens on Monday and today may be off to the right,
     with no way to scroll it into view from a server render. Day is one tap
     away and is the better phone view.
+- **Next 24 hours is a rolling strip, not a day** — and it is the reason the
+  other three are not enough. A founder's words for it: *"if I see 11pm end of
+  day then I go to sleep, I don't realise the next day there's another one at
+  2am."* Those two appointments are three hours apart and on two different
+  pages of a day view, because a calendar day ends between them. Here midnight
+  is a line across the middle like any other hour, drawn heavier and **named**
+  ("SUN 20 SEPT") so a 2 AM cannot be read as this morning's.
+  - **It starts at the top of the current hour**, truncated with `minutesOf`
+    on the reader's clock rather than by rounding the timestamp — a zone
+    offset by half an hour would otherwise draw its grid half an hour out of
+    line with its own hour labels.
+  - **No Today and no arrows.** The window is defined by now, so there is
+    nowhere to page to; an arrow that moved nothing would be worse than none.
+    `?on=` is ignored for it.
+  - **`placeFrom` measures from the window's start where `place` measures from
+    midnight**, and both hand the same `assignColumns` the packing. Two copies
+    of "do these two clash" would be two answers.
+  - It is first in the picker, because it answers "what is coming" — the
+    question the other three each answer only within their own box.
+  - Everything in it is inside `startingSoon`, so every block draws filled.
+    That is right rather than a loss: in this view everything *is* imminent,
+    and the colour is left to say demo or follow-up.
 - **Every chip says whether it is a demo or a follow-up** (2026-09-19). Asked
   for as soon as follow-ups started being booked: two appointments with the
   same business name on them are otherwise indistinguishable, and they are not

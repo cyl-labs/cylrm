@@ -30,7 +30,10 @@ import { cn } from "@/lib/utils";
  * Google's month view does not either.
  */
 
-export type CalendarSpan = "day" | "week" | "month";
+export type CalendarSpan = "day" | "week" | "month" | "next24";
+
+/** How far the rolling window runs. */
+const NEXT_HOURS = 24;
 
 /** Monday first, matching `CallCalendar` and the payroll week. Two calendars
  *  in one app must not disagree about where a week begins. */
@@ -196,26 +199,27 @@ type Placed = {
   cols: number;
 };
 
-function place(rows: Meeting[], tz: string): Placed[] {
-  const items = rows
-    .map((m) => {
-      const start = minutesOf(m.startAt, tz);
-      const minutes = m.endAt
-        ? Math.max(
-            15,
-            Math.round(
-              (new Date(m.endAt).getTime() - new Date(m.startAt).getTime()) /
-                60000,
-            ),
-          )
-        : DEFAULT_MINUTES;
-      // Clamped to the end of the day: a booking that runs past midnight
-      // belongs to tomorrow's column as well, and drawing it off the bottom of
-      // this one would stretch the grid instead.
-      return { m, start, end: Math.min(start + minutes, 24 * 60), col: 0, cols: 1 };
-    })
-    .sort((a, b) => a.start - b.start || a.end - b.end);
+/** How long a booking runs, in minutes. */
+const lengthOf = (m: Meeting) =>
+  m.endAt
+    ? Math.max(
+        15,
+        Math.round(
+          (new Date(m.endAt).getTime() - new Date(m.startAt).getTime()) / 60000,
+        ),
+      )
+    : DEFAULT_MINUTES;
 
+/**
+ * Deal overlapping appointments into columns.
+ *
+ * Split out from `place` so the rolling next-24-hours strip can use it too:
+ * that one measures from the current hour rather than from midnight, and the
+ * packing is the only part the two have in common. One copy, because two
+ * would be two answers to "do these two clash".
+ */
+function assignColumns(items: Placed[]): Placed[] {
+  items.sort((a, b) => a.start - b.start || a.end - b.end);
   const ends: number[] = [];
   let cluster: Placed[] = [];
   let clusterEnd = -1;
@@ -240,6 +244,42 @@ function place(rows: Meeting[], tz: string): Placed[] {
   }
   if (cluster.length) close();
   return items;
+}
+
+/** One day's appointments, measured from its own midnight. */
+function place(rows: Meeting[], tz: string): Placed[] {
+  return assignColumns(
+    rows.map((m) => {
+      const start = minutesOf(m.startAt, tz);
+      // Clamped to the end of the day: a booking that runs past midnight
+      // belongs to tomorrow's column as well, and drawing it off the bottom of
+      // this one would stretch the grid instead.
+      return {
+        m,
+        start,
+        end: Math.min(start + lengthOf(m), 24 * 60),
+        col: 0,
+        cols: 1,
+      };
+    }),
+  );
+}
+
+/** The same, measured in minutes from a moment — the rolling window's start.
+ *  Midnight is just another line here, which is the entire point of it. */
+function placeFrom(rows: Meeting[], startMs: number, minutes: number): Placed[] {
+  return assignColumns(
+    rows.map((m) => {
+      const start = (new Date(m.startAt).getTime() - startMs) / 60000;
+      return {
+        m,
+        start,
+        end: Math.min(start + lengthOf(m), minutes),
+        col: 0,
+        cols: 1,
+      };
+    }),
+  );
 }
 
 /**
@@ -336,6 +376,7 @@ export function MeetingsCalendar({
   tz,
   zoneLabel,
   today,
+  now,
   query,
 }: {
   /** Day, week or month. */
@@ -352,6 +393,11 @@ export function MeetingsCalendar({
   zoneLabel: string;
   /** Today on that same clock, so "today" is the reader's today. */
   today: string;
+  /** This instant, decided by the page beside `today` rather than read here.
+   *  A component that calls `Date.now()` while rendering is impure — and the
+   *  two must agree anyway, or the rolling window starts on a different day
+   *  from the one the grid calls today. */
+  now: string;
   /** The rest of the query string (the zone), kept across a page turn and a
    *  span change — the bug `call-filters.tsx` documents at length. */
   query: string;
@@ -367,8 +413,30 @@ export function MeetingsCalendar({
     list.sort((a, b) => a.startAt.localeCompare(b.startAt));
   }
 
-  const days = datesFor(span, anchor);
-  const shown = days.reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
+  const days = span === "next24" ? [] : datesFor(span, anchor);
+
+  // The rolling window: from the top of the current hour, on the reader's own
+  // clock, for the next twenty-four. Truncated to the hour rather than to the
+  // minute so the grid lines up with the hour labels beside it; `minutesOf`
+  // gives minutes past midnight *there*, which is what makes this right in a
+  // zone offset by half an hour too.
+  const nowMs = new Date(now).getTime();
+  const rollStart =
+    nowMs - (minutesOf(new Date(nowMs).toISOString(), tz) % 60) * 60_000 -
+    (nowMs % 60_000);
+  const rollEnd = rollStart + NEXT_HOURS * 3_600_000;
+  const rolling =
+    span === "next24"
+      ? meetings.filter((m) => {
+          const t = new Date(m.startAt).getTime();
+          return t >= rollStart && t < rollEnd;
+        })
+      : [];
+
+  const shown =
+    span === "next24"
+      ? rolling.length
+      : days.reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
 
   // Every control keeps the view and the zone. The month arrows used to drop
   // `view=calendar`, so turning the page bounced the reader back to the list
@@ -379,6 +447,9 @@ export function MeetingsCalendar({
   const forward = shift(span, anchor, 1);
 
   const SPANS: { id: CalendarSpan; label: string }[] = [
+    // First, because it is the one that answers "what is coming" — the
+    // question the other three each answer only within their own box.
+    { id: "next24", label: "Next 24h" },
     { id: "day", label: "Day" },
     { id: "week", label: "Week" },
     { id: "month", label: "Month" },
@@ -390,7 +461,7 @@ export function MeetingsCalendar({
   const placedByDay = new Map<string, Placed[]>();
   for (const d of days) placedByDay.set(d, place(byDay.get(d) ?? [], tz));
   const { from, to } =
-    span === "month"
+    span === "month" || span === "next24"
       ? { from: 0, to: 0 }
       : hourWindow(days.flatMap((d) => placedByDay.get(d) ?? []));
   const hours = Array.from({ length: to - from }, (_, i) => from + i);
@@ -399,14 +470,22 @@ export function MeetingsCalendar({
   const header = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2.5">
       <h2 className="text-[15px] font-bold tracking-[-0.01em]">
-        {spanLabel(span, anchor)}
+        {span === "next24" ? "Next 24 hours" : spanLabel(span, anchor)}
       </h2>
       <span className="text-[13px] text-muted-foreground">
         {shown === 0
-          ? `Nothing booked this ${span}`
+          ? span === "next24"
+            ? "Nothing in the next 24 hours"
+            : `Nothing booked this ${span}`
           : `${shown} ${shown === 1 ? "demo" : "demos"} · times in ${zoneLabel}`}
       </span>
       <div className="ml-auto flex items-center gap-1">
+        {/* No Today and no arrows on the rolling window: it starts at this
+            hour by definition, so there is nowhere to page to and nothing to
+            come back from. A dead arrow that moved nothing would be worse
+            than none. */}
+        {span !== "next24" && (
+        <>
         {/* Today before the arrows: after paging three months out it is the
             way back, and hunting for it among the numbers is the thing a
             calendar without one makes you do. */}
@@ -430,7 +509,9 @@ export function MeetingsCalendar({
         >
           <ChevronRight className="size-4" strokeWidth={2.2} />
         </Link>
-        {/* All three drawn, like the List/Calendar pair: a single button
+        </>
+        )}
+        {/* All four drawn, like the List/Calendar pair: a single button
             naming the next state has to be worked out mid-shift. */}
         <div className="flex items-center rounded-md border p-0.5">
           {SPANS.map(({ id, label }) => (
@@ -518,6 +599,104 @@ export function MeetingsCalendar({
               </div>
             );
           })}
+        </div>
+      </div>
+    );
+  }
+
+  if (span === "next24") {
+    // A rolling strip, not a day. The whole reason it exists: a day view ends
+    // at midnight, so an 11pm demo and a 2am one three hours later sit on two
+    // different pages — you read the first, see the day is done, and go to
+    // bed. Here midnight is a line across the middle like any other hour, and
+    // the gap between two appointments is the distance between them whichever
+    // side of it they fall.
+    const placedRoll = placeFrom(rolling, rollStart, NEXT_HOURS * 60);
+    const marks = Array.from({ length: NEXT_HOURS }, (_, i) => {
+      const at = new Date(rollStart + i * 3_600_000);
+      return {
+        i,
+        label: new Intl.DateTimeFormat("en-US", {
+          timeZone: tz,
+          hour: "numeric",
+        }).format(at),
+        // The first hour of a new day names it, so "2 AM" cannot be read as
+        // this morning's.
+        dayBreak:
+          i > 0 &&
+          dayOf(at.toISOString(), tz) !==
+            dayOf(new Date(rollStart + (i - 1) * 3_600_000).toISOString(), tz)
+            ? fmt(dayOf(at.toISOString(), tz), {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+              })
+            : null,
+      };
+    });
+
+    return (
+      <div className="rounded-xl border bg-card">
+        {header}
+        <div className="flex">
+          <div
+            className={cn(GUTTER, "relative shrink-0")}
+            style={{ height: NEXT_HOURS * HOUR_PX }}
+          >
+            {marks.map(({ i, label }) => (
+              <span
+                key={i}
+                className="absolute right-1.5 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
+                style={{ top: i * HOUR_PX }}
+              >
+                {i === 0 ? "" : label}
+              </span>
+            ))}
+          </div>
+          <div
+            className="relative min-w-0 flex-1 border-l"
+            style={{ height: NEXT_HOURS * HOUR_PX }}
+          >
+            {marks.map(({ i, dayBreak }) => (
+              <div key={i} aria-hidden={!dayBreak}>
+                <div
+                  className={cn(
+                    "absolute inset-x-0 border-t",
+                    // The day change is drawn heavier than an hour line, and
+                    // named. It is the boundary this view was built to stop
+                    // people falling off.
+                    dayBreak ? "border-primary/40" : "border-border/60",
+                  )}
+                  style={{ top: i * HOUR_PX }}
+                />
+                {dayBreak && (
+                  <span
+                    className="absolute left-2 -translate-y-1/2 rounded bg-card px-1 text-[10px] font-bold uppercase tracking-[0.06em] text-primary"
+                    style={{ top: i * HOUR_PX }}
+                  >
+                    {dayBreak}
+                  </span>
+                )}
+              </div>
+            ))}
+            {placedRoll.map((pl) => (
+              <div
+                key={pl.m.id}
+                className="absolute px-[2px]"
+                style={{
+                  top: (pl.start / 60) * HOUR_PX,
+                  height: Math.max(
+                    MIN_BLOCK_PX,
+                    ((pl.end - pl.start) / 60) * HOUR_PX,
+                  ),
+                  left: `${(pl.col / pl.cols) * 100}%`,
+                  width: `${(1 / pl.cols) * 100}%`,
+                }}
+              >
+                <Chip m={pl.m} tz={tz} layout="grid" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
