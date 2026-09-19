@@ -390,3 +390,21 @@ beep), a retention period, and Singapore DNC scrubbing.
 - Verified both ways: an outcome posted with no session id came back carrying
   the right recording rather than a longer decoy to another number, and a
   second outcome on the same lead took none, the recording being claimed.
+- **The cause is fixed too, and it was one line of scope** (2026-09-20). The
+  finished call was remembered in a React ref and nowhere else, so the single
+  thing guaranteed to lose it was the thing callers do constantly: loading a
+  page. It is written to `sessionStorage` as well now (`cylrm-last-call`) and
+  `sessionFor` falls back to it, so a reload between hanging up and logging
+  keeps the session.
+  - **`sessionStorage`, not `localStorage`**: per tab and gone when the tab
+    closes, which is the life of a shift and the same scope the line has. The
+    two-hour `SESSION_MEMORY_MS` window still applies on read, so this morning's
+    call cannot attach to this afternoon's outcome.
+  - Both reads and writes are wrapped: storage throws in a private window and
+    with site data switched off, and a dialler that cannot write itself a note
+    must still place calls. The ref alone then behaves exactly as before.
+  - Written on every tick the call is live rather than once at the end, since
+    nothing tells this component which frame was the last of a call.
+  - Verified through the dial card: set the memory, reload, log an outcome —
+    the browser sent `telnyxSessionId` and the duration, both of which were
+    absent before.

@@ -42,6 +42,65 @@ export const REMOTE_AUDIO_ID = "cylrm-remote-audio";
  * on a tab nobody reloaded.
  */
 const SESSION_MEMORY_MS = 2 * 60 * 60_000;
+
+/**
+ * Where that memory is kept so a reload does not take it.
+ *
+ * It was a ref and nothing else until 2026-09-20, which meant the one thing
+ * guaranteed to lose it was the one thing callers do constantly: loading a
+ * page. Hang up, wander to the diary or let the card refresh, log the outcome
+ * — and it saved with no session, so the recording of a real conversation
+ * belonged to nobody. Thirty-six in a fortnight, including the call that
+ * booked a demo.
+ *
+ * `sessionStorage`, not `localStorage`: per tab and gone when the tab closes,
+ * which is the life of a shift and the same scope the line itself has. The
+ * two-hour window above still applies on read, so nothing here can attach
+ * this morning's call to this afternoon's outcome.
+ */
+const MEMORY_KEY = "cylrm-last-call";
+
+type Finished = {
+  leadId: number;
+  sessionId: string;
+  seconds: number;
+  at: number;
+};
+
+/** Both wrapped: storage throws in a private window and on a browser with
+ *  site data switched off, and a dialler that cannot save a note to itself
+ *  must still be able to place a call. */
+function rememberFinished(f: Finished) {
+  try {
+    sessionStorage.setItem(MEMORY_KEY, JSON.stringify(f));
+  } catch {
+    // The ref still holds it for this page's life, which is what it did
+    // before this existed.
+  }
+}
+
+function recallFinished(): Finished | null {
+  try {
+    const raw = sessionStorage.getItem(MEMORY_KEY);
+    if (!raw) return null;
+    const f = JSON.parse(raw) as Partial<Finished>;
+    if (
+      typeof f?.leadId !== "number" ||
+      typeof f?.sessionId !== "string" ||
+      typeof f?.at !== "number"
+    ) {
+      return null;
+    }
+    return {
+      leadId: f.leadId,
+      sessionId: f.sessionId,
+      seconds: typeof f.seconds === "number" ? f.seconds : 0,
+      at: f.at,
+    };
+  } catch {
+    return null;
+  }
+}
 export const SECOND_AUDIO_ID = "cylrm-second-audio";
 
 /**
@@ -247,6 +306,10 @@ export function CallLineProvider({
         seconds: line.seconds,
         at: Date.now(),
       };
+      // Written on every tick the call is live rather than once at the end:
+      // there is no moment this component is told "that was the last frame of
+      // that call", and the last one written is the one that counts.
+      rememberFinished(finished.current);
     }
   });
 
@@ -282,7 +345,9 @@ export function CallLineProvider({
       activeLeadId,
       lastLeadId,
       sessionFor: (leadId) => {
-        const f = finished.current;
+        // The ref first, then what the tab wrote down. They agree except
+        // across a reload, which is the case this exists for.
+        const f = finished.current ?? recallFinished();
         if (!f || f.leadId !== leadId) return null;
         if (Date.now() - f.at > SESSION_MEMORY_MS) return null;
         return { sessionId: f.sessionId, seconds: f.seconds };
