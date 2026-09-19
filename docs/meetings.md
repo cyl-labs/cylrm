@@ -232,10 +232,38 @@ chat, the same night.
   the same constant the digest uses. One chat cannot speak two clocks. No cycle:
   the digest imports the notifier and the database, never `meetings.ts`.
 - **Only two alerts now**, at the founders' request: the **8:30pm** digest of
-  the next three days, and **30 minutes before** each demo. The day-before
+  the next three days, and **five minutes before** each demo. The day-before
   per-meeting alert is gone — the digest already lists everything three days
   out, so it said the same thing again a few hours out of step. `TELEGRAM_OFFSETS`
   is the whole of it, and `urgent` is now always true on that path.
+
+#### Five minutes means five (2026-09-20)
+
+The warning was thirty minutes until the founders pointed out that "Google
+Calendar already tells me 30 mins before". It is five now: the nudge to be at
+the desk, not the notice that something exists.
+
+- **It needed its own tick.** The meetings job runs every five minutes because
+  it syncs Cal.com, and a five-minute window checked every five minutes gives
+  a warning landing anywhere between five minutes and a few seconds before the
+  call — exactly one tick falls inside the window, and nothing says where.
+  `/api/cron/meeting-alerts` runs the Telegram sender alone, once a minute,
+  from its own `setInterval` in the worker.
+- **Only the alert moved.** The sync, the push reminders and the digest stay on
+  the five-minute job: none is sensitive to a few minutes, and syncing Cal.com
+  every minute would be five times the API calls for nothing.
+- **Its own interval, not appended to `run()`.** That function awaits its jobs
+  in order, so a slow sync or a stuck poller could otherwise hold somebody's
+  demo warning behind it.
+- **The kind moved with the offset** (`telegram_30_min` → `telegram_5_min`), so
+  the claim rows say what they were for. A meeting already warned at thirty
+  minutes gets the new five-minute one too, which is the intent. `kind` is a
+  text column, so no migration.
+- Verified against a stand-in Telegram (`TELEGRAM_API_BASE`): a demo four
+  minutes out sent one message ("Demo in 4 minutes"), one twenty minutes out
+  was not considered, and three further ticks sent nothing. Worker timing
+  checked against a sink: 135 seconds gave three alert ticks and one of every
+  other job.
 - `foundersZone` stays for the push notifications and for `schema.ts`'s dated
   claim; only the Telegram sender moved off it.
 

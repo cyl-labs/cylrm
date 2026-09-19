@@ -3,6 +3,18 @@
 const BASE = process.env.APP_URL ?? "http://localhost:3005";
 const SECRET = process.env.CRON_SECRET;
 const INTERVAL_MS = 5 * 60 * 1000;
+/**
+ * The meeting warning runs on its own, every minute.
+ *
+ * It is five minutes before the call now rather than thirty, and a five-minute
+ * window checked every five minutes gives anywhere from five minutes' notice
+ * to a few seconds — one tick always lands in the window, nothing says where.
+ * A minute's granularity makes "five minutes" mean four or five.
+ *
+ * Only the Telegram alert, not the whole meetings job: that one syncs Cal.com
+ * and would be five times the API calls for no benefit.
+ */
+const ALERT_INTERVAL_MS = 60 * 1000;
 
 if (!SECRET) {
   console.error("CRON_SECRET is not set; refusing to start");
@@ -32,7 +44,8 @@ async function run() {
   await tick("dnc");
   // Cal.com is the calendar of record for booked demos and nothing pushed
   // that back to us. Two API calls a tick, and it is what puts a meeting on
-  // the Meetings diary and takes a cancelled one off it.
+  // the Meetings diary and takes a cancelled one off it. The five-minute
+  // warning it used to carry is on `alerts()` below, once a minute.
   await tick("meetings");
   // One digest a day per person, claimed by a unique index — the other 287
   // ticks find nothing to do.
@@ -67,6 +80,17 @@ async function waitForApp() {
   }
 }
 
+/**
+ * Kept apart from `run` on purpose: that one is a queue of jobs awaited in
+ * order, and a slow sync or a stuck poller must not be able to hold the
+ * warning for somebody's demo behind it.
+ */
+async function alerts() {
+  await tick("meeting-alerts");
+}
+
 await waitForApp();
 run();
+alerts();
 setInterval(run, INTERVAL_MS);
+setInterval(alerts, ALERT_INTERVAL_MS);

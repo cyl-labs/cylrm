@@ -1228,7 +1228,7 @@ export async function sendMeetingReminders(
  * When the founders' Telegram chat hears about each meeting, as minutes before
  * it starts.
  *
- * **One alert, half an hour before.** It was a day before as well until
+ * **One alert, five minutes before.** It was a day before as well until
  * 2026-09-19, and that one was dropped at the founders' request: the 8:30pm
  * digest already lists everything in the next three days, so a separate
  * "tomorrow at…" for each meeting said the same thing again, a few hours out
@@ -1236,11 +1236,24 @@ export async function sendMeetingReminders(
  * alert at 8:30pm … then the alert for when its 30 minutes before the call.
  * nothing else."
  *
+ * It moved from thirty minutes to five on 2026-09-20, for the reason the
+ * day-before one went: "Google Calendar already tells me 30 mins before."
+ * This one is the nudge to be at the desk, not the notice that something
+ * exists.
+ *
+ * **Five minutes only means five because the alerts run on their own
+ * one-minute tick** (`/api/cron/meeting-alerts`). On the five-minute loop the
+ * rest of the meetings job uses, a five-minute window and a five-minute tick
+ * gave anywhere from five minutes' notice to a few seconds — one tick always
+ * lands in the window, but nothing says where. The kind is renamed with the
+ * offset so the claim rows say what they were for; a meeting already warned at
+ * thirty minutes gets the new five-minute one too, which is the intent.
+ *
  * The founders take every demo, so this goes for every meeting, not only the
  * ones whose niche has nobody to push to.
  */
 const TELEGRAM_OFFSETS = [
-  { kind: "telegram_30_min" as const, minutesBefore: 30 },
+  { kind: "telegram_5_min" as const, minutesBefore: 5 },
 ];
 
 /**
@@ -1355,7 +1368,10 @@ export async function sendMeetingTelegrams(
     }
     if (claimed.length === 0) continue;
 
-    const urgent = due[0].kind === "telegram_30_min";
+    // Every Telegram alert is the imminent one now; the day-before went in
+    // September. Kept as a flag because `notifyMeeting` renders the two
+    // differently and the digest still sends the calm shape.
+    const urgent = true;
     const minutesLeft = Math.max(1, Math.round((startAt.getTime() - now.getTime()) / 60_000));
     const theirTz = typeof m.attendee_tz === "string" ? m.attendee_tz : null;
     let theirTime: string | null = null;
