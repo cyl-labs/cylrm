@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { call, callLead } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
@@ -107,6 +107,55 @@ export async function POST(request: Request) {
     await db.update(callLead).set(patch).where(eq(callLead.id, leadId));
   }
 
+  /**
+   * The session the browser sent, or the recording that is plainly this call.
+   *
+   * `line.sessionId` is live state and is gone the moment a call ends, so the
+   * dialler keeps the last finished call for the lead in memory and hands it
+   * back here. A page reload between hanging up and logging loses that, and
+   * the outcome then saves with nothing for `call_recording` to join on — a
+   * real conversation with no "Listen back", for ever. Aaron's 4m53s call that
+   * booked Garbage Removal LLc was one: he rang at 17:08, the prospect booked
+   * at 17:17 and he logged it at 17:22, a page load later. Thirty-six calls in
+   * a fortnight had a recording sitting unclaimed beside them.
+   *
+   * So when the browser sends none, look for one: same prospect number, placed
+   * from this caller's own line, started within the half hour before the
+   * outcome was logged, and attached to no other call. All four, because the
+   * cost of guessing is one person's conversation on another person's row.
+   * The longest wins where there are several, the rule `meetingSelect`
+   * already uses — a six-second redial is not the call.
+   *
+   * It runs only on the `null` path, so a browser that did its job is never
+   * second-guessed, and finding nothing is the ordinary case: a handset call
+   * has no recording, and neither has a no-answer.
+   */
+  const sent =
+    typeof body.telnyxSessionId === "string" && body.telnyxSessionId
+      ? body.telnyxSessionId.slice(0, 200)
+      : null;
+  let sessionId = sent;
+  if (!sessionId) {
+    const [found] = (await db.execute(sql`
+      select cr.call_session_id
+      from call_recording cr
+      join call_lead l on l.id = ${leadId}
+      join app_user u on u.id = ${me.id}
+      where regexp_replace(cr.to_number, '[^0-9]', '', 'g')
+            = regexp_replace(l.phone, '[^0-9]', '', 'g')
+        and regexp_replace(cr.from_number, '[^0-9]', '', 'g')
+            = regexp_replace(u.telnyx_did, '[^0-9]', '', 'g')
+        and cr.started_at > now() - interval '30 minutes'
+        and cr.started_at <= now()
+        and not exists (
+          select 1 from "call" c where c.telnyx_session_id = cr.call_session_id
+        )
+      order by cr.duration_ms desc nulls last, cr.started_at desc
+      limit 1
+    `)) as { call_session_id: string }[];
+    sessionId = found?.call_session_id ?? null;
+  }
+
   // Who dialled. The session is the only source for this — a client-supplied
   // user id would let anyone log calls against a colleague's name.
   const [row] = await db
@@ -118,10 +167,7 @@ export async function POST(request: Request) {
       // which is all of them until a DID exists. The session id is what
       // `call_recording` joins on; the duration is the browser's timer, and
       // is present even on a no-answer, which has no recording at all.
-      telnyxSessionId:
-        typeof body.telnyxSessionId === "string" && body.telnyxSessionId
-          ? body.telnyxSessionId.slice(0, 200)
-          : null,
+      telnyxSessionId: sessionId,
       durationSeconds:
         typeof body.durationSeconds === "number" &&
         Number.isFinite(body.durationSeconds)

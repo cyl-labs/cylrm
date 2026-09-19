@@ -349,3 +349,44 @@ the Call button for the rest of a shift.
 Not built and not optional before volume dialling: a recorded-line announcement
 in the opener (recording is per-profile, so there is no per-call toggle and no
 beep), a retention period, and Singapore DNC scrubbing.
+
+### A recording with no call to sit on (2026-09-20)
+
+`/api/calls` resolves a session server-side when the browser sends none, and
+`scripts/relink-recordings.mjs` did the ones already lost.
+
+- **Why.** Asked as "why is there no call recording" on a booked demo. Aaron
+  rang Garbage Removal LLc for **4m53s** at 17:08, the prospect booked on
+  Cal.com at 17:17, and he logged `demo_booked` at 17:22 — and that row saved
+  with no `telnyx_session_id`, which is the only thing `call_recording` joins
+  on. The audio existed the whole time and belonged to nobody.
+- **It is not a caller logging badly, and saying so matters.** A recording only
+  exists if the call went through Telnyx, so these are real conversations with
+  real durations. Tell them apart: *no recording and no session* is an outcome
+  logged without a call being placed (see the missing dial button, 2026-09-19);
+  *a recording and no session* is the app losing the link to a call that
+  plainly happened. **223 recordings in a fortnight had no call attached, and
+  36 of them lined up with one exactly.**
+- **How the link goes missing.** `line.sessionId` is live state, gone the
+  instant a call ends, so the dialler remembers the last finished call per lead
+  and hands it back at save time. A page load between hanging up and logging
+  loses that memory. Fourteen minutes and a reload is exactly Aaron's gap.
+- **Resolved on the server, not patched into every read.** The save looks for a
+  recording on the same prospect number, from that caller's own `telnyx_did`,
+  started within the half hour, and **attached to no other call**. All four,
+  because the cost of guessing is one person's conversation on another
+  person's row. Writing the id onto the row means every screen that already
+  joins on it — the call log, the lead's recordings, the meeting card — needs
+  no change at all.
+  - Only on the null path, so a browser that did its job is never
+    second-guessed, and finding nothing is the ordinary case: a handset call
+    has no recording and neither has a no-answer.
+  - **The longest wins** where a call has several, the rule `meetingSelect`
+    already uses. A six-second redial is not the conversation.
+- **The backfill refuses ambiguity rather than guessing it.** One recording
+  matching two calls is left alone and printed; one call matching two
+  recordings takes the longest, which is a different question — there the call
+  is certain. Four were left alone across the fortnight.
+- Verified both ways: an outcome posted with no session id came back carrying
+  the right recording rather than a longer decoy to another number, and a
+  second outcome on the same lead took none, the recording being claimed.
