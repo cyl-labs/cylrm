@@ -124,6 +124,36 @@ async function get(path: string): Promise<string> {
  * a different connection. Quoting them first keeps them as the strings they
  * are everywhere else in this codebase.
  */
+/**
+ * The longest range Telnyx will report on in one request.
+ *
+ * Found the day the 90-day window shipped: anything wider answers 400
+ * `10004`, "start/end date difference less or equals to 31 days". The screen
+ * showed $0.00 and zero calls for the quarter while the pay lines beside it
+ * were full, because every report threw and the catches left the figures at
+ * zero. A quarter is therefore three requests, not one.
+ */
+const MAX_REPORT_DAYS = 31;
+
+/** The window split into pieces Telnyx will accept, inclusive of both ends. */
+function chunks(startIso: string, endIso: string): [string, string][] {
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  const first = new Date(startIso.slice(0, 10));
+  const last = new Date(endIso.slice(0, 10));
+  const out: [string, string][] = [];
+  let from = first;
+  while (from <= last) {
+    const to = new Date(
+      Math.min(from.getTime() + (MAX_REPORT_DAYS - 1) * 864e5, last.getTime()),
+    );
+    out.push([`${day(from)}T00:00:00Z`, `${day(to)}T23:59:59Z`]);
+    // The day after, so two chunks never share a date and nothing is counted
+    // twice — every caller of this sums what it gets back.
+    from = new Date(to.getTime() + 864e5);
+  }
+  return out;
+}
+
 async function report(
   product: string,
   dimensions: string,
@@ -132,21 +162,23 @@ async function report(
   endIso: string,
 ): Promise<Row[]> {
   const out: Row[] = [];
-  for (let page = 1; page <= 40; page++) {
-    const params = new URLSearchParams({
-      product,
-      dimensions,
-      metrics,
-      start_date: startIso,
-      end_date: endIso,
-      "page[number]": String(page),
-      "page[size]": "250",
-    });
-    const text = await get(`/usage_reports?${params}`);
-    const safe = text.replace(/"connection_id":\s*(\d+)/g, '"connection_id":"$1"');
-    const rows = (JSON.parse(safe).data ?? []) as Row[];
-    out.push(...rows);
-    if (rows.length < 250) break;
+  for (const [from, to] of chunks(startIso, endIso)) {
+    for (let page = 1; page <= 40; page++) {
+      const params = new URLSearchParams({
+        product,
+        dimensions,
+        metrics,
+        start_date: from,
+        end_date: to,
+        "page[number]": String(page),
+        "page[size]": "250",
+      });
+      const text = await get(`/usage_reports?${params}`);
+      const safe = text.replace(/"connection_id":\s*(\d+)/g, '"connection_id":"$1"');
+      const rows = (JSON.parse(safe).data ?? []) as Row[];
+      out.push(...rows);
+      if (rows.length < 250) break;
+    }
   }
   return out;
 }

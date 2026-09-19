@@ -155,8 +155,16 @@ The same card, and every figure above it, now follows a window chip.
   be put to a screen that only knows months.
 - **Three fixed choices, not a date picker.** Every one is a link somebody else
   can open and see the same thing. `SPEND_WINDOWS` in `telnyx-usage.ts` is the
-  list; Telnyx's `/usage_reports` takes `start_date` and `end_date`, so the
-  window was never a limitation of the data.
+  list.
+- **Telnyx will not report on more than 31 days at once**, which is why
+  `report()` splits a window into chunks and concatenates. Found the moment 90
+  days first rendered: every request answered 400 `10004` and every `catch`
+  left its figure at zero, so the quarter showed **$0.00 of phones and no
+  calls** beside a full set of pay lines — a screen that looked like a quiet
+  quarter rather than a failed one. The chunks are inclusive and share no date,
+  since every caller of `report()` sums what it returns. A quarter costs three
+  requests per product instead of one, cached for the hour like everything
+  else.
 - **The cache is keyed by window.** It was one slot and one in-flight promise;
   a single slot would have handed a seven-day figure to somebody who asked for
   ninety. Refresh sends the window it is looking at for the same reason —
