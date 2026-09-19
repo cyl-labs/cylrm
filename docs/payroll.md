@@ -111,3 +111,34 @@ sentence claiming a rate nobody is paid.
 - Only `role = 'caller'` appears — founders are the ones paying, the same reason
   the Scoreboard excludes them. A **deactivated** caller stays listed while
   still owed: switching someone off is not a way to stop owing them.
+
+## What the floor costs, on Spend (2026-09-19)
+
+Asked as a question — "is payroll included in spend?" — and the answer was no:
+the tiles there are Telnyx alone, so "per demo" was the phone bill divided by
+demos and read as the cost of getting one. `/spend` now carries an **All in**
+section: phones, pickup bonuses and attendance fees over the same rolling
+thirty days, totalled, with the unit costs recomputed on the total.
+
+- **A section, not a toggle over the tiles.** A filter was the other option
+  offered, and the tiles are the wrong place for one: they are the phone bill,
+  read a handful of times a month to answer "are we fine", and a control that
+  could leave them meaning two different things between two looks is the same
+  cost this screen already refused a range picker for. Everything that adds the
+  floor's pay lives in the section, where each line says which it is.
+- **Rates come from `payroll-rates.ts`**, never restated — `pickupBonusCents`
+  for the bonus, so the total floors per whole fifty exactly as Payroll pays it
+  rather than being a rate times a count, and `MEETING_CENTS` times the demos
+  that **showed up**, whichever basis the "cost per demo" chip is on: a booked
+  demo nobody attended pays nobody. The block arithmetic is printed out ("131
+  pickups · 2 whole 50s at $10.00"), since the floor is the surprising part.
+- **Accrued, not handed over**, and the card says so. Payroll pays from each
+  caller's last payout rather than on a rolling window, so the two will not
+  agree and somebody comparing them needs to know why before they do. It also
+  says the founders' own time is in none of it.
+- **The claim is conditional.** "The phones are the small half" prints only
+  when the pay actually exceeds the phone bill. It has every month so far, but
+  a sentence asserting it on a quiet month is a screen saying something it has
+  not checked.
+- Every figure runs through the screen's own `money()`, so the SGD toggle
+  converts the pay with everything else; the rates are USD underneath.

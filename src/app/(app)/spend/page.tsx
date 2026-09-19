@@ -5,7 +5,12 @@ import { getSpend, SPEND_DAYS } from "@/lib/telnyx-usage";
 import { getCallTotals } from "@/lib/call-stats";
 import { countShowedUpDemos } from "@/lib/payroll";
 import { usdToSgd } from "@/lib/fx";
-import { MEETING_CENTS, pickupBonusCents } from "@/lib/payroll-rates";
+import {
+  MEETING_CENTS,
+  PICKUPS_PER_BONUS,
+  PICKUP_BONUS_CENTS,
+  pickupBonusCents,
+} from "@/lib/payroll-rates";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -153,6 +158,14 @@ export default async function SpendPage({
   // actually pays, not a rate times a count.
   const pickupPay = pickupBonusCents(totals.pickups) / 100;
   const demoFee = MEETING_CENTS / 100;
+  // The attended demos are what the fee is paid on, whichever basis the chip
+  // above is set to: a booked demo nobody turned up to pays nothing.
+  const demoPay = showedUp * demoFee;
+  const floorPay = pickupPay + demoPay;
+  const allIn = spend.total + floorPay;
+  const allInPerCall = totals.calls > 0 ? allIn / totals.calls : 0;
+  const allInPerPickup = totals.pickups > 0 ? allIn / totals.pickups : 0;
+  const allInPerDemo = demoCount > 0 ? allIn / demoCount : 0;
 
   const busiest = Math.max(...spend.daily.map((d) => d.cost), 0.01);
   const lineTotal = spend.lines.reduce((a, l) => a + l.cost, 0);
@@ -303,18 +316,100 @@ export default async function SpendPage({
           </div>
         </div>
 
-        {/* The proportion, in words. Every other screen here explains what its
-            numbers mean rather than leaving a ratio to be worked out, and this
-            is the one that stops a $17 phone bill reading as a problem. */}
-        {pickupPay > 0 && (
-          <p className="text-[13px] text-muted-foreground">
-            Telephony is the small half of what a call costs. The floor accrued{" "}
-            <span className="font-bold text-foreground">{money(pickupPay)}</span>{" "}
-            in pickup bonuses over the same {SPEND_DAYS} days, before the{" "}
-            <span className="font-bold text-foreground">{money(demoFee)}</span>{" "}
-            each attended demo pays.
+        {/* What a call costs once the floor is paid for it.
+            A section rather than a toggle over the tiles above, deliberately.
+            The tiles are the phone bill and are read a handful of times a
+            month to answer "are we fine"; a control that could leave them
+            meaning two different things between two looks is the same cost
+            this screen refused a range picker for. So the tiles stay
+            telephony, and everything that adds the floor's pay lives here,
+            where each line says which it is. */}
+        <div className={`${CARD} px-4 py-4 sm:px-5`}>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+              All in, {SPEND_DAYS} days
+            </p>
+            <p className="text-[12px] text-muted-foreground">
+              The phone bill plus what the floor earned on it
+            </p>
+          </div>
+
+          <dl className="mt-3 divide-y divide-border/60 text-[13px]">
+            {[
+              {
+                label: "Phones",
+                note: `${spend.calls.toLocaleString()} connected calls, lines and texts`,
+                value: money(spend.total),
+              },
+              {
+                label: "Pickup bonuses",
+                // Said as the arithmetic, because the floor is what it floors
+                // to: 612 pickups is twelve bonuses and the last twelve
+                // pickups are not paid until the next block closes.
+                note: `${totals.pickups.toLocaleString()} pickups · ${Math.floor(
+                  totals.pickups / PICKUPS_PER_BONUS,
+                ).toLocaleString()} whole ${PICKUPS_PER_BONUS}s at ${money(
+                  PICKUP_BONUS_CENTS / 100,
+                )}`,
+                value: money(pickupPay),
+              },
+              {
+                label: "Demos that showed up",
+                note: `${showedUp.toLocaleString()} at ${money(demoFee)}`,
+                value: money(demoPay),
+              },
+            ].map((row) => (
+              <div
+                key={row.label}
+                className="flex items-baseline gap-3 py-2"
+              >
+                <dt className="min-w-0 flex-1">
+                  <span className="font-semibold">{row.label}</span>
+                  <span className="ml-2 text-[11px] text-muted-foreground">
+                    {row.note}
+                  </span>
+                </dt>
+                <dd className="shrink-0 tabular-nums">{row.value}</dd>
+              </div>
+            ))}
+            <div className="flex items-baseline gap-3 border-t-2 border-border py-2.5">
+              <dt className="min-w-0 flex-1 font-extrabold">Total</dt>
+              <dd className="shrink-0 text-base font-extrabold tabular-nums">
+                {money(allIn)}
+              </dd>
+            </div>
+          </dl>
+
+          <p className="mt-2 text-[12px] text-muted-foreground">
+            That is{" "}
+            <span className="font-bold text-foreground">
+              {unit(allInPerCall)}
+            </span>{" "}
+            a call,{" "}
+            <span className="font-bold text-foreground">
+              {unit(allInPerPickup)}
+            </span>{" "}
+            a pickup and{" "}
+            <span className="font-bold text-foreground">
+              {allInPerDemo > 0 ? money(allInPerDemo) : "—"}
+            </span>{" "}
+            {byAttendance ? "per demo that showed" : "per booked demo"} — against{" "}
+            {perDemo > 0 ? money(perDemo) : "—"} on the phone bill alone.
+            {/* Only where it is true. It has been every month so far, but a
+                sentence that asserts it on a quiet month is a screen saying
+                something it has not checked. */}
+            {floorPay > spend.total ? " The phones are the small half." : ""}
           </p>
-        )}
+
+          {/* The one thing a total like this is misread as. */}
+          <p className="mt-1.5 text-[11px] text-muted-foreground/75">
+            Earned over these {SPEND_DAYS}{" "}
+            days, not handed over: Payroll pays
+            from each caller&rsquo;s last payout rather than on a rolling
+            window, so what is owed there will not match this. Nothing here
+            counts the founders&rsquo; own time.
+          </p>
+        </div>
 
         {/* One series, so one colour and no legend — the heading names it.
             Bars sit on the baseline with rounded data-ends; a day with no
