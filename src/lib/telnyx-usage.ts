@@ -100,13 +100,42 @@ export type Spend = {
 
 type Row = Record<string, unknown>;
 
+/**
+ * Waits between tries after Telnyx refuses one.
+ *
+ * It rate-limits, and until 2026-09-19 nothing here retried: a 429 threw, the
+ * caller's `catch` dropped that product, and the screen showed a total short
+ * by whatever had failed — with no sign anything had. Forcing the same
+ * ninety-day pull three times gave $31.71, $0.00 and $31.71.
+ */
+const RETRY_MS = [400, 1_200, 3_000];
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function get(path: string): Promise<string> {
-  const res = await fetch(`${API}${path}`, {
-    headers: { Authorization: `Bearer ${process.env.TELNYX_API_KEY}` },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`Telnyx ${res.status} on ${path.split("?")[0]}`);
-  return res.text();
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`${API}${path}`, {
+        headers: { Authorization: `Bearer ${process.env.TELNYX_API_KEY}` },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (err) {
+      // A timeout or a dropped connection is worth another go; four in a row
+      // is the network, not luck.
+      if (attempt >= RETRY_MS.length) throw err;
+      await sleep(RETRY_MS[attempt]);
+      continue;
+    }
+    if (res.ok) return res.text();
+    // 429 and 5xx are "ask again"; a 400 is a request that will never work
+    // and retrying it only delays the error by five seconds.
+    const again = res.status === 429 || res.status >= 500;
+    if (!again || attempt >= RETRY_MS.length) {
+      throw new Error(`Telnyx ${res.status} on ${path.split("?")[0]}`);
+    }
+    await sleep(RETRY_MS[attempt]);
+  }
 }
 
 /**
@@ -299,27 +328,24 @@ async function pull(days: SpendDays): Promise<Spend> {
   let total = 0;
   let minutes = 0;
   let calls = 0;
+  // Anything that did not come back. A figure short by a failed report is
+  // worse than no figure, because it is indistinguishable from a quiet month.
+  const failed: string[] = [];
 
-  // Five products, none of which needs the others' answer. Gathered together
-  // and then read back in order, so the table below keeps its running order
-  // and one failure still only costs its own row.
-  const pulled = await Promise.all(
-    PRODUCTS.map(async (p) => {
-      try {
-        return {
-          p,
-          rows: await report(p.id, "date", `cost,${p.metric}`, startIso, endIso),
-        };
-      } catch {
-        // One product failing must not empty the screen — messaging in
-        // particular answers oddly before a campaign exists.
-        return null;
-      }
-    }),
-  );
-  for (const got of pulled) {
-    if (!got) continue;
-    const { p, rows } = got;
+  // One product at a time. Fetching all five at once alongside the chunks put
+  // fifteen requests in flight and Telnyx started refusing them, which the
+  // catch below then turned into a quietly smaller bill.
+  for (const p of PRODUCTS) {
+    let rows: Row[];
+    try {
+      rows = await report(p.id, "date", `cost,${p.metric}`, startIso, endIso);
+    } catch (err) {
+      // One product failing must not empty the screen — messaging in
+      // particular answers oddly before a campaign exists — but it must not
+      // pass for zero either. The screen has a banner for exactly this.
+      failed.push(`${p.label}: ${err instanceof Error ? err.message : err}`);
+      continue;
+    }
     const cost = sum(rows, "cost");
     const used =
       p.unit === "minutes" ? sum(rows, p.metric) / 60 : sum(rows, p.metric);
@@ -344,8 +370,8 @@ async function pull(days: SpendDays): Promise<Spend> {
     );
     minutes = sum(legs, "billed_sec") / 60;
     calls = sum(legs, "completed");
-  } catch {
-    /* leave at zero */
+  } catch (err) {
+    failed.push(`minutes: ${err instanceof Error ? err.message : err}`);
   }
 
   let lines: SpendLine[] = [];
@@ -377,8 +403,8 @@ async function pull(days: SpendDays): Promise<Spend> {
         calls: v.calls,
       }))
       .sort((a, b) => b.cost - a.cost);
-  } catch {
-    /* the table simply does not render */
+  } catch (err) {
+    failed.push(`by line: ${err instanceof Error ? err.message : err}`);
   }
 
   // Every day in the window, including the ones with nothing on them. A
@@ -393,6 +419,11 @@ async function pull(days: SpendDays): Promise<Spend> {
   const perDay = total / (days + 1);
   return {
     ...empty,
+    // Said out loud rather than left in the number. The screen already has a
+    // banner for a stale pull; this is the same thing for a partial one.
+    error: failed.length
+      ? `Some figures did not come back from Telnyx (${failed.join("; ")}). The totals below are short by whatever they cover.`
+      : undefined,
     balance,
     total,
     minutes,
