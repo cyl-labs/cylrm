@@ -161,26 +161,34 @@ async function report(
   startIso: string,
   endIso: string,
 ): Promise<Row[]> {
-  const out: Row[] = [];
-  for (const [from, to] of chunks(startIso, endIso)) {
-    for (let page = 1; page <= 40; page++) {
-      const params = new URLSearchParams({
-        product,
-        dimensions,
-        metrics,
-        start_date: from,
-        end_date: to,
-        "page[number]": String(page),
-        "page[size]": "250",
-      });
-      const text = await get(`/usage_reports?${params}`);
-      const safe = text.replace(/"connection_id":\s*(\d+)/g, '"connection_id":"$1"');
-      const rows = (JSON.parse(safe).data ?? []) as Row[];
-      out.push(...rows);
-      if (rows.length < 250) break;
-    }
-  }
-  return out;
+  // The chunks go together, the pages inside one cannot: page N+1 is only
+  // worth asking for once page N has come back full. Sequentially, a quarter
+  // took 69 seconds on prod — three windows times six reports, one after
+  // another — which reads as a hung screen however well it is cached
+  // afterwards.
+  const parts = await Promise.all(
+    chunks(startIso, endIso).map(async ([from, to]) => {
+      const rows: Row[] = [];
+      for (let page = 1; page <= 40; page++) {
+        const params = new URLSearchParams({
+          product,
+          dimensions,
+          metrics,
+          start_date: from,
+          end_date: to,
+          "page[number]": String(page),
+          "page[size]": "250",
+        });
+        const text = await get(`/usage_reports?${params}`);
+        const safe = text.replace(/"connection_id":\s*(\d+)/g, '"connection_id":"$1"');
+        const page_rows = (JSON.parse(safe).data ?? []) as Row[];
+        rows.push(...page_rows);
+        if (page_rows.length < 250) break;
+      }
+      return rows;
+    }),
+  );
+  return parts.flat();
 }
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -292,21 +300,26 @@ async function pull(days: SpendDays): Promise<Spend> {
   let minutes = 0;
   let calls = 0;
 
-  for (const p of PRODUCTS) {
-    let rows: Row[];
-    try {
-      rows = await report(
-        p.id,
-        "date",
-        `cost,${p.metric}`,
-        startIso,
-        endIso,
-      );
-    } catch {
-      // One product failing must not empty the screen — messaging in
-      // particular answers oddly before a campaign exists.
-      continue;
-    }
+  // Five products, none of which needs the others' answer. Gathered together
+  // and then read back in order, so the table below keeps its running order
+  // and one failure still only costs its own row.
+  const pulled = await Promise.all(
+    PRODUCTS.map(async (p) => {
+      try {
+        return {
+          p,
+          rows: await report(p.id, "date", `cost,${p.metric}`, startIso, endIso),
+        };
+      } catch {
+        // One product failing must not empty the screen — messaging in
+        // particular answers oddly before a campaign exists.
+        return null;
+      }
+    }),
+  );
+  for (const got of pulled) {
+    if (!got) continue;
+    const { p, rows } = got;
     const cost = sum(rows, "cost");
     const used =
       p.unit === "minutes" ? sum(rows, p.metric) / 60 : sum(rows, p.metric);
