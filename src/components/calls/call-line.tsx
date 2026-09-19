@@ -167,6 +167,16 @@ type CallLineValue = {
   sessionFor: (leadId: number) => { sessionId: string; seconds: number } | null;
   /** Called by the dialler as it dials a lead. */
   setActiveLead: (leadId: number | null) => void;
+  /**
+   * Forget the call this tab placed to a lead.
+   *
+   * Called once an outcome has been logged. Two things hang off the memory —
+   * the session id a save attaches, and whether the dial card lets you skip
+   * past a lead you rang — and both should stop applying the moment the call
+   * is written down. Without it, coming back to an already-logged lead through
+   * a `?lead=` link would refuse to let you leave it again.
+   */
+  forgetLead: (leadId: number) => void;
   /** Whether a line exists at all: a browser dialler with a number of their
    *  own, in the tab that won the election. */
   live: boolean;
@@ -351,6 +361,18 @@ export function CallLineProvider({
         if (!f || f.leadId !== leadId) return null;
         if (Date.now() - f.at > SESSION_MEMORY_MS) return null;
         return { sessionId: f.sessionId, seconds: f.seconds };
+      },
+      forgetLead: (leadId) => {
+        if (finished.current?.leadId === leadId) finished.current = null;
+        if (recallFinished()?.leadId === leadId) {
+          try {
+            sessionStorage.removeItem(MEMORY_KEY);
+          } catch {
+            // Nothing to undo: the ref above is already cleared, and a tab
+            // that cannot write storage never wrote this either.
+          }
+        }
+        setLastLeadId((id) => (id === leadId ? null : id));
       },
       setActiveLead: (leadId) => {
         setActiveLeadId(leadId);

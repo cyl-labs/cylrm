@@ -187,6 +187,37 @@ The two are picked from the workspace switcher as **Email CRM** and **Call CRM**
   was built to get around: `lib/calls.ts` imports the Postgres client.
 - The Call CRM's other screens: **Callbacks** (`/callbacks`) is the diary — every lead whose latest outcome is `callback`, across all lists, overdue first. `countCallbacksDue` feeds a sidebar badge and is `cache()`d because the sidebar and `PageShell` both ask while rendering one page, the same reason `countUnreadReplies` is.
 
+### A call you placed has to be written down (2026-09-20)
+
+`rang` in `CallForm` (`components/calls/dialler.tsx`) and `forgetLead` on the
+line provider. Skip is replaced by a line of text when this tab has rung this
+lead and not yet logged it.
+
+- **Asked for as "make it mandatory to log before moving on", and built
+  narrower on purpose.** The blanket rule is the wrong one: a caller who never
+  rang — wrong card, a screened number, a phone that had quietly died — would
+  have to invent an outcome to get past the screen. That is not hypothetical.
+  It is exactly what produced sixteen logged calls nobody made on 2026-09-18,
+  and a fake call is worse than a missing one because nothing about it looks
+  wrong afterwards.
+- **So it is tied to a call actually being placed**, which turns "log something
+  to move on" into "you rang them, say how it went" — a sentence nobody has to
+  lie to satisfy. Every outcome stays available and **No answer counts**, which
+  the message says out loud, so the stage can always be cleared truthfully.
+- **Two signals, because one of them does not survive a reload.**
+  `lastLeadId` is state, set when Call is pressed; the remembered call is in
+  `sessionStorage`. Checking only the first would let a call slip past unlogged
+  through the very reload the memory was added to survive.
+- **Cleared by `forgetLead` once an outcome is saved**, which releases the skip
+  and stops a second outcome on the same lead claiming the same recording.
+  Without it, returning to an already-logged lead through a `?lead=` link would
+  refuse to let you leave it again.
+- **Said, not greyed out.** A disabled button with no reason reads as a broken
+  screen — the lesson the missing dial button taught the day before.
+- Verified in all four states: never rang (skip present), rang and unlogged
+  (skip replaced, outcomes still offered), after logging (memory cleared), and
+  the logged row still carried its session id and duration.
+
 ### The work order: missed calls, then callbacks, then lists
 
 `src/lib/work-order.ts` decides it; the dialler and the Call lists screen enforce

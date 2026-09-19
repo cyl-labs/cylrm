@@ -540,7 +540,27 @@ function CallForm({
 }) {
   // What the line remembers of the call just made to this lead, for the case
   // the outcome is typed after it ended. Read at save time, not here.
-  const { sessionFor } = useCallLine();
+  const { sessionFor, lastLeadId, forgetLead } = useCallLine();
+  /**
+   * Whether this tab rang this lead and has not written it down yet.
+   *
+   * `lastLeadId` is set the moment Call is pressed and cleared by `forgetLead`
+   * once an outcome is saved, so it is exactly "you dialled this one and have
+   * not said what happened". The remembered call is checked as well, because
+   * `lastLeadId` is state and a reload takes it — which is the same reload
+   * this memory was made to survive, and the one that would otherwise let a
+   * call slip past unlogged.
+   *
+   * **The skip is blocked only here, never in general** (2026-09-20). Asked
+   * for as "make it mandatory to log before moving on", which would be the
+   * wrong rule: a caller who never rang — wrong card, screened number, dead
+   * phone — would have to invent an outcome to get past the screen, and that
+   * is precisely how sixteen calls nobody made were logged on 2026-09-18.
+   * Tying it to a call actually being placed turns "log something to move on"
+   * into "you rang them, say how it went", which nobody has to lie to satisfy.
+   * Every outcome is still available, No answer included.
+   */
+  const rang = lastLeadId === lead.id || sessionFor(lead.id) !== null;
   const [notes, setNotes] = React.useState("");
   // Seeded from the lead so a number that already has them is one glance, not
   // one retype. What the prospect says on the call wins over the scrape.
@@ -594,6 +614,10 @@ function CallForm({
       toast.success(
         `${OUTCOME_LABELS[outcome]}: ${lead.company ?? lead.phone}`,
       );
+      // Written down, so the call is no longer owed — this both releases the
+      // skip and stops a second outcome on the same lead claiming the same
+      // recording.
+      forgetLead(lead.id);
       onLogged(outcome);
     } catch {
       toast.error("Could not save: network error.");
@@ -706,16 +730,26 @@ function CallForm({
             : "Pick an outcome to log"}
       </Button>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="mt-3 w-full"
-        disabled={saving}
-        onClick={onSkip}
-      >
-        <SkipForward data-icon="inline-start" />
-        Skip without logging
-      </Button>
+      {/* Said rather than simply greyed out: a disabled button with no reason
+          reads as the screen being broken, which is the lesson the missing
+          dial button taught the day before this. */}
+      {rang ? (
+        <p className="mt-3 text-center text-[12px] text-muted-foreground">
+          You rang this one. Pick what happened above to move on —{" "}
+          <span className="font-semibold">No answer</span> counts.
+        </p>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-3 w-full"
+          disabled={saving}
+          onClick={onSkip}
+        >
+          <SkipForward data-icon="inline-start" />
+          Skip without logging
+        </Button>
+      )}
     </>
   );
 }
