@@ -177,9 +177,39 @@ agent demo meeting. sometimes theyre not free right now".
 - **Hidden once they have shown up**, and on a cancelled row (which the action
   block already hides). A demo that happened is not moved, it is followed up,
   and that button is on the same row. A **no show keeps it** — that is the
-  rebook, and a past booking reschedules fine: checked against a real
-  `voice-agent-demo` whose time had gone, which offered 26 slots and named the
-  missed one as "Former time".
+  rebook.
+- **`allowReschedulingPastBookings` has to be on, and it was off** (fixed
+  2026-09-19, after the button shipped). Both event types carried
+  `allowReschedulingPastBookings: false`, so the first real use — a demo that
+  had started 70 minutes earlier — came back **403 "Rescheduling past bookings
+  is not allowed for this event type"**. Set to `true` on `voice-agent-demo`
+  (6703963) and `voice-agent-follow-up` (7134827) over the API.
+  - **It is the no-show rebook that needs it**, which is half of why this
+    button exists: a demo somebody missed is by definition in the past by the
+    time anybody rings them about it.
+  - **The verification that missed it is worth knowing.** The booking page was
+    checked and it rendered, named the missed slot as "Former time" and offered
+    26 slots — all true, and all *before* the refusal, which only fires on
+    submit. A page that renders is not a flow that works.
+  - **Re-checked without moving anybody's meeting**: the API's reschedule
+    endpoint was called on the founders' own past `testing` booking with a slot
+    in the past, so it could never book. The refusal came back as a missing
+    form field rather than the 403, which is the gate lifted and the request
+    getting as far as validating the form. Both bookings re-read afterwards and
+    neither had moved.
+  - **PATCH one field and re-fetch to diff.** Both event types were snapshotted
+    first and compared afterwards: exactly `allowReschedulingPastBookings`
+    changed, with all 8 `bookingFields` and `minimumBookingNotice` intact.
+    `bookingFields` was deliberately not sent — a partial array replaces the
+    whole list, as the Cal.com notes above already record.
+  - `allowReschedulingCancelledBookings` is still `false` and was left alone:
+    no row offers the button once a booking is cancelled.
+- **`minimumBookingNotice` is 420 minutes on both event types**, so nothing can
+  be moved to less than seven hours out. "They are not free right now" often
+  means "try me this afternoon", and that is the one answer this button cannot
+  give — the next slot it can offer is tomorrow morning. Left as it is because
+  it is a deliberate booking rule rather than an oversight, but it is the
+  likeliest next complaint and it is one field.
 - **A reschedule is a new booking with a new uid, not a changed `start_at`.**
   This file and `syncMeetings` both claimed otherwise until 2026-09-19; the
   account has a counter-example — `6CgQzWi6ACgBh3v72Biww2` went `cancelled`
