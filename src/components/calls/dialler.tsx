@@ -16,6 +16,7 @@ import {
   Ear,
   PhoneCall,
   PhoneOff,
+  RotateCw,
   ScrollText,
   ShieldAlert,
   SkipForward,
@@ -211,7 +212,41 @@ function DialControls({
         ? `No caller ID for ${lead.phone.startsWith("+44") ? "UK" : lead.phone.startsWith("+1") ? "US" : "these"} numbers yet`
         : null);
 
-  if (line.problem || (!line.ready && !busy)) return null;
+  // The phone is not up yet, or not at all. Said out loud with the way out,
+  // like every other branch in here — this one returned nothing until
+  // 2026-09-19, and a card with no Call button and no reason reads as the
+  // feature having disappeared. On 2026-09-18 that cost Alex ninety minutes on
+  // a callback he could not dial, and he cleared it by logging a "No answer"
+  // he never rang, because the gate above the card says No answer counts. The
+  // Keypad has shown `line.problem` all along; only this screen threw it away.
+  if (!line.ready && !busy) {
+    return (
+      <div
+        role="status"
+        className="mt-2 rounded-xl border bg-muted/40 px-3 py-2.5 text-center"
+      >
+        <p className="text-[13px] font-bold">
+          {line.problem ? "Your phone isn’t connected" : "Connecting your phone…"}
+        </p>
+        <p className="mt-0.5 text-[12px] text-muted-foreground">
+          {line.problem
+            ? `${line.problem} Reload to try again, or dial the number below on your own phone and log what happened.`
+            : "A few seconds. The Call button appears as soon as it is ready."}
+        </p>
+        {line.problem && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => window.location.reload()}
+          >
+            <RotateCw data-icon="inline-start" />
+            Reload
+          </Button>
+        )}
+      </div>
+    );
+  }
   if (blocked) {
     return (
       <p className="mt-2 text-center text-[12px] text-muted-foreground">

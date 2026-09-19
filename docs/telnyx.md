@@ -292,6 +292,60 @@ dialler, the Keypad and `InboundListener` all consume it through `useCallLine()`
   against the recorded 404 and the ordinary endings. The bye fields are read
   from the SDK source (2.27.9), not observed in a browser.
 
+### A dead line says so, and comes back on its own (2026-09-19)
+
+`DialControls` in `components/calls/dialler.tsx`, and the connect effect in
+`use-telnyx-call.ts`. Three faults in the same path, each of which alone hides
+the Call button for the rest of a shift.
+
+- **Why.** Alex, 2026-09-18: *"its not giving me a call back option — when i do
+  call back, call doesn't start"*. He had promised J&J Junk Removal a ring back
+  at 4pm their time (a real 117-second call, notes "seems interested"). The
+  callback fell due at 20:00 UTC; **his next call was at 21:01, and it was a
+  `no_answer` on that lead with no Telnyx session and no duration** — a call
+  that never happened. Ninety minutes of a shift, one broken promise, and a
+  warm lead now reading as no-answer in the record. He was not being careless:
+  with the phone gone, the work gate above the card says *"logging an outcome
+  is what clears one, and No answer counts"*, so **the screen itself points at
+  the fake log**. This is the lockout `docs/cold-calling.md` warned would
+  appear the moment a stage gained a state its owner cannot clear.
+- **The dial card rendered nothing at all.** `if (line.problem || (!line.ready
+  && !busy)) return null` — no button, no reason, no way out, leaving only the
+  orange copy-number button. Every neighbouring branch in that component
+  explains itself (*"The phone is open in another CRM tab"*, *"Dial it on your
+  handset"*), and the comment two lines above it says why: an unexplained
+  missing dial button reads as the phone being broken. **The Keypad showed
+  `line.problem` all along; the dialler was the one screen that threw it away,
+  and it is the screen the floor works in.**
+- **`problem` was write-once.** `setProblem` was never called with null, so a
+  line that failed and then *succeeded* on the retry ladder still read as
+  broken for the life of the page — and since the card hid its button while it
+  was set, the phone worked and the only screen that dials from it did not.
+  Cleared on `telnyx.ready` now.
+- **A failed token fetch never retried.** `telnyx.error` has had a four-try
+  ladder (2s, 5s, 12s) since the credential-activation fix; a non-OK
+  `POST /api/telnyx/token` returned immediately and stayed dead. That is
+  exactly the deploy case already documented in `AGENTS.md` — a restart 502s
+  that route for the seconds the app takes to come back. It now takes the same
+  ladder. Measured after the fix: four attempts at +1.2s, +3.8s, +9.7s, +22.5s.
+- **The caller is not shown the provider's sentence.** `/api/telnyx/token`
+  hands back the raw `err.message` ("The API key looks malformed…"), which is
+  a developer's line about API keys. Logged in full to the console, shown as
+  "Calling is unavailable." — the rule the `telnyx.error` branch beside it
+  already followed.
+- **Replicated before it was touched**, with a local dev server holding an
+  invalid `TELNYX_API_KEY`, a caller whose callback fell due an hour ago, and
+  Playwright: the card came back with the copy button, the outcome buttons and
+  no Call button, matching Alex's screenshot line for line. Re-run after the
+  fix at 390px and 900px, no horizontal overflow.
+- **How often this bites.** 161 outcomes in the fortnight to 2026-09-19 were
+  logged by browser callers with no Telnyx session, in clusters that look like
+  a phone dropping: Gigi 16 of 25 on 18 Sep, Mico 31 of 80 on 16 Sep, Brian 18
+  of 87 on 17 Sep. **Not all of those are fake calls** — the Spreadsheet, the
+  Pipeline, the callbacks diary and clearing a missed call all log an outcome
+  without dialling, which is why `admin` shows 160 sessionless rows and zero
+  real ones. A cluster inside a dialling run is the shape to look for.
+
 Not built and not optional before volume dialling: a recorded-line announcement
 in the opener (recording is per-profile, so there is no per-call toggle and no
 beep), a retention period, and Singapore DNC scrubbing.

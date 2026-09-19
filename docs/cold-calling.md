@@ -208,6 +208,17 @@ opening a niche to check something is not somebody skipping their callbacks.
   needs an escape hatch that day.** The one already in view: `dncBlockReason`
   can refuse a number, so switching `DNC_ENFORCE` on would make a screened
   callback unclearable — handle that before enforcing DNC.
+- **It happened, from the direction nobody was watching** (2026-09-18). Not a
+  state on the callback: the *phone*. Alex's browser line died while he owed a
+  callback, the dial card hid its Call button and said nothing, and the wall
+  above it told him No answer counts — so he cleared the stage with a
+  `no_answer` on a lead he never rang, ninety minutes after the callback fell
+  due. The gate did what it was built to do and the escape it relies on had
+  quietly closed. Fixed in the dial card and the line hook rather than here:
+  see **A dead line says so** in `docs/telnyx.md`. The lesson for this rule is
+  that "one tap away on a screen they can reach" also assumes **the phone
+  works**, and a dead phone is the one failure that makes every stage
+  unclearable at once.
 - **The Callbacks tab stays open during stage two**, and opening a list with no
   `?view=` lands there rather than on the wall. It has to: the diary can log an
   outcome but cannot dial, so the dialler's Callbacks tab is where a browser

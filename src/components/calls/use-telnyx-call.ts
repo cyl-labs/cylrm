@@ -363,7 +363,24 @@ export function useTelnyxCall(
         const res = await fetch("/api/telnyx/token", { method: "POST" });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          if (!cancelled) setProblem(data.error ?? "Calling is unavailable.");
+          // Retried on the same ladder a refused registration uses, and for
+          // the same reason. A deploy restarts the app and this POST 502s for
+          // the seconds it takes to come back — Caddy logged exactly that
+          // during a restart, see the deploy notes in `AGENTS.md`. Asking once
+          // and giving up left the phone dead for the rest of the shift.
+          if (!everReady && !cancelled && attempt + 1 < REGISTER_TRIES) {
+            retry = setTimeout(
+              () => start(attempt + 1),
+              REGISTER_BACKOFF_MS[attempt] ?? 12_000,
+            );
+            return;
+          }
+          // Logged in full, shown in four words — the rule the `telnyx.error`
+          // branch below already follows. The route hands back the provider's
+          // own `err.message`, which is a developer's sentence about API keys
+          // and credentials; a caller between calls can do nothing with it.
+          console.error("[telnyx] token request failed", res.status, data);
+          if (!cancelled) setProblem("Calling is unavailable.");
           return;
         }
         const cred = (await res.json()) as {
@@ -390,7 +407,16 @@ export function useTelnyxCall(
           // across a connection change keeps its old registration, so the call
           // rings a room nobody is in — invisible without this.
           console.log("[telnyx] registered, ready for calls");
-          if (!cancelled) setReady(true);
+          if (!cancelled) {
+            setReady(true);
+            // Cleared, not left standing. `problem` was write-once until
+            // 2026-09-19: a line that failed and then came back on the retry
+            // ladder above still read as broken for the life of the page, and
+            // the dial card hides its Call button while it is set. So the
+            // phone worked and the only screen that dials from it did not,
+            // until somebody thought to reload.
+            setProblem(null);
+          }
         });
         client.on("telnyx.error", (e: unknown) => {
           // Logged as well as shown: the message on screen is the same four
