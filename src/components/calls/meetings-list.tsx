@@ -127,8 +127,39 @@ function textDraft(m: Meeting): string {
  * read in a hurry and "in 3h" is what gets acted on. Days are the unit that
  * matters here rather than minutes, since the rule is about tomorrow.
  */
-function when(iso: string) {
-  const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
+/**
+ * A clock that ticks, so a card left open notices time passing.
+ *
+ * The same reason `LocalTime` on the dial card ticks rather than being baked
+ * into the page: this list sits open across a demo starting, and a screen that
+ * is believed and stale is worse than one that admits it does not know.
+ *
+ * Null until mounted, and everything falls back to the server's own answer
+ * until then — a first client render that disagreed with the HTML would be a
+ * hydration mismatch, and here it would be one that adds or removes a button.
+ */
+function useNow(intervalMs = 30_000) {
+  const subscribe = React.useCallback(
+    (onChange: () => void) => {
+      const id = setInterval(onChange, intervalMs);
+      return () => clearInterval(id);
+    },
+    [intervalMs],
+  );
+  return React.useSyncExternalStore(
+    subscribe,
+    // Quantised to the interval so repeated reads between ticks return the
+    // identical number: a snapshot that changed on every call is an infinite
+    // render loop, which is the trap this hook exists inside.
+    () => Math.floor(Date.now() / intervalMs) * intervalMs,
+    // The server has no clock to offer, and saying so is what keeps the first
+    // client render identical to the HTML.
+    () => null,
+  );
+}
+
+function when(iso: string, now: number | null) {
+  const mins = Math.round((new Date(iso).getTime() - (now ?? Date.now())) / 60000);
   if (mins <= 0) {
     const ago = Math.abs(mins);
     if (ago === 0) return "just now";
@@ -245,6 +276,11 @@ export function MeetingsList({
   lines?: SavedLine[];
 }) {
   const router = useRouter();
+  // Ticks every half minute. Without it a card open across 1:00 AM kept the
+  // server's answer to "has this started", so the badge read "just now" while
+  // the button for saying what happened was still absent — the screen said
+  // the demo was under way and offered no way to record it.
+  const now = useNow();
   const [busy, setBusy] = React.useState<number | null>(null);
   /**
    * A text being written. Under the row rather than in a dialog, for the reason
@@ -510,6 +546,12 @@ export function MeetingsList({
     <ul className="flex flex-col gap-2">
       {meetings.map((m) => {
         const cancelled = m.status === "cancelled";
+        // The server's answer until the clock above has ticked once, then the
+        // live one. `m.started` was worked out when the page rendered, which
+        // is the wrong moment for a card somebody is still looking at when
+        // the demo begins.
+        const hasStarted =
+          now === null ? m.started : new Date(m.startAt).getTime() <= now;
         // A meeting is moved on the event type it was booked on, or it comes
         // back through the sync as the other kind — a follow-up rescheduled
         // onto the demo link would be asked whether they turned up, and a
@@ -610,7 +652,7 @@ export function MeetingsList({
                     suppressHydrationWarning
                     variant={m.startingSoon ? "default" : "secondary"}
                   >
-                    {when(m.startAt)}
+                    {when(m.startAt, now)}
                   </Badge>
                 )}
                 {/* Answered on Payroll: this meeting is finished business, and
@@ -705,7 +747,7 @@ export function MeetingsList({
                 </span>
                 {m.followup.byName && ` by ${m.followup.byName}`}
                 <span suppressHydrationWarning>
-                  {` · ${when(m.followup.at)}`}
+                  {` · ${when(m.followup.at, now)}`}
                 </span>
               </p>
             )}
@@ -758,7 +800,7 @@ export function MeetingsList({
                     can ask anybody to chase a no-show until somebody has said
                     it was one. Offered from the moment it starts, since that is
                     when it is either happening or not. */}
-                {showWho && m.started && m.bookingCallId !== null &&
+                {showWho && hasStarted && m.bookingCallId !== null &&
                   m.kind === "demo" && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
@@ -809,7 +851,7 @@ export function MeetingsList({
                     to its lead by the number in it. A new tab, never a
                     navigation: Cal.com's own flow sends the invite. */}
                 {showWho && followUpBookingUrl && m.leadId !== null &&
-                  m.started && m.kind === "demo" && (
+                  hasStarted && m.kind === "demo" && (
                   <a
                     href={calBookingHref(
                       followUpBookingUrl,
@@ -1274,7 +1316,7 @@ export function MeetingsList({
                     {lead.texts.length}
                     {" · "}
                     <span suppressHydrationWarning>
-                      {when(lead.texts[lead.texts.length - 1].at)}
+                      {when(lead.texts[lead.texts.length - 1].at, now)}
                     </span>
                   </span>
                 </summary>
@@ -1306,7 +1348,7 @@ export function MeetingsList({
                           ? "They replied"
                           : (t.byName ?? "Sent")}
                         <span suppressHydrationWarning>
-                          {` · ${when(t.at)}`}
+                          {` · ${when(t.at, now)}`}
                         </span>
                         {t.direction === "out" && (
                           <span
@@ -1361,7 +1403,7 @@ export function MeetingsList({
                       className="font-normal text-muted-foreground"
                       suppressHydrationWarning
                     >
-                      {when(m.bookedAt)}
+                      {when(m.bookedAt, now)}
                     </span>
                   )}
                 </summary>

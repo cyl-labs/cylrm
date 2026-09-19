@@ -267,6 +267,57 @@ the desk, not the notice that something exists.
 - `foundersZone` stays for the push notifications and for `schema.ts`'s dated
   claim; only the Telegram sender moved off it.
 
+### "Log what happened" went missing on a card left open (2026-09-20)
+
+Reported as "how come i cant log results of meetings anymore" against a card
+whose badge read **just now** and which offered Call them, Text them, Move this
+demo and no way to say whether they turned up.
+
+- **Nothing had been removed.** The button is gated on `m.started`, which is
+  `m.start_at <= now()` **worked out on the server when the page rendered**.
+  The badge beside it is `when()`, worked out in the browser. Open the screen a
+  minute before a demo and the two disagree for as long as the tab stays open:
+  the badge ticks over to "just now" while the gate is still holding the answer
+  from before it started.
+- **A ticking clock, not a refresh.** `useNow` re-renders every 30 seconds and
+  `hasStarted` is derived from `startAt` against it — the same thing
+  `LocalTime` does on the dial card, and for the same reason: this list sits
+  open across a demo beginning, and a screen that is believed and stale is
+  worse than one that admits it does not know.
+- **Null until mounted**, with the server's `m.started` standing in until then.
+  A first client render that disagreed with the HTML is a hydration mismatch,
+  and here it would be one that adds a button — React would throw the tree away
+  rather than quietly patch it.
+- Both gates on that row moved together: "Log what happened" and "Book a
+  follow-up" are the two things that only make sense once a demo has begun.
+- **Verified by watching a card across a start time without reloading**: at
+  load, badge "just now" and no button, exactly as reported; 70 seconds later,
+  still no reload, the button was there.
+
+### Upcoming first, done underneath (2026-09-20)
+
+`order by` in `getMeetings`. It was `start_at asc` for everything.
+
+- **The rows that outstay their slot have the earliest times on the screen.** A
+  no-show owed a ring back and a demo still being followed up are kept on the
+  list on purpose, and under a plain ascending sort they sat above tonight's
+  bookings — "can you move these ones that are already done down? i want the
+  upcoming ones at the top". Three days of finished business was the first
+  thing the screen showed.
+- **Ahead of now, then behind it.** Upcoming keeps the diary order, soonest
+  first. Past is sorted by whether anything is still owed on it — a ring back
+  above a closed-out demo — and then most recent first, since the further back
+  a row is the less likely it is still the thing being dealt with.
+- Nothing is hidden by this and nothing left the list; it only decides which of
+  two rows is higher. The badge and the red banner still say which past rows
+  are work.
+- Verified on four seeded rows: two upcoming (2h, 2d), a past no-show and a
+  past showed-up. Order came out upcoming-2h, upcoming-2d, past-no-show,
+  past-showed-up.
+  - **Seed them on different leads.** Both "keep this row" rules exclude a
+    meeting when the same lead has a later one, so four meetings on one lead
+    silently render as two.
+
 ### The booking page opens in the prospect's timezone (2026-09-19)
 
 `calBookingHref` adds **`cal.tz`**, so every slot on the Cal.com page already

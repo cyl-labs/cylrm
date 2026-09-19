@@ -834,13 +834,18 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
 }
 
 /**
- * The meetings diary: what is coming up, soonest first.
+ * The meetings diary: what is coming up, soonest first, then what is done.
  *
  * Built to be read the way the callbacks diary is — once a day, top to
  * bottom, and empty by the end of it. Cancelled meetings stay on it while
  * their slot is still in the future, because "they called it off" is the most
  * important thing this screen can tell somebody and a row that simply
  * vanished would read as a bug.
+ *
+ * **Everything ahead comes before everything behind.** Rows outstay their slot
+ * on purpose — a no-show is owed a ring back, a demo that happened is still
+ * being followed up — and under a plain `start_at asc` those have the earliest
+ * times on the screen and sit at the top of it. See the order by for the rest.
  */
 export async function getMeetings(
   ownerId?: number,
@@ -865,7 +870,26 @@ export async function getMeetings(
       )
       and (m.status = 'accepted' or m.start_at > now())
       ${ownedBy(ownerId)}
-    order by m.start_at asc, m.id asc
+    order by
+      -- What has not happened yet, first (2026-09-20). It was start_at asc
+      -- for everything, which is right for a diary and wrong for this one:
+      -- the rows that outstay their slot — a no-show owed a ring back, a demo
+      -- still being followed up — have the *earliest* start times on the
+      -- screen, so they floated to the top and pushed tonight's bookings
+      -- under three days of finished business. "Can you move these ones that
+      -- are already done down? i want the upcoming ones at the top."
+      (m.start_at > now()) desc,
+      -- Upcoming: soonest first, the diary order.
+      case when m.start_at > now() then m.start_at end asc,
+      -- Past: still owed something before finished, so the ring back that
+      -- kept the row alive is above the demo that is closed out. Nothing is
+      -- hidden either way — this only decides which of two past rows is
+      -- higher.
+      (${needsRingBack} or ${needsFollowUp}) desc,
+      -- Then most recent, because the further back it is the less likely it
+      -- is still the thing being dealt with.
+      m.start_at desc,
+      m.id asc
   `)) as Row[];
 
   const dids = await getDids();
