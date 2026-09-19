@@ -165,6 +165,20 @@ The same card, and every figure above it, now follows a window chip.
   since every caller of `report()` sums what it returns. A quarter costs three
   requests per product instead of one, cached for the hour like everything
   else.
+- **Telnyx rate-limits, and nothing here used to retry.** A 429 threw, every
+  caller's `catch` dropped that product, and the total came back short with
+  nothing on screen to say so. Forcing the same ninety-day pull three times
+  gave **$31.71, $0.00 and $31.71**. `get()` now retries a 429, a 5xx or a
+  dropped connection three times with backoff and still refuses to retry a
+  400; anything that does not come back after that is **named in the banner**
+  rather than left looking like a quiet month. Found by parallelising the
+  pulls to make the quarter faster, which put fifteen requests in flight and
+  turned an occasional failure into a constant one — the products are fetched
+  one at a time again, and only the date chunks go together.
+- **A forced quarter takes about a minute**, three chunks per product against
+  a limiter, against five seconds for a month. It is therefore cached six
+  hours rather than one: eighty-nine of its ninety days are already settled,
+  so the figure barely moves, and Refresh still forces it.
 - **The cache is keyed by window.** It was one slot and one in-flight promise;
   a single slot would have handed a seven-day figure to somebody who asked for
   ninety. Refresh sends the window it is looking at for the same reason —

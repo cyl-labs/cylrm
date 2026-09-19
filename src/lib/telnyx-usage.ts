@@ -36,6 +36,20 @@ export const usageConfigured = () => Boolean(process.env.TELNYX_API_KEY);
  */
 const CACHE_MS = 60 * 60_000;
 
+/**
+ * How long a *wide* pull is good for.
+ *
+ * A quarter is three date chunks per product against an API that rate-limits,
+ * so a forced ninety-day pull takes over a minute on prod against five
+ * seconds for a month. The figure it produces barely moves hour to hour —
+ * eighty-nine of its ninety days are already settled — so it is held six
+ * times longer and almost every click gets it instantly. Refresh still forces
+ * it for the one moment that matters.
+ */
+const WIDE_CACHE_MS = 6 * 60 * 60_000;
+/** Windows wider than this keep their answer longer. */
+const WIDE_DAYS = 31;
+
 /** The window the screen opens on. */
 export const SPEND_DAYS = 30;
 
@@ -470,7 +484,8 @@ export async function getSpend(
     };
   }
   const hit = cached.get(days);
-  if (!force && hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+  const ttl = days > WIDE_DAYS ? WIDE_CACHE_MS : CACHE_MS;
+  if (!force && hit && Date.now() - hit.at < ttl) return hit.value;
   const running = inFlight.get(days);
   if (running) return running;
 
