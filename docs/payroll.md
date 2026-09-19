@@ -142,3 +142,28 @@ thirty days, totalled, with the unit costs recomputed on the total.
   not checked.
 - Every figure runs through the screen's own `money()`, so the SGD toggle
   converts the pay with everything else; the rates are USD underneath.
+
+### Seven, thirty or ninety days (2026-09-19)
+
+The same card, and every figure above it, now follows a window chip.
+
+- **Why it was one window.** The screen shipped with a fixed thirty days and a
+  comment saying a range picker had been left off on purpose. That reasoning
+  still holds for a *free* range — two people comparing screenshots of
+  different ranges is worse than nobody being able to ask — but it had become
+  an answer to a question nobody asked: "is this week worse than last" cannot
+  be put to a screen that only knows months.
+- **Three fixed choices, not a date picker.** Every one is a link somebody else
+  can open and see the same thing. `SPEND_WINDOWS` in `telnyx-usage.ts` is the
+  list; Telnyx's `/usage_reports` takes `start_date` and `end_date`, so the
+  window was never a limitation of the data.
+- **The cache is keyed by window.** It was one slot and one in-flight promise;
+  a single slot would have handed a seven-day figure to somebody who asked for
+  ninety. Refresh sends the window it is looking at for the same reason —
+  forcing the default while a founder reads ninety days leaves the number they
+  pressed for exactly as stale as it was.
+- **Fixed in passing: the chips clobbered each other.** All three hrefs were
+  written out (`/spend?currency=usd`), so switching currency dropped the demo
+  basis and either dropped the other — the `call-filters.tsx` bug. One `link()`
+  builder now carries all three, with a default held as the *absence* of its
+  parameter so `/spend` is still the plain screen.

@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/session";
-import { getSpend } from "@/lib/telnyx-usage";
+import { SPEND_DAYS, getSpend, isSpendDays } from "@/lib/telnyx-usage";
 
 /**
  * Pull Telnyx's usage reports now, past the hour-long cache.
@@ -13,14 +13,20 @@ import { getSpend } from "@/lib/telnyx-usage";
  * twice costs a handful of read-only requests against an API we are billed
  * nothing to read.
  */
-export async function POST() {
+export async function POST(request: Request) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
   if (me.role !== "admin") {
     return Response.json({ error: "Admins only." }, { status: 403 });
   }
 
-  const spend = await getSpend(true);
+  // Refresh the window the screen is actually showing. Each is a separate
+  // report out of Telnyx and cached separately, so forcing the default while
+  // somebody is looking at 90 days would leave the number they pressed for
+  // exactly as stale as it was.
+  const asked = new URL(request.url).searchParams.get("days");
+  const days = isSpendDays(asked) ? Number(asked) : SPEND_DAYS;
+  const spend = await getSpend(days as 7 | 30 | 90, true);
   if (spend.skipped === "unconfigured") {
     return Response.json({ skipped: "unconfigured" });
   }

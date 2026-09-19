@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { RefreshSpend } from "@/components/calls/refresh-spend";
-import { getSpend, SPEND_DAYS } from "@/lib/telnyx-usage";
+import {
+  SPEND_DAYS,
+  SPEND_WINDOWS,
+  getSpend,
+  isSpendDays,
+  type SpendDays,
+} from "@/lib/telnyx-usage";
 import { getCallTotals } from "@/lib/call-stats";
 import { countShowedUpDemos } from "@/lib/payroll";
 import { usdToSgd } from "@/lib/fx";
@@ -27,10 +33,18 @@ export const dynamic = "force-dynamic";
  * say which of these is the caller's leg and which is the prospect's. The
  * numbers were never hard to get; they were hard to *ask for*.
  *
- * Everything is one thirty-day window. A range picker was deliberately left
- * off: the figures here are read a handful of times a month to answer "are we
- * fine", and a control that can put the screen into a state where it disagrees
- * with the last time you looked is a cost with no matching benefit.
+ * Everything covers one window, seven, thirty or ninety days, thirty by
+ * default. A *range picker* is still deliberately off: the figures are read a
+ * handful of times a month to answer "are we fine", and a control that can put
+ * the screen into a state nobody else can reproduce is a cost with no matching
+ * benefit. Three fixed choices are not that — each is a link, and each answers
+ * a question that was being asked of a screen that could only say "a month"
+ * (2026-09-19, the founders': "is there no way to toggle different date
+ * intervals").
+ *
+ * All three chip groups keep the other two. They used to be written-out hrefs,
+ * so switching currency dropped the demo basis — the `call-filters.tsx` bug,
+ * on a screen that now has three filters rather than two.
  */
 
 /**
@@ -103,7 +117,7 @@ const PRODUCT_NOTE: Record<string, string> = {
 export default async function SpendPage({
   searchParams,
 }: {
-  searchParams: Promise<{ currency?: string; demos?: string }>;
+  searchParams: Promise<{ currency?: string; demos?: string; days?: string }>;
 }) {
   const params = await searchParams;
   // Both toggles live in the URL rather than in a preference, like every other
@@ -115,11 +129,34 @@ export default async function SpendPage({
   // which the line under the chips says either way.
   const inSgd = params.currency !== "usd";
   const byAttendance = params.demos === "showed";
+  // How far back everything on the screen looks. A month by default, which is
+  // the only window this screen had until 2026-09-19.
+  const days: SpendDays = isSpendDays(params.days)
+    ? (Number(params.days) as SpendDays)
+    : SPEND_DAYS;
+
+  // Every chip keeps the other two. Built rather than written out: the three
+  // hrefs used to be literals ("/spend?currency=usd"), so switching currency
+  // dropped the demo basis and switching either dropped the other — the
+  // `call-filters.tsx` bug, in a screen with two filters and now three. A
+  // default is carried as the *absence* of its parameter, so the plain
+  // `/spend` link is still the plain screen.
+  const link = (next: Partial<Record<"currency" | "demos" | "days", string>>) => {
+    const q = new URLSearchParams();
+    const currency = next.currency ?? (inSgd ? "" : "usd");
+    const demos = next.demos ?? (byAttendance ? "showed" : "");
+    const window = next.days ?? (days === SPEND_DAYS ? "" : String(days));
+    if (currency) q.set("currency", currency);
+    if (demos) q.set("demos", demos);
+    if (window) q.set("days", window);
+    const query = q.toString();
+    return query ? `/spend?${query}` : "/spend";
+  };
 
   const [spend, totals, showedUp, fx] = await Promise.all([
-    getSpend(),
-    getCallTotals({ kind: "rolling", days: SPEND_DAYS }),
-    countShowedUpDemos(SPEND_DAYS),
+    getSpend(days),
+    getCallTotals({ kind: "rolling", days }),
+    countShowedUpDemos(days),
     inSgd ? usdToSgd() : Promise.resolve(null),
   ]);
 
@@ -171,7 +208,7 @@ export default async function SpendPage({
   const lineTotal = spend.lines.reduce((a, l) => a + l.cost, 0);
 
   return (
-    <PageShell title="Spend" actions={<RefreshSpend />}>
+    <PageShell title="Spend" actions={<RefreshSpend days={days} />}>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-7">
         {/* Said at the top rather than discovered: a screen showing yesterday's
             figures without saying so is worse than one that is honest about
@@ -192,10 +229,10 @@ export default async function SpendPage({
             <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
               Show in
             </span>
-            <Chip href="/spend?currency=usd" active={!inSgd}>
+            <Chip href={link({ currency: "usd" })} active={!inSgd}>
               USD
             </Chip>
-            <Chip href="/spend" active={inSgd}>
+            <Chip href={link({ currency: "" })} active={inSgd}>
               SGD
             </Chip>
           </div>
@@ -203,20 +240,31 @@ export default async function SpendPage({
             <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
               Cost per demo
             </span>
-            <Chip
-              href={inSgd ? "/spend" : "/spend?currency=usd"}
-              active={!byAttendance}
-            >
+            <Chip href={link({ demos: "" })} active={!byAttendance}>
               Booked
             </Chip>
-            <Chip
-              href={
-                inSgd ? "/spend?demos=showed" : "/spend?currency=usd&demos=showed"
-              }
-              active={byAttendance}
-            >
+            <Chip href={link({ demos: "showed" })} active={byAttendance}>
               Showed up
             </Chip>
+          </div>
+          {/* Three fixed windows rather than a date-range picker. They cover
+              the questions actually asked of this screen — is this week worse
+              than last, is the month normal, is the quarter trending — and
+              every one is a link somebody else can open and see the same
+              thing, which a free range would not be. */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              Last
+            </span>
+            {SPEND_WINDOWS.map((w) => (
+              <Chip
+                key={w}
+                href={link({ days: w === SPEND_DAYS ? "" : String(w) })}
+                active={days === w}
+              >
+                {w} days
+              </Chip>
+            ))}
           </div>
         </div>
 
@@ -259,7 +307,7 @@ export default async function SpendPage({
 
           <div className={`${CARD} px-4 py-3`}>
             <p className="text-xs font-semibold text-muted-foreground">
-              Spent, {SPEND_DAYS} days
+              Spent, {days} days
             </p>
             <p className="mt-1 text-2xl font-extrabold tabular-nums tracking-[-0.02em]">
               {money(spend.total)}
@@ -327,7 +375,7 @@ export default async function SpendPage({
         <div className={`${CARD} px-4 py-4 sm:px-5`}>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
-              All in, {SPEND_DAYS} days
+              All in, {days} days
             </p>
             <p className="text-[12px] text-muted-foreground">
               The phone bill plus what the floor earned on it
@@ -403,7 +451,7 @@ export default async function SpendPage({
 
           {/* The one thing a total like this is misread as. */}
           <p className="mt-1.5 text-[11px] text-muted-foreground/75">
-            Earned over these {SPEND_DAYS}{" "}
+            Earned over these {days}{" "}
             days, not handed over: Payroll pays
             from each caller&rsquo;s last payout rather than on a rolling
             window, so what is owed there will not match this. Nothing here
@@ -632,7 +680,7 @@ export default async function SpendPage({
                         colSpan={4}
                         className="px-4 py-6 text-center text-[13px] text-muted-foreground sm:px-5"
                       >
-                        No calls billed in the last {SPEND_DAYS} days.
+                        No calls billed in the last {days} days.
                       </td>
                     </tr>
                   )}

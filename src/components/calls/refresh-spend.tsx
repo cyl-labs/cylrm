@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
  * It says what it found, like the meetings refresh does — a button that looks
  * identical whether it worked or not teaches people to press it again.
  */
-export function RefreshSpend() {
+export function RefreshSpend({ days }: { days: number }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
 
@@ -25,7 +25,9 @@ export function RefreshSpend() {
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/spend/refresh", { method: "POST" });
+      const res = await fetch(`/api/spend/refresh?days=${days}`, {
+        method: "POST",
+      });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {

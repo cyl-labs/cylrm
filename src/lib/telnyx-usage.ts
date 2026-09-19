@@ -36,8 +36,29 @@ export const usageConfigured = () => Boolean(process.env.TELNYX_API_KEY);
  */
 const CACHE_MS = 60 * 60_000;
 
-/** The window every figure on the screen covers. */
+/** The window the screen opens on. */
 export const SPEND_DAYS = 30;
+
+/**
+ * The windows the screen offers.
+ *
+ * A range *picker* was deliberately left off when this was built, on the
+ * grounds that the figures are read a handful of times a month to answer "are
+ * we fine" and a control that could leave two looks disagreeing was a cost
+ * with no matching benefit. The founders asked for one anyway (2026-09-19),
+ * and they are right that a month is the wrong and only window for some of
+ * the questions — "did last week cost more than the one before" cannot be
+ * asked of it at all.
+ *
+ * Three fixed choices rather than a date-range picker: they cover the
+ * questions actually asked, every one of them is a link, and none can be put
+ * into a state nobody else can reproduce.
+ */
+export const SPEND_WINDOWS = [7, 30, 90] as const;
+export type SpendDays = (typeof SPEND_WINDOWS)[number];
+
+export const isSpendDays = (n: unknown): n is SpendDays =>
+  SPEND_WINDOWS.includes(Number(n) as SpendDays);
 
 export type SpendLine = {
   /** The connection's name, or the person holding it when we can tell. */
@@ -205,9 +226,9 @@ async function connectionNames(): Promise<Map<string, string>> {
   return names;
 }
 
-async function pull(): Promise<Spend> {
+async function pull(days: SpendDays): Promise<Spend> {
   const now = new Date();
-  const start = new Date(now.getTime() - SPEND_DAYS * 864e5);
+  const start = new Date(now.getTime() - days * 864e5);
   const startIso = `${start.toISOString().slice(0, 10)}T00:00:00Z`;
   const endIso = `${now.toISOString().slice(0, 10)}T23:59:59Z`;
 
@@ -319,12 +340,12 @@ async function pull(): Promise<Spend> {
   // weekend with no calling is a real answer — dropping it would slide the
   // chart's dates and make a quiet Saturday look like a missing one.
   const daily: { date: string; cost: number }[] = [];
-  for (let i = SPEND_DAYS; i >= 0; i--) {
+  for (let i = days; i >= 0; i--) {
     const d = new Date(now.getTime() - i * 864e5).toISOString().slice(0, 10);
     daily.push({ date: d, cost: byDay.get(d) ?? 0 });
   }
 
-  const perDay = total / (SPEND_DAYS + 1);
+  const perDay = total / (days + 1);
   return {
     ...empty,
     balance,
@@ -339,8 +360,11 @@ async function pull(): Promise<Spend> {
   };
 }
 
-let cached: { at: number; value: Spend } | null = null;
-let inFlight: Promise<Spend> | null = null;
+// Per window, because each is a separate report out of Telnyx. One shared
+// slot would hand a 7-day figure to somebody who asked for 90, and the cache
+// would fight the chips rather than serve them.
+const cached = new Map<SpendDays, { at: number; value: Spend }>();
+const inFlight = new Map<SpendDays, Promise<Spend>>();
 
 /**
  * The figures, from cache unless asked otherwise.
@@ -350,7 +374,10 @@ let inFlight: Promise<Spend> | null = null;
  * reason: the window in which somebody can press twice is exactly the window
  * in which the first request is still going.
  */
-export async function getSpend(force = false): Promise<Spend> {
+export async function getSpend(
+  days: SpendDays = SPEND_DAYS,
+  force = false,
+): Promise<Spend> {
   if (!usageConfigured()) {
     return {
       skipped: "unconfigured",
@@ -366,19 +393,22 @@ export async function getSpend(force = false): Promise<Spend> {
       fetchedAt: new Date().toISOString(),
     };
   }
-  if (!force && cached && Date.now() - cached.at < CACHE_MS) return cached.value;
-  if (inFlight) return inFlight;
+  const hit = cached.get(days);
+  if (!force && hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+  const running = inFlight.get(days);
+  if (running) return running;
 
-  inFlight = pull()
+  const request = pull(days)
     .then((value) => {
-      cached = { at: Date.now(), value };
+      cached.set(days, { at: Date.now(), value });
       return value;
     })
     .catch((err) => {
       // A failed pull keeps the last good numbers rather than blanking the
       // screen: stale and labelled beats empty and unexplained.
       const message = err instanceof Error ? err.message : String(err);
-      if (cached) return { ...cached.value, error: message };
+      const last = cached.get(days);
+      if (last) return { ...last.value, error: message };
       return {
         error: message,
         balance: null,
@@ -394,8 +424,9 @@ export async function getSpend(force = false): Promise<Spend> {
       } satisfies Spend;
     })
     .finally(() => {
-      inFlight = null;
+      inFlight.delete(days);
     });
 
-  return inFlight;
+  inFlight.set(days, request);
+  return request;
 }
