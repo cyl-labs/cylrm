@@ -76,8 +76,19 @@ export type PayrollRow = {
   periodStart: string;
   /** Null when they have never been paid. */
   lastPaidAt: string | null;
+  /** When their counter was last cut without paying. Null if never. */
+  lastResetAt: string | null;
   pickups: number;
   pickupBonusCents: number;
+  /**
+   * Bonus banked by a reset and still owed (2026-09-20).
+   *
+   * The counter is cut weekly on payday at the founders' request, and the cut
+   * is not meant to cost anybody anything: whole fifties already earned move
+   * here, the spare under fifty is discarded exactly as it is when Paid is
+   * pressed, and the count starts again at nought.
+   */
+  bankedBonusCents: number;
   meetings: number;
   meetingCommissionCents: number;
   totalCents: number;
@@ -115,7 +126,25 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
   const rows = (await db.execute(sql`
     select u.id, u.name, u.active, u.payment_method,
       coalesce(p.paid_at, u.created_at) as period_start,
-      p.paid_at as last_paid_at,
+      pay.paid_at as last_paid_at,
+      res.paid_at as last_reset_at,
+      (
+        -- Fifties banked by a reset and not yet handed over. A reset moves the
+        -- boundary without paying, so without this the money it cleared would
+        -- simply vanish from the screen.
+        --
+        -- Bounded by the last *payment*, not the last row of any kind: a
+        -- payment's period starts at whatever came before it and the periods
+        -- tile without gaps, so every reset since then is unpaid by
+        -- construction. Safe as a date comparison here, unlike attendance,
+        -- because a reset row is written at the moment it happens and can
+        -- never arrive late for an earlier period.
+        select coalesce(sum(r.banked_bonus_cents), 0)
+        from payout r
+        where r.user_id = u.id
+          and r.kind = 'reset'
+          and r.paid_at > coalesce(pay.paid_at, u.created_at)
+      ) as banked_bonus_cents,
       (
         select count(*) from "call" c
         where c.user_id = u.id
@@ -131,12 +160,31 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
           and a.payout_id is null
       ) as meetings
     from app_user u
+    -- The counter's boundary: the last row of either kind, since a reset
+    -- moves it exactly as a payment does.
     left join lateral (
       select paid_at from payout
       where payout.user_id = u.id
       order by paid_at desc
       limit 1
     ) p on true
+    -- The money's boundary: the last actual payment. A reset banks rather
+    -- than settles, so it must not close the account.
+    left join lateral (
+      select paid_at from payout
+      where payout.user_id = u.id and payout.kind = 'payment'
+      order by paid_at desc
+      limit 1
+    ) pay on true
+    -- The most recent reset, so the screen can say which of the two actually
+    -- started this count rather than naming a payday the tally did not begin
+    -- on.
+    left join lateral (
+      select paid_at from payout
+      where payout.user_id = u.id and payout.kind = 'reset'
+      order by paid_at desc
+      limit 1
+    ) res on true
     where u.role = 'caller'
     -- Name order here is only a stable base for the sort below; what the
     -- screen shows is decided in JS, where the total actually exists.
@@ -147,6 +195,7 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
     const pickups = n(r.pickups);
     const meetings = n(r.meetings);
     const bonus = pickupBonusCents(pickups);
+    const banked = n(r.banked_bonus_cents);
     const commission = meetings * MEETING_CENTS;
     return {
       userId: n(r.id),
@@ -156,11 +205,15 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
       lastPaidAt: r.last_paid_at
         ? new Date(r.last_paid_at as string).toISOString()
         : null,
+      lastResetAt: r.last_reset_at
+        ? new Date(r.last_reset_at as string).toISOString()
+        : null,
       pickups,
       pickupBonusCents: bonus,
+      bankedBonusCents: banked,
       meetings,
       meetingCommissionCents: commission,
-      totalCents: bonus + commission,
+      totalCents: bonus + banked + commission,
       paymentMethod: (r.payment_method as string | null) ?? null,
     };
   });

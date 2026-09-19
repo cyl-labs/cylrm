@@ -1,0 +1,33 @@
+-- A reset banks the fifties it clears instead of discarding them.
+--
+-- APPLY BEFORE THE DEPLOY. `getPayrollRows` reads `banked_bonus_cents` on
+-- every load of the Payroll screen; deployed first, that screen 500s and
+-- nobody can be paid. The column defaults to 0, which is exactly what every
+-- existing row means, so applying it early changes no number on the running
+-- app.
+--
+-- Why (founders, 2026-09-20): the pickup counter runs from the last payout, so
+-- somebody not paid this week carries their count into the next — "for alex he
+-- has 25 pickups rn it will continue from 25 even on monday". They want it cut
+-- weekly on payday, and they want the cut to cost nobody anything: "the reset
+-- should not affect how much money they are owed. its only meant to reset
+-- their pickups that count towards the paid incentive."
+--
+-- The reset already existed and already did the first half — it moves the
+-- boundary, writes no payment, and can be undone by deleting the row. What it
+-- did with the second half was throw it away: owed is derived from pickups
+-- since the boundary, so resetting Omar's 52 took the $10 he had earned with
+-- it. This column is where that money goes instead.
+--
+-- On a `reset` row: what this reset banked, still owed. On a `payment` row:
+-- how much banked money that payment handed over. Deliberately not folded into
+-- `pickups` / `pickup_bonus_cents`, which are one period's own count and its
+-- own arithmetic — `pickupBonusCents(pickups)` has to keep equalling the
+-- second, or a row in the history stops explaining itself.
+--
+-- The spare under fifty is still discarded, as it is when Paid is pressed:
+-- 90 pickups resets to 0, banks $10, and loses the 40. That is the founders'
+-- own rule ("no rollover, as specified") and this changes nothing about it.
+
+alter table payout
+  add column if not exists banked_bonus_cents integer not null default 0;

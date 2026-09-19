@@ -61,9 +61,25 @@ export default async function PayrollPage() {
   // means neither of them has to know there is a zone at all.
   const rowsWithLabels = rows.map((r) => ({
     ...r,
-    periodLabel: r.lastPaidAt
-      ? `Since ${formatPayDay(r.lastPaidAt)}`
-      : "Never paid",
+    // The counter starts at the last payment *or* reset, whichever came
+    // later, so the label has to name the one that actually applies. It said
+    // "Since <last paid>" for both until resets could bank money (2026-09-20),
+    // which on a reset row named a date the count did not start on.
+    periodLabel: (() => {
+      const cut =
+        r.lastResetAt && (!r.lastPaidAt || r.lastResetAt > r.lastPaidAt)
+          ? r.lastResetAt
+          : null;
+      if (cut) {
+        // Both facts where both are true: a reset says what the count is
+        // measured from, "never paid" says nothing has been settled yet, and
+        // dropping either one hides something somebody needs on a Friday.
+        return r.lastPaidAt
+          ? `Reset ${formatPayDay(cut)}`
+          : `Never paid · reset ${formatPayDay(cut)}`;
+      }
+      return r.lastPaidAt ? `Since ${formatPayDay(r.lastPaidAt)}` : "Never paid";
+    })(),
   }));
   const demosWithLabels = demos.map((d) => ({
     ...d,
@@ -76,7 +92,7 @@ export default async function PayrollPage() {
         <p className="text-[13px] text-muted-foreground">
           {/* Read off the constants rather than written out, so the sentence
               cannot go on claiming a rate nobody is paid any more. */}
-          Pickups counted since each person was last paid, at{" "}
+          Pickups counted since each person was last paid or reset, at{" "}
           <span className="font-semibold text-foreground">
             {formatMoney(PICKUP_BONUS_CENTS)} per {PICKUPS_PER_BONUS}
           </span>

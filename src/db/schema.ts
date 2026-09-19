@@ -992,6 +992,20 @@ export const payout = pgTable(
     weekStart: date("week_start").notNull(),
     pickups: integer("pickups").notNull(),
     pickupBonusCents: integer("pickup_bonus_cents").notNull(),
+    /**
+     * Bonus money that survived a reset (2026-09-20).
+     *
+     * On a `reset` row: what the cleared fifties were worth, still owed. On a
+     * `payment` row: how much of that this payment handed over. A reset used
+     * to take the money with the count — owed is derived from pickups since
+     * the boundary — and the founders wanted the count cut weekly without
+     * anyone losing what they had already earned by it.
+     *
+     * Its own column rather than folded into `pickupBonusCents`, which is the
+     * arithmetic on `pickups` for this period alone. `pickupBonusCents(pickups)`
+     * must keep equalling it or a row stops explaining itself.
+     */
+    bankedBonusCents: integer("banked_bonus_cents").notNull().default(0),
     meetings: integer("meetings").notNull(),
     meetingCommissionCents: integer("meeting_commission_cents").notNull(),
     totalCents: integer("total_cents").notNull(),

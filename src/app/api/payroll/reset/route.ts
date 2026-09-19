@@ -7,6 +7,7 @@ import {
   PICKUPS_PER_BONUS,
   PICKUP_BONUS_CENTS,
   payWeekStart,
+  pickupBonusCents,
 } from "@/lib/payroll";
 
 /**
@@ -31,6 +32,19 @@ import {
  * commission is pinned by payout id rather than compared against a date — and
  * a reset that quietly swallowed it would be the missed payment this design
  * exists to prevent. Commission is cleared only by paying it.
+ *
+ * **Nor does it touch the pickup bonus any more** (2026-09-20). It used to:
+ * owed is derived from pickups since the boundary, so moving the boundary took
+ * the fifties already earned with it. The founders asked for the counter to be
+ * cut weekly on payday and for the cut to cost nobody anything — "the reset
+ * should not affect how much money they are owed. its only meant to reset
+ * their pickups that count towards the paid incentive" — so the whole fifties
+ * are banked on the row in `banked_bonus_cents` and stay owed until a payment
+ * hands them over.
+ *
+ * The spare under fifty is still discarded, exactly as it is when Paid is
+ * pressed. That is the founders' own no-rollover rule and this does not change
+ * it: a reset at 90 banks $10 and loses 40.
  */
 export async function POST(request: Request) {
   const me = await getCurrentUser();
@@ -97,19 +111,23 @@ export async function POST(request: Request) {
         return { error: "That counter is already at zero.", status: 409 } as const;
       }
 
-      // Every money column is zero, including the bonus the count would
-      // otherwise have earned. Reading "84 pickups, $0" would look like a bug
-      // in a `payment` row; in a `reset` row it is the whole point.
+      // What the cleared count had already earned, moved rather than lost.
+      const banked = pickupBonusCents(pickups);
+
+      // `total_cents` stays 0: no money moved, and this row must never be
+      // read as a payment. `pickup_bonus_cents` stays 0 too — it is what this
+      // row *paid* for its pickups, which is nothing. The bonus that survived
+      // is its own column.
       const [row] = (await tx.execute(sql`
         insert into payout (
           user_id, kind, period_start, period_end, week_start,
-          pickups, pickup_bonus_cents,
+          pickups, pickup_bonus_cents, banked_bonus_cents,
           meetings, meeting_commission_cents, total_cents,
           pickups_per_bonus, pickup_bonus_rate_cents, meeting_rate_cents,
           note, created_by_user_id
         ) values (
           ${userId}, 'reset', ${periodStart}, now(), ${weekStart},
-          ${pickups}, 0,
+          ${pickups}, 0, ${banked},
           0, 0, 0,
           ${PICKUPS_PER_BONUS}, ${PICKUP_BONUS_CENTS}, ${MEETING_CENTS},
           ${note}, ${me.id}
@@ -122,6 +140,9 @@ export async function POST(request: Request) {
         resetId: Number(row.id),
         name: String(person.name),
         pickupsCleared: pickups,
+        bankedCents: banked,
+        // What the cut actually cost them, so the button can say it.
+        discarded: pickups % PICKUPS_PER_BONUS,
       };
     });
 

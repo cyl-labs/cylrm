@@ -25,8 +25,8 @@ sentence claiming a rate nobody is paid.
   is paid. Pickups break a tie, so among the rows owed nothing the person
   closest to their next fifty is highest; the name breaks that in turn, so the
   order does not shuffle between loads.
-- **The pickup counter runs from the last payout, not from a Monday.** The
-  requirement was that it reset only when someone presses the button, and a
+- **The pickup counter runs from the last payout or reset, not from a Monday.**
+  The requirement was that it reset only when someone presses the button, and a
   counter that resets only on payout is necessarily counting since the payout.
   It matches the calendar week in practice because payment goes out on Fridays,
   and it will diverge from Stats and the Scoreboard whenever a payout is early
@@ -189,3 +189,52 @@ The same card, and every figure above it, now follows a window chip.
   basis and either dropped the other — the `call-filters.tsx` bug. One `link()`
   builder now carries all three, with a default held as the *absence* of its
   parameter so `/spend` is still the plain screen.
+
+## A reset keeps the money (2026-09-20)
+
+`POST /api/payroll/reset` banks what it clears in `payout.banked_bonus_cents`
+(`2026-09-20-pickup-reset.sql`, **applied before the deploy** — `getPayrollRows`
+reads the column on every render of the screen). Two buttons on Payroll: per
+row, and **Reset all** for payday.
+
+- **Why.** The counter ran from the last payout, so somebody not paid this week
+  carried their count into the next: "for alex he has 25 pickups rn it will
+  continue from 25 even on monday". The founders wanted it cut weekly on payday
+  and wanted the cut to be free: "the reset should not affect how much money
+  they are owed. its only meant to reset their pickups that count towards the
+  paid incentive."
+- **Those two are only compatible if the reset banks.** Owed was *derived* from
+  pickups since the boundary and stored nowhere, so moving the boundary took
+  the money with it — resetting 90 pickups threw away the $10 already earned.
+  The reset itself already existed, with no button anywhere, and did exactly
+  that.
+- **The spare under fifty is still discarded**, exactly as pressing Paid
+  discards it: 90 banks $10 and loses 40. That is the founders' own no-rollover
+  rule and this does not touch it. **Both halves are named in the dialog**
+  ("130 → $20 kept, 30 lost") — the money surviving is the point of the button,
+  and the spare going is what somebody would otherwise discover a week later.
+- **`banked_bonus_cents` is its own column**, not folded into
+  `pickup_bonus_cents`. That one is the arithmetic on this row's `pickups` and
+  `pickupBonusCents(pickups)` has to keep equalling it, or a row in the history
+  stops explaining itself. On a `reset` row the column is what was banked; on a
+  `payment` row, how much banked money that payment handed over.
+- **Two boundaries now, and they are not the same.** The *counter* starts at the
+  last row of either kind; the *money* starts at the last `payment`, since a
+  reset banks rather than settles. `getPayrollRows` and the payout route each
+  carry both, and mixing them up would either pay a reset twice or not at all.
+  - Summing banked rows by date is safe **here** and nowhere else: a reset row
+    is written at the moment it happens and can never arrive late for an
+    earlier period, unlike an attendance, which is why that one is pinned by
+    `payout_id`. The periods tile without gaps, so every reset since the last
+    payment is unpaid by construction.
+- **The payment dialog lists the banked line.** Without it, somebody reset on
+  Friday and paid on Monday saw nought pickups, nought meetings and a total of
+  $10 — a sum that does not add up reads as a fault.
+- **`periodLabel` names the reset when a reset started the count**, and keeps
+  "Never paid" beside it where both are true. It said "Since <last paid>" for
+  every row until this, which after a reset named a date the tally did not
+  begin on.
+- **Verified end to end** on a seeded 130: reset banked $20 and lost 30, the
+  row showed "+$20 banked" with a total of $20, paying it wrote a `payment`
+  row carrying `banked_bonus_cents` 2000 and `total_cents` 2000, and the
+  counter came back at nought owing nothing. Checked at 1280px and 390px.

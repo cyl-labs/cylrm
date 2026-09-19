@@ -12,8 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  PICKUPS_PER_BONUS,
   PICKUP_BONUS_CENTS,
   formatMoney,
+  pickupBonusCents,
   pickupsTowardNext,
 } from "@/lib/payroll-rates";
 import { websiteHref } from "@/lib/website";
@@ -32,6 +34,11 @@ export type PayrollRowView = {
   periodLabel: string;
   pickups: number;
   pickupBonusCents: number;
+  /** Bonus a reset banked and nobody has handed over yet. Shown beside the
+   *  period's own bonus rather than added into it: one is what this week's
+   *  count earned, the other is what an earlier count earned and is still
+   *  waiting. */
+  bankedBonusCents: number;
   meetings: number;
   meetingCommissionCents: number;
   totalCents: number;
@@ -68,6 +75,11 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
   const [confirming, setConfirming] = React.useState<PayrollRowView | null>(
     null,
   );
+  // Null when shut. A single row, or every row with something on its counter
+  // — payday cuts them all, and one dialog at a time would be fourteen taps.
+  const [resetting, setResetting] = React.useState<PayrollRowView[] | null>(
+    null,
+  );
   const [busy, setBusy] = React.useState(false);
 
   async function pay(row: PayrollRowView) {
@@ -98,6 +110,57 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
     }
   }
 
+  /**
+   * Cut the counter, keep the money.
+   *
+   * One request per person rather than a bulk route: the reset is already
+   * idempotent-ish (a counter at zero is refused, not reset twice), the
+   * numbers are small, and a per-person route means a failure on one name
+   * leaves the other thirteen done rather than rolling the lot back.
+   */
+  async function reset(people: PayrollRowView[]) {
+    setBusy(true);
+    let done = 0;
+    let banked = 0;
+    const failed: string[] = [];
+    try {
+      for (const person of people) {
+        try {
+          const res = await fetch("/api/payroll/reset", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ userId: person.userId }),
+          });
+          const data = (await res.json().catch(() => null)) as {
+            error?: string;
+            bankedCents?: number;
+          } | null;
+          if (!res.ok) {
+            failed.push(person.name);
+            continue;
+          }
+          done += 1;
+          banked += data?.bankedCents ?? 0;
+        } catch {
+          failed.push(person.name);
+        }
+      }
+      if (done > 0) {
+        toast.success(
+          `Counter reset for ${done} ${done === 1 ? "person" : "people"}` +
+            (banked > 0 ? `. ${formatMoney(banked)} still owed.` : "."),
+        );
+      }
+      if (failed.length > 0) {
+        toast.error(`Could not reset: ${failed.join(", ")}.`);
+      }
+      setResetting(null);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (rows.length === 0) {
     return (
       <p className="px-5 py-8 text-center text-[13px] text-muted-foreground">
@@ -110,8 +173,28 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
   // confirmation names the number rather than letting them vanish unremarked.
   const stranded = confirming ? pickupsTowardNext(confirming.pickups) : 0;
 
+  // Everyone with something to cut. Payday resets the floor in one press.
+  const resettable = rows.filter((r) => r.pickups > 0);
+
   return (
     <>
+      {resettable.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 px-4 py-2.5">
+          <p className="text-[12px] text-muted-foreground">
+            Counters run from the last payment or reset. Cutting one keeps what
+            it has already earned and throws away the spare under{" "}
+            {PICKUPS_PER_BONUS}.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto"
+            onClick={() => setResetting(resettable)}
+          >
+            Reset all {resettable.length}
+          </Button>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-[13px]">
           <thead>
@@ -157,6 +240,16 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums">
                   {formatMoney(r.pickupBonusCents)}
+                  {/* What an earlier count earned and a reset put aside. Its
+                      own line, not added in: the number above is what these
+                      pickups are worth, and a total that silently disagreed
+                      with the count beside it is the thing this table cannot
+                      afford. */}
+                  {r.bankedBonusCents > 0 && (
+                    <span className="block text-[11px] font-semibold text-success">
+                      +{formatMoney(r.bankedBonusCents)} banked
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                   {r.meetings}
@@ -168,20 +261,105 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                   {formatMoney(r.totalCents)}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={r.totalCents === 0 && r.pickups === 0}
-                    onClick={() => setConfirming(r)}
-                  >
-                    Mark as paid
-                  </Button>
+                  <div className="flex items-center justify-end gap-1.5">
+                    {/* Nothing on the counter, nothing to cut. */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={r.pickups === 0}
+                      onClick={() => setResetting([r])}
+                    >
+                      Reset count
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={r.totalCents === 0 && r.pickups === 0}
+                      onClick={() => setConfirming(r)}
+                    >
+                      Mark as paid
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <Dialog
+        open={resetting !== null}
+        onOpenChange={(open) => !open && !busy && setResetting(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {resetting?.length === 1
+                ? `Reset ${resetting[0].name}'s count?`
+                : `Reset ${resetting?.length ?? 0} counters?`}
+            </DialogTitle>
+          </DialogHeader>
+          {resetting && (
+            <div className="space-y-3 text-[13px]">
+              {/* Both halves, always. The money surviving is the whole point
+                  of the button, and the spare being thrown away is the thing
+                  somebody would otherwise find out about a week later. */}
+              <p className="text-muted-foreground">
+                Their counts go back to nought. Whole {PICKUPS_PER_BONUS}s
+                already earned stay owed and will be paid next time you mark
+                them paid — nobody loses money they have earned.
+              </p>
+              <ul className="space-y-1">
+                {resetting.map((r) => {
+                  const keeps = pickupBonusCents(r.pickups);
+                  const loses = pickupsTowardNext(r.pickups);
+                  return (
+                    <li
+                      key={r.userId}
+                      className="flex items-baseline justify-between gap-3 border-b border-border/60 pb-1 last:border-0"
+                    >
+                      <span className="font-semibold">{r.name}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {r.pickups.toLocaleString()} →{" "}
+                        <span className="font-semibold text-success">
+                          {formatMoney(keeps)} kept
+                        </span>
+                        {loses > 0 && (
+                          <>
+                            {", "}
+                            <span className="font-semibold text-destructive">
+                              {loses} lost
+                            </span>
+                          </>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-[12px] text-muted-foreground">
+                Meetings and commission are untouched. A reset can be undone by
+                deleting its row from the history.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setResetting(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() => resetting && reset(resetting)}
+            >
+              {busy ? "Resetting…" : "Reset"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={confirming !== null}
@@ -210,6 +388,19 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                     {formatMoney(confirming.pickupBonusCents)}
                   </dd>
                 </div>
+                {/* Without this the sum does not add up: somebody reset on
+                    Friday and paid on Monday shows nought pickups, nought
+                    meetings and a total of $10, which reads as a fault. */}
+                {confirming.bankedBonusCents > 0 && (
+                  <div className="flex justify-between gap-4 py-0.5">
+                    <dt className="text-muted-foreground">
+                      Banked by an earlier reset
+                    </dt>
+                    <dd className="font-semibold tabular-nums">
+                      {formatMoney(confirming.bankedBonusCents)}
+                    </dd>
+                  </div>
+                )}
                 <div className="flex justify-between gap-4 py-0.5">
                   <dt className="text-muted-foreground">
                     Meetings &middot; {confirming.meetings} showed up

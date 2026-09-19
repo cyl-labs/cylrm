@@ -65,7 +65,13 @@ export async function POST(request: Request) {
             where payout.user_id = u.id
             order by paid_at desc
             limit 1
-          ) as last_paid_at
+          ) as last_paid_at,
+          (
+            select paid_at from payout
+            where payout.user_id = u.id and payout.kind = 'payment'
+            order by paid_at desc
+            limit 1
+          ) as last_payment_at
         from app_user u
         where u.id = ${userId}
         for update
@@ -82,6 +88,12 @@ export async function POST(request: Request) {
       const periodStart = (person.last_paid_at ??
         person.created_at) as string | Date;
 
+      // The money's boundary is the last *payment*; the counter's is the last
+      // row of either kind. A reset banks rather than settles, so it moves the
+      // second and not the first.
+      const moneyStart = (person.last_payment_at ??
+        person.created_at) as string | Date;
+
       const [counts] = (await tx.execute(sql`
         select
           (
@@ -89,7 +101,16 @@ export async function POST(request: Request) {
             where c.user_id = ${userId}
               and c.outcome in ${PICKUP}
               and c.called_at > ${periodStart}
-          ) as pickups
+          ) as pickups,
+          (
+            -- Fifties banked by every reset since the last payment. Their
+            -- periods tile without gaps, so these are unpaid by construction.
+            select coalesce(sum(r.banked_bonus_cents), 0)
+            from payout r
+            where r.user_id = ${userId}
+              and r.kind = 'reset'
+              and r.paid_at > ${moneyStart}
+          ) as banked
       `)) as Record<string, unknown>[];
 
       // The attendances this payout will claim, resolved to ids first so the
@@ -107,13 +128,18 @@ export async function POST(request: Request) {
       `)) as Record<string, unknown>[];
 
       const pickups = Number(counts?.pickups ?? 0);
+      const banked = Number(counts?.banked ?? 0);
       const meetings = owed.length;
 
       // Nothing owed is not an error worth a stack trace, but it must not
       // write a row: a $0 payout would move the period boundary and throw away
       // whatever pickups had accumulated. It also makes a double-clicked
       // button harmless, since the second press finds a fresh period.
-      if (pickups === 0 && meetings === 0) {
+      // Banked money counts as something owed: somebody whose counter was
+      // reset to nought on Friday and who has not called since is still owed
+      // what the reset put aside, and refusing to pay it would be the missed
+      // payment this file exists to prevent.
+      if (pickups === 0 && meetings === 0 && banked === 0) {
         return { error: "Nothing owed.", status: 409 } as const;
       }
 
@@ -123,14 +149,14 @@ export async function POST(request: Request) {
       const [row] = (await tx.execute(sql`
         insert into payout (
           user_id, period_start, period_end, week_start,
-          pickups, pickup_bonus_cents,
+          pickups, pickup_bonus_cents, banked_bonus_cents,
           meetings, meeting_commission_cents, total_cents,
           pickups_per_bonus, pickup_bonus_rate_cents, meeting_rate_cents,
           note, created_by_user_id
         ) values (
           ${userId}, ${periodStart}, now(), ${weekStart},
-          ${pickups}, ${bonus},
-          ${meetings}, ${commission}, ${bonus + commission},
+          ${pickups}, ${bonus}, ${banked},
+          ${meetings}, ${commission}, ${bonus + banked + commission},
           ${PICKUPS_PER_BONUS}, ${PICKUP_BONUS_CENTS}, ${MEETING_CENTS},
           ${note}, ${me.id}
         )
@@ -157,7 +183,8 @@ export async function POST(request: Request) {
         name: String(person.name),
         pickups,
         meetings,
-        totalCents: bonus + commission,
+        bankedCents: banked,
+        totalCents: bonus + banked + commission,
       };
     });
 
