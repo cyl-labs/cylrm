@@ -17,7 +17,10 @@ import {
   DEFAULT_STATS_REGION,
 } from "@/lib/stats-zones";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
-import { MeetingsCalendar } from "@/components/calls/meetings-calendar";
+import {
+  MeetingsCalendar,
+  type CalendarSpan,
+} from "@/components/calls/meetings-calendar";
 import { MeetingsView } from "@/components/calls/meetings-view";
 
 export const dynamic = "force-dynamic";
@@ -38,10 +41,22 @@ export const dynamic = "force-dynamic";
 export default async function MeetingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tz?: string; view?: string; month?: string }>;
+  searchParams: Promise<{
+    tz?: string;
+    view?: string;
+    month?: string;
+    span?: string;
+    on?: string;
+  }>;
 }) {
   const me = await getCurrentUser();
-  const { tz: rawTz, view: rawView, month: rawMonth } = await searchParams;
+  const {
+    tz: rawTz,
+    view: rawView,
+    month: rawMonth,
+    span: rawSpan,
+    on: rawOn,
+  } = await searchParams;
 
   // Their own clock: the zone in the link if there is one, else the reporting
   // zone they picked, else the market they work, else Eastern — the same order
@@ -61,12 +76,18 @@ export default async function MeetingsPage({
 
   const meetings = await getMeetings(callScope(me), zone.tz);
 
-  // List unless the calendar was asked for, and a month only the calendar
-  // reads. Both live in the URL rather than in the browser, so the screen is
-  // the same server render either way and a pasted link opens on what its
-  // sender was looking at.
-  const view = rawView === "calendar" ? "calendar" : "list";
-  // Today and the opening month on the reader's own clock, not the droplet's
+  // The calendar unless the list alone was asked for (2026-09-19, at the
+  // founders' request). It shipped the other way round the day before, and the
+  // grid turned out to be what people open this screen to see — the list is
+  // still under it, so defaulting here takes nothing away, it only adds the
+  // shape of the week above the work.
+  const view = rawView === "list" ? "list" : "calendar";
+  // Day, week or month, and the date the range is built around. Both live in
+  // the URL rather than in the browser, so the screen is the same server
+  // render either way and a pasted link opens on what its sender saw.
+  const span: CalendarSpan =
+    rawSpan === "day" || rawSpan === "week" ? rawSpan : "month";
+  // Today and the opening range on the reader's own clock, not the droplet's
   // UTC — a demo at 8am Singapore is Friday in New York, and each of them is
   // right about their own Friday.
   const today = new Intl.DateTimeFormat("en-CA", {
@@ -75,11 +96,15 @@ export default async function MeetingsPage({
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-  const month = /^\d{4}-\d{2}$/.test(rawMonth ?? "")
-    ? (rawMonth as string)
-    : today.slice(0, 7);
+  // `on` is the one anchor for all three spans. `month=YYYY-MM` is still read
+  // so links sent before this keep working, and means the first of that month.
+  const anchor = /^\d{4}-\d{2}-\d{2}$/.test(rawOn ?? "")
+    ? (rawOn as string)
+    : /^\d{4}-\d{2}$/.test(rawMonth ?? "")
+      ? `${rawMonth}-01`
+      : today;
   // What to carry across a view switch or a page turn. Written out rather than
-  // rebuilt from `searchParams`, since only these two ever belong in it.
+  // rebuilt from `searchParams`, since only the zone ever belongs in it.
   const keepTz = isStatsRegion(rawTz) ? `&tz=${rawTz}` : "";
   // The database's clock decided this, not this render's.
   const soon = meetings.filter((m) => m.startingSoon).length;
@@ -112,7 +137,13 @@ export default async function MeetingsPage({
               page is, so it belongs with the page's controls. Both labels are
               drawn, so nobody has to work out whether the word on the button
               is what they are looking at or what they would get. */}
-          <MeetingsView view={view} query={keepTz} />
+          {/* Carries the span and the anchor as well as the zone, so a look at
+              the list and back returns to the week you were reading rather
+              than to this month. The list itself ignores both. */}
+          <MeetingsView
+            view={view}
+            query={`${keepTz}&span=${span}&on=${anchor}`}
+          />
           {/* Per browser, not per person — see PushToggle. Renders nothing at
               all where push cannot work, rather than a dead button. */}
           <PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
@@ -168,7 +199,8 @@ export default async function MeetingsPage({
         )}
         {view === "calendar" && (
           <MeetingsCalendar
-            month={month}
+            span={span}
+            anchor={anchor}
             meetings={meetings}
             tz={zone.tz}
             zoneLabel={zone.label}

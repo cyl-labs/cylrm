@@ -44,10 +44,15 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   time passed. `past` is excluded because it would re-upsert the hundred most
   recent finished meetings on every one of the day's 288 ticks; a one-off
   backfill of history is that array plus one word.
-### List or calendar (2026-09-18)
+### List or calendar (2026-09-18, calendar by default 2026-09-19)
 
-`?view=calendar` draws the month as a grid above the list; `?view=list`, the
-default, draws the list alone. `MeetingsCalendar` and `MeetingsView`.
+`?view=calendar` draws the grid above the list and **is the default**;
+`?view=list` draws the list alone. `MeetingsCalendar` and `MeetingsView`.
+
+- **The default flipped the day after it shipped**, at the founders' request.
+  It cost nothing to flip: the list is rendered *under* the calendar rather
+  than instead of it, so the grid only adds the shape of the week above the
+  work. Nobody loses a row by it.
 
 - **Asked for because a founder was opening Cal.com to check what was coming.**
   He had forgotten this screen existed; the complaint that survived finding it
@@ -80,6 +85,40 @@ default, draws the list alone. `MeetingsCalendar` and `MeetingsView`.
   "10AM Tiger Fluids Pte. Ltd." truncated to "10AM TIGER F…", and the name is
   what people scan for. Cancelled rows are struck through rather than dropped,
   so the grid and the list cannot disagree about what is booked.
+
+#### Day, week and month (2026-09-19)
+
+`?span=day|week|month` (month by default) and `?on=YYYY-MM-DD`, the one date
+every span is built around.
+
+- **One grid, not three layouts.** Each span is a list of dates and a width: a
+  month is its days with blanks in front, a week is the seven from its Monday,
+  a day is one. Three components would be three places for "which day is this
+  appointment on" to be answered differently, and that is the single question
+  a calendar exists to get right. `datesFor` is the whole of the difference.
+- **No hour grid.** A day is its appointments in order, not a ruler from 8am
+  to 8pm: the row underneath already carries the detail, and the question a
+  caller asks this screen is "what is on", not "how long is the gap".
+- **A month step lands on the 1st**, rather than keeping the day of the month
+  — stepping forward from the 31st would otherwise have to invent a 31st of
+  February. Nothing reads the day for a month span.
+- **`on` replaced `month`, and `month=YYYY-MM` is still parsed** so links sent
+  before this keep working; it means the first of that month.
+- **The arrows used to drop `view=calendar`** (fixed here). Turning the page
+  returned a reader to the list they had just switched away from, which read
+  as the calendar closing itself. Every control in the header now carries the
+  view, the span and the zone — the `call-filters.tsx` bug, once more.
+- **A "Today" button sits before the arrows.** Three pages out, it is the way
+  back, and hunting for the current date among the numbers is exactly what a
+  calendar without one makes you do.
+- **Cell heights differ because the spans can afford different things.** Twelve
+  rows of a month grid already fill a screen (86px), while seven cells (150px)
+  or one (160px) have room to show every appointment without a "+2 more" — and
+  a day's chip puts the time beside the name rather than above it, with the
+  minutes written out, because the width is there.
+- Verified at 1280px and 390px, all three spans, `scrollWidth === clientWidth`
+  on each: 3 demos on the day, 4 in the week, 8 in the month, off the same ten
+  seeded rows.
 
 ### Two Telegram alerts, one clock (2026-09-19)
 
