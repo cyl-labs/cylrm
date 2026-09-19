@@ -179,6 +179,40 @@ export async function POST(request: Request) {
     })
     .returning({ id: call.id, calledAt: call.calledAt });
 
+  /**
+   * Claim the booking this call just made, without waiting for the sync.
+   *
+   * The Cal.com sync links a meeting to the call that booked it, and it runs
+   * every five minutes — so a prospect who books while still on the phone
+   * produces a meeting the CRM sees *before* the caller has pressed Demo
+   * booked. Aaron's Garbage Removal demo missed by thirteen seconds and Next
+   * Level Haul Away by fifty-six. Both healed on the next tick, and in between
+   * the card said nobody had booked it and offered no way to log attendance,
+   * which is the part somebody notices.
+   *
+   * So the save does it too. `call_id is null` is the whole guard: a meeting
+   * already attached to a call is never taken off it, so this can only ever
+   * fill a gap the sync would have filled later. `kind = 'demo'`, because
+   * logging a demo says nothing about a follow-up booking; and the soonest
+   * upcoming one, since a caller booking now is booking the next one.
+   */
+  if (body.outcome === "demo_booked") {
+    await db.execute(sql`
+      update call_meeting
+      set call_id = ${row.id}
+      where id = (
+        select m.id from call_meeting m
+        where m.call_lead_id = ${leadId}
+          and m.call_id is null
+          and m.kind = 'demo'
+          and m.status = 'accepted'
+          and m.start_at > now()
+        order by m.start_at asc
+        limit 1
+      )
+    `);
+  }
+
   return Response.json({
     id: row.id,
     calledAt: row.calledAt.toISOString(),

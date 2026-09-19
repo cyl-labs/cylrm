@@ -294,6 +294,29 @@ demo and no way to say whether they turned up.
   load, badge "just now" and no button, exactly as reported; 70 seconds later,
   still no reload, the button was there.
 
+### The booking is claimed as it is logged (2026-09-20)
+
+`/api/calls` attaches the call to its meeting when the outcome is
+`demo_booked`, instead of leaving it to the next sync.
+
+- **Why.** The sync links a meeting to the call that booked it and runs every
+  five minutes, so a prospect booking *while still on the phone* produces a
+  meeting the CRM sees before the caller has pressed Demo booked. Aaron's
+  Garbage Removal demo missed by **thirteen seconds**, Next Level Haul Away by
+  **fifty-six**. Both healed on the next tick; in between the card said nobody
+  had booked it, named no caller, and offered no way to log attendance — which
+  is the part somebody notices, twice in one evening.
+- **`call_id is null` is the whole guard.** A meeting already attached is never
+  taken off its call, so this can only fill a gap the sync would have filled
+  later. It cannot disagree with the sync, only beat it.
+- **`kind = 'demo'` and the soonest upcoming one.** Logging a demo says nothing
+  about a follow-up booking on the same lead, and a caller booking now is
+  booking the next one. Verified: with an unlinked demo and an unlinked
+  follow-up on one lead, the demo was claimed and the follow-up left alone.
+- The sync still does its half, and still owns the case where the booking
+  arrives *after* the outcome — a prospect who books an hour later from the
+  link in a text.
+
 ### Upcoming first, done underneath (2026-09-20)
 
 `order by` in `getMeetings`. It was `start_at asc` for everything.
