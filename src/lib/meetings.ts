@@ -148,9 +148,18 @@ function best(a: Candidate | undefined, b: Candidate): Candidate {
  *
  * Runs on the worker's five-minute tick. Every booking is upserted on its
  * Cal.com uid, so the same meeting seen three hundred times a day stays one
- * row, and a reschedule is a change to `start_at` rather than a new row —
- * which is what re-arms the reminders, since each is recorded against the
- * time it was made for.
+ * row.
+ *
+ * A reschedule is **a new booking with a new uid**, not a changed `start_at`.
+ * This said the opposite until 2026-09-19, when the account turned out to hold
+ * a counter-example: `6CgQzWi6ACgBh3v72Biww2` went `cancelled` carrying
+ * `rescheduledToUid`, and `eXxWooZqXRnFjzsaqPBhPh` is the live booking at the
+ * new time. Nothing here had to change for it — the old row goes cancelled and
+ * the new one arrives with the notes line intact, so it matches the same lead —
+ * but the consequence is worth knowing: a moved meeting leaves two rows, and
+ * the reminders re-arm because the new row has no claims rather than because
+ * `for_start_at` stopped matching. That column still earns its place for a
+ * booking whose time changes where it stands.
  */
 export async function syncMeetings(): Promise<MeetingSyncResult> {
   const empty = {
@@ -286,6 +295,10 @@ export type MeetingContract = {
 
 export type Meeting = {
   id: number;
+  /** Cal.com's own handle for the booking. Read here so a row can offer to
+   *  move the meeting: `rescheduleUid` is how Cal.com is told to change this
+   *  booking rather than take a second one. */
+  calBookingUid: string;
   startAt: string;
   endAt: string | null;
   status: string;
@@ -490,7 +503,7 @@ const FOLLOW_UP_DAYS = 21;
 const NO_SHOW_RING_DAYS = 7;
 
 const meetingSelect = sql`
-  m.id, m.start_at, m.end_at, m.status, m.title,
+  m.id, m.cal_booking_uid, m.start_at, m.end_at, m.status, m.title,
   m.attendee_name, m.attendee_email, m.attendee_phone, m.attendee_tz,
   m.meeting_url, m.kind,
   l.id as lead_id, l.company, l.name as lead_name, l.phone,
@@ -748,6 +761,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
   const phone = booked ?? listed;
   return {
     id: n(r.id),
+    calBookingUid: String(r.cal_booking_uid),
     startAt: iso(r.start_at)!,
     endAt: iso(r.end_at),
     status: String(r.status),

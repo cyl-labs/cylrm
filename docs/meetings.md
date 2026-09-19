@@ -133,6 +133,69 @@ the board, the unbooked-demos list and Book a follow-up.
   on the left of the booking page, not an address. A "State" booking field was
   proposed and deliberately not built.
 
+### Moving a meeting (2026-09-19)
+
+**Move this demo** on a meeting row opens Cal.com on that booking with a new
+time to pick. Asked for as "theres no button for rescheduling this same voice
+agent demo meeting. sometimes theyre not free right now".
+`calRescheduleHref` in `lib/cal-link.ts`, the button in `meetings-list.tsx`.
+
+- **It was missing for two different people, not one.** The founder ringing at
+  the booked time is the one who noticed. The other is the caller ringing a
+  no-show back: the ring-back logger has offered **"Rebooked — new time
+  agreed"** since the confirmation call was dropped in September, and the red
+  note on that row says "put a new time in while you have them" — with nothing
+  on the screen that could put one in. The new time had to be agreed on the
+  phone and then typed into Cal.com from memory, on another tab.
+- **`rescheduleUid` moves the booking; it does not add a second one.** That is
+  the whole difference from "Book a follow-up" next to it, and it is not
+  cosmetic: a demo booked twice is two rows on this screen, two sets of
+  reminders and a second booking Cal.com has separately told the prospect
+  about. The two buttons therefore read differently on purpose — one moves this
+  meeting, the other adds a later call after a demo that already happened.
+- **Built against the event page, not `cal.com/reschedule/<uid>`.** The short
+  link exists and is what Cal.com's own emails use, but it answers **307 to the
+  event page with the query string dropped** — measured — so `cal.tz` would be
+  lost, which is the one thing this must not do. The link is therefore
+  `{event url}?rescheduleUid={uid}&cal.tz={prospect's zone}`, and the zone is
+  the booking's own `attendee_tz`: their answer rather than our guess, as **Book
+  a follow-up** already uses. Verified in a browser pinned to Singapore — with
+  no parameter the page opened on Asia/Singapore and read the booking as
+  8:30 am, with `cal.tz=America/New_York` it read the same booking as 8:30 pm,
+  and the "Former time" line follows the zone too.
+- **A row is moved on the event type it was booked on**, `kind` deciding which
+  of `CAL_BOOKING_URL` / `CAL_FOLLOWUP_URL` is used. A follow-up rescheduled
+  onto the demo link would come back through the sync as a *demo* and be asked
+  whether they turned up — the duplicate attendance fee `call_demo_attendance`'s
+  unique index exists to refuse. Unset means no button on that kind of row.
+- **Nothing is prefilled, deliberately.** Cal.com carries the original
+  booking's answers to the new one — checked on the one real reschedule on this
+  account, where the notes line `KR Services LLC (+18084292496)` survived intact
+  — and that line is what the sync matches a booking back to its lead on.
+  Sending our own values would overwrite whatever the prospect corrected on
+  Cal.com, "Best number to call you on" among them.
+- **Hidden once they have shown up**, and on a cancelled row (which the action
+  block already hides). A demo that happened is not moved, it is followed up,
+  and that button is on the same row. A **no show keeps it** — that is the
+  rebook, and a past booking reschedules fine: checked against a real
+  `voice-agent-demo` whose time had gone, which offered 26 slots and named the
+  missed one as "Former time".
+- **A reschedule is a new booking with a new uid, not a changed `start_at`.**
+  This file and `syncMeetings` both claimed otherwise until 2026-09-19; the
+  account has a counter-example — `6CgQzWi6ACgBh3v72Biww2` went `cancelled`
+  carrying `rescheduledToUid`, and `eXxWooZqXRnFjzsaqPBhPh` is the live booking
+  at the new time. Nothing had to change for it: the old row goes cancelled and
+  is struck through, the new one is a fresh `call_meeting` so the reminders have
+  no claim rows and fire on their own, `needsRingBack` closes "the moment a
+  later booking exists", and attendance is read `>= m.start_at` so the no-show
+  answer does not stamp itself on the rebooked meeting. `for_start_at` still
+  earns its place for a booking whose time changes in place.
+- Checked at 390/768/1440 with `scrollWidth === clientWidth`, and against a UTC
+  server with a Singapore browser — no console errors, so no hydration
+  mismatch. The explainer gained an **"If they cannot make the time"** section,
+  since this is the first control on the screen that changes anything on
+  Cal.com.
+
 ### Booking the follow-up (2026-09-19)
 
 **Book a follow-up** on a meeting row opens Cal.com prefilled, so the next call

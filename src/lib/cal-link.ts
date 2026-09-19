@@ -38,3 +38,48 @@ export function calBookingHref(
   });
   return `${base}?${params.toString()}`;
 }
+
+/**
+ * The Cal.com page for moving a booking already made.
+ *
+ * A prospect who cannot take the call at the agreed time is the ordinary case
+ * — "sometimes they're not free right now" — and until this there was no way
+ * to move a meeting from the CRM at all. Both people who need it were stuck:
+ * the founder ringing at the booked time, and the caller ringing a no-show
+ * back, whose own log already offers "Rebooked — new time agreed" with nothing
+ * on the screen that could do the rebooking.
+ *
+ * `rescheduleUid` moves the booking rather than adding a second one. That is
+ * the whole difference from `calBookingHref`, and it is not cosmetic: a demo
+ * booked twice is two rows on Meetings, two sets of reminders and a second
+ * booking Cal.com has separately told the prospect about.
+ *
+ * **No prefill, deliberately.** Cal.com carries the original booking's answers
+ * across to the new one — verified on the one real reschedule on this account,
+ * where the notes line `KR Services LLC (+18084292496)` survived intact — and
+ * that line is what the sync matches a booking back to its lead on. Sending
+ * our own values would overwrite whatever the prospect corrected on Cal.com,
+ * the "Best number to call you on" among them.
+ *
+ * **Built against the event page rather than `cal.com/reschedule/<uid>`.**
+ * That shorter link exists and is what Cal.com's own emails use, but it
+ * answers 307 to exactly this URL **with the query string dropped** — so the
+ * zone below would be lost, which is the one thing this must not do. Measured,
+ * not assumed.
+ */
+export function calRescheduleHref(
+  base: string,
+  uid: string,
+  /** The prospect's own zone off the booking — their answer, not our guess at
+   *  it. Without it the page opens on the reader's clock, and a founder in
+   *  Singapore reads slots for a Florida prospect at four in the morning: the
+   *  failure `cal.tz` was added to the booking link to fix. Checked against the
+   *  live reschedule page, where it renames the "Former time" line too. */
+  tz?: string | null,
+): string {
+  const params = new URLSearchParams({
+    rescheduleUid: uid,
+    ...(tz ? { "cal.tz": tz } : {}),
+  });
+  return `${base}?${params.toString()}`;
+}

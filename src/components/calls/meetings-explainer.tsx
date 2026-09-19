@@ -170,6 +170,38 @@ export function MeetingsExplainer({
             call is what takes the row off your list.
           </p>
         </section>
+
+        <section>
+          <h3 className="font-bold">If they cannot make the time</h3>
+          <p className="mt-1 text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              Move this demo
+            </span>{" "}
+            on the row opens Cal.com on that booking, already set to{" "}
+            <span className="font-semibold text-foreground">
+              their time zone
+            </span>
+            , so the times you read out are the times they hear. Pick the new
+            slot and Cal.com emails them that it has moved.
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            It{" "}
+            <span className="font-semibold text-foreground">
+              moves this meeting
+            </span>{" "}
+            rather than adding a second one, so there is still one row here and
+            the reminders follow the new time. The new time appears on this
+            screen within five minutes, or straight away if you press Refresh.
+            Use it whether they told you beforehand or did not turn up at all.
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              Book a follow-up
+            </span>{" "}
+            is the other thing, and only founders see it: that is a second,
+            later call after a demo that has already happened.
+          </p>
+        </section>
       </div>
     </details>
   );

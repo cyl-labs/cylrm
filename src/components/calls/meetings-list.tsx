@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  CalendarClock,
   CalendarPlus,
   Check,
   CalendarX2,
@@ -22,7 +23,7 @@ import type { CallOutcome } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import type { SmsStatus, Texting } from "@/lib/sms";
 import { classifyPhone, dialableNumber, spokenNumber } from "@/lib/phone";
-import { calBookingHref } from "@/lib/cal-link";
+import { calBookingHref, calRescheduleHref } from "@/lib/cal-link";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -210,6 +211,7 @@ export function MeetingsList({
   tz,
   zoneLabel,
   showWho = false,
+  bookingUrl = null,
   followUpBookingUrl = null,
   signingBase = "",
   texting = null,
@@ -225,6 +227,10 @@ export function MeetingsList({
   /** Who booked it. Admins only, like the callbacks diary — a caller's own
    *  diary has their name on every row, which is noise. */
   showWho?: boolean;
+  /** `CAL_BOOKING_URL`, the demo event type. Only the reschedule link is built
+   *  from it here — nothing on this screen books a new demo — so null means no
+   *  Reschedule button on a demo row. */
+  bookingUrl?: string | null;
   /** `CAL_FOLLOWUP_URL`, the second Cal.com event type. Null means no button,
    *  the rule every unconfigured feature here follows. */
   followUpBookingUrl?: string | null;
@@ -504,6 +510,13 @@ export function MeetingsList({
     <ul className="flex flex-col gap-2">
       {meetings.map((m) => {
         const cancelled = m.status === "cancelled";
+        // A meeting is moved on the event type it was booked on, or it comes
+        // back through the sync as the other kind — a follow-up rescheduled
+        // onto the demo link would be asked whether they turned up, and a
+        // second attendance fee is exactly what `call_demo_attendance`'s
+        // unique index exists to refuse.
+        const rescheduleBase =
+          m.kind === "follow_up" ? followUpBookingUrl : bookingUrl;
         const their = theirTime(m.startAt, m.attendeeTz);
         // This business's text conversation, when texting is on.
         const lead =
@@ -935,6 +948,44 @@ export function MeetingsList({
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                )}
+                {/* Move it, rather than book a second one.
+
+                    Asked for on 2026-09-19 — "sometimes they're not free right
+                    now" — and it was missing for everybody, not only the
+                    founder who noticed. The ring-back logger a few buttons
+                    along has offered "Rebooked — new time agreed" since the
+                    chase call was replaced, with nothing on this screen able to
+                    do the rebooking: the new time had to be agreed on the phone
+                    and then typed into Cal.com from memory, on another tab.
+
+                    Deliberately not a second booking. `rescheduleUid` moves
+                    this one, so the prospect gets Cal.com's own "your meeting
+                    has moved" mail, the reminders re-arm off the new
+                    `start_at`, and the diary keeps one row for one meeting.
+                    "Book a follow-up" above is the other thing and says so.
+
+                    Hidden once they have turned up: a demo that happened is
+                    not moved, it is followed up, and that button is already on
+                    the row. A no show keeps it — that is the rebook. */}
+                {rescheduleBase && m.attendance !== "showed_up" && (
+                  <a
+                    href={calRescheduleHref(
+                      rescheduleBase,
+                      m.calBookingUid,
+                      // Their clock, off their own booking. A founder reading
+                      // this in Singapore would otherwise be offered a Florida
+                      // prospect's slots at four in the morning.
+                      m.attendeeTz,
+                    )}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    title="Opens Cal.com to pick a new time for this booking. It moves this meeting rather than adding another, and Cal.com tells them."
+                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
+                  >
+                    <CalendarClock className="size-3.5 shrink-0" strokeWidth={2.2} />
+                    Move this {m.kind === "follow_up" ? "call" : "demo"}
+                  </a>
                 )}
                 {/* The same sheet the call log opens: audio, and a transcript
                     whose turns seek it. Made on request in there, not here. */}

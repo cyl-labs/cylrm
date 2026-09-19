@@ -191,6 +191,11 @@ export default async function MeetingsPage({
           tz={zone.tz}
           zoneLabel={zone.label}
           showWho={me?.role === "admin"}
+          // The demo's own event type, which is what a demo is moved on. Both
+          // links are passed because a row is moved on the page it was booked
+          // from: a follow-up rescheduled onto the demo link would come back
+          // through the sync as a demo, and be asked whether they turned up.
+          bookingUrl={process.env.CAL_BOOKING_URL ?? null}
           // The second Cal.com event type, for the call after the demo. Unset
           // means no button rather than one that cannot work.
           followUpBookingUrl={process.env.CAL_FOLLOWUP_URL ?? null}
