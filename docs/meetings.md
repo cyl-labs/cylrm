@@ -91,14 +91,58 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
 `?span=day|week|month` (month by default) and `?on=YYYY-MM-DD`, the one date
 every span is built around.
 
-- **One grid, not three layouts.** Each span is a list of dates and a width: a
-  month is its days with blanks in front, a week is the seven from its Monday,
-  a day is one. Three components would be three places for "which day is this
-  appointment on" to be answered differently, and that is the single question
-  a calendar exists to get right. `datesFor` is the whole of the difference.
-- **No hour grid.** A day is its appointments in order, not a ruler from 8am
-  to 8pm: the row underneath already carries the detail, and the question a
-  caller asks this screen is "what is on", not "how long is the gap".
+- **Which dates a span covers is one function** (`datesFor`): a month is its
+  days with blanks in front, a week is the seven from its Monday, a day is
+  one. Two answers to "which day is this appointment on" is the one thing a
+  calendar must never have.
+- **Day and week are a time grid; a month stays chips.** Shipped without the
+  hour ruler and asked for the same afternoon, with Google Calendar's own
+  screenshots attached: a column of start times says nothing about the *gap*
+  between two of them, and the gap is the thing you are reading the screen for
+  when you are deciding whether a call fits. A month cell is about 100px and
+  cannot hold a ruler, which is why Google's month view does not either.
+  - **The hours shown come from the appointments, not from a fixed day.** This
+    floor rings the US from Singapore, so demos land at one in the morning as
+    often as at two in the afternoon, and an 8-to-6 window would simply hide
+    them. `hourWindow` takes the earliest and latest in range with an hour of
+    air either side, and a minimum of eight hours so a single call does not
+    draw a three-hour calendar. The alternative was Google's 24-hour scroller,
+    where a 9pm demo is below the fold on arrival and there is no client-side
+    scroll-to-now on a server-rendered page.
+  - **One scale across all seven columns**, worked out once from the whole
+    week. Seven days each on their own range would put 9am at a different
+    height in each, which is the entire point of the grid gone.
+  - **Overlapping demos are dealt columns**, like Google's. The width is per
+    *cluster* of overlaps rather than per day, so one clash at 9am does not
+    halve the width of an untroubled 4pm call. Verified: two demos half an
+    hour apart render at `left: 0%/50%, width: 50%`, and the untroubled ones
+    at 100%.
+  - **A booking with no end time is 30 minutes**, and one running past
+    midnight is clamped to the end of its day rather than drawn off the bottom
+    of the grid.
+  - **`hourCycle: "h23"`, not `hour12: false`** — the latter renders midnight
+    as hour 24 in some engines, which would put a midnight demo an entire day
+    below the grid.
+  - **A week scrolls sideways under ~640px.** Seven columns and a gutter at
+    390px leaves about 44px each, where "2AM · Follow-up" truncated to "2AM …";
+    it now scrolls in its own container, the exception the layout rules
+    already make for tables and diagrams, with the day header inside the same
+    scroller so the two cannot slide out of line. A consequence worth knowing:
+    on a phone the week opens on Monday and today may be off to the right,
+    with no way to scroll it into view from a server render. Day is one tap
+    away and is the better phone view.
+- **Every chip says whether it is a demo or a follow-up** (2026-09-19). Asked
+  for as soon as follow-ups started being booked: two appointments with the
+  same business name on them are otherwise indistinguishable, and they are not
+  the same job — a follow-up is never asked the attendance question, and it is
+  moved on a different Cal.com link. Clay for the demo, green for the
+  follow-up, and **the word beside the time in both**: the colour is the
+  glance, the word is the answer, and that is the same rule the rest of the
+  Call CRM follows about not leaving a thing to be guessed from a tint.
+  - Set in ordinary case rather than the small caps with letter-spacing the
+    rest of the calendar uses, because "FOLLOW-UP" set that way truncated to
+    "FOLL…" in a week column — which is precisely the word this line exists
+    to say.
 - **A month step lands on the 1st**, rather than keeping the day of the month
   — stepping forward from the 31st would otherwise have to invent a 31st of
   February. Nothing reads the day for a month span.
@@ -111,14 +155,10 @@ every span is built around.
 - **A "Today" button sits before the arrows.** Three pages out, it is the way
   back, and hunting for the current date among the numbers is exactly what a
   calendar without one makes you do.
-- **Cell heights differ because the spans can afford different things.** Twelve
-  rows of a month grid already fill a screen (86px), while seven cells (150px)
-  or one (160px) have room to show every appointment without a "+2 more" — and
-  a day's chip puts the time beside the name rather than above it, with the
-  minutes written out, because the width is there.
 - Verified at 1280px and 390px, all three spans, `scrollWidth === clientWidth`
-  on each: 3 demos on the day, 4 in the week, 8 in the month, off the same ten
-  seeded rows.
+  on the page in each (the week's own container is the one thing that scrolls),
+  against eleven seeded rows including a cancelled one, two follow-ups and a
+  deliberate overlap.
 
 ### Two Telegram alerts, one clock (2026-09-19)
 

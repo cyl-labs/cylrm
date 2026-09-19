@@ -21,11 +21,13 @@ import { cn } from "@/lib/utils";
  * named appointments and links nothing, because the row underneath is where
  * anything gets done. The two share their date conventions and no markup.
  *
- * **Day, week and month are the same grid, not three components** (2026-09-19).
- * Each is a list of dates and a width: a month is its days with blanks in
- * front, a week is seven, a day is one. Three layouts would be three places
- * for "which day is this appointment on" to be answered differently, which is
- * the one question a calendar exists to get right.
+ * **Day and week are a time grid; a month stays a grid of chips**
+ * (2026-09-19). The founders asked for Google Calendar's shape — hours down
+ * the side and appointments sized by how long they run — because a list of
+ * start times says nothing about the *gap* between two of them, and the gap is
+ * what you are looking for when you are deciding whether to squeeze a call in.
+ * A month cell is about 100px and cannot hold an hour ruler, which is why
+ * Google's month view does not either.
  */
 
 export type CalendarSpan = "day" | "week" | "month";
@@ -34,6 +36,17 @@ export type CalendarSpan = "day" | "week" | "month";
  *  in one app must not disagree about where a week begins. */
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
+/** One hour of the time grid. Tall enough that a half-hour demo is still a
+ *  readable block rather than a line. */
+const HOUR_PX = 48;
+/** The time gutter. Fits "12 AM" at 11px without wrapping. */
+const GUTTER = "w-12 sm:w-14";
+/** An appointment with no end time. Cal.com always sends one; this is for the
+ *  rows that predate the column. */
+const DEFAULT_MINUTES = 30;
+/** Never smaller than this, or a 15-minute call is unreadable. */
+const MIN_BLOCK_PX = 22;
+
 /** Noon UTC, never midnight: a date parsed at midnight lands on the previous
  *  day in half the world, which is precisely the bug a calendar displays. */
 const noon = (date: string) => new Date(`${date}T12:00:00Z`);
@@ -41,12 +54,12 @@ const noon = (date: string) => new Date(`${date}T12:00:00Z`);
 /** Monday = 0. `getUTCDay` is Sunday = 0, which puts every grid a column out. */
 const columnOf = (date: string) => (noon(date).getUTCDay() + 6) % 7;
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
 function addDays(date: string, by: number): string {
   const d = noon(date);
   d.setUTCDate(d.getUTCDate() + by);
-  return iso(d);
+  return isoDate(d);
 }
 
 /** The Monday of the week this date sits in. */
@@ -129,10 +142,172 @@ const timeOf = (isoTime: string, tz: string, full = false) => {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(isoTime));
-  // "10:00 AM" is two thirds punctuation in a month cell. A day cell has the
-  // room and reads better with the ordinary form.
+  // "10:00 AM" is two thirds punctuation in a month cell. The time grid has
+  // the room and reads better with the ordinary form.
   return full ? t : t.replace(":00", "").replace(" ", "");
 };
+
+/** Minutes past midnight, on the reader's clock. `h23` rather than
+ *  `hour12: false`, which renders midnight as 24 in some engines and would put
+ *  a midnight demo off the bottom of the day. */
+function minutesOf(isoTime: string, tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(isoTime));
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return h * 60 + m;
+}
+
+const hourLabel = (hour: number) =>
+  `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? "AM" : "PM"}`;
+
+/** What a meeting is, said rather than left to a colour. */
+const kindLabel = (m: Meeting) =>
+  m.kind === "follow_up" ? "Follow-up" : "Demo";
+
+const nameOf = (m: Meeting) => m.company ?? m.attendeeName ?? "Demo";
+
+/**
+ * Where each appointment sits in its day, and how wide.
+ *
+ * Two demos at the same hour must not hide one another, so overlapping ones
+ * are dealt columns — the same thing Google Calendar does. The width is per
+ * *cluster* of overlaps rather than per day: one clash at 9am should not
+ * halve the width of an untroubled 4pm call.
+ */
+type Placed = {
+  m: Meeting;
+  start: number;
+  end: number;
+  col: number;
+  cols: number;
+};
+
+function place(rows: Meeting[], tz: string): Placed[] {
+  const items = rows
+    .map((m) => {
+      const start = minutesOf(m.startAt, tz);
+      const minutes = m.endAt
+        ? Math.max(
+            15,
+            Math.round(
+              (new Date(m.endAt).getTime() - new Date(m.startAt).getTime()) /
+                60000,
+            ),
+          )
+        : DEFAULT_MINUTES;
+      // Clamped to the end of the day: a booking that runs past midnight
+      // belongs to tomorrow's column as well, and drawing it off the bottom of
+      // this one would stretch the grid instead.
+      return { m, start, end: Math.min(start + minutes, 24 * 60), col: 0, cols: 1 };
+    })
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const ends: number[] = [];
+  let cluster: Placed[] = [];
+  let clusterEnd = -1;
+  const close = () => {
+    const width = Math.max(...cluster.map((i) => i.col)) + 1;
+    for (const i of cluster) i.cols = width;
+    cluster = [];
+    ends.length = 0;
+  };
+  for (const it of items) {
+    if (cluster.length && it.start >= clusterEnd) close();
+    let c = ends.findIndex((end) => end <= it.start);
+    if (c === -1) {
+      c = ends.length;
+      ends.push(it.end);
+    } else {
+      ends[c] = it.end;
+    }
+    it.col = c;
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.end);
+  }
+  if (cluster.length) close();
+  return items;
+}
+
+/**
+ * Which hours to draw.
+ *
+ * Not a fixed midnight-to-midnight: this floor rings the US from Singapore, so
+ * the demos land at one in the morning as often as at two in the afternoon,
+ * and a fixed 8-to-6 window would simply hide them. The range is taken from
+ * the appointments themselves with an hour of air either side, which also
+ * means no scrolling to find them — the alternative was Google's 24-hour
+ * scroller, where a 9pm demo is below the fold on arrival.
+ */
+function hourWindow(placed: Placed[]): { from: number; to: number } {
+  if (placed.length === 0) return { from: 8, to: 20 };
+  let from = Math.floor(Math.min(...placed.map((p) => p.start)) / 60) - 1;
+  let to = Math.ceil(Math.max(...placed.map((p) => p.end)) / 60) + 1;
+  from = Math.max(0, from);
+  to = Math.min(24, to);
+  // A single 30-minute call would otherwise draw a three-hour calendar, which
+  // reads as a fault rather than as a quiet day.
+  while (to - from < 8) {
+    if (from > 0) from -= 1;
+    else if (to < 24) to += 1;
+    else break;
+  }
+  return { from, to };
+}
+
+/** One appointment, wherever it is drawn. The kind is always said: a
+ *  follow-up and the demo it follows are different appointments with the same
+ *  business name on them, and the founders asked for them to be told apart. */
+function Chip({
+  m,
+  tz,
+  layout,
+}: {
+  m: Meeting;
+  tz: string;
+  layout: "month" | "grid";
+}) {
+  const off = m.status === "cancelled";
+  const follow = m.kind === "follow_up";
+  return (
+    <span
+      title={`${timeOf(m.startAt, tz, true)} · ${kindLabel(m)} · ${nameOf(m)}${off ? " · cancelled" : ""}`}
+      className={cn(
+        "flex min-w-0 flex-col overflow-hidden rounded px-1 py-0.5 leading-tight",
+        layout === "month" ? "text-[11px]" : "h-full text-[11px]",
+        off
+          ? "bg-muted text-muted-foreground line-through"
+          : follow
+            ? // Green for the second conversation, clay for the first. The
+              // colour is the glance; the word under it is the answer.
+              m.startingSoon
+              ? "bg-success text-primary-foreground font-semibold"
+              : "bg-success/10 text-success font-medium"
+            : m.startingSoon
+              ? "bg-primary text-primary-foreground font-semibold"
+              : "bg-primary/10 text-primary font-medium",
+      )}
+    >
+      {/* Two lines, not one: at ~100px "10AM Tiger Fluids Pte. Ltd."
+          truncated to "10AM TIGER F…", and the name is what people scan
+          for, so it gets the width to itself.
+          The kind rides on the time's line in ordinary case, not small caps
+          with letter-spacing: a week column is about 90px, and "FOLLOW-UP"
+          set that way truncated to "FOLL…" — which is exactly the thing this
+          line was added to say. */}
+      <span className="truncate text-[10px] font-semibold opacity-80">
+        <span className="tabular-nums">{timeOf(m.startAt, tz)}</span>
+        {" · "}
+        {follow ? "Follow-up" : "Demo"}
+      </span>
+      <span className="line-clamp-2 break-words">{nameOf(m)}</span>
+    </span>
+  );
+}
 
 export function MeetingsCalendar({
   span,
@@ -173,11 +348,7 @@ export function MeetingsCalendar({
   }
 
   const days = datesFor(span, anchor);
-  // Blanks only in front of a month. A week already starts on its Monday, and
-  // a day is its own column.
-  const lead = span === "month" ? columnOf(days[0]) : 0;
   const shown = days.reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
-  const cols = span === "day" ? 1 : 7;
 
   // Every control keeps the view and the zone. The month arrows used to drop
   // `view=calendar`, so turning the page bounced the reader back to the list
@@ -193,66 +364,80 @@ export function MeetingsCalendar({
     { id: "month", label: "Month" },
   ];
 
-  return (
-    <div className="rounded-xl border bg-card">
-      {/* Wraps rather than scrolls: with a span picker beside the arrows there
-          is more here than a 390px header holds on one line. */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2.5">
-        <h2 className="text-[15px] font-bold tracking-[-0.01em]">
-          {spanLabel(span, anchor)}
-        </h2>
-        <span className="text-[13px] text-muted-foreground">
-          {shown === 0
-            ? `Nothing booked this ${span}`
-            : `${shown} ${shown === 1 ? "demo" : "demos"} · times in ${zoneLabel}`}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          {/* Today before the arrows: after paging three months out it is the
-              way back, and hunting for it among the numbers is the thing a
-              calendar without one makes you do. */}
-          <Link
-            href={at(span, today)}
-            className="rounded-md border px-2 py-1 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            Today
-          </Link>
-          <Link
-            href={at(span, back)}
-            aria-label={`Show ${spanLabel(span, back)}`}
-            className="flex size-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ChevronLeft className="size-4" strokeWidth={2.2} />
-          </Link>
-          <Link
-            href={at(span, forward)}
-            aria-label={`Show ${spanLabel(span, forward)}`}
-            className="flex size-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ChevronRight className="size-4" strokeWidth={2.2} />
-          </Link>
-          {/* All three drawn, like the List/Calendar pair: a single button
-              naming the next state has to be worked out mid-shift. */}
-          <div className="flex items-center rounded-md border p-0.5">
-            {SPANS.map(({ id, label }) => (
-              <Link
-                key={id}
-                href={at(id, anchor)}
-                aria-current={id === span ? "page" : undefined}
-                className={cn(
-                  "rounded-[5px] px-2 py-0.5 text-[13px] font-semibold transition-colors",
-                  id === span
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {label}
-              </Link>
-            ))}
-          </div>
+  // One scale across every column, worked out once: seven days on seven
+  // different hour ranges would put 9am at a different height in each and
+  // make the whole point of the grid — comparing days — impossible.
+  const placedByDay = new Map<string, Placed[]>();
+  for (const d of days) placedByDay.set(d, place(byDay.get(d) ?? [], tz));
+  const { from, to } =
+    span === "month"
+      ? { from: 0, to: 0 }
+      : hourWindow(days.flatMap((d) => placedByDay.get(d) ?? []));
+  const hours = Array.from({ length: to - from }, (_, i) => from + i);
+  const bodyPx = hours.length * HOUR_PX;
+
+  const header = (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2.5">
+      <h2 className="text-[15px] font-bold tracking-[-0.01em]">
+        {spanLabel(span, anchor)}
+      </h2>
+      <span className="text-[13px] text-muted-foreground">
+        {shown === 0
+          ? `Nothing booked this ${span}`
+          : `${shown} ${shown === 1 ? "demo" : "demos"} · times in ${zoneLabel}`}
+      </span>
+      <div className="ml-auto flex items-center gap-1">
+        {/* Today before the arrows: after paging three months out it is the
+            way back, and hunting for it among the numbers is the thing a
+            calendar without one makes you do. */}
+        <Link
+          href={at(span, today)}
+          className="rounded-md border px-2 py-1 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          Today
+        </Link>
+        <Link
+          href={at(span, back)}
+          aria-label={`Show ${spanLabel(span, back)}`}
+          className="flex size-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronLeft className="size-4" strokeWidth={2.2} />
+        </Link>
+        <Link
+          href={at(span, forward)}
+          aria-label={`Show ${spanLabel(span, forward)}`}
+          className="flex size-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronRight className="size-4" strokeWidth={2.2} />
+        </Link>
+        {/* All three drawn, like the List/Calendar pair: a single button
+            naming the next state has to be worked out mid-shift. */}
+        <div className="flex items-center rounded-md border p-0.5">
+          {SPANS.map(({ id, label }) => (
+            <Link
+              key={id}
+              href={at(id, anchor)}
+              aria-current={id === span ? "page" : undefined}
+              className={cn(
+                "rounded-[5px] px-2 py-0.5 text-[13px] font-semibold transition-colors",
+                id === span
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {label}
+            </Link>
+          ))}
         </div>
       </div>
+    </div>
+  );
 
-      {span !== "day" && (
+  if (span === "month") {
+    const lead = columnOf(days[0]);
+    return (
+      <div className="rounded-xl border bg-card">
+        {header}
         <div className="grid grid-cols-7 border-b bg-muted/40">
           {WEEKDAYS.map((d) => (
             <div
@@ -263,108 +448,166 @@ export function MeetingsCalendar({
             </div>
           ))}
         </div>
-      )}
+        <div className="grid grid-cols-7">
+          {/* The blanks before the first: a grid with no lead-in puts the
+              month on the wrong weekday, which is the one thing a calendar
+              must never do. */}
+          {Array.from({ length: lead }, (_, i) => (
+            <div
+              key={`lead-${i}`}
+              className="min-h-[86px] border-b border-r bg-muted/20"
+            />
+          ))}
+          {days.map((date, i) => {
+            const rows = byDay.get(date) ?? [];
+            const past = date < today;
+            return (
+              <div
+                key={date}
+                className={cn(
+                  "min-h-[86px] border-b border-r p-1 last:border-r-0",
+                  (lead + i) % 7 === 6 && "border-r-0",
+                  past && rows.length === 0 && "bg-muted/20",
+                  date === today && "bg-primary/5",
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex items-baseline gap-1 px-1 text-[11px] font-semibold tabular-nums",
+                    date === today
+                      ? "text-primary"
+                      : past
+                        ? "text-muted-foreground/60"
+                        : "text-muted-foreground",
+                  )}
+                >
+                  <span>{Number(date.slice(8))}</span>
+                  {/* Dropped on a phone, where a cell is about 50px and the
+                      word ran straight over the next day's number. */}
+                  {date === today && (
+                    <span className="hidden truncate font-bold uppercase tracking-[0.06em] sm:inline">
+                      Today
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 flex flex-col gap-0.5">
+                  {rows.map((m) => (
+                    <Chip key={m.id} m={m} tz={tz} layout="month" />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
-      <div className={cn("grid", cols === 1 ? "grid-cols-1" : "grid-cols-7")}>
-        {/* The blanks before the first: a grid with no lead-in puts the month
-            on the wrong weekday, which is the one thing a calendar must never
-            do. */}
-        {Array.from({ length: lead }, (_, i) => (
+  // Day and week: hours down the side, appointments sized by how long they
+  // run, so the gap between two of them is a distance rather than arithmetic.
+  return (
+    <div className="rounded-xl border bg-card">
+      {header}
+
+      {/* A week is seven columns and a gutter, which at 390px leaves about
+          44px each — "2AM · Follow-up" truncated to "2AM …" and the name
+          wrapped to nothing readable. So the grid scrolls inside its own
+          container below ~640px, the exception the layout rules already make
+          for tables and diagrams. The day header and the body are inside the
+          same scroller, or they would slide out of line with each other. A
+          day view is one column and needs none of it. */}
+      <div className={cn(span === "week" && "overflow-x-auto")}>
+      <div className={cn(span === "week" && "min-w-[640px]")}>
+      <div className="flex border-b bg-muted/40">
+        <div className={cn(GUTTER, "shrink-0")} />
+        {days.map((date) => (
           <div
-            key={`lead-${i}`}
-            className="min-h-[86px] border-b border-r bg-muted/20"
-          />
+            key={date}
+            className={cn(
+              "flex-1 border-l px-1 py-1.5 text-center",
+              date === today && span === "week" && "bg-primary/5",
+            )}
+          >
+            <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              {fmt(date, { weekday: span === "day" ? "long" : "short" })}
+            </div>
+            <div
+              className={cn(
+                "text-[13px] font-bold tabular-nums",
+                date === today ? "text-primary" : "text-foreground",
+              )}
+            >
+              {Number(date.slice(8))}
+            </div>
+          </div>
         ))}
-        {days.map((date, i) => {
-          const rows = byDay.get(date) ?? [];
-          const past = date < today;
+      </div>
+
+      <div className="flex">
+        {/* The hour labels. Each sits on its line rather than inside its row,
+            which is where the eye looks for it — the line is the boundary the
+            appointment starts at. */}
+        <div className={cn(GUTTER, "relative shrink-0")} style={{ height: bodyPx }}>
+          {hours.map((h, i) => (
+            <span
+              key={h}
+              className="absolute right-1.5 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
+              style={{ top: i * HOUR_PX }}
+            >
+              {/* The first label would be clipped by the top edge, and the
+                  header above already names the day. */}
+              {i === 0 ? "" : hourLabel(h)}
+            </span>
+          ))}
+        </div>
+
+        {days.map((date) => {
+          const placed = placedByDay.get(date) ?? [];
           return (
             <div
               key={date}
               className={cn(
-                "border-b border-r p-1 last:border-r-0",
-                // A week and a day have the height a month cannot afford:
-                // twelve rows of a month grid already fill a screen, while
-                // seven cells or one have the room to show every appointment
-                // without a "+2 more".
-                span === "month"
-                  ? "min-h-[86px]"
-                  : span === "week"
-                    ? "min-h-[150px]"
-                    : "min-h-[160px]",
-                (lead + i) % 7 === 6 && "border-r-0",
-                cols === 1 && "border-r-0",
-                past && rows.length === 0 && "bg-muted/20",
-                date === today && "bg-primary/5",
+                "relative min-w-0 flex-1 border-l",
+                // Only on a week. A day view is one column and tinting all of
+                // it names nothing — it just washes the grid pink.
+                date === today && span === "week" && "bg-primary/5",
               )}
+              style={{ height: bodyPx }}
             >
-              <div
-                className={cn(
-                  "flex items-baseline gap-1 px-1 text-[11px] font-semibold tabular-nums",
-                  date === today
-                    ? "text-primary"
-                    : past
-                      ? "text-muted-foreground/60"
-                      : "text-muted-foreground",
-                )}
-              >
-                <span>{Number(date.slice(8))}</span>
-                {/* No weekday in the cell on a day view: the card's own
-                    heading already reads "Saturday 19 September", and
-                    repeating it gave the cell "19 SATURDAY TODAY". */}
-                {/* The word is dropped on a phone, where a month cell is about
-                    50px and it ran straight over the next day's number. The
-                    tint and the coloured date already say which day this is. */}
-                {date === today && (
-                  <span
-                    className={cn(
-                      "truncate font-bold uppercase tracking-[0.06em]",
-                      span === "month" ? "hidden sm:inline" : "inline",
-                    )}
+              {hours.map((h, i) => (
+                <div
+                  key={h}
+                  aria-hidden
+                  className="absolute inset-x-0 border-t border-border/60"
+                  style={{ top: i * HOUR_PX }}
+                />
+              ))}
+              {placed.map((p) => {
+                const top = ((p.start - from * 60) / 60) * HOUR_PX;
+                const height = Math.max(
+                  MIN_BLOCK_PX,
+                  ((p.end - p.start) / 60) * HOUR_PX,
+                );
+                return (
+                  <div
+                    key={p.m.id}
+                    className="absolute px-[2px]"
+                    style={{
+                      top,
+                      height,
+                      left: `${(p.col / p.cols) * 100}%`,
+                      width: `${(1 / p.cols) * 100}%`,
+                    }}
                   >
-                    Today
-                  </span>
-                )}
-              </div>
-              <div className="mt-0.5 flex flex-col gap-0.5">
-                {rows.map((m) => {
-                  const off = m.status === "cancelled";
-                  return (
-                    <span
-                      key={m.id}
-                      // The whole appointment on the title, because a month
-                      // cell truncates the company name and the name is what
-                      // somebody is scanning for.
-                      title={`${timeOf(m.startAt, tz)} · ${m.company ?? m.attendeeName ?? "Demo"}${off ? " · cancelled" : ""}`}
-                      className={cn(
-                        "flex rounded px-1 py-0.5 leading-tight",
-                        // Side by side once the cell is wide enough to hold
-                        // both, which is the shape a day reads best in;
-                        // stacked in a month, where ~100px truncated
-                        // "10AM Tiger Fluids Pte. Ltd." to "10AM TIGER F…".
-                        span === "day"
-                          ? "items-baseline gap-2 text-[13px]"
-                          : "flex-col text-[11px]",
-                        off
-                          ? "text-muted-foreground line-through"
-                          : m.startingSoon
-                            ? "bg-primary text-primary-foreground font-semibold"
-                            : "bg-primary/10 text-primary font-medium",
-                      )}
-                    >
-                      <span className="shrink-0 tabular-nums">
-                        {timeOf(m.startAt, tz, span === "day")}
-                      </span>
-                      <span className="line-clamp-2 break-words">
-                        {m.company ?? m.attendeeName ?? "Demo"}
-                      </span>
-                    </span>
-                  );
-                })}
-              </div>
+                    <Chip m={p.m} tz={tz} layout="grid" />
+                  </div>
+                );
+              })}
             </div>
           );
         })}
+      </div>
+      </div>
       </div>
     </div>
   );
