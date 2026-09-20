@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import type { CallListSummary } from "@/lib/calls";
+import { LEAD_LOW_DAYS } from "@/lib/lead-words";
 import { listProgress } from "@/lib/list-sort";
 import { nicheOf } from "@/lib/niche";
 
@@ -106,34 +107,179 @@ export type NicheStock = {
  * Duplicates are excluded to agree with `getCallLists`, which holds them out
  * of `total` — a niche cannot burn through a lead that is never offered.
  */
-export async function freshStarts(
-  tz: string,
-  days = 7,
-): Promise<{ started: Map<number, number>; activeDays: number }> {
+export type Pace = {
+  /** Fresh leads started per list, for the niche table. */
+  started: Map<number, number>;
+  /** Days anybody rang at all, the divisor for a niche. */
+  activeDays: number;
+  /** Fresh leads a person starts on a day they ring — their own pace, so the
+   *  warning on their row is measured against how fast *they* work rather
+   *  than the floor's average. Absent means they have rung nothing new this
+   *  week: a new hire, or somebody away. */
+  perDay: Map<number, number>;
+};
+
+export async function freshStarts(tz: string, days = 7): Promise<Pace> {
   const since = sql`now() - (${days}::int * interval '1 day')`;
+  // `distinct on` rather than `min(called_at)`, because the person who made
+  // the first call has to come back with it — a grouped min cannot say who.
+  // The whole table is scanned for that first call and only then filtered to
+  // the window: a lead first rung a month ago and rung again yesterday was
+  // consumed a month ago, and counting it here would report leads being eaten
+  // that are already gone. 10ms on prod's 3,130 calls.
   const rows = (await db.execute(sql`
     with first_call as (
-      select call_lead_id, min(called_at) as first_at
-      from "call"
-      group by call_lead_id
+      select distinct on (c.call_lead_id)
+        c.call_lead_id, c.user_id, c.called_at as first_at
+      from "call" c
+      order by c.call_lead_id, c.called_at, c.id
     )
-    select l.call_list_id as list_id, count(*)::int as started
+    select f.user_id, l.call_list_id as list_id, count(*)::int as started
     from first_call f
     join call_lead l on l.id = f.call_lead_id
     where f.first_at >= ${since} and l.duplicate_of_lead_id is null
-    group by l.call_list_id
-  `)) as { list_id: number; started: number }[];
+    group by f.user_id, l.call_list_id
+  `)) as { user_id: number | null; list_id: number; started: number }[];
 
+  const dayRows = (await db.execute(sql`
+    select user_id, count(distinct (called_at at time zone ${tz})::date)::int as days
+    from "call"
+    where called_at >= ${since}
+    group by user_id
+  `)) as { user_id: number | null; days: number }[];
+
+  const started = new Map<number, number>();
+  const startedBy = new Map<number, number>();
+  for (const r of rows) {
+    const list = Number(r.list_id);
+    started.set(list, (started.get(list) ?? 0) + Number(r.started));
+    if (r.user_id !== null) {
+      const uid = Number(r.user_id);
+      startedBy.set(uid, (startedBy.get(uid) ?? 0) + Number(r.started));
+    }
+  }
+
+  // Their own working days, not the floor's: somebody back from three days off
+  // has not slowed down, and dividing their week by everyone else's would say
+  // they had.
+  const perDay = new Map<number, number>();
+  for (const r of dayRows) {
+    if (r.user_id === null) continue;
+    const uid = Number(r.user_id);
+    const d = Number(r.days);
+    if (d > 0 && startedBy.has(uid)) perDay.set(uid, startedBy.get(uid)! / d);
+  }
+  // The floor's own divisor still has to be days *anybody* rang, which is the
+  // union of everyone's, not the sum — a second query for one integer.
   const [{ days: activeDays } = { days: 0 }] = (await db.execute(sql`
     select count(distinct (called_at at time zone ${tz})::date)::int as days
     from "call"
     where called_at >= ${since}
   `)) as { days: number }[];
 
-  return {
-    started: new Map(rows.map((r) => [Number(r.list_id), Number(r.started)])),
-    activeDays: Number(activeDays ?? 0),
-  };
+  return { started, activeDays: Number(activeDays ?? 0), perDay };
+}
+
+/** A caller who is about to have nothing new to dial. */
+export type ShortCaller = {
+  id: number;
+  name: string;
+  /** Never rung, across every list they hold. */
+  uncalled: number;
+  /** The lists they hold, by name — what the assign menu reads to offer more
+   *  of the niche they already ring. */
+  listNames: string[];
+  /** Their market, so the menu can sink the lists they cannot work. */
+  market: string | null;
+  /** Null when they have rung nothing new this week, so no pace to measure
+   *  against — then only an empty queue is worth saying out loud. */
+  daysLeft: number | null;
+  perDay: number;
+};
+
+/**
+ * Who is running out, worst first.
+ *
+ * Active callers only. An admin holds the demo line, which is two leads and
+ * permanently "out", and a switched-off account's lists are parked rather
+ * than being worked — neither is a person to go and fix.
+ *
+ * A caller with no lists at all is the loudest case and is included with
+ * everything at zero: they sign in to an empty app, which is worse than
+ * running low.
+ */
+export function callersRunningOut(
+  team: {
+    id: number;
+    name: string;
+    role: string;
+    active: boolean;
+    callRegion: string | null;
+  }[],
+  lists: Record<number, TeamList[]>,
+  perDay: Map<number, number>,
+): ShortCaller[] {
+  const out: ShortCaller[] = [];
+  for (const p of team) {
+    if (!p.active || p.role !== "caller") continue;
+    const theirs = lists[p.id] ?? [];
+    const uncalled = theirs.reduce((n, l) => n + l.uncalled, 0);
+    const rate = perDay.get(p.id) ?? 0;
+    const daysLeft = rate > 0 ? uncalled / rate : null;
+    // Nothing new to dial is always worth saying. Anything else needs a pace
+    // to measure against: without one there is no answer to "how long", only
+    // a number that could be a fortnight's work or this afternoon's.
+    if (uncalled > 0 && (daysLeft === null || daysLeft >= LEAD_LOW_DAYS)) continue;
+    out.push({
+      id: p.id,
+      name: p.name,
+      uncalled,
+      listNames: theirs.map((l) => l.name),
+      market: p.callRegion,
+      daysLeft,
+      perDay: rate,
+    });
+  }
+  // Nothing left to dial first, then by how long they have, then by name so
+  // the order does not shuffle between refreshes.
+  return out.sort(
+    (a, b) =>
+      (a.daysLeft ?? -1) - (b.daysLeft ?? -1) ||
+      a.uncalled - b.uncalled ||
+      a.name.localeCompare(b.name),
+  );
+}
+
+/** An unassigned list, as the assign menu offers it. */
+export type PoolList = {
+  id: number;
+  name: string;
+  niche: string;
+  region: string | null;
+  uncalled: number;
+  total: number;
+};
+
+/**
+ * The lists nobody holds, best to hand out first.
+ *
+ * Most never-rung first, because that is what a caller who has run out needs;
+ * lists with nothing left on them sort to the bottom rather than being hidden,
+ * since "there is nothing to give" is an answer too and a silently shortened
+ * menu is not.
+ */
+export function poolOf(lists: CallListSummary[]): PoolList[] {
+  return lists
+    .filter((l) => l.assignedUserId === null)
+    .map((l) => ({
+      id: l.id,
+      name: l.name,
+      niche: nicheOf(l.name),
+      region: l.region,
+      uncalled: l.uncalled,
+      total: l.total,
+    }))
+    .sort((a, b) => b.uncalled - a.uncalled || a.name.localeCompare(b.name));
 }
 
 /**

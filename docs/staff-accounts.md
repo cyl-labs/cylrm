@@ -64,6 +64,52 @@ Employees sign in individually so every call has a name on it. The single shared
     Founders only, like the rest of the screen: a caller cannot assign a list,
     and telling somebody their work runs out on Thursday when they can do
     nothing about it is a worry, not information.
+- **A warning at the top names whoever is about to run dry, with the fix next
+  to it** (2026-09-20, `components/team/lead-warning.tsx`,
+  `callersRunningOut`).
+  - **A caller's share can empty while the pile is still deep**, which is why
+    this is not the niche table read again: the floor can have nine days of
+    Junk Removal left while Aaron personally has nothing new after eleven
+    o'clock, and he will sit there until somebody notices. It is the only
+    time-critical thing on the screen, so it goes above everything — including
+    the numbers panel, which is fourteen rows tall and buried it.
+  - **Measured at their own pace, not the floor's.** `freshStarts` returns
+    fresh leads per *person* as well as per list, over the days **they** rang:
+    somebody back from three days off has not slowed down, and dividing their
+    week by everybody else's says they have. No pace (a new hire, or somebody
+    away) means no warning unless the queue is actually empty — without a rate
+    there is no answer to "how long", only a number that could be a
+    fortnight's work or this afternoon's.
+  - Active callers only. An admin holds the demo line, which is two leads and
+    permanently "out", and a switched-off account's lists are parked rather
+    than worked. A caller with **no lists at all** is included and is the
+    loudest row: they sign in to an empty app.
+  - Thresholds live in `src/lib/lead-words.ts` with `whenOut` — db-free,
+    because a client component reads them too, and two screens disagreeing
+    about whether somebody is in trouble is worse than the import.
+  - **It renders nothing when nobody is short**, which is the normal state. A
+    panel that is always there is one that stops being read.
+- **Lists are handed out from Team as well as from Call lists** (2026-09-20,
+  `components/team/assign-list.tsx`). Same route — `PATCH
+  /api/call-lists/[id]`, still the only thing that decides whether the change
+  is allowed — so this is a second door, not a second rule.
+  - Assigning belonged on Call lists, one dropdown per card, which is right
+    when you are looking at the lists and wrong when you are looking at the
+    person: the warning says Aaron has six leads left and the fix was forty
+    cards away on another screen.
+  - **Their own niche is offered first.** A caller working Junk Removal knows
+    the script, the objections and what those businesses sound like; the next
+    part of the same scrape is worth more to them than a bigger list in a
+    trade they have never rung. Their market is next, and the lists they
+    cannot ring at all are last and labelled — shown rather than hidden,
+    because a founder with nothing good to give should see what exists.
+  - **Undo rides on the toast**, for twelve seconds rather than sonner's four:
+    the mistake worth catching is the one made ten seconds ago, and a second
+    control on the row to take a list *away* is a different decision. Anything
+    older goes back through Call lists.
+  - The button is hidden, not disabled, on a row when there is nothing left to
+    hand out — "Nothing left to give" against every name is noise, and the
+    warning says it once where it matters.
 - **`ADMIN_ONLY_CALL_PREFIXES` is the Scoreboard, Team and Payroll**, kept separate from `EMAIL_PREFIXES` so the two reasons stay legible — one is a different product, the other is a permission — with `isAdminOnlyPath` covering both for the middleware and `linksFor` dropping them from the caller's sidebar. `/call-stats` was on it until 2026-09-06; see below.
 - **`/call-stats` is two screens sharing one page** (2026-09-06). An admin gets the floor: everyone's calls, every niche, a person picker, a By-person table. A caller gets their own and nothing else, and the page is the whole control — `mine = me?.role !== "admin"` forces `personId` to themselves and passes `scopeId` to `getCallLists`/`getListStats` for the niches they may see. **Anything added to that screen has to take one or the other**, or it will quietly show a caller the floor.
   - `?person=` is **not read at all** for a caller, and their own id is never written into a link (`personParam`): a scope that a query string can widen is not a scope, and a URL carrying a person id suggests it could carry somebody else's.

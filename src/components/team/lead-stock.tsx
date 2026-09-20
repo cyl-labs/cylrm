@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Layers } from "lucide-react";
 import type { NicheStock } from "@/lib/lead-stock";
+import { urgency, whenOut } from "@/lib/lead-words";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,31 +24,6 @@ import { cn } from "@/lib/utils";
  */
 
 const n = (v: number) => v.toLocaleString("en-US");
-
-/**
- * How long a niche has left, in words.
- *
- * Words rather than "8.1", for the reason the Team table says "3 days" rather
- * than a join date: this is read to decide whether to order more leads this
- * week, and a decimal invites arithmetic nobody wants to do. Never rounded
- * down to zero — "0 days" reads as a broken number where "under a day" reads
- * as the thing it is.
- *
- * Every phrase has to read after "in" as well as under "Runs out in", which is
- * why none of them is a bare number.
- */
-function whenOut(d: number): string {
-  if (d < 1) return "under a day";
-  if (d < 1.5) return "about a day";
-  if (d < 21) return `about ${Math.round(d)} days`;
-  if (d < 70) return `about ${Math.round(d / 7)} weeks`;
-  return "months";
-}
-
-/** Under a week left is the point at which ordering more has to start, since
- *  a scrape is not same-day. Ten days is the nudge before it. */
-const urgency = (d: number | null) =>
-  d === null ? "" : d < 7 ? "text-destructive" : d < 10 ? "text-amber-600 dark:text-amber-500" : "";
 
 function Bar({ fraction }: { fraction: number }) {
   return (

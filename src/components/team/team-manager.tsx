@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { KeyRound, Pencil, Plus, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import type { TeamMember } from "@/lib/users";
-import type { TeamList } from "@/lib/lead-stock";
+import type { PoolList, TeamList } from "@/lib/lead-stock";
+import { AssignListMenu } from "@/components/team/assign-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,6 +107,7 @@ export function TeamManager({
   numbers: accountNumbers,
   team,
   lists,
+  pool,
   meId,
   canManage,
   tz,
@@ -117,6 +119,9 @@ export function TeamManager({
    *  `TeamMember`, so this screen and the Call lists cards draw one set of
    *  numbers — see `listsByOwner`. */
   lists: Record<number, TeamList[]>;
+  /** The lists nobody holds, so somebody running low can be given one here
+   *  rather than on Call lists. */
+  pool: PoolList[];
   meId: number | null;
   canManage: boolean;
   /** The clock this screen's dates are read in — the reader's reporting zone,
@@ -411,14 +416,47 @@ export function TeamManager({
                               </Link>
                             );
                           })}
+                          {/* Under their lists rather than in the row menu:
+                              the decision is made while reading the bars
+                              above it, and a menu hides it behind a click at
+                              the far end of a thirteen-column row. */}
+                          {/* Hidden rather than disabled when there is nothing
+                              to give: a row of "Nothing left to give" against
+                              every name is noise, and the warning above says
+                              it once, where it matters. */}
+                          {canManage && m.active && pool.length > 0 && (
+                            <AssignListMenu
+                              className="self-start"
+                              person={{ id: m.id, name: m.name }}
+                              pool={pool}
+                              theirLists={listsOf(m.id).map((l) => l.name)}
+                              market={m.callRegion}
+                              label="Give them another"
+                            />
+                          )}
                         </div>
                       ) : m.active && m.role === "caller" ? (
-                        <Link
-                          href="/calls"
-                          className="whitespace-nowrap text-[12px] font-semibold text-destructive underline-offset-4 hover:underline"
-                        >
-                          None yet. Assign on Call lists
-                        </Link>
+                        <div className="flex min-w-52 max-w-72 flex-col items-start gap-1.5">
+                          <span className="whitespace-nowrap text-[12px] font-semibold text-destructive">
+                            None yet — their screen is empty
+                          </span>
+                          {canManage ? (
+                            <AssignListMenu
+                              className="self-start"
+                              person={{ id: m.id, name: m.name }}
+                              pool={pool}
+                              theirLists={[]}
+                              market={m.callRegion}
+                            />
+                          ) : (
+                            <Link
+                              href="/calls"
+                              className="whitespace-nowrap text-[12px] font-semibold underline-offset-4 hover:underline"
+                            >
+                              Assign on Call lists
+                            </Link>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}

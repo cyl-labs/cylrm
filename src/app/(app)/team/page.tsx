@@ -4,11 +4,18 @@ import { listTeam, readerZone } from "@/lib/users";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCallLists } from "@/lib/calls";
-import { buildLeadStock, freshStarts, listsByOwner } from "@/lib/lead-stock";
+import {
+  buildLeadStock,
+  callersRunningOut,
+  freshStarts,
+  listsByOwner,
+  poolOf,
+} from "@/lib/lead-stock";
 import { listAccountNumbers } from "@/lib/telnyx";
 import { TeamManager } from "@/components/team/team-manager";
 import { TelnyxNumbers } from "@/components/team/telnyx-numbers";
 import { LeadStock } from "@/components/team/lead-stock";
+import { LeadWarning } from "@/components/team/lead-warning";
 import { LiveCallers } from "@/components/team/live-callers";
 
 export const dynamic = "force-dynamic";
@@ -47,12 +54,17 @@ export default async function TeamPage() {
   // false` here would drop exactly those labels. "Absent means available"
   // still holds — the reserved set is built from the flag below, never from a
   // row existing.
-  const [team, lists, { started, activeDays }, numberRows] = await Promise.all([
+  const [team, lists, { started, activeDays, perDay }, numberRows] =
+    await Promise.all([
     listTeam(),
     admin ? getCallLists(undefined, tz) : [],
     admin
       ? freshStarts(tz)
-      : { started: new Map<number, number>(), activeDays: 0 },
+      : {
+          started: new Map<number, number>(),
+          activeDays: 0,
+          perDay: new Map<number, number>(),
+        },
     admin
       ? (db.execute(
           sql`select phone_number, available, label from call_number`,
@@ -62,6 +74,11 @@ export default async function TeamPage() {
       : [],
   ]);
   const stock = buildLeadStock(lists, started, activeDays);
+  const listsBy = listsByOwner(lists);
+  // Who is nearly out, and what there is to give them — both read off the same
+  // `lists`, so the warning cannot offer a list the table below says is taken.
+  const pool = poolOf(lists);
+  const short = callersRunningOut(team, listsBy, perDay);
 
   const numbers =
     me?.role === "admin"
@@ -80,6 +97,16 @@ export default async function TeamPage() {
   return (
     <PageShell title="Team">
       <div className="px-4 py-4 sm:px-6">
+        {/* First, and only when there is something to say. A caller who runs
+            dry at eleven sits there until somebody notices, which makes this
+            the one time-critical thing on the screen. */}
+        {admin && (
+          <LeadWarning
+            callers={short}
+            pool={pool}
+            className="mb-5 rounded-[14px] border shadow-[0_1px_3px_rgba(41,47,76,0.05)]"
+          />
+        )}
         {/* Above the numbers panel because it is the thing you open this
             screen to glance at before shipping, and it is one line when the
             answer is no. */}
@@ -97,7 +124,8 @@ export default async function TeamPage() {
           tz={tz}
           numbers={numbers}
           team={team}
-          lists={listsByOwner(lists)}
+          lists={listsBy}
+          pool={pool}
           meId={me?.id ?? null}
           canManage={me?.role === "admin"}
         />
