@@ -2,7 +2,7 @@ import { PageShell } from "@/components/page-shell";
 import { InboundList } from "@/components/calls/inbound-list";
 import { getInboundCalls } from "@/lib/inbound";
 import { getCurrentUser } from "@/lib/session";
-import { readerZone } from "@/lib/users";
+import { callerNumberOf, readerZone } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +23,16 @@ export const dynamic = "force-dynamic";
 export default async function MissedCallsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ show?: string }>;
+  searchParams: Promise<{ show?: string; who?: string }>;
 }) {
-  const { show } = await searchParams;
+  const { show, who } = await searchParams;
   const me = await getCurrentUser();
   const all = show === "all";
-  const calls = await getInboundCalls(me, { missedOnly: !all });
+  // Only an admin sees anyone else's to begin with, so the filter means
+  // nothing for a caller and is not offered to them.
+  const isAdmin = me?.role === "admin";
+  const mine = isAdmin && who === "mine";
+  const calls = await getInboundCalls(me, { missedOnly: !all, mineOnly: mine });
   const outstanding = calls.filter((c) => !c.answeredAt && !c.handledAt);
   // Split the way `countMissedCalls` splits them, so the header agrees with the
   // badge beside it: owed now, and owed once it is morning where they are.
@@ -42,9 +46,12 @@ export default async function MissedCallsPage({
           readerTz={(await readerZone(me?.id)).tz}
           calls={calls}
           all={all}
+          mine={mine}
+          canFilterMine={isAdmin}
+          myNumber={isAdmin ? ((await callerNumberOf(me?.id)) ?? null) : null}
           missed={missed}
           waiting={waiting}
-          showWho={me?.role === "admin"}
+          showWho={isAdmin}
         />
       </div>
     </PageShell>

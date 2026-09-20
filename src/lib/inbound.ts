@@ -81,6 +81,21 @@ export type InboundCall = {
 const scoped = (me: CurrentUser | null) =>
   me?.role === "admin" ? sql`` : sql`and ic.user_id = ${me?.id ?? -1}`;
 
+/**
+ * Narrow an admin's view to the calls that rang their own number.
+ *
+ * Asked for on 2026-09-20: "separate founder missed calls from normal ones, i
+ * want to know who called me specifically". A founder sees the whole floor's
+ * inbound by design, which is right for making sure nothing is dropped and
+ * useless for the question "did somebody ring *me* back". The rows have always
+ * carried whose number it was — this is the filter that was missing.
+ *
+ * On top of `scoped`, never instead of it: a caller is already narrowed to
+ * their own number and this adds nothing for them.
+ */
+const minedTo = (me: CurrentUser | null, mineOnly: boolean) =>
+  mineOnly && me ? sql`and ic.user_id = ${me.id}` : sql``;
+
 const KEEP_DAYS = 30;
 
 /** How old a missed call has to be before it may wait for their morning. */
@@ -180,7 +195,11 @@ const BURST_MINUTES = 15;
  * would run the window functions over the joined set, where `count(*)` counts
  * join output rather than rings.
  */
-const ROLLED_UP = (me: CurrentUser | null, missedOnly: boolean) => sql`
+const ROLLED_UP = (
+  me: CurrentUser | null,
+  missedOnly: boolean,
+  mineOnly: boolean,
+) => sql`
   select b.*,
     count(*) over w as rings,
     min(b.started_at) over w as first_at,
@@ -215,6 +234,7 @@ const ROLLED_UP = (me: CurrentUser | null, missedOnly: boolean) => sql`
                 and not ${RUNG_BACK_SINCE}`
           : sql``}
         ${scoped(me)}
+        ${minedTo(me, mineOnly)}
     ) m
   ) b
   window w as (partition by b.from_number, b.user_id, b.burst)
@@ -222,7 +242,10 @@ const ROLLED_UP = (me: CurrentUser | null, missedOnly: boolean) => sql`
 
 export async function getInboundCalls(
   me: CurrentUser | null,
-  { missedOnly = false }: { missedOnly?: boolean } = {},
+  {
+    missedOnly = false,
+    mineOnly = false,
+  }: { missedOnly?: boolean; mineOnly?: boolean } = {},
 ): Promise<InboundCall[]> {
   const rows = (await db.execute(sql`
     select ic.id, ic.from_number, ic.to_number, ic.started_at, ic.answered_at,
@@ -242,7 +265,7 @@ export async function getInboundCalls(
       -- from this row has to turn a typed wall time into an instant where the
       -- prospect is, and a formatted "3:35am" cannot be computed with.
       z.tz
-    from (${ROLLED_UP(me, missedOnly)}) ic
+    from (${ROLLED_UP(me, missedOnly, mineOnly)}) ic
     left join app_user u on u.id = ic.user_id
     left join app_user h on h.id = ic.handled_by
     left join call_lead l on l.id = ic.call_lead_id
@@ -312,7 +335,7 @@ export const countMissedCalls = cache(async function countMissedCalls(
 ): Promise<number> {
   const [row] = (await db.execute(sql`
     select count(*)::int as n
-    from (${ROLLED_UP(me, true)}) ic
+    from (${ROLLED_UP(me, true, false)}) ic
     left join call_lead l on l.id = ic.call_lead_id
     ${leadZone}
     -- One per number owed a ring back, the same roll-up the list shows: a

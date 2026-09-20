@@ -109,6 +109,9 @@ export function InboundList({
   readerTz,
   waiting = 0,
   showWho,
+  mine = false,
+  canFilterMine = false,
+  myNumber = null,
 }: {
   calls: InboundCall[];
   /** The clock this reader picked, used where the number that rang belongs to
@@ -122,6 +125,14 @@ export function InboundList({
   waiting?: number;
   /** Admins see whose number was rung; a caller only ever sees their own. */
   showWho: boolean;
+  /** Showing only the calls that rang the reader's own number. */
+  mine?: boolean;
+  /** Whether to offer that at all. False for a caller, who only ever sees
+   *  their own and would be given a filter that changes nothing. */
+  canFilterMine?: boolean;
+  /** The reader's own number, so the chip can name what "mine" means rather
+   *  than leaving it to be assumed. Null when they have none. */
+  myNumber?: string | null;
 }) {
   const router = useRouter();
   // The ring back placed from a row's Call back button, so logging what came of
@@ -212,14 +223,53 @@ export function InboundList({
           )}{" "}
           Last 30 days.
         </p>
-        {/* A link rather than a toggle so the state is in the URL and a
-            refresh, a back button and a shared link all agree. */}
-        <Link
-          href={all ? "/missed-calls" : "/missed-calls?show=all"}
-          className="rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
-        >
-          {all ? "Missed only" : "Show every call"}
-        </Link>
+        {/* Links rather than toggles so the state is in the URL and a refresh,
+            a back button and a shared link all agree. Each keeps the other,
+            or switching one would silently reset the other — the
+            `call-filters.tsx` bug. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {canFilterMine && (
+            <>
+              <Link
+                href={all ? "/missed-calls?show=all" : "/missed-calls"}
+                aria-current={mine ? undefined : "page"}
+                className={cn(
+                  "rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+                  mine
+                    ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    : "border-primary/40 bg-primary/10 text-primary",
+                )}
+              >
+                Everyone
+              </Link>
+              <Link
+                href={`/missed-calls?who=mine${all ? "&show=all" : ""}`}
+                aria-current={mine ? "page" : undefined}
+                title={myNumber ? `Calls to ${myNumber}` : undefined}
+                className={cn(
+                  "rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+                  mine
+                    ? "border-primary/40 bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {/* Named by the thing it filters on. "Mine" alone would be
+                    read as "calls I handled", which is a different list. */}
+                To my number
+              </Link>
+            </>
+          )}
+          <Link
+            href={
+              all
+                ? `/missed-calls${mine ? "?who=mine" : ""}`
+                : `/missed-calls?show=all${mine ? "&who=mine" : ""}`
+            }
+            className="rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
+          >
+            {all ? "Missed only" : "Show every call"}
+          </Link>
+        </div>
       </div>
 
       {calls.length === 0 ? (

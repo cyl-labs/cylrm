@@ -218,6 +218,35 @@ lead and not yet logged it.
   (skip replaced, outcomes still offered), after logging (memory cleared), and
   the logged row still carried its session id and duration.
 
+### Whose number they rang (2026-09-20)
+
+`?who=mine` on Missed calls, admins only. "Separate founder missed calls from
+normal ones, i want to know who called me specifically."
+
+- **The rows always knew.** `forName` is on every one and an admin's row has
+  said "for Li Xiang" since inbound shipped. What was missing was a way to ask
+  the question the other way round — a founder sees the whole floor's inbound
+  by design, which is right for making sure nothing is dropped and useless for
+  "did somebody ring *me* back".
+- **`minedTo` sits on top of `scoped`, never instead of it.** A caller is
+  already narrowed to their own number, so the filter would change nothing for
+  them and is not offered — the chips are admin-only, like the split on
+  `/call-stats`.
+- **The badge and the work gate do not follow it.** `countMissedCalls` passes
+  `mineOnly: false` explicitly: what a floor owes is not changed by which
+  slice a founder happens to be reading, and a badge that moved with a filter
+  would disagree with the wall the gate puts up.
+- **"To my number", not "Mine".** The latter reads as "calls I handled", which
+  is a different list. The chip carries the number itself as a title, so what
+  it filters on is checkable rather than assumed.
+- **Each chip keeps the other.** Missed-only/every-call and everyone/mine are
+  two independent filters, and switching one used to be able to reset the
+  other — the `call-filters.tsx` bug, which this screen was one link away from
+  acquiring.
+- Verified with five inbound calls across two lines: everyone showed 5, "to my
+  number" showed 2, the caller's own view was untouched at 3 and offered no
+  filter, and neither width overflowed.
+
 ### The work order: missed calls, then callbacks, then lists
 
 `src/lib/work-order.ts` decides it; the dialler and the Call lists screen enforce
