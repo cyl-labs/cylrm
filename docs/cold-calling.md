@@ -218,6 +218,23 @@ lead and not yet logged it.
   (skip replaced, outcomes still offered), after logging (memory cleared), and
   the logged row still carried its session id and duration.
 
+### Ringing a missed call back can put the agent on the line (2026-09-20)
+
+The missed-call row used `RingBackButton`, which dialled and nothing else.
+
+- **Reported as a flaw, and it was the same one the Meetings row had.** A
+  founder returning a missed call could not merge the voice agent in, so the
+  demo — the whole reason the call is being returned — had to be run from the
+  dial card or the Keypad instead. `MeetingCallButton` had already been given
+  hold and merge for exactly this; the row now uses it rather than growing a
+  third copy of the controls in `second-line.tsx`.
+- It brings a last look before dialling, which this row did not have. That is
+  worth the tap here: a missed call often comes from a number matching no lead,
+  and the confirmation is where the number and whose line it rang are read
+  before a real person's phone rings.
+- `lines` is empty for a handset caller, who has no browser line to merge onto,
+  exactly as on the dial card. The Texts screen still uses the plain button.
+
 ### Whose number they rang (2026-09-20)
 
 `?who=mine` on Missed calls, admins only. "Separate founder missed calls from

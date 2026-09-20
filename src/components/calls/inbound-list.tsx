@@ -24,7 +24,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CALL_TIME_OUTCOMES, OUTCOME_LABELS } from "@/components/calls/outcome";
-import { RingBackButton } from "@/components/calls/ring-back-button";
+import { MeetingCallButton } from "@/components/calls/meeting-call-button";
+import type { SavedLine } from "@/components/calls/second-line";
 import { useCallLine } from "@/components/calls/call-line";
 import {
   callbackZoneLabel,
@@ -112,6 +113,7 @@ export function InboundList({
   mine = false,
   canFilterMine = false,
   myNumber = null,
+  lines = [],
 }: {
   calls: InboundCall[];
   /** The clock this reader picked, used where the number that rang belongs to
@@ -133,6 +135,10 @@ export function InboundList({
   /** The reader's own number, so the chip can name what "mine" means rather
    *  than leaving it to be assumed. Null when they have none. */
   myNumber?: string | null;
+  /** The labelled lines a call from here can be merged with — the voice
+   *  agent's demo number among them. Empty for a handset caller, who has no
+   *  browser line to merge onto. */
+  lines?: SavedLine[];
 }) {
   const router = useRouter();
   // The ring back placed from a row's Call back button, so logging what came of
@@ -382,11 +388,24 @@ export function InboundList({
                   {/* From the number they rang, so the call comes from one
                       they already know. */}
                   {outstanding && (
-                    <RingBackButton
+                    /* `MeetingCallButton` rather than the plain ring-back
+                       button it used to be (2026-09-20). That one dialled and
+                       nothing else, so a founder ringing a missed call back
+                       could not put the voice agent on the line — the demo,
+                       which is the whole reason the call is being returned,
+                       had to be run from the dial card or the Keypad instead.
+                       The Meetings row already solved this; using the same
+                       component means one implementation of hold and merge
+                       wherever you dial from, rather than a third copy. */
+                    <MeetingCallButton
+                      who={c.company ?? c.leadName ?? "this number"}
                       to={c.from}
                       from={c.to}
                       leadId={c.leadId}
                       blocked={c.dncBlock}
+                      note={`They rang ${c.forName ? `${c.forName}'s line` : "us"} and nobody picked up.`}
+                      label="Call back"
+                      lines={lines}
                     />
                   )}
                   <CopyNumber phone={c.from} blocked={c.dncBlock} />

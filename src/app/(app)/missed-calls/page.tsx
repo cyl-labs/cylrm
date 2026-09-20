@@ -1,8 +1,9 @@
 import { PageShell } from "@/components/page-shell";
 import { InboundList } from "@/components/calls/inbound-list";
 import { getInboundCalls } from "@/lib/inbound";
+import { getSavedLines } from "@/lib/calls";
 import { getCurrentUser } from "@/lib/session";
-import { callerNumberOf, readerZone } from "@/lib/users";
+import { callerNumberOf, dialMethodOf, readerZone } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,12 @@ export default async function MissedCallsPage({
           mine={mine}
           canFilterMine={isAdmin}
           myNumber={isAdmin ? ((await callerNumberOf(me?.id)) ?? null) : null}
+          // The voice agent's own number among them, so a ring back can put it
+          // on the line without leaving this screen. Empty for a handset
+          // caller, who has no browser line to merge onto.
+          lines={
+            (await dialMethodOf(me?.id)) === "browser" ? await getSavedLines() : []
+          }
           missed={missed}
           waiting={waiting}
           showWho={isAdmin}
