@@ -25,37 +25,44 @@ export const dynamic = "force-dynamic";
  */
 export default async function TeamPage() {
   const me = await getCurrentUser();
-  const team = await listTeam();
   const { tz } = await readerZone(me?.id);
+  const admin = me?.role === "admin";
 
-  // Every list, whoever holds it — `undefined` is an admin's scope, and this
-  // screen is admin-only through `ADMIN_ONLY_CALL_PREFIXES`. One query feeds
-  // both readings: the bar on each person's row, and the niche table below,
-  // which has to see the lists nobody holds because those are the reserve.
+  // In parallel, because none of them needs another's answer and the slowest
+  // — `getCallLists` at ~0.26s on 41 lists — used to sit in front of a Telnyx
+  // round trip that was already the longest thing on the page.
   //
-  // Deliberately the same call the Call lists cards are drawn from rather than
-  // a count of its own, so the two screens cannot report one niche at two
-  // percentages. It costs ~0.26s on 41 lists (see `getCallLists`), against the
-  // per-person query it replaced.
-  const lists = me?.role === "admin" ? await getCallLists(undefined, tz) : [];
-  const { started, activeDays } =
-    me?.role === "admin"
-      ? await freshStarts(tz)
-      : { started: new Map<number, number>(), activeDays: 0 };
+  // `getCallLists(undefined, …)` is an admin's scope: every list, whoever
+  // holds it, which this screen may ask for (`ADMIN_ONLY_CALL_PREFIXES`). One
+  // query feeds both readings — the bar on each person's row, and the niche
+  // table below, which has to see the lists nobody holds because those are the
+  // reserve. Deliberately the same call the Call lists cards are drawn from
+  // rather than a count of its own, so the two screens cannot report one list
+  // at two percentages.
+  //
+  // `numberRows` is fetched here rather than by each component, so reserving a
+  // number updates the panel and the assign dropdowns together on one
+  // router.refresh(). Every row, not just the reserved ones: a number can
+  // carry a label while staying in the pool, so filtering on `available =
+  // false` here would drop exactly those labels. "Absent means available"
+  // still holds — the reserved set is built from the flag below, never from a
+  // row existing.
+  const [team, lists, { started, activeDays }, numberRows] = await Promise.all([
+    listTeam(),
+    admin ? getCallLists(undefined, tz) : [],
+    admin
+      ? freshStarts(tz)
+      : { started: new Map<number, number>(), activeDays: 0 },
+    admin
+      ? (db.execute(
+          sql`select phone_number, available, label from call_number`,
+        ) as Promise<
+          { phone_number: string; available: boolean; label: string | null }[]
+        >)
+      : [],
+  ]);
   const stock = buildLeadStock(lists, started, activeDays);
 
-  // Fetched here rather than by each component, so reserving a number updates
-  // the panel and the assign dropdowns together on one router.refresh().
-  // Every row, not just the reserved ones: a number can carry a label while
-  // staying in the pool, so filtering on `available = false` here would drop
-  // exactly those labels. "Absent means available" still holds — the reserved
-  // set is built from the flag below, never from a row existing.
-  const numberRows =
-    me?.role === "admin"
-      ? ((await db.execute(
-          sql`select phone_number, available, label from call_number`,
-        )) as { phone_number: string; available: boolean; label: string | null }[])
-      : [];
   const numbers =
     me?.role === "admin"
       ? await listAccountNumbers(
