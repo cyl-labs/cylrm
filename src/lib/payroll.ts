@@ -385,6 +385,9 @@ export type PayoutRecord = {
   meetings: number;
   meetingCommissionCents: number;
   totalCents: number;
+  /** The businesses whose attended demos this payment covered. Empty on a
+   *  reset, and on a payment that was pickup bonus alone. */
+  demos: { company: string; bookedAt: string }[];
 };
 
 /**
@@ -399,7 +402,31 @@ export async function getPayoutHistory(limit = 200): Promise<PayoutRecord[]> {
     select p.id, p.user_id, u.name, p.kind, p.paid_at, p.week_start,
       p.period_start, p.period_end,
       p.pickups, p.pickup_bonus_cents,
-      p.meetings, p.meeting_commission_cents, p.total_cents
+      p.meetings, p.meeting_commission_cents, p.total_cents,
+      -- Which businesses this payment's commission was for.
+      --
+      -- Answerable only because paying stamps payout_id on the attendance
+      -- rather than clearing it (no backticks in here: this is inside a
+      -- template literal and one would end the string) — the reason that
+      -- column exists is written on
+      -- the payout route. Read back here so the history says *what* was paid
+      -- for, not just how many: "3 meetings, $90" a fortnight later is a
+      -- number nobody can check against anything.
+      --
+      -- Ordered by when the demo was booked, which is the only date on the
+      -- row that means anything to a person reading it.
+      (
+        select json_agg(
+          json_build_object(
+            'company', coalesce(l.company, l.name, l.phone, 'Unnamed business'),
+            'bookedAt', ac.called_at
+          ) order by ac.called_at
+        )
+        from call_demo_attendance a
+        join "call" ac on ac.id = a.call_id
+        left join call_lead l on l.id = a.call_lead_id
+        where a.payout_id = p.id and a.status = 'showed_up'
+      ) as demos
     from payout p
     join app_user u on u.id = p.user_id
     order by p.paid_at desc
@@ -422,6 +449,13 @@ export async function getPayoutHistory(limit = 200): Promise<PayoutRecord[]> {
     meetings: n(r.meetings),
     meetingCommissionCents: n(r.meeting_commission_cents),
     totalCents: n(r.total_cents),
+    // `json_agg` over no rows is null, not an empty array.
+    demos: Array.isArray(r.demos)
+      ? (r.demos as { company: string; bookedAt: string }[]).map((d) => ({
+          company: String(d.company),
+          bookedAt: new Date(d.bookedAt).toISOString(),
+        }))
+      : [],
   }));
 }
 

@@ -211,7 +211,8 @@ export default async function PayrollPage() {
                         </td>
                       </tr>
                       {week.rows.map((p) => (
-                        <tr key={p.id} className="border-b border-border/60 last:border-0">
+                        <React.Fragment key={p.id}>
+                        <tr className="border-b border-border/60 last:border-0">
                           <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
                             {formatPayDay(p.paidAt)}
                           </td>
@@ -253,6 +254,31 @@ export default async function PayrollPage() {
                             )}
                           </td>
                         </tr>
+                        {/* Which demos the commission was for. A second row
+                            rather than a cell, so the seven columns above stay
+                            a grid and the figures keep lining up down the whole
+                            history — the reason the week header is a row too.
+                            Only where there were any: a pickup-only payment
+                            and a counter reset both have none, and an empty
+                            "paid for" line under them would read as something
+                            missing. */}
+                        {p.demos.length > 0 && (
+                          <tr className="border-b border-border/60 last:border-0">
+                            <td />
+                            <td
+                              colSpan={6}
+                              className="px-4 pb-2.5 text-[11px] text-muted-foreground"
+                            >
+                              <span className="font-semibold">
+                                {formatMoney(MEETING_CENTS)} each for
+                              </span>{" "}
+                              {p.demos
+                                .map((d) => `${d.company} (booked ${formatPayDay(d.bookedAt)})`)
+                                .join(", ")}
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       ))}
                     </React.Fragment>
                   ))}

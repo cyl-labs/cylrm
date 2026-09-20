@@ -57,6 +57,18 @@ sentence claiming a rate nobody is paid.
   never paid. Pinned by payout id it stays owed however old it is. This is the
   single most important line in the feature; do not "optimise" it into a
   `marked_at > last_paid_at`.
+- **The history names the demos each payment covered** (2026-09-20). "3
+  meetings, $90" a fortnight later is a number nobody can check against
+  anything; the row now carries a line reading "$30 each for Tiger Fluids (booked
+  14 Sept), Ackerlon (booked 14 Sept)". Answerable only because paying stamps
+  `payout_id` on the attendance rather than clearing it — that column has been
+  earning its keep since the day it shipped, and this is what it was for.
+  - A second table row rather than a cell, so the seven columns stay a grid and
+    the figures keep lining up down the whole history, the same reason the week
+    header is a row.
+  - Drawn only where there were demos: a pickup-only payment and a counter
+    reset both have none, and an empty "paid for" line under them would read as
+    something missing. `json_agg` over no rows is null, not an empty array.
 - **Payout rows are snapshots, including the rates.** A call edited or a lead
   deleted afterwards must not move a number in the history, and raising a rate
   must not rewrite the apparent basis of past payments. `week_start` is stored
