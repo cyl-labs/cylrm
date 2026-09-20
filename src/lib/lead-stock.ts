@@ -197,6 +197,12 @@ export type ShortCaller = {
   perDay: number;
 };
 
+/** An account with no lists, no call ever logged and this long on the books is
+ *  a leftover rather than somebody waiting for work. Under it, the same shape
+ *  is a new hire nobody has set up yet, which is exactly what the warning is
+ *  for. */
+const DORMANT_AFTER_DAYS = 14;
+
 /**
  * Who is running out, worst first.
  *
@@ -207,6 +213,14 @@ export type ShortCaller = {
  * A caller with no lists at all is the loudest case and is included with
  * everything at zero: they sign in to an empty app, which is worse than
  * running low.
+ *
+ * **Except the accounts nobody uses.** Prod carried two callers with no lists
+ * who had never logged a single call, one of them for five weeks — real rows,
+ * genuinely with nothing, and flagging them every morning is how a warning
+ * becomes wallpaper. Never rung anything *and* a fortnight old *and* holding
+ * nothing is a login to switch off, not a caller waiting for leads. A new
+ * account in the same state still shows, because that one is a setup somebody
+ * has not finished.
  */
 export function callersRunningOut(
   team: {
@@ -215,6 +229,8 @@ export function callersRunningOut(
     role: string;
     active: boolean;
     callRegion: string | null;
+    createdAt: string;
+    calls: number;
   }[],
   lists: Record<number, TeamList[]>,
   perDay: Map<number, number>,
@@ -223,6 +239,11 @@ export function callersRunningOut(
   for (const p of team) {
     if (!p.active || p.role !== "caller") continue;
     const theirs = lists[p.id] ?? [];
+    if (theirs.length === 0 && p.calls === 0) {
+      const days =
+        (Date.now() - new Date(p.createdAt).getTime()) / 86_400_000;
+      if (days > DORMANT_AFTER_DAYS) continue;
+    }
     const uncalled = theirs.reduce((n, l) => n + l.uncalled, 0);
     const rate = perDay.get(p.id) ?? 0;
     const daysLeft = rate > 0 ? uncalled / rate : null;

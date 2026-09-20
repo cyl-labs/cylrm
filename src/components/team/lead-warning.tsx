@@ -78,7 +78,7 @@ export function LeadWarning({
                 ? "no lists at all — their screen is empty"
                 : c.uncalled === 0
                   ? "nothing new left to dial"
-                  : `${n(c.uncalled)} never rung · about ${whenOut(c.daysLeft!).replace(/^about /, "")} left`}
+                  : `${n(c.uncalled)} never rung · ${whenOut(c.daysLeft!)} left`}
             </span>
             {c.perDay > 0 && (
               <span className="text-muted-foreground">

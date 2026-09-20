@@ -84,6 +84,13 @@ Employees sign in individually so every call has a name on it. The single shared
     permanently "out", and a switched-off account's lists are parked rather
     than worked. A caller with **no lists at all** is included and is the
     loudest row: they sign in to an empty app.
+  - **Accounts nobody uses are the exception** (`DORMANT_AFTER_DAYS`). The
+    first run on prod flagged eight people, two of them logins that had never
+    made a single call — one five weeks old — which is how a warning becomes
+    wallpaper. Never rung anything *and* a fortnight on the books *and*
+    holding no lists is a login to switch off, not a caller waiting for leads.
+    The same shape in a newer account still shows: that one is a setup
+    somebody has not finished.
   - Thresholds live in `src/lib/lead-words.ts` with `whenOut` — db-free,
     because a client component reads them too, and two screens disagreeing
     about whether somebody is in trouble is worse than the import.
