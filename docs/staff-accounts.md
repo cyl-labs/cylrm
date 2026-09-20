@@ -18,7 +18,52 @@ Employees sign in individually so every call has a name on it. The single shared
 - `/api/calls` stamps the session's user on POST. A **correction** (PATCH) deliberately leaves `user_id` alone: relabelling a mis-tap does not make someone else's dial yours.
 - `/team` is the management screen — admin-only for writes, enforced in the API rather than by hiding buttons. Deactivate rather than delete: the calls stay and so do the numbers. Two guards stop a lockout — the last active admin cannot be demoted or switched off, and nobody can switch themselves off. It is named Team, **not Accounts**: Accounts is the Gmail sending accounts on the email side.
 - **The row actions promote nobody** (2026-08-24). "Make admin" sat one click away in the row next to Rename and handed over every account including your own; the floor is staffed and nobody needs elevating. "Make caller" stayed, because it takes privilege away rather than granting it, and a new admin is still made deliberately by adding one with the role set. `PATCH /api/users/[id]` still accepts `role: "admin"` — the API was left alone, so this is a screen decision and reversible in one edit.
-- **Team shows each person's call lists** (2026-09-14): a "Call lists" column of links, each with how many leads nobody has rung yet, red at zero. Display only — assigning stays on Call lists, which is where the red "None yet. Assign on Call lists" on an active caller with no lists points, since that caller signs in to an empty app. `listTeam` fetches the lists in a **separate** query rather than joining them into its calls aggregate: a second one-to-many join multiplies every call count by the number of lists. "Not rung" is "no call at all", the same definition as `uncalled` on Call lists. `listTeam` also feeds Call lists, Stats and the Scoreboard, which now carry that one extra query and ignore the field.
+- **Team shows each person's call lists** (2026-09-14): a "Call lists" column of links, each with how many leads nobody has rung yet, red at zero. Display only — assigning stays on Call lists, which is where the red "None yet. Assign on Call lists" on an active caller with no lists points, since that caller signs in to an empty app. "Not rung" is "no call at all", the same definition as `uncalled` on Call lists.
+  - `listTeam` fetched those lists in a **separate** query (a second one-to-many join multiplies every call count by the number of lists) until 2026-09-20, when it stopped fetching them at all — see the bars below. Stats, the Scoreboard and Call lists, which all call `listTeam` and never read the field, lost that query with it.
+- **Each list on the Team row carries its own progress bar** (2026-09-20), and
+  a niche table underneath answers "are we running out of leads". Asked for by
+  the founders, who could see how many leads were left but not how close
+  anybody was to the end of them.
+  - **The bar is `listProgress`, the function the card on Call lists draws** —
+    not a second count of the same rows. The Team page now calls `getCallLists`
+    once and splits it by owner (`listsByOwner`, `src/lib/lead-stock.ts`),
+    because the bar needs retries and callbacks due as well as never-rung, and
+    counting those a second way is how Team comes to report one niche at 62%
+    where its own card says 48%. That is why `listTeam` gave the field up: one
+    query on this screen replaced it, and three screens that ignored it stopped
+    paying for it. `TeamMember` no longer carries `lists`; `TeamManager` takes
+    a `lists` prop keyed by user id, and `ReplaceDialog` takes a count.
+  - **"No new leads" in red is the signal, not the bar.** A caller can be at
+    60% and still have nothing fresh to dial, because the rest is retries owed
+    — which is precisely the morning somebody sits there with a full-looking
+    list and no work. A list with nothing imported into it says so instead: red
+    on an empty list sends somebody hunting for the wrong problem.
+  - **The niche table groups lists by name** (`nicheOf`, `src/lib/niche.ts`):
+    Junk Removal 5.1, 5.2 and 2.1 are one pile of businesses, they run out
+    together, and twenty-four rows saying 6% each answer nothing. The rule is
+    the trailing part number only, both spellings (`partName`'s dot and the
+    space the hand-made splits used). **The market suffix deliberately
+    survives** — "Movers SG" is not "Movers" and "London Junk Removal" is not
+    "Junk Removal"; folding those together reports leads as available to a
+    floor that cannot ring them, and this table is read to decide whether to
+    buy more.
+  - **"Runs out in" counts first calls, not calls** (`freshStarts`). A lead
+    takes up to four dials before it leaves the queue, so calls per day say how
+    loud the floor was, not how fast it is eating the pile; what runs out is
+    businesses nobody has spoken to, and one of those is consumed exactly once.
+    Divided by **the days the floor actually rang**, not by seven: a six-day
+    week over seven quietly reports a rate nobody is dialling at and buys a day
+    of leads that is not there. On prod the day it shipped: Junk Removal, 24
+    lists, 1,852 never rung, 230 a day, about eight days left.
+  - Niches nobody is calling sit in a native `details` fold with the reserve
+    counted on the summary — they are what is left to hand out, not what is
+    urgent. Native for the reason the "By list" fold on Stats is: it opens
+    before hydration and costs no state.
+  - Both queries were measured on prod before shipping: `getCallLists` 0.26s
+    (it is the hand-tuned one — see **Gotchas**), `freshStarts` about 15ms.
+    Founders only, like the rest of the screen: a caller cannot assign a list,
+    and telling somebody their work runs out on Thursday when they can do
+    nothing about it is a worry, not information.
 - **`ADMIN_ONLY_CALL_PREFIXES` is the Scoreboard, Team and Payroll**, kept separate from `EMAIL_PREFIXES` so the two reasons stay legible — one is a different product, the other is a permission — with `isAdminOnlyPath` covering both for the middleware and `linksFor` dropping them from the caller's sidebar. `/call-stats` was on it until 2026-09-06; see below.
 - **`/call-stats` is two screens sharing one page** (2026-09-06). An admin gets the floor: everyone's calls, every niche, a person picker, a By-person table. A caller gets their own and nothing else, and the page is the whole control — `mine = me?.role !== "admin"` forces `personId` to themselves and passes `scopeId` to `getCallLists`/`getListStats` for the niches they may see. **Anything added to that screen has to take one or the other**, or it will quietly show a caller the floor.
   - `?person=` is **not read at all** for a caller, and their own id is never written into a link (`personParam`): a scope that a query string can widen is not a scope, and a URL carrying a person id suggests it could carry somebody else's.

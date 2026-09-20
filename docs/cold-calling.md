@@ -697,6 +697,11 @@ inbound handled.
   same string and only one of them runs on the server — a second copy of the
   rule is a preview that quietly stops matching what gets written. Existing
   lists were **not** renamed; this is for splits made from now on.
+  - **`nicheOf` (`src/lib/niche.ts`) reads that name back**, stripping the part
+    number so the Team screen can add a niche up across its parts and say how
+    long it has left. It takes the dot and the space, so both generations of
+    split names group. A third naming scheme needs a line there too, or a
+    niche silently splits in two on that table — see `docs/staff-accounts.md`.
   - **Rows are dealt round robin (`i % split`), never cut into contiguous
     blocks.** A scrape arrives sorted — by city, by rating, by whatever the
     directory ordered on — so slicing hands one caller every Alaska lead and

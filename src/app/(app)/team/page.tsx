@@ -3,9 +3,12 @@ import { getCurrentUser } from "@/lib/session";
 import { listTeam, readerZone } from "@/lib/users";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { getCallLists } from "@/lib/calls";
+import { buildLeadStock, freshStarts, listsByOwner } from "@/lib/lead-stock";
 import { listAccountNumbers } from "@/lib/telnyx";
 import { TeamManager } from "@/components/team/team-manager";
 import { TelnyxNumbers } from "@/components/team/telnyx-numbers";
+import { LeadStock } from "@/components/team/lead-stock";
 import { LiveCallers } from "@/components/team/live-callers";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +26,23 @@ export const dynamic = "force-dynamic";
 export default async function TeamPage() {
   const me = await getCurrentUser();
   const team = await listTeam();
+  const { tz } = await readerZone(me?.id);
+
+  // Every list, whoever holds it — `undefined` is an admin's scope, and this
+  // screen is admin-only through `ADMIN_ONLY_CALL_PREFIXES`. One query feeds
+  // both readings: the bar on each person's row, and the niche table below,
+  // which has to see the lists nobody holds because those are the reserve.
+  //
+  // Deliberately the same call the Call lists cards are drawn from rather than
+  // a count of its own, so the two screens cannot report one niche at two
+  // percentages. It costs ~0.26s on 41 lists (see `getCallLists`), against the
+  // per-person query it replaced.
+  const lists = me?.role === "admin" ? await getCallLists(undefined, tz) : [];
+  const { started, activeDays } =
+    me?.role === "admin"
+      ? await freshStarts(tz)
+      : { started: new Map<number, number>(), activeDays: 0 };
+  const stock = buildLeadStock(lists, started, activeDays);
 
   // Fetched here rather than by each component, so reserving a number updates
   // the panel and the assign dropdowns together on one router.refresh().
@@ -67,12 +87,22 @@ export default async function TeamPage() {
           />
         )}
         <TeamManager
-          tz={(await readerZone(me?.id)).tz}
+          tz={tz}
           numbers={numbers}
           team={team}
+          lists={listsByOwner(lists)}
           meId={me?.id ?? null}
           canManage={me?.role === "admin"}
         />
+        {/* Below the people, not above them: the table answers "who is working
+            what", this answers "what is left to work", and the second question
+            is only asked once the first has been read. */}
+        {me?.role === "admin" && (
+          <LeadStock
+            rows={stock}
+            className="mt-5 rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]"
+          />
+        )}
       </div>
     </PageShell>
   );

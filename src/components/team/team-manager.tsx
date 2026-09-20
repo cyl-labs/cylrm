@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { KeyRound, Pencil, Plus, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import type { TeamMember } from "@/lib/users";
+import type { TeamList } from "@/lib/lead-stock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -104,12 +105,18 @@ const COLUMNS = [
 export function TeamManager({
   numbers: accountNumbers,
   team,
+  lists,
   meId,
   canManage,
   tz,
 }: {
   numbers: { phoneNumber: string; available: boolean }[];
   team: TeamMember[];
+  /** Each person's call lists with how far through them they are, keyed by
+   *  user id. Built on the server from `getCallLists` rather than carried on
+   *  `TeamMember`, so this screen and the Call lists cards draw one set of
+   *  numbers — see `listsByOwner`. */
+  lists: Record<number, TeamList[]>;
   meId: number | null;
   canManage: boolean;
   /** The clock this screen's dates are read in — the reader's reporting zone,
@@ -119,6 +126,9 @@ export function TeamManager({
 }) {
   const router = useRouter();
   const iAmOwner = team.some((t) => t.id === meId && t.isOwner);
+  /** Somebody's lists. Missing means none, not a bug: only the people holding
+   *  one appear in the map at all. */
+  const listsOf = (id: number): TeamList[] => lists[id] ?? [];
   /**
    * Whether the switched-off accounts are showing.
    *
@@ -335,36 +345,72 @@ export function TeamManager({
                         </span>
                       )}
                     </td>
-                    {/* What they are working. Answers "why is this person's
-                        screen empty" here, rather than by opening every card on
-                        Call lists. Assigned there; this only shows it. The count
-                        is what is left to start on, and turns red at zero, the
-                        other reason a caller runs dry. */}
+                    {/* What they are working, and how near the end of it they
+                        are. Answers "why is this person's screen empty" here,
+                        rather than by opening every card on Call lists, and
+                        "who needs leads on Monday" before they run out on
+                        Friday. Assigned on Call lists; this only shows it.
+
+                        The bar is `listProgress`, the same arithmetic the card
+                        on Call lists draws, so the two cannot report one list
+                        at two percentages. "Never rung" turns red at zero:
+                        that caller has nothing new to dial, whatever the bar
+                        says about retries still owed. */}
                     <td className="px-4 py-2.5">
-                      {m.lists.length > 0 ? (
-                        <div className="flex min-w-44 max-w-72 flex-wrap gap-1">
-                          {m.lists.map((l) => (
-                            <Link
-                              key={l.id}
-                              href={`/calls/${l.id}`}
-                              title={`${l.leads} leads, ${l.uncalled} not rung yet`}
-                              className="inline-flex max-w-full items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[12px] transition-colors hover:bg-muted"
-                            >
-                              <span className="truncate font-semibold">
-                                {l.name}
-                              </span>
-                              <span
-                                className={cn(
-                                  "shrink-0 whitespace-nowrap tabular-nums",
-                                  l.uncalled === 0
-                                    ? "font-semibold text-destructive"
-                                    : "text-muted-foreground",
-                                )}
+                      {listsOf(m.id).length > 0 ? (
+                        <div className="flex min-w-52 max-w-72 flex-col gap-1.5">
+                          {listsOf(m.id).map((l) => {
+                            const pct = Math.round(l.fraction * 100);
+                            return (
+                              <Link
+                                key={l.id}
+                                href={`/calls/${l.id}`}
+                                title={`${l.total} leads · ${l.leftToCall} left to call · ${l.uncalled} never rung`}
+                                className="block rounded-md border px-2 py-1.5 transition-colors hover:bg-muted/60"
                               >
-                                {l.uncalled} not rung
-                              </span>
-                            </Link>
-                          ))}
+                                <span className="flex items-baseline justify-between gap-2">
+                                  <span className="truncate text-[12px] font-semibold">
+                                    {l.name}
+                                  </span>
+                                  <span className="shrink-0 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                                    {pct}%
+                                  </span>
+                                </span>
+                                {/* Decoration over a percentage already written
+                                    beside it, so it is not announced twice —
+                                    the rule the "By list" bar on Stats uses. */}
+                                <span
+                                  aria-hidden
+                                  className="mt-1 block h-1 overflow-hidden rounded-full bg-foreground/10"
+                                >
+                                  <span
+                                    className="block h-full rounded-full bg-primary"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </span>
+                                <span className="mt-1 block text-[11px] tabular-nums text-muted-foreground">
+                                  {/* An empty list is not a caller who has run
+                                      out of new leads, it is a list nothing was
+                                      ever imported into — and red on it sends
+                                      somebody hunting for the wrong problem. */}
+                                  {l.total === 0 ? (
+                                    "nothing imported into it yet"
+                                  ) : (
+                                    <>
+                                      {l.leftToCall} left to call ·{" "}
+                                      {l.uncalled === 0 ? (
+                                        <span className="font-semibold text-destructive">
+                                          no new leads
+                                        </span>
+                                      ) : (
+                                        <>{l.uncalled} never rung</>
+                                      )}
+                                    </>
+                                  )}
+                                </span>
+                              </Link>
+                            );
+                          })}
                         </div>
                       ) : m.active && m.role === "caller" ? (
                         <Link
@@ -683,6 +729,7 @@ export function TeamManager({
 
       <ReplaceDialog
         member={replacing}
+        listCount={listsOf(replacing?.id ?? -1).length}
         onOpenChange={(open) => !open && setReplacing(null)}
         onReplaced={() => router.refresh()}
       />
@@ -1167,10 +1214,15 @@ function AddPersonDialog({
  */
 function ReplaceDialog({
   member,
+  listCount,
   onOpenChange,
   onReplaced,
 }: {
   member: TeamMember | null;
+  /** How many call lists they hold — passed in rather than read off `member`,
+   *  which stopped carrying them when the Team screen moved to `getCallLists`
+   *  for the progress bars. */
+  listCount: number;
   onOpenChange: (open: boolean) => void;
   onReplaced: () => void;
 }) {
@@ -1274,8 +1326,8 @@ function ReplaceDialog({
                         : "Their phone line, if they have one"}
                     </li>
                     <li>
-                      {who && who.lists.length > 0
-                        ? `${plural(who.lists.length, "call list", "call lists")} and the callbacks on them`
+                      {listCount > 0
+                        ? `${plural(listCount, "call list", "call lists")} and the callbacks on them`
                         : "Their call lists (they have none)"}
                     </li>
                     <li>Missed calls still to ring back</li>
