@@ -317,6 +317,34 @@ demo and no way to say whether they turned up.
   arrives *after* the outcome — a prospect who books an hour later from the
   link in a text.
 
+### The demo call is the longest conversation, not the one in the slot (2026-09-20)
+
+`DEMO_RECORDING_WHERE` in `meetings.ts`.
+
+- **Why.** Pro Junk Removal no-showed their 1am demo, the founder rang back at
+  11:30 the next morning and talked to Mark for **thirteen and a half
+  minutes** — and the row went on offering the 25-second voicemail from the
+  slot itself, because the lookup was a three-hour window after `start_at`.
+  "Make the demo call the longest conversation from when I call them from
+  meetings."
+- **The window now ends at the next booking for that lead, or now.** That
+  upper bound is load-bearing rather than tidy: a no-show is routinely rebooked
+  from its own row — the banner on it says to — so two meetings for one lead is
+  the normal case, and an unbounded window would show the old row the new
+  meeting's call. Verified: with a rebooked demo two hours ago and a 13:36 call
+  one hour ago, the new row takes the long call and the old one falls back to
+  its own 0:25.
+- **It still opens half an hour before the slot.** Telnyx starts recording as
+  the call connects, which measured 79 seconds early on a live demo, and the
+  cold call that won the booking is always earlier than that — so it can never
+  be mistaken for the demo.
+- **Longest still wins**, unchanged: a slot can hold a failed first attempt of
+  a few seconds.
+- The `where` is one fragment used by both the id and the duration subselects.
+  They had the same window written out twice, and two copies of "which
+  recording is this" is how a row comes to show one call's length beside
+  another call's audio.
+
 ### Cancelled off the grid, and a month cell that stays a cell (2026-09-20)
 
 Two changes after a founder read the month view as broken.

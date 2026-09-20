@@ -502,6 +502,46 @@ const FOLLOW_UP_DAYS = 21;
  */
 const NO_SHOW_RING_DAYS = 7;
 
+/**
+ * Which recordings count as "the demo call" on a meeting row.
+ *
+ * It was a three-hour window after the booked slot, longest wins. That is the
+ * right answer when the demo happens at its time and the wrong one the moment
+ * it does not: Pro Junk Removal no-showed at 1am, the founder rang back at
+ * 11:30 the next morning and talked for **thirteen minutes**, and the row went
+ * on offering the 25-second voicemail from the slot itself. "Make the demo
+ * call the longest conversation from when I call them from meetings."
+ *
+ * So the window runs from half an hour before the slot — Telnyx starts
+ * recording as the call connects, which measured 79 seconds early on one live
+ * demo — until **the next booking for the same lead**, or now if there is not
+ * one. That upper bound is load-bearing rather than tidy: a no-show is
+ * routinely rebooked from its own row ("put a new time in while you have
+ * them"), and without it the old meeting would show the new meeting's call.
+ *
+ * The cold call that won the booking is always earlier than the lower bound,
+ * so it can never be mistaken for the demo.
+ *
+ * Longest rather than earliest, unchanged: a slot can hold a failed first
+ * attempt of a few seconds, and the conversation is the one worth hearing.
+ * Either number, since the row rings the booking's where there is one and
+ * demos booked before that was stored were rung on the lead's.
+ */
+const DEMO_RECORDING_WHERE = sql`
+  cr.to_number in ('+' || l.phone_key, m.attendee_phone)
+  and cr.started_at >= m.start_at - interval '30 minutes'
+  and cr.started_at < coalesce(
+    (
+      select min(m2.start_at) from call_meeting m2
+      where m2.call_lead_id = m.call_lead_id
+        and m2.id <> m.id
+        and m2.status = 'accepted'
+        and m2.start_at > m.start_at
+    ),
+    now() + interval '1 minute'
+  )
+`;
+
 const meetingSelect = sql`
   m.id, m.cal_booking_uid, m.start_at, m.end_at, m.status, m.title,
   m.attendee_name, m.attendee_email, m.attendee_phone, m.attendee_tz,
@@ -588,16 +628,12 @@ const meetingSelect = sql`
   -- booked before that was stored were rung on the lead's.
   (
     select cr.recording_id from call_recording cr
-    where cr.to_number in ('+' || l.phone_key, m.attendee_phone)
-      and cr.started_at between m.start_at - interval '30 minutes'
-                           and m.start_at + interval '3 hours'
+    where ${DEMO_RECORDING_WHERE}
     order by cr.duration_ms desc nulls last, cr.id desc limit 1
   ) as demo_recording_id,
   (
     select cr.duration_ms from call_recording cr
-    where cr.to_number in ('+' || l.phone_key, m.attendee_phone)
-      and cr.started_at between m.start_at - interval '30 minutes'
-                           and m.start_at + interval '3 hours'
+    where ${DEMO_RECORDING_WHERE}
     order by cr.duration_ms desc nulls last, cr.id desc limit 1
   ) as demo_recording_ms,
   f.result as followup_result, f.created_at as followup_at,
