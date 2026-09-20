@@ -96,6 +96,30 @@ Employees sign in individually so every call has a name on it. The single shared
     about whether somebody is in trouble is worse than the import.
   - **It renders nothing when nobody is short**, which is the normal state. A
     panel that is always there is one that stops being read.
+  - **The heading keeps the two situations apart** ("Rainier has nothing to
+    dial · 5 callers are inside 3 days"). It read "6 callers are running out"
+    over a red panel, which says six people are stranded when it was one with
+    nothing and five with a couple of days — and a founder who had just handed
+    out two lists saw the same alarm and reasonably asked what was broken.
+  - **Each row carries the division, not two numbers beside each other.** "25
+    never rung" next to "rings 121 a day" leaves the reader to divide, and the
+    division is the whole point: 333 leads is three days for the man who
+    starts 121 a day and a fortnight for somebody who starts 25. Which is also
+    the answer to "I gave him two lists and it still warns" — at 121 a day he
+    needs about 360 never-rung leads to clear three days, and two lists is
+    308.
+- **Every row shows that person's total, whether or not they are warned**
+  (`LeadTotal`, 2026-09-20): "333 never rung in all · about 3 days at 121 a
+  day", under the per-list bars it adds up. Asked for straight after the
+  warning shipped, and the reason is the same one: the per-list numbers never
+  said what somebody had *between* them, so the only place the total appeared
+  was the alarm they were trying to clear, and handing out two lists looked
+  like it had done nothing. A caller with nothing new says "No new leads left
+  · 34 still to ring back" — they are not idle, they are on retries.
+  - **No pace, no colour** (`callerUrgency` returns nothing without one).
+    Somebody who has rung nothing this week has no rate to divide by, so their
+    pile is neither big nor small — it is unmeasured, and amber says the
+    opposite. It painted an admin's 215 parked leads amber before that.
 - **Lists are handed out from Team as well as from Call lists** (2026-09-20,
   `components/team/assign-list.tsx`). Same route — `PATCH
   /api/call-lists/[id]`, still the only thing that decides whether the change

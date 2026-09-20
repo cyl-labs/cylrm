@@ -7,6 +7,7 @@ import { KeyRound, Pencil, Plus, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import type { TeamMember } from "@/lib/users";
 import type { PoolList, TeamList } from "@/lib/lead-stock";
+import { callerUrgency, whenOut } from "@/lib/lead-words";
 import { AssignListMenu } from "@/components/team/assign-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,55 @@ function tenure(iso: string): string {
   return months > 0 ? `${y} ${months} mo` : y;
 }
 
+/**
+ * What one person has left across every list they hold.
+ *
+ * The bars above say how far through each list is, which is not the same
+ * question as "how much work has this person got" — and that is the one the
+ * warning at the top is answering, so the row it is about had better answer it
+ * too. Their own pace, the same divisor `callersRunningOut` uses: 333 leads is
+ * three days for the man who starts 121 a day and a fortnight for somebody who
+ * starts 25.
+ */
+function LeadTotal({
+  lists,
+  perDay,
+}: {
+  lists: TeamList[];
+  perDay: number;
+}) {
+  const uncalled = lists.reduce((n, l) => n + l.uncalled, 0);
+  const left = lists.reduce((n, l) => n + l.leftToCall, 0);
+  const daysLeft = perDay > 0 && uncalled > 0 ? uncalled / perDay : null;
+  return (
+    <p className="border-t pt-1.5 text-[11px] tabular-nums text-muted-foreground">
+      {/* Coloured only when the warning above would fire on it — a row where
+          every figure shouts says nothing. `callerUrgency` returns nothing at
+          all for somebody with no pace to divide by. */}
+      <span
+        className={cn(
+          "font-semibold text-foreground",
+          callerUrgency(uncalled, daysLeft),
+        )}
+      >
+        {uncalled === 0
+          ? "No new leads left"
+          : `${uncalled.toLocaleString("en-US")} never rung in all`}
+      </span>
+      {uncalled === 0 && left > 0 && ` · ${left} still to ring back`}
+      {/* Its own line rather than a wrap: at this column's width "about 20
+          days at 4 a day" broke after "a" and left "day" stranded. */}
+      {daysLeft !== null ? (
+        <span className="block">
+          {whenOut(daysLeft)} at {Math.round(perDay)} a day
+        </span>
+      ) : perDay > 0 ? (
+        <span className="block">rings {Math.round(perDay)} new a day</span>
+      ) : null}
+    </p>
+  );
+}
+
 const NO_DID = "__market__";
 
 /** Only that person's market. A US number ringing Singapore leads is worse
@@ -108,6 +158,7 @@ export function TeamManager({
   team,
   lists,
   pool,
+  pace,
   meId,
   canManage,
   tz,
@@ -122,6 +173,10 @@ export function TeamManager({
   /** The lists nobody holds, so somebody running low can be given one here
    *  rather than on Call lists. */
   pool: PoolList[];
+  /** Fresh leads each person starts on a day they ring, keyed by user id.
+   *  Absent means they have rung nothing new this week, so their row shows a
+   *  total and no estimate rather than an estimate off no evidence. */
+  pace: Record<number, number>;
   meId: number | null;
   canManage: boolean;
   /** The clock this screen's dates are read in — the reader's reporting zone,
@@ -416,11 +471,26 @@ export function TeamManager({
                               </Link>
                             );
                           })}
+                          {/* The total, under the lists it adds up. Asked for
+                              after somebody handed a caller two lists and read
+                              the warning as unchanged: the per-list numbers
+                              never said what he had between them, and the only
+                              place the total appeared was the warning he was
+                              trying to clear. The days are the warning's own
+                              arithmetic at their own pace — the fastest caller
+                              on the floor needs the most leads to look safe,
+                              and that is worth being able to see on the row
+                              rather than inferring it from an alarm. */}
+                          <LeadTotal
+                            lists={listsOf(m.id)}
+                            perDay={pace[m.id] ?? 0}
+                          />
                           {/* Under their lists rather than in the row menu:
                               the decision is made while reading the bars
                               above it, and a menu hides it behind a click at
-                              the far end of a thirteen-column row. */}
-                          {/* Hidden rather than disabled when there is nothing
+                              the far end of a thirteen-column row.
+
+                              Hidden rather than disabled when there is nothing
                               to give: a row of "Nothing left to give" against
                               every name is noise, and the warning above says
                               it once, where it matters. */}

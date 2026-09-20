@@ -52,9 +52,18 @@ export const urgency = (d: number | null): string =>
         ? "text-amber-600 dark:text-amber-500"
         : "";
 
-/** The same judgement for one caller, whose horizon is days rather than the
- *  weeks a whole niche is bought in. */
+/**
+ * The same judgement for one caller, whose horizon is days rather than the
+ * weeks a whole niche is bought in.
+ *
+ * **No pace means no colour.** Somebody who has rung nothing this week has no
+ * rate to divide by, so their pile is neither big nor small — it is unmeasured,
+ * and painting it amber says the opposite. Only an empty queue is worth red
+ * without a rate, because that is a fact rather than an estimate.
+ */
 export const callerUrgency = (uncalled: number, d: number | null): string =>
   uncalled === 0 || (d !== null && d < LEAD_URGENT_DAYS)
     ? "text-destructive"
-    : "text-amber-600 dark:text-amber-500";
+    : d !== null && d < LEAD_LOW_DAYS
+      ? "text-amber-600 dark:text-amber-500"
+      : "";

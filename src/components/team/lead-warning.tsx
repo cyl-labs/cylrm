@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 import type { PoolList, ShortCaller } from "@/lib/lead-stock";
-import { callerUrgency, whenOut } from "@/lib/lead-words";
+import { callerUrgency, LEAD_LOW_DAYS, whenOut } from "@/lib/lead-words";
 import { AssignListMenu } from "@/components/team/assign-list";
 import { cn } from "@/lib/utils";
 
@@ -35,11 +35,23 @@ export function LeadWarning({
 }) {
   if (callers.length === 0) return null;
 
-  // Red the moment somebody has nothing new left; amber while it is still a
-  // warning about tomorrow.
+  // Two different situations wearing one panel, and the heading has to keep
+  // them apart. "6 callers are running out" over a red panel read as six
+  // people stranded, when it was one with nothing and five with a couple of
+  // days — so somebody who had just handed out two lists saw the same alarm
+  // and reasonably asked what was broken.
   const out = callers.filter((c) => c.uncalled === 0);
+  const low = callers.filter((c) => c.uncalled > 0);
   const red = out.length > 0;
   const spare = pool.reduce((sum, l) => sum + l.uncalled, 0);
+  const nothingToDial =
+    out.length === 1
+      ? `${out[0].name} has nothing to dial`
+      : `${out.length} callers have nothing to dial`;
+  const insideThree =
+    low.length === 1
+      ? `${low[0].name} is inside ${LEAD_LOW_DAYS} days`
+      : `${low.length} callers are inside ${LEAD_LOW_DAYS} days`;
 
   return (
     <div
@@ -57,12 +69,17 @@ export function LeadWarning({
           strokeWidth={2.2}
         />
         <p className="text-sm font-extrabold tracking-[-0.01em]">
-          {callers.length === 1
-            ? `${callers[0].name} is ${callers[0].uncalled === 0 ? "out of new leads" : "nearly out of new leads"}`
-            : `${callers.length} callers are running out of new leads`}
+          {out.length > 0 ? nothingToDial : insideThree}
+          {out.length > 0 && low.length > 0 && (
+            <span className="font-semibold text-muted-foreground">
+              {" · "}
+              {insideThree}
+            </span>
+          )}
         </p>
         <p className="w-full text-[13px] text-muted-foreground sm:w-auto">
-          Give them one of the lists nobody is on, and they keep dialling.
+          Give them one of the lists nobody is on, and they keep dialling. The
+          days are their own pace, so a fast caller needs more of them.
         </p>
       </div>
 
@@ -73,14 +90,18 @@ export function LeadWarning({
             className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5 text-[13px]"
           >
             <span className="font-bold">{c.name}</span>
+            {/* One sentence, with the arithmetic in it. Two chips — "25 never
+                rung" beside "rings 121 a day" — left the reader to divide, and
+                divide is exactly what they need to see: 333 leads is three
+                days for this man and a fortnight for somebody else. */}
             <span className={cn("font-semibold", callerUrgency(c.uncalled, c.daysLeft))}>
               {c.listNames.length === 0
                 ? "no lists at all — their screen is empty"
                 : c.uncalled === 0
                   ? "nothing new left to dial"
-                  : `${n(c.uncalled)} never rung · ${whenOut(c.daysLeft!)} left`}
+                  : `${n(c.uncalled)} never rung — ${whenOut(c.daysLeft!)} at ${n(Math.round(c.perDay))} a day`}
             </span>
-            {c.perDay > 0 && (
+            {c.uncalled === 0 && c.perDay > 0 && (
               <span className="text-muted-foreground">
                 rings {n(Math.round(c.perDay))} new a day
               </span>

@@ -126,6 +126,7 @@ export default async function TeamPage() {
           team={team}
           lists={listsBy}
           pool={pool}
+          pace={Object.fromEntries(perDay)}
           meId={me?.id ?? null}
           canManage={me?.role === "admin"}
         />
