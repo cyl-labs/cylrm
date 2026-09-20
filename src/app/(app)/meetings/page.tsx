@@ -75,6 +75,9 @@ export default async function MeetingsPage({
   const zone = statsZone(region);
 
   const meetings = await getMeetings(callScope(me), zone.tz);
+  // Read once: it decides both the mergeable lines and whether this tab takes
+  // the phone.
+  const browserDialler = (await dialMethodOf(me?.id)) === "browser";
 
   // The calendar unless the list alone was asked for (2026-09-19, at the
   // founders' request). It shipped the other way round the day before, and the
@@ -224,9 +227,11 @@ export default async function MeetingsPage({
           // The voice agent's own number among them, so the demo can be merged
           // in from the row rather than from the lead's dial card. Empty for a
           // handset caller, who has no browser line to merge onto.
-          lines={
-            (await dialMethodOf(me?.id)) === "browser" ? await getSavedLines() : []
-          }
+          lines={browserDialler ? await getSavedLines() : []}
+          // Claims the phone for this tab while Meetings is open. Without it a
+          // second tab sitting on Scripts outranked this one and every row
+          // said the phone was elsewhere.
+          canDial={browserDialler}
           tz={zone.tz}
           zoneLabel={zone.label}
           showWho={me?.role === "admin"}

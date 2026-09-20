@@ -25,6 +25,7 @@ import type {
   TextMessage,
   Thread,
 } from "@/lib/texts";
+import { useClaimLine } from "@/components/calls/line-presence";
 import { cn } from "@/lib/utils";
 
 /**
@@ -197,6 +198,7 @@ export function TextsApp({
   isAdmin,
   myNumber,
   canSend,
+  canDial = false,
   tz,
 }: {
   conversations: Conversation[];
@@ -207,9 +209,27 @@ export function TextsApp({
   myNumber: string | null;
   /** A founder with a US number of their own. */
   canSend: boolean;
+  /** Whether this reader dials from the browser at all. Decides whether this
+   *  tab claims the phone: a handset caller registers no line to fight over. */
+  canDial?: boolean;
   tz: string;
 }) {
   const router = useRouter();
+  /**
+   * Hold the phone for this tab while this screen is open.
+   *
+   * Every Call CRM tab registers at listening priority so the inbound banner
+   * works anywhere; a tab with a *calling* screen outranks it, which is what
+   * stops a forgotten tab keeping the line. The dial card and the Keypad have
+   * always claimed it and this screen, which dials too, never did
+   * (2026-09-20) — so a second tab left on Scripts could win the election and
+   * this row would say "the phone is open in another CRM tab" while that tab
+   * could not dial at all.
+   *
+   * False for a handset caller, who registers no line to fight over.
+   */
+  useClaimLine(canDial);
+
   const [query, setQuery] = React.useState("");
   const [composing, setComposing] = React.useState(false);
 

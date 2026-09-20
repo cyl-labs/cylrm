@@ -27,6 +27,7 @@ import { CALL_TIME_OUTCOMES, OUTCOME_LABELS } from "@/components/calls/outcome";
 import { MeetingCallButton } from "@/components/calls/meeting-call-button";
 import type { SavedLine } from "@/components/calls/second-line";
 import { useCallLine } from "@/components/calls/call-line";
+import { useClaimLine } from "@/components/calls/line-presence";
 import {
   callbackZoneLabel,
   defaultCallbackAt,
@@ -114,6 +115,7 @@ export function InboundList({
   canFilterMine = false,
   myNumber = null,
   lines = [],
+  canDial = false,
 }: {
   calls: InboundCall[];
   /** The clock this reader picked, used where the number that rang belongs to
@@ -139,8 +141,27 @@ export function InboundList({
    *  agent's demo number among them. Empty for a handset caller, who has no
    *  browser line to merge onto. */
   lines?: SavedLine[];
+  /** Whether this reader dials from the browser at all. Decides whether this
+   *  tab claims the phone: a handset caller registers no line to fight over. */
+  canDial?: boolean;
+
 }) {
   const router = useRouter();
+  /**
+   * Hold the phone for this tab while this screen is open.
+   *
+   * Every Call CRM tab registers at listening priority so the inbound banner
+   * works anywhere; a tab with a *calling* screen outranks it, which is what
+   * stops a forgotten tab keeping the line. The dial card and the Keypad have
+   * always claimed it and this screen, which dials too, never did
+   * (2026-09-20) — so a second tab left on Scripts could win the election and
+   * this row would say "the phone is open in another CRM tab" while that tab
+   * could not dial at all.
+   *
+   * False for a handset caller, who registers no line to fight over.
+   */
+  useClaimLine(canDial);
+
   // The ring back placed from a row's Call back button, so logging what came of
   // it joins the recording. Null when it was dialled from a handset.
   const { sessionFor } = useCallLine();

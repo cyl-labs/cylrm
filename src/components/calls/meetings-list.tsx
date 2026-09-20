@@ -36,6 +36,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmSend } from "@/components/confirm-send";
+import { useClaimLine } from "@/components/calls/line-presence";
 import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
@@ -239,6 +240,7 @@ const FOLLOW_UP_OUTCOMES: CallOutcome[] = [
 
 export function MeetingsList({
   meetings,
+  canDial = false,
   tz,
   zoneLabel,
   showWho = false,
@@ -274,8 +276,27 @@ export function MeetingsList({
   /** The labelled lines a call from here can be merged with — the voice
    *  agent's demo number among them. */
   lines?: SavedLine[];
+  /** Whether this reader dials from the browser at all. Decides whether this
+   *  tab claims the phone: a handset caller registers no line to fight over. */
+  canDial?: boolean;
+
 }) {
   const router = useRouter();
+  /**
+   * Hold the phone for this tab while this screen is open.
+   *
+   * Every Call CRM tab registers at listening priority so the inbound banner
+   * works anywhere; a tab with a *calling* screen outranks it, which is what
+   * stops a forgotten tab keeping the line. The dial card and the Keypad have
+   * always claimed it and this screen, which dials too, never did
+   * (2026-09-20) — so a second tab left on Scripts could win the election and
+   * this row would say "the phone is open in another CRM tab" while that tab
+   * could not dial at all.
+   *
+   * False for a handset caller, who registers no line to fight over.
+   */
+  useClaimLine(canDial);
+
   // Ticks every half minute. Without it a card open across 1:00 AM kept the
   // server's answer to "has this started", so the badge read "just now" while
   // the button for saying what happened was still absent — the screen said

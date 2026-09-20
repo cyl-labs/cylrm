@@ -34,6 +34,7 @@ export default async function MissedCallsPage({
   const isAdmin = me?.role === "admin";
   const mine = isAdmin && who === "mine";
   const calls = await getInboundCalls(me, { missedOnly: !all, mineOnly: mine });
+  const browserDialler = (await dialMethodOf(me?.id)) === "browser";
   const outstanding = calls.filter((c) => !c.answeredAt && !c.handledAt);
   // Split the way `countMissedCalls` splits them, so the header agrees with the
   // badge beside it: owed now, and owed once it is morning where they are.
@@ -53,9 +54,8 @@ export default async function MissedCallsPage({
           // The voice agent's own number among them, so a ring back can put it
           // on the line without leaving this screen. Empty for a handset
           // caller, who has no browser line to merge onto.
-          lines={
-            (await dialMethodOf(me?.id)) === "browser" ? await getSavedLines() : []
-          }
+          lines={browserDialler ? await getSavedLines() : []}
+          canDial={browserDialler}
           missed={missed}
           waiting={waiting}
           showWho={isAdmin}

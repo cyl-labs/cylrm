@@ -10,7 +10,7 @@ import {
   type Thread,
 } from "@/lib/texts";
 import { parseConversationKey } from "@/lib/text-key";
-import { callerNumberOf, callRegionOf, statsRegionOf } from "@/lib/users";
+import { callRegionOf, callerNumberOf, dialMethodOf, statsRegionOf } from "@/lib/users";
 import { DEFAULT_STATS_REGION, statsZone } from "@/lib/stats-zones";
 
 export const dynamic = "force-dynamic";
@@ -94,6 +94,9 @@ export default async function TextsPage({
         isAdmin={isAdmin}
         myNumber={myNumber}
         canSend={canSend}
+        // Texts can ring a prospect back too, so this tab holds the phone
+        // while it is open rather than losing it to an idle one.
+        canDial={(await dialMethodOf(me?.id)) === "browser"}
         tz={zone.tz}
       />
     </PageShell>

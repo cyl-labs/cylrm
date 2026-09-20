@@ -51,6 +51,19 @@ left the founders' account — the one account deliberately tied to no market �
 looking as though the business owned a single number: the API never had that
 restriction (`region && !did.startsWith(prefix)`), only the dropdown did.
 
+**Every screen that can dial must claim the line** (2026-09-20). The election
+in `line-presence.tsx` gives a tab with a *calling* screen priority over one
+that is merely listening, which is what stops a forgotten tab keeping the
+phone — but only the dial card and the Keypad ever called `useClaimLine`.
+Meetings, Missed calls and Texts all dial and none of them claimed, so they
+registered at listening priority like any other tab and could lose the
+election to one sitting on Scripts. The symptom is the row saying "the phone
+is open in another CRM tab. Dial from there" while the tab it names cannot
+dial at all, which is unfalsifiable from the outside and reads as the phone
+being broken. All three claim now, gated on `canDial` so a handset caller
+registers nothing to fight over. **A new screen that dials has to claim it
+too** — there is no way to derive this, and the failure is silent.
+
 **A number somebody already holds is labelled, never hidden** (2026-09-07).
 `available` on that dropdown is the *reserved* flag from the numbers panel, not
 an assignment, so a number already being somebody's caller ID was offered with
