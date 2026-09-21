@@ -903,10 +903,24 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
   A thread that came in on a caller's number shows the reason and a "Text them
   from your number" link rather than a message bar, because replying from a
   different number starts a different conversation on the prospect's phone.
-- **Callers read, and ring back.** Their bottom bar is the reason they cannot
-  text plus the copy-number and Open lead buttons. Scoped by `call_sms.user_id`
-  like missed calls, so a reassigned number does not hand over the last
-  holder's texts; admins see every conversation, labelled "To <name>".
+- **Callers read, and ring back — unless they are given texting** (2026-09-22,
+  `app_user.text_access`, `canSendTexts` in `lib/users.ts`). Without it their
+  bottom bar is the reason they cannot text plus the copy-number and Open lead
+  buttons. Granted per person on Team, off by default: a text reaches a
+  prospect from the number they will ring back, costs money per segment and
+  cannot be unsent, so nobody is opted in by having been hired. Admins always
+  have it.
+  **Sending and seeing are two different permissions and must stay that way.**
+  Reading was never gated — `scope()` limits a caller to `call_sms.user_id =
+  them`, so a reassigned number does not hand over the last holder's texts —
+  and a granted caller still sees only their own threads, texting only from
+  their own number. `isAdmin` alone decides who sees every conversation
+  labelled "To &lt;name&gt;", which is why the Texts UI takes both flags rather
+  than one. The trap this avoids: `getTextsByLead`, which the Meetings rows
+  read, was unscoped because only founders could reach it — a granted caller
+  would have read a founder's texts to their own lead. It takes `callScope(me)`
+  now. **Anything else that starts feeding the Texts or Meetings screens has to
+  take one or the other.**
 - **Nothing goes out without a last look** (`components/confirm-send.tsx`,
   2026-09-15). Enter and the arrow on this screen, Send text on a meeting row,
   and Send in the Leads email dialog all open `ConfirmSend` instead of sending.
