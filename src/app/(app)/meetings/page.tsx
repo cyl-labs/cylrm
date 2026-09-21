@@ -3,6 +3,7 @@ import { MeetingsList } from "@/components/calls/meetings-list";
 import { MeetingsExplainer } from "@/components/calls/meetings-explainer";
 import { PushToggle } from "@/components/calls/push-toggle";
 import { RefreshMeetings } from "@/components/calls/refresh-meetings";
+import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
 import { getSavedLines } from "@/lib/calls";
@@ -155,6 +156,10 @@ export default async function MeetingsPage({
           {/* Refresh first: it is the one people reach for, right after
               booking something on Cal.com. */}
           <RefreshMeetings />
+          {/* Renders nothing. Watches for a trip to Cal.com and pulls the
+              calendar when you come back, so moving a demo does not leave
+              this screen counting down to a time nobody agreed to. */}
+          <SyncOnReturn />
           {/* Beside Refresh rather than above the list: it changes what the
               page is, so it belongs with the page's controls. Both labels are
               drawn, so nobody has to work out whether the word on the button
