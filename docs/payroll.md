@@ -39,6 +39,44 @@ sentence claiming a rate nobody is paid.
   of a pickup would be two numbers on two screens, and the one people are paid
   on had better be the one they can see on Stats. Exporting it is the only
   change Payroll made to that file.
+- **Booking a follow-up earns the original caller nothing, and cannot**
+  (audited 2026-09-21, asked as "just double check that logic"). A pickup is a
+  `call` row, counted by `call.user_id`, so the question is only ever "does
+  this write a call row, and whose". Three separate things are called a
+  follow-up and all three answer it safely:
+  - **A follow-up *meeting*** (Cal.com, `voice-agent-follow-up`) writes a
+    `call_meeting` row and nothing else — the sync's only inserts are
+    `call_meeting` and `meeting_reminder_sent`, and there are no database
+    triggers. It cannot score a pickup for anybody.
+  - **The ring back after a no-show** writes `call_meeting_followup`, never a
+    call — `/api/meetings/[id]/followup` says so in its own docblock, and the
+    reason is the duplicate `demo_booked` it would otherwise create.
+  - **The follow-up *call* after a demo** does write a real call, but
+    `following_up` is deliberately not in `PICKUP`, and `/api/calls` stamps
+    `userId: me.id` from the session — never a client-supplied id — so it
+    lands on the founder who logged it, and `getPayrollRows` only counts
+    `role = 'caller'`.
+
+  Checked against the live row rather than reasoned about alone: the one
+  follow-up meeting on prod sits on lead 7029, whose three calls are all
+  Harry's original cold work (not_interested, voicemail, demo_booked) with the
+  attendance fee already paid to him on payout 11. Booking the follow-up added
+  no call, no pickup and no fee.
+- **A rebooked demo *does* earn a second pickup, and that is not the same
+  question.** Pickups count conversations, not businesses — `count(*)`, not
+  `count(distinct call_lead_id)` — so a prospect rung again and spoken to
+  again is two. Two leads on prod carry two `demo_booked` calls each, both
+  times the same caller. The *fee* is the one capped per business, by
+  `call_demo_attendance_one_show_per_lead_idx` (confirmed present in
+  `pg_indexes`, which matters because a push drops any index not in
+  `schema.ts` — it is declared there). If the floor should stop earning a
+  pickup for a rebooking, that is a rule to change, not a bug to fix.
+- **`FOLLOW_UP_OUTCOMES` on the Meetings screen offers trial, won and lost,
+  which are pickup outcomes.** Logged there they score a pickup for the
+  *founder* who logs them, so no money moves, but they do appear in the
+  floor's Stats. `demo_booked` is kept off that menu because a second one
+  would ask payroll to pay the attendance fee twice, and `callback` because it
+  needs a time.
 - **Nothing in the CRM recorded that a meeting happened**, so `call_demo_attendance`
   does, and a founder marks it by hand. `demo_booked` means they agreed to a
   slot and `trial`/`won` mean they bought in; the SOP pays on attendance
