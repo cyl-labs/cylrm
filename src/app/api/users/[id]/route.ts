@@ -52,6 +52,7 @@ export async function PATCH(
     telnyxDid?: unknown;
     dialMethod?: unknown;
     keypadAccess?: unknown;
+    textAccess?: unknown;
     liveHints?: unknown;
   } | null;
   if (!body) {
@@ -165,6 +166,16 @@ export async function PATCH(
       );
     }
     values.keypadAccess = body.keypadAccess;
+  }
+
+  if ("textAccess" in body) {
+    if (typeof body.textAccess !== "boolean") {
+      return Response.json(
+        { error: "Text access must be true or false." },
+        { status: 400 },
+      );
+    }
+    values.textAccess = body.textAccess;
   }
 
   // The number they ring from. Checked against their market, because a US

@@ -132,6 +132,10 @@ export async function POST(
         dialMethod: outgoing.dialMethod,
         keypadAccess: outgoing.keypadAccess,
         liveHints: outgoing.liveHints,
+        // Inherited like the other two: a replacement takes over the leaver's
+        // seat, and re-granting permissions by hand is how somebody ends up
+        // unable to answer a prospect who texts the number they just took on.
+        textAccess: outgoing.textAccess,
         panelLeft: outgoing.panelLeft,
         telnyxDid: outgoing.telnyxDid,
         telnyxConnectionId: outgoing.telnyxConnectionId,

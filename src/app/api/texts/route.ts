@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/session";
-import { callerNumberOf } from "@/lib/users";
+import { callerNumberOf, canSendTexts } from "@/lib/users";
 import { classifyPhone, e164 } from "@/lib/phone";
 import { sendSms } from "@/lib/telnyx";
 import { explainTextError, recordOutbound, smsEnabled } from "@/lib/sms";
@@ -12,10 +12,12 @@ const MAX_LENGTH = 480;
 /**
  * Send a text from the Texts screen.
  *
- * Founders only, and always from their own number — the rule the Meetings
- * button follows, for the same reason: a text has to come from the number the
- * person already knows, or it reads as a stranger. The browser sends the words
- * and who they are for; which number they go out from is decided here.
+ * Founders, plus any caller granted `text_access` on Team, and always from
+ * their own number — the rule the Meetings button follows, for the same
+ * reason: a text has to come from the number the person already knows, or it
+ * reads as a stranger. The browser sends the words and who they are for; which
+ * number they go out from is decided here, which is why the permission can be
+ * handed out without anybody being able to text as somebody else.
  *
  * Kept apart from `/api/meetings/[id]/text` rather than folded into it, because
  * that route is addressed by meeting and this one by number: a reply to
@@ -27,9 +29,13 @@ export async function POST(request: Request) {
   if (!smsEnabled()) {
     return Response.json({ error: "Texting is switched off." }, { status: 404 });
   }
-  if (me.role !== "admin") {
+  // Admins always, and anyone an admin has granted it on Team. Reading this
+  // screen was never the restricted part — `scope()` in `lib/texts.ts` already
+  // limits a caller to the conversations on their own number — so the check is
+  // here on the send and nowhere else.
+  if (!(await canSendTexts(me.id, me.role))) {
     return Response.json(
-      { error: "Only founders can send texts." },
+      { error: "You have not been given permission to send texts." },
       { status: 403 },
     );
   }

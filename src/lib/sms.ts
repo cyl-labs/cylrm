@@ -124,6 +124,18 @@ export function optedOutOf(inboundBodies: string[]): boolean {
  */
 export async function getTextsByLead(
   leadIds: number[],
+  /**
+   * `callScope(me)`: a caller's own id, or undefined for a founder who sees
+   * everything.
+   *
+   * It was unscoped, which was safe while only founders could reach this — the
+   * Meetings page asked for it behind `role === "admin"`. Texting is a
+   * permission now, so a caller can reach it, and without this they would read
+   * a founder's texts to their own lead on the Meetings row. That contradicts
+   * the Texts screen, where `scope()` has always limited a caller to the
+   * conversations on their own number.
+   */
+  ownerId?: number,
 ): Promise<Record<number, LeadTexts>> {
   const ids = [...new Set(leadIds)];
   if (!smsEnabled() || ids.length === 0) return {};
@@ -134,6 +146,7 @@ export async function getTextsByLead(
     from call_sms s
     left join app_user u on u.id = s.user_id and s.direction = 'out'
     where s.call_lead_id in ${inList(ids)}
+      ${ownerId === undefined ? sql`` : sql`and s.user_id = ${ownerId}`}
     order by s.created_at asc, s.id asc
   `)) as Row[];
 

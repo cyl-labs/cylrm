@@ -544,6 +544,26 @@ export const appUser = pgTable("app_user", {
    *  is being tested — and unlike keypadAccess, admins are not implicitly in:
    *  this one can be wrong in front of a prospect. */
   liveHints: boolean("live_hints").notNull().default(false),
+  /**
+   * May send texts, from the Texts screen and from Meetings.
+   *
+   * **Reading the Texts screen was never the restricted part.** A caller has
+   * always seen the conversations on their own number — `scope()` in
+   * `lib/texts.ts` limits them to `s.user_id = me.id` — and that does not
+   * change here. This is only about the message bar.
+   *
+   * Granted per person and **off by default**, which is `liveHints`' rule
+   * rather than `keypadAccess`': admins are implicitly in, because a founder
+   * could already text, but nobody else is opted in by having been hired. A
+   * text goes to a prospect from a number they will ring back, costs money per
+   * segment, and is the one thing on this screen that cannot be taken back.
+   *
+   * It does not grant the founders' *view*: `isAdmin` still decides whether
+   * somebody sees the whole floor's threads and whose number each is on. A
+   * caller with this permission texts from their own number, in their own
+   * conversations, and sees nobody else's.
+   */
+  textAccess: boolean("text_access").notNull().default(false),
   /** Which document holds the dialler's left column; the other is on "o".
    *  A working preference the caller sets, not a policy an admin assigns. */
   panelLeft: text("panel_left").notNull().default("objections").$type<"objections" | "script">(),

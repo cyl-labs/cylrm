@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/session";
 import { getMeeting } from "@/lib/meetings";
-import { callerNumberOf } from "@/lib/users";
+import { callerNumberOf, canSendTexts } from "@/lib/users";
 import { classifyPhone, e164 } from "@/lib/phone";
 import { sendSms } from "@/lib/telnyx";
 import {
@@ -36,9 +36,11 @@ export async function POST(
   if (!smsEnabled()) {
     return Response.json({ error: "Texting is switched off." }, { status: 404 });
   }
-  if (me.role !== "admin") {
+  // Admins always, plus any caller granted it on Team. The number is still
+  // their own, so a permission granted here cannot text as somebody else.
+  if (!(await canSendTexts(me.id, me.role))) {
     return Response.json(
-      { error: "Texting prospects is for admins." },
+      { error: "You have not been given permission to send texts." },
       { status: 403 },
     );
   }

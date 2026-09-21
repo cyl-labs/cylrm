@@ -29,6 +29,9 @@ export type TeamMember = {
   /** May open the Keypad. Admins always may, whatever this says. */
   keypadAccess: boolean;
   liveHints: boolean;
+  /** May send texts. Admins always may, whatever this says. Reading the Texts
+   *  screen is not gated by it — see `canSendTexts`. */
+  textAccess: boolean;
   /** How they prefer to be paid — free text, possibly a link. Set on Team,
    *  read on Payroll at the moment a payout is recorded. */
   paymentMethod: string | null;
@@ -60,6 +63,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       isOwner: appUser.isOwner,
       keypadAccess: appUser.keypadAccess,
       liveHints: appUser.liveHints,
+      textAccess: appUser.textAccess,
       paymentMethod: appUser.paymentMethod,
       // A join rather than a correlated subquery, because the subquery this
       // replaces was silently wrong. Drizzle renders an interpolated column
@@ -225,6 +229,38 @@ export const canUseLiveHints = cache(
     if (!userId) return false;
     const [row] = await db
       .select({ granted: appUser.liveHints })
+      .from(appUser)
+      .where(eq(appUser.id, userId));
+    return row?.granted ?? false;
+  },
+);
+
+/**
+ * May this person send a text?
+ *
+ * Admins always may, the way `canUseKeypad` treats them: founders could text
+ * before this permission existed and nothing here takes that away. Everybody
+ * else is off until granted on Team.
+ *
+ * **Sending only.** Reading the Texts screen is not gated by this and never
+ * was — `scope()` in `lib/texts.ts` already limits a caller to the
+ * conversations on their own number. Nor does it widen what they see: a caller
+ * with this permission still sees only their own threads.
+ *
+ * Read live and `cache()`d for the reason `canUseKeypad` is: a grant made on
+ * Team lands on their next page load rather than their next login, and the
+ * Texts page, the Meetings page and the routes behind both ask while rendering
+ * one page.
+ */
+export const canSendTexts = cache(
+  async (
+    userId: number | null | undefined,
+    role: "admin" | "caller" | undefined,
+  ): Promise<boolean> => {
+    if (role === "admin") return true;
+    if (!userId) return false;
+    const [row] = await db
+      .select({ granted: appUser.textAccess })
       .from(appUser)
       .where(eq(appUser.id, userId));
     return row?.granted ?? false;

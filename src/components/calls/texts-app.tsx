@@ -196,6 +196,7 @@ export function TextsApp({
   conversations,
   thread,
   isAdmin,
+  mayText,
   myNumber,
   canSend,
   canDial = false,
@@ -204,10 +205,16 @@ export function TextsApp({
   conversations: Conversation[];
   /** The open conversation, or null for the list alone. */
   thread: Thread | null;
+  /** Sees every number's threads, and whose each one is on. Founders only, and
+   *  deliberately separate from `mayText`: permission to send is not
+   *  permission to read the floor's conversations. */
   isAdmin: boolean;
+  /** Allowed to send at all — a founder, or a caller granted it on Team.
+   *  Says nothing about whether they have a number to send from. */
+  mayText: boolean;
   /** The reader's own number, whether or not they can text from it. */
   myNumber: string | null;
-  /** A founder with a US number of their own. */
+  /** `mayText`, and a US number of their own to send from. */
   canSend: boolean;
   /** Whether this reader dials from the browser at all. Decides whether this
    *  tab claims the phone: a handset caller registers no line to fight over. */
@@ -372,6 +379,7 @@ export function TextsApp({
             key={thread.conversation.key}
             thread={thread}
             isAdmin={isAdmin}
+            mayText={mayText}
             myNumber={myNumber}
             canSend={canSend}
             tz={tz}
@@ -575,6 +583,7 @@ function DemoLabel({
 function ThreadView({
   thread,
   isAdmin,
+  mayText,
   myNumber,
   canSend,
   tz,
@@ -582,6 +591,7 @@ function ThreadView({
 }: {
   thread: Thread;
   isAdmin: boolean;
+  mayText: boolean;
   myNumber: string | null;
   canSend: boolean;
   tz: string;
@@ -632,8 +642,8 @@ function ThreadView({
   const sendable = canSend && onMyNumber && theirIsUs && !c.dncBlock && !optedOut;
 
   // Why there is no message bar, in the order the reasons matter.
-  const reason = !isAdmin
-    ? "You can't text from the CRM. Ring them back instead."
+  const reason = !mayText
+    ? "You have not been given permission to send texts. Ring them back instead, or ask an admin for texting on the Team screen."
     : !canSend
       ? "You need a US number of your own to text from. Give your account one on Team."
       : !theirIsUs
@@ -644,7 +654,7 @@ function ThreadView({
             ? `This conversation is with ${c.oursName ? `${c.oursName}'s` : "another"} number. Texts go out from your own number, so a reply starts a separate conversation.`
             : "They replied STOP, so no more texts can be sent to them.";
   const startFromMine =
-    isAdmin && canSend && myNumber && !onMyNumber && theirIsUs && !c.dncBlock;
+    canSend && myNumber && !onMyNumber && theirIsUs && !c.dncBlock;
 
   /** The text awaiting a last look. Enter and the arrow only ever open that
    *  look; nothing is sent until Send is pressed inside it (`ConfirmSend`). */
@@ -881,7 +891,9 @@ function ThreadView({
           <p className="text-[13px] text-muted-foreground">{reason}</p>
           {/* A caller answers a text by ringing, so the ways to ring are right
               under the reason rather than one tap away in the header. */}
-          {!isAdmin && (
+          {/* Keyed on `mayText`, not on the role: somebody who cannot text
+              needs the ways to ring, whoever they are. */}
+          {!mayText && (
             <div className="mt-2 flex flex-wrap justify-center gap-2">
               <RingBackButton
                 to={c.their}

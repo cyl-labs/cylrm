@@ -148,6 +148,7 @@ const COLUMNS = [
   "Paid by",
   "Keypad",
   "Hints",
+  "Texting",
   "Calls",
   "Last dialled",
   "",
@@ -699,6 +700,37 @@ export function TeamManager({
                       ) : (
                         <span className="text-muted-foreground">
                           {m.liveHints ? "On" : "Off"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2.5">
+                      {/* "Always" for admins, as Keypad has: a founder could
+                          text before this permission existed. Everyone else is
+                          off until granted — a text reaches a prospect from the
+                          number they ring back, costs money per segment, and
+                          cannot be unsent. Reading the Texts screen is not
+                          controlled here and never was: a caller has always
+                          seen the conversations on their own number. */}
+                      {m.role === "admin" ? (
+                        <span className="text-muted-foreground">Always</span>
+                      ) : canManage ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-7",
+                            m.textAccess && "font-bold text-primary",
+                          )}
+                          disabled={busyId === m.id}
+                          onClick={() =>
+                            patch(m, { textAccess: !m.textAccess })
+                          }
+                        >
+                          {m.textAccess ? "Granted" : "Grant"}
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {m.textAccess ? "Granted" : "No"}
                         </span>
                       )}
                     </td>

@@ -10,7 +10,13 @@ import { UnbookedDemos } from "@/components/calls/unbooked-demos";
 import { getTextsByLead, smsEnabled, type Texting } from "@/lib/sms";
 import { classifyPhone } from "@/lib/phone";
 import { callScope, getCurrentUser } from "@/lib/session";
-import { callerNumberOf, callRegionOf, dialMethodOf, statsRegionOf } from "@/lib/users";
+import {
+  callerNumberOf,
+  callRegionOf,
+  canSendTexts,
+  dialMethodOf,
+  statsRegionOf,
+} from "@/lib/users";
 import {
   statsZone,
   isStatsRegion,
@@ -120,15 +126,22 @@ export default async function MeetingsPage({
   const ringBack = meetings.filter((m) => m.needsRingBack).length;
   const cancelled = meetings.filter((m) => m.status === "cancelled").length;
 
-  // Texting the prospect: admins only, and only once it is switched on. Null is
-  // the whole of how the feature stays invisible — the list draws no button and
-  // no thread, and nothing here touches `call_sms`, which may not exist yet.
+  // Texting the prospect: whoever is allowed to send, and only once it is
+  // switched on. Null is the whole of how the feature stays invisible — the
+  // list draws no button and no thread, and nothing here touches `call_sms`,
+  // which may not exist yet. It was `role === "admin"` until texting became a
+  // permission an admin can hand out on Team; `canSendTexts` still answers yes
+  // for every founder, so nothing changed for them.
   let texting: Texting | null = null;
-  if (me?.role === "admin" && smsEnabled()) {
+  if (me && smsEnabled() && (await canSendTexts(me.id, me.role))) {
     const did = await callerNumberOf(me.id);
     texting = {
       byLead: await getTextsByLead(
         meetings.flatMap((m) => (m.leadId === null ? [] : [m.leadId])),
+        // The same scope the meetings themselves were read with, so a caller
+        // granted texting sees their own thread with the prospect and not a
+        // founder's.
+        callScope(me),
       ),
       from: did && classifyPhone(did) === "us" ? did : null,
     };

@@ -10,7 +10,13 @@ import {
   type Thread,
 } from "@/lib/texts";
 import { parseConversationKey } from "@/lib/text-key";
-import { callRegionOf, callerNumberOf, dialMethodOf, statsRegionOf } from "@/lib/users";
+import {
+  callRegionOf,
+  callerNumberOf,
+  canSendTexts,
+  dialMethodOf,
+  statsRegionOf,
+} from "@/lib/users";
 import { DEFAULT_STATS_REGION, statsZone } from "@/lib/stats-zones";
 
 export const dynamic = "force-dynamic";
@@ -50,12 +56,17 @@ export default async function TextsPage({
     DEFAULT_STATS_REGION;
   const zone = statsZone(region);
 
-  const [conversations, myNumber] = await Promise.all([
+  const [conversations, myNumber, mayText] = await Promise.all([
     getConversations(me),
     callerNumberOf(me?.id),
+    canSendTexts(me?.id, me?.role),
   ]);
+  // Two different questions, deliberately not one flag. `isAdmin` decides what
+  // this screen *shows* — every number's threads, and whose each one is on —
+  // and `mayText` decides whether there is a message bar. A caller granted
+  // texting still sees only their own conversations.
   const canSend =
-    isAdmin && myNumber !== null && classifyPhone(myNumber) === "us";
+    mayText && myNumber !== null && classifyPhone(myNumber) === "us";
 
   let thread: Thread | null = null;
   const picked = parseConversationKey(c);
@@ -92,6 +103,7 @@ export default async function TextsPage({
         conversations={conversations}
         thread={thread}
         isAdmin={isAdmin}
+        mayText={mayText}
         myNumber={myNumber}
         canSend={canSend}
         // Texts can ring a prospect back too, so this tab holds the phone
