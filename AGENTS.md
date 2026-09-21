@@ -265,6 +265,29 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
 - `drizzle-kit push` goes **interactive** when a diff both drops and adds an enum — it asks whether it's a rename, and `--force` does not suppress that prompt (it only auto-confirms data-loss statements). With no TTY it just crashes in `promptNamedWithSchemasConflict`. Apply that kind of change as explicit DDL over psql instead, then re-run `push` to confirm the schemas agree.
 - **`drizzle-kit push` drops any index that is not declared in `schema.ts`.** `call_user_id_idx` was created by `2026-08-13-app-user.sql` and never added to the schema file, so the first push after it silently removed the index every per-person query relies on. Both it and `call_telnyx_session_id_idx` are now declared on the `call` table. An index that exists only in a migration will not survive; put it in both places, and check `pg_indexes` after any push.
 - **`call` needs `call_lead_latest_idx`** (2026-09-14, `2026-09-14-call-lead-latest-idx.sql`). Every calling screen asks for each lead's latest call (`latestCall`, a lateral subquery per lead), and with no index on `call_lead_id` Postgres read the whole calls table once per lead. The sidebar's callbacks count runs on every page, so every page paid about a second; Callbacks took ~4s, Spreadsheet and Pipeline 6–11s. Built on prod `CONCURRENTLY` and declared in `schema.ts` so a push keeps it. Server time per sidebar click afterwards: light pages ~0.1s, Callbacks ~0.5s, Call lists ~0.4s, Spreadsheet and Pipeline ~1.7s, Stats ~1.5s. **If a calling screen goes slow again, check this index still exists before anything else.** Keypad (~0.9s) and Team (~0.65s) did not move: they wait on the Telnyx API, not on this.
+- **The `offset 0` in `leadZone` is load-bearing; deleting it makes every
+  calling screen four times slower** (2026-09-22, `lib/calls.ts`). That
+  fragment resolves a lead's timezone in a `cross join lateral`, and Postgres
+  flattens such a lateral into the outer query — so `z.tz` is not a column, it
+  is the whole expression pasted in afresh at **every mention**. It is
+  mentioned a lot: `withinLeadHours` names it five times and `getCallTotals`
+  tests that twice per row, so each call row parsed a 3KB `source_fields` blob
+  and walked an 84-branch state CASE ten times to get the same string ten
+  times. `offset 0` is the standard optimisation fence against the pull-up and
+  cannot change a result, only the plan. Measured on prod over a week of
+  calls: `getCallTotals` **1,688ms → 252ms**, byte-identical output; Stats
+  6.0s → 1.5s, Callbacks 2.3s → 0.9s. Timed on its own the state CASE looks
+  innocent (171ms), which is how it stayed hidden — the cost is only visible
+  when you count how many times it runs. `getCallLists` keeps its own copy of
+  the lateral and needs the same fence. **If a calling screen goes slow, check
+  this and `call_lead_latest_idx` before anything else.**
+- **Nothing that renders with a page may cost a query per person** (2026-09-22).
+  Stats' quota card asked `getWeekProgress` for each caller in turn, and that
+  answers through `getCallTotals` — eleven figures, of which it read one. It
+  is one grouped count now, and the card fetches it from
+  `/api/quota-standings` when a founder presses the button rather than on
+  every page load. The restated count has to keep matching `getCallTotals`,
+  the join to `call_lead` included.
 - **`getCallLists` is hand-tuned and must stay that way** (2026-09-16). Call lists, Callbacks, a list's dial screen, Spreadsheet, Pipeline and Stats all run it, over every list and every lead. The four-call limit and call spacing first added two correlated counts per lead to `latestCall` and joined `leadZone` for every lead, and that one query went from 0.37s to **1.49s** on 5,231 leads — every one of those screens sat at 2–4s. Measured by watching `pg_stat_activity` while a page loaded, then timing rebuilt versions directly. It now counts tries in one grouped pass over `call`, each list's call counts in another (they were six correlated rescans per list), skips the recording and caller-name lookups it never reads, and works out a timezone only for leads waiting on a retry, with the area-code join written as a plain equality so it can hash: **0.26s, identical numbers for all 41 lists.** The price is that it restates the latest-call, retry and timezone rules rather than reusing `latestCall`/`leadZone`, so a change to any of those rules has to be made there too. Removing the Email CRM would not have helped: its screens and its one sidebar count were never on the slow path. **Business hours are never tested inline there, or in the sidebar callbacks count**: waiting callbacks come from `waitingCallbacksByList` and are subtracted, because the inline version took the badge from 30ms to 1.8s.
 - **Writing jsonb: Drizzle is safe, the raw postgres.js client double-encodes.**
   Measured against prod on 2026-09-16. `db.execute(sql\`… ${JSON.stringify(x)}::jsonb\`)`
