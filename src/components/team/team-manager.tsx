@@ -134,25 +134,108 @@ const NO_DID = "__market__";
 const PREFIX: Record<string, string> = { sg: "+65", us: "+1", gb: "+44" };
 const MARKET_LABEL: Record<string, string> = { sg: "Singapore", us: "US", gb: "UK" };
 
-/** One list, so the empty and "show switched off" rows can span all of it.
- *  Both said `colSpan={COLUMNS.length}` long after the table grew past nine. */
+/**
+ * One list, so the empty and "show switched off" rows can span all of it.
+ * Both said `colSpan={COLUMNS.length}` long after the table grew past nine.
+ *
+ * **Fifteen columns became nine on 2026-09-22**, after granting texting meant
+ * scrolling so far right that the name was off the screen and the heading was
+ * off the top — so you could not see who you were granting it to, or which
+ * permission the column was. Four things fixed that, and they are all worth
+ * keeping:
+ *
+ * - **Person carries its own detail.** Username, tenure and role were three
+ *   columns of one-word answers about somebody whose name was in the column
+ *   beside them. They sit under the name now.
+ * - **The three permissions are one cell**, each labelled where it is. A
+ *   toggle whose meaning lives in a heading twelve columns away is a toggle
+ *   you have to scroll to read.
+ * - **Calls and Last dialled are one cell**, for the same reason: "250" and
+ *   "Sep 21" are one answer about how much work somebody is doing.
+ * - **Person is sticky and so is the heading row**, so neither can leave the
+ *   screen however far right you scroll.
+ */
 const COLUMNS = [
-  "Name",
-  "Username",
-  "With us",
-  "Role",
+  "Person",
   "Market",
   "Call lists",
   "Dials with",
   "Their number",
   "Paid by",
-  "Keypad",
-  "Hints",
-  "Texting",
+  "Permissions",
   "Calls",
-  "Last dialled",
   "",
 ];
+
+/**
+ * One permission, saying its own name.
+ *
+ * A chip rather than a column, because the three of them used to be three
+ * columns of one word each — "Granted", "Off", "Grant" — and which permission
+ * you were granting lived in a heading you had to scroll up to read, about a
+ * person whose name you had to scroll left to see.
+ *
+ * The label is always visible and the state is carried by weight and colour,
+ * so the whole answer is in the chip: "Texting Granted" reads without moving
+ * the page. Pressing it toggles; `always` is the admin case, where there is
+ * nothing to toggle because the permission is implied by the role.
+ */
+function PermissionToggle({
+  label,
+  on,
+  always = false,
+  canManage,
+  busy,
+  onToggle,
+}: {
+  label: string;
+  on: boolean;
+  /** True where the role grants it regardless of the stored column. */
+  always?: boolean;
+  canManage: boolean;
+  busy: boolean;
+  onToggle: () => void;
+}) {
+  const state = always ? "Always" : on ? "Granted" : "Off";
+
+  if (always || !canManage) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px]",
+          on || always
+            ? "border-primary/30 text-primary"
+            : "text-muted-foreground",
+        )}
+      >
+        <span className="font-semibold">{label}</span>
+        <span>{state}</span>
+      </span>
+    );
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      // Pressed state announced, since colour alone is what separates granted
+      // from not.
+      aria-pressed={on}
+      title={`${label}: ${state}. Press to ${on ? "take it away" : "grant it"}.`}
+      className={cn(
+        "h-6 gap-1 rounded-md border px-2 text-[11px] font-normal",
+        on
+          ? "border-primary/30 font-semibold text-primary"
+          : "text-muted-foreground",
+      )}
+      disabled={busy}
+      onClick={onToggle}
+    >
+      <span className="font-semibold">{label}</span>
+      <span>{busy ? "…" : state}</span>
+    </Button>
+  );
+}
 
 export function TeamManager({
   numbers: accountNumbers,
@@ -252,7 +335,13 @@ export function TeamManager({
   const [renaming, setRenaming] = React.useState<TeamMember | null>(null);
   const [busyId, setBusyId] = React.useState<number | null>(null);
 
-  async function patch(member: TeamMember, body: Record<string, unknown>) {
+  async function patch(
+    member: TeamMember,
+    body: Record<string, unknown>,
+    /** What to say when it lands. Defaults to naming the person, which is the
+     *  part a founder cannot see once the row is scrolled sideways. */
+    saved?: string,
+  ) {
     setBusyId(member.id);
     try {
       const res = await fetch(`/api/users/${member.id}`, {
@@ -265,6 +354,13 @@ export function TeamManager({
         toast.error(data.error ?? "Could not save that.");
         return false;
       }
+      // **Say so out loud.** Only failures spoke before, and a save that
+      // worked looked identical to one that had hung: the control greys out,
+      // `router.refresh()` re-renders a page that takes about two seconds on
+      // the droplet, and nothing moves until it lands. A founder granting
+      // Brian texting on 2026-09-22 read that as frozen and reported it as a
+      // bug — the grant had in fact saved.
+      toast.success(saved ?? `Saved for ${member.name}.`);
       router.refresh();
       return true;
     } finally {
@@ -292,16 +388,29 @@ export function TeamManager({
       </div>
 
       <div className={cn(CARD, "overflow-hidden")}>
-        <div className="overflow-x-auto">
+        {/* Scrolls in both directions inside the card, which is what lets the
+            heading row and the Person column stay put. `overflow-x-auto`
+            alone computes overflow-y to auto as well, but with no height to
+            scroll against the sticky heading tracked the page instead and
+            slid off the top — hence the cap. */}
+        <div className="max-h-[75vh] overflow-auto">
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="border-b text-left">
+              <tr className="text-left">
                 {COLUMNS.map(
-                  (h) => (
+                  (h, i) => (
                     <th
                       key={h || "actions"}
                       className={cn(
-                        "whitespace-nowrap px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground",
+                        "whitespace-nowrap border-b bg-card px-4 py-2 text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground",
+                        // Sticky needs a solid background of its own: rows
+                        // scrolling underneath a transparent heading is the
+                        // same fault the incoming-call banner had.
+                        "sticky top-0 z-20",
+                        // Person stays put horizontally too, so the name is
+                        // never off the screen while you work the right-hand
+                        // columns. z-30 so the corner cell wins both ways.
+                        i === 0 && "left-0 z-30",
                         // By name, not position: an index here drifted onto
                         // "Paid by" as columns were added in front of Calls.
                         h === "Calls" && "text-right",
@@ -332,7 +441,14 @@ export function TeamManager({
                       !m.active && "opacity-55",
                     )}
                   >
-                    <td className="whitespace-nowrap px-4 py-2.5 font-semibold">
+                    {/* Everything that identifies somebody, in the one cell
+                        that never scrolls away: who they are, what they sign
+                        in as, how long they have been here, and whether they
+                        are switched off. `bg-card` is not decoration — a
+                        sticky cell without it has the row showing through it.
+                        `opacity-55` on a switched-off row applies to the whole
+                        <tr>, so this stays consistent with it. */}
+                    <td className="sticky left-0 z-10 whitespace-nowrap border-b bg-card px-4 py-2.5 align-top font-semibold">
                       <span className="flex items-center gap-1.5">
                         {m.role === "admin" ? (
                           <ShieldCheck className="size-3.5 shrink-0 text-primary" />
@@ -351,27 +467,34 @@ export function TeamManager({
                           </Badge>
                         )}
                       </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
-                      {m.username}
-                    </td>
-                    <td
-                      className="whitespace-nowrap px-4 py-2.5 text-muted-foreground"
-                      title={`Joined ${joined(m.createdAt, tz)}`}
-                    >
-                      {/* Counted from now, so it can cross a day boundary
-                          between the server render and the hydration — the
-                          same note the relative times elsewhere carry. */}
-                      <span suppressHydrationWarning>{tenure(m.createdAt)}</span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5">
-                      <Badge variant={m.active ? "secondary" : "outline"}>
-                        {!m.active
-                          ? "Switched off"
-                          : m.role === "admin"
-                            ? "Admin"
-                            : "Caller"}
-                      </Badge>
+                      <span className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                        <span>{m.username}</span>
+                        <span aria-hidden>·</span>
+                        {/* Counted from now, so it can cross a day boundary
+                            between the server render and the hydration — the
+                            same note the relative times elsewhere carry. */}
+                        <span
+                          suppressHydrationWarning
+                          title={`Joined ${joined(m.createdAt, tz)}`}
+                        >
+                          {tenure(m.createdAt)}
+                        </span>
+                        {/* Only when it is not the ordinary case. An "Admin"
+                            or "Switched off" tag says something; a "Caller"
+                            tag on thirteen of fifteen rows is noise, and the
+                            icon beside the name already carries it. */}
+                        {(!m.active || m.role === "admin") && (
+                          <>
+                            <span aria-hidden>·</span>
+                            <Badge
+                              variant={m.active ? "secondary" : "outline"}
+                              className="px-1.5 py-0 text-[10px]"
+                            >
+                              {!m.active ? "Switched off" : "Admin"}
+                            </Badge>
+                          </>
+                        )}
+                      </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       {canManage ? (
@@ -655,90 +778,82 @@ export function TeamManager({
                         </span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2.5">
-                      {m.role === "admin" ? (
-                        <span className="text-muted-foreground">Always</span>
-                      ) : canManage ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={cn(
-                            "h-7",
-                            m.keypadAccess && "font-bold text-primary",
-                          )}
-                          disabled={busyId === m.id}
-                          onClick={() =>
-                            patch(m, { keypadAccess: !m.keypadAccess })
+                    {/* The three permissions in one cell, each labelled where
+                        it sits. They were three columns of a single word, and
+                        the word did not say which permission it was — so
+                        granting texting meant scrolling right until the name
+                        was gone, then scrolling up to read the heading. A
+                        toggle whose meaning lives in a heading twelve columns
+                        away is a toggle you have to go and look up. */}
+                    <td className="whitespace-nowrap px-4 py-2.5 align-top">
+                      <span className="flex flex-wrap items-center gap-1">
+                        <PermissionToggle
+                          label="Keypad"
+                          /* Admins have it by being admins: `canUseKeypad`
+                             never reads the column for them. */
+                          always={m.role === "admin"}
+                          on={m.keypadAccess}
+                          canManage={canManage}
+                          busy={busyId === m.id}
+                          onToggle={() =>
+                            patch(
+                              m,
+                              { keypadAccess: !m.keypadAccess },
+                              `Keypad ${m.keypadAccess ? "taken away from" : "granted to"} ${m.name}.`,
+                            )
                           }
-                        >
-                          {m.keypadAccess ? "Granted" : "Grant"}
-                        </Button>
-                      ) : (
-                        <span className="text-muted-foreground">
-                          {m.keypadAccess ? "Granted" : "No"}
-                        </span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5">
-                      {/* No "Always" for admins here, unlike Keypad: this is a
-                          feature under test that can put a wrong suggestion in
-                          front of a caller mid-call, so everybody opts in
-                          deliberately — founders included. */}
-                      {canManage ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={cn(
-                            "h-7",
-                            m.liveHints && "font-bold text-primary",
-                          )}
-                          disabled={busyId === m.id}
-                          onClick={() => patch(m, { liveHints: !m.liveHints })}
-                        >
-                          {m.liveHints ? "On" : "Off"}
-                        </Button>
-                      ) : (
-                        <span className="text-muted-foreground">
-                          {m.liveHints ? "On" : "Off"}
-                        </span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5">
-                      {/* "Always" for admins, as Keypad has: a founder could
-                          text before this permission existed. Everyone else is
-                          off until granted — a text reaches a prospect from the
-                          number they ring back, costs money per segment, and
-                          cannot be unsent. Reading the Texts screen is not
-                          controlled here and never was: a caller has always
-                          seen the conversations on their own number. */}
-                      {m.role === "admin" ? (
-                        <span className="text-muted-foreground">Always</span>
-                      ) : canManage ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={cn(
-                            "h-7",
-                            m.textAccess && "font-bold text-primary",
-                          )}
-                          disabled={busyId === m.id}
-                          onClick={() =>
-                            patch(m, { textAccess: !m.textAccess })
+                        />
+                        <PermissionToggle
+                          label="Hints"
+                          /* No "always" for admins here, unlike the other two:
+                             this is a feature under test that can put a wrong
+                             suggestion in front of a caller mid-call, so
+                             everybody opts in deliberately, founders
+                             included. */
+                          on={m.liveHints}
+                          canManage={canManage}
+                          busy={busyId === m.id}
+                          onToggle={() =>
+                            patch(
+                              m,
+                              { liveHints: !m.liveHints },
+                              `Hints ${m.liveHints ? "switched off for" : "switched on for"} ${m.name}.`,
+                            )
                           }
-                        >
-                          {m.textAccess ? "Granted" : "Grant"}
-                        </Button>
-                      ) : (
-                        <span className="text-muted-foreground">
-                          {m.textAccess ? "Granted" : "No"}
-                        </span>
-                      )}
+                        />
+                        <PermissionToggle
+                          label="Texting"
+                          /* Founders could text before this permission
+                             existed, so it does not take that away. Everyone
+                             else is off until granted: a text reaches a
+                             prospect from the number they ring back, costs
+                             money per segment, and cannot be unsent. Reading
+                             the Texts screen is not controlled here and never
+                             was. */
+                          always={m.role === "admin"}
+                          on={m.textAccess}
+                          canManage={canManage}
+                          busy={busyId === m.id}
+                          onToggle={() =>
+                            patch(
+                              m,
+                              { textAccess: !m.textAccess },
+                              `Texting ${m.textAccess ? "taken away from" : "granted to"} ${m.name}.`,
+                            )
+                          }
+                        />
+                      </span>
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">
-                      {m.calls.toLocaleString()}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
-                      {fmt(m.lastDialedAt, tz) ?? "Never dialled"}
+                    {/* How much work, and how recently. One answer, so one
+                        cell — "250" and "Sep 21" were two columns saying the
+                        same thing about the same person. */}
+                    <td className="whitespace-nowrap px-4 py-2.5 text-right align-top">
+                      <span className="block font-semibold tabular-nums">
+                        {m.calls.toLocaleString()}
+                      </span>
+                      <span className="block text-[11px] text-muted-foreground">
+                        {fmt(m.lastDialedAt, tz) ?? "Never dialled"}
+                      </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
                       {canManage && (
