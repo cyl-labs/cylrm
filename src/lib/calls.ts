@@ -274,6 +274,21 @@ export const leadZone = sql`
         when l.phone_key ~ '^44' then 'Europe/London'
       end
     ) as tz
+    -- ** offset 0 is load-bearing. Do not tidy it away. **
+    --
+    -- Without it Postgres pulls this lateral up into the outer query, which
+    -- means z.tz is not a column at all — it is the whole expression above,
+    -- substituted afresh at every single place it is mentioned. And it is
+    -- mentioned a lot: withinLeadHours alone names it five times, and
+    -- getCallTotals tests that twice per row. So each call row was parsing a
+    -- three-kilobyte source_fields blob and walking an 84-branch state CASE
+    -- ten times over, to get the same string ten times.
+    --
+    -- offset 0 is the standard fence against that pull-up: it cannot change a
+    -- result, only the plan, so the zone is computed once per row. Measured on
+    -- prod on 2026-09-22 over the 1,901 calls in a week: getCallTotals
+    -- 1,688ms before, 252ms after, byte-identical output.
+    offset 0
   ) z
 `;
 
@@ -592,6 +607,10 @@ export async function getCallLists(
           when l.phone_key ~ '^44' then 'Europe/London'
         end
       ) end as tz
+      -- Load-bearing, for the reason spelled out on leadZone: without it the
+      -- lateral is pulled up and this expression is re-evaluated at every
+      -- mention of z.tz, which RETRY_READY makes three of.
+      offset 0
     ) z
     left join list_calls lcs on lcs.call_list_id = cl.id
     left join dups d on d.call_list_id = cl.id
