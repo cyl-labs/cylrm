@@ -61,7 +61,15 @@ export const config = {
   // matcher it answers with the login page's HTML, and `addModule` rejects —
   // which would take the live hints down on any session the browser considers
   // stale, silently, in the middle of a call.
+  // `manifest.webmanifest` and the home-screen icons are the same failure a
+  // third time, and the one with the least visible symptom. **A manifest is
+  // fetched without credentials** unless the link says otherwise, so left in
+  // the matcher it is answered with the login page's HTML, Safari cannot parse
+  // it, and the site is quietly not a web app: "Add to Home Screen" makes a
+  // bookmark, iOS exposes no `PushManager` through it, and every meeting
+  // reminder silently fails for somebody who followed the instructions
+  // exactly. Nothing in a manifest or an app icon is private.
   matcher: [
-    "/((?!api|u/|_next/static|_next/image|favicon.ico|icon.png|sw.js|pcm-worklet.js).*)",
+    "/((?!api|u/|_next/static|_next/image|favicon.ico|icon.png|icon-192.png|icon-512.png|apple-touch-icon.png|manifest.webmanifest|sw.js|pcm-worklet.js).*)",
   ],
 };
