@@ -88,12 +88,21 @@ export function PushToggle({ vapidKey }: { vapidKey?: string }) {
 
   if (state === "loading" || state === "unsupported") return null;
 
+  // Names the button by what it looks like and where it is, rather than by
+  // what Apple calls it. A founder read "tap Share" on an iPhone with the
+  // address bar at the top, looked in the row of buttons along the bottom
+  // where every guide says it lives, and could not find it — it was beside
+  // the web address the whole time. "Tap Share" only helps somebody who
+  // already knows which icon that is.
   if (state === "ios-needs-install") {
     return (
       <p className="text-[13px] text-muted-foreground">
         <BellOff className="mr-1 inline size-3.5 align-[-2px]" />
-        To get reminders on an iPhone, tap Share and then &ldquo;Add to Home
-        Screen&rdquo;, and open the CRM from there.
+        To get reminders on an iPhone, open the CRM in Safari and tap the share
+        button — a box with an arrow coming out of the top, either beside the
+        web address or in the row of buttons at the bottom. Choose &ldquo;Add
+        to Home Screen&rdquo;, then open the CRM from that new icon: reminders
+        only reach you there, never in an ordinary tab.
       </p>
     );
   }

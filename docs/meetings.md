@@ -1576,6 +1576,16 @@ from the same `/api/cron/meetings` tick. Schema in
   dead button. iOS is told apart from genuinely-unsupported and gets the one
   thing it can act on — Add to Home Screen — since Safari exposes no
   `PushManager` in a normal tab.
+  - **That line names the button by its shape and its place, not by "Share"**
+    (2026-09-21). It said "tap Share and then Add to Home Screen", which a
+    founder on an iPhone could not follow: with the address bar set to the top,
+    the share button sits *beside the web address*, not in the row along the
+    bottom where every guide on the internet says it lives. "Tap Share" only
+    helps somebody who already knows which icon that is — so it now describes
+    a box with an arrow coming out of the top, says both places it can be, and
+    says why the home-screen icon matters (reminders never arrive in an
+    ordinary tab). Same instinct as the dial card's booking steps: the answer
+    is what to do next, not the name of the thing.
 - `urlBase64ToUint8Array` must build on an explicit `ArrayBuffer`:
   `Uint8Array.from` types as `Uint8Array<ArrayBufferLike>`, which admits a
   `SharedArrayBuffer` and is rejected by `applicationServerKey`.
