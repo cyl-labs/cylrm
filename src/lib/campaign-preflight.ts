@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCampaignProgress, type CampaignProgress } from "@/lib/campaign-progress";
 import { MERGE_FIELDS, renderTemplate } from "@/lib/templates";
+import { pollingEnabled } from "@/lib/email-polling";
 
 export type CheckLevel = "blocker" | "warning" | "ok";
 
@@ -213,7 +214,21 @@ export async function getCampaignPreflight(
       });
     }
   }
-  if (sendReady.length > 0 && blindSenders.length === sendReady.length) {
+  // **Nothing is polling at all**, which outranks the two checks below: they
+  // ask which mailboxes have a credential, and that question only matters if
+  // somebody is logging in with it. Said first and as a blocker, because the
+  // failure it describes is silent — the send works, and the silence
+  // afterwards reads as nobody being interested.
+  if (!pollingEnabled() && sendReady.length > 0) {
+    checks.push({
+      level: "blocker",
+      title: "Nothing is reading the replies",
+      detail:
+        "Inbound polling is switched off (EMAIL_POLLING), so no mailbox is being checked at all. " +
+        "Emails would go out and every reply would be invisible: nobody gets marked as replied, no deals appear on the pipeline, and follow-up steps keep sending to people who already answered. " +
+        "It was switched off in September 2026 after cold email stopped and the Gmail app passwords were revoked. Turning it back on means regenerating an app password for each account in Google, adding it on the Accounts screen, and setting EMAIL_POLLING=on in the environment.",
+    });
+  } else if (sendReady.length > 0 && blindSenders.length === sendReady.length) {
     checks.push({
       level: "blocker",
       title: "No replies can be detected",

@@ -10,6 +10,7 @@ import {
   sendingAccount,
 } from "@/db/schema";
 import { decryptSecret } from "@/lib/crypto";
+import { pollingEnabled } from "@/lib/email-polling";
 import { GMAIL_IMAP } from "@/lib/gmail";
 import { readableBody } from "@/lib/html-to-text";
 import { trimReplyBody } from "@/lib/reply-text";
@@ -39,6 +40,9 @@ export type PollAction = {
 
 export type PollResult = {
   ranAt: string;
+  /** Set when the tick did nothing on purpose, so a worker log line says which
+   *  of "nothing arrived" and "nobody is looking" it is. */
+  skipped?: "switched-off";
   accounts: {
     accountEmail: string;
     initializedCursor?: boolean;
@@ -47,6 +51,7 @@ export type PollResult = {
   }[];
   actions: PollAction[];
 };
+
 
 /** Bounce: hard signals only — mailer-daemon/postmaster sender or a
  * multipart/report delivery-status payload. */
@@ -343,8 +348,21 @@ async function pollAccount(
     logger: false,
     socketTimeout: 60_000,
   });
-  await client.connect();
+  // **ImapFlow is an EventEmitter, and an unlistened 'error' event is a
+  // process-level uncaughtException.** Not a theoretical one: it put 74,691 of
+  // them in the PM2 log, 19MB, at about 2,300 a day. A connection that fails
+  // has nothing to tell us that the throw below does not, so this exists to
+  // swallow it rather than to report it.
+  client.on("error", () => {});
   try {
+    // connect() inside the try, not before it. It used to sit outside, so an
+    // authentication failure — which is what all eight mailboxes have returned
+    // since the app passwords were revoked — skipped the finally entirely and
+    // left the client open with nobody holding it. Sixty seconds later
+    // socketTimeout fired on the abandoned socket, and with no listener for it
+    // that became the uncaught exception above. Measured: zero errors 40
+    // seconds after a tick, eight of them at 70.
+    await client.connect();
     const lock = await client.getMailboxLock("INBOX");
     try {
       const mailbox = client.mailbox;
@@ -507,7 +525,17 @@ async function pollAccount(
       lock.release();
     }
   } finally {
-    await client.logout().catch(() => client.close());
+    // Reached now however the block above ended, connect() included, so the
+    // socket is always let go. logout() on a client that never connected
+    // rejects, which is what close() is the fallback for.
+    await client.logout().catch(() => {
+      try {
+        client.close();
+      } catch {
+        // Already closed, or never opened. Either way there is nothing left
+        // to release and nothing worth saying about it.
+      }
+    });
   }
 }
 
@@ -517,6 +545,10 @@ export async function runPollerTick(): Promise<PollResult> {
     accounts: [],
     actions: [],
   };
+  // Before the accounts are even read: the switch is about whether anybody is
+  // meant to be looking, not about what is in the mailboxes.
+  if (!pollingEnabled()) return { ...result, skipped: "switched-off" };
+
   const accounts = await db
     .select({
       id: sendingAccount.id,
