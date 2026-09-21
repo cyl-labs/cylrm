@@ -36,16 +36,17 @@ export const metadata: Metadata = {
     // for.
     statusBarStyle: "default",
   },
-  icons: {
-    icon: [
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
-    ],
-    // Without this iOS invents an icon from a screenshot of whatever page was
-    // open, which is how the home screen ends up with an unrecognisable grey
-    // thumbnail of a table.
-    apple: "/apple-touch-icon.png",
-  },
+  // **No `icons` key here, deliberately.** Both icons come from the file
+  // convention instead — `src/app/icon.png` for the tab and
+  // `src/app/apple-icon.png` for an iPhone home screen — because setting
+  // `metadata.icons` at all suppresses the links Next generates from those
+  // files. A home-screen icon added on 2026-09-21 declared `icons.icon` and
+  // silently replaced the favicon every tab had carried since August; writing
+  // `apple` on its own then removed the favicon link altogether rather than
+  // restoring it. They are different pictures for different places — the tab
+  // keeps the company's mark, the phone gets the app's — and the file
+  // convention is the only arrangement that serves both without one standing
+  // in for the other.
 };
 
 export default function RootLayout({

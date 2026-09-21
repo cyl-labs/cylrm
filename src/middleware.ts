@@ -70,6 +70,6 @@ export const config = {
   // reminder silently fails for somebody who followed the instructions
   // exactly. Nothing in a manifest or an app icon is private.
   matcher: [
-    "/((?!api|u/|_next/static|_next/image|favicon.ico|icon.png|icon-192.png|icon-512.png|apple-touch-icon.png|manifest.webmanifest|sw.js|pcm-worklet.js).*)",
+    "/((?!api|u/|_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|icon-192.png|icon-512.png|manifest.webmanifest|sw.js|pcm-worklet.js).*)",
   ],
 };
