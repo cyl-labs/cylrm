@@ -357,6 +357,19 @@ export function useTelnyxCall(
     // tearing the client down to retry then would drop the conversation.
     let everReady = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * The client as the watchdog below needs to see it.
+     *
+     * Two questions, not one. `connected` is the websocket, which is what
+     * disappears when a laptop sleeps. `getIsRegistered()` is the SIP gateway,
+     * and **that** is the one that decides whether a call can be delivered —
+     * a socket can be up with the registration expired behind it, which looks
+     * perfectly healthy from the tab and refuses every inbound call.
+     */
+    let live: {
+      connected?: boolean;
+      getIsRegistered?: () => Promise<boolean>;
+    } | null = null;
 
     const start = async (attempt: number) => {
       try {
@@ -418,6 +431,44 @@ export function useTelnyxCall(
             setProblem(null);
           }
         });
+        // **The socket going away after a good registration.**
+        //
+        // This is the one failure nothing handled, and it is the expensive
+        // one. `everReady` gates both retry ladders above, so once a browser
+        // had registered, a dropped websocket ended the phone for the life of
+        // the page: no error on screen, presence still heartbeating from the
+        // CRM's own timer, and the caller with no reason to reload. Telnyx
+        // then refuses every inbound call to that line in about a second,
+        // which reads on Missed calls as "nobody picked up".
+        //
+        // Measured on prod on 2026-09-22: **123 of 190 inbound calls over
+        // seven days were refused inside two seconds** — 65% — and it was not
+        // spread evenly. Mico lost 71 of 78 and Gigi 19 of 19, which is what a
+        // tab open for days with a dead socket looks like. A reload fixed it
+        // every time, which is why the one call that got through at 19:56 came
+        // straight after six refusals.
+        //
+        // So: come back, on the same ladder, but never while somebody is
+        // mid-conversation — tearing the client down then would drop a live
+        // call, which is the reason the ladders were gated on `everReady` in
+        // the first place.
+        const reconnect = (why: string) => {
+          if (cancelled || callRef.current) return;
+          console.warn(`[telnyx] line lost (${why}), registering again`);
+          setReady(false);
+          try {
+            client.disconnect();
+          } catch {
+            // Already down; that is the thing being recovered from.
+          }
+          // Attempt 0 again: this is a fresh outage, not a continuation of
+          // the one that may have happened at start-up, and it earns the full
+          // ladder rather than whatever was left of an old one.
+          retry = setTimeout(() => start(0), REGISTER_BACKOFF_MS[0]);
+        };
+
+        client.on("telnyx.socket.close", () => reconnect("socket closed"));
+        client.on("telnyx.socket.error", () => reconnect("socket error"));
         client.on("telnyx.error", (e: unknown) => {
           // Logged as well as shown: the message on screen is the same four
           // words whatever went wrong, which is right for a caller mid-shift
@@ -652,14 +703,63 @@ export function useTelnyxCall(
         });
         client.connect();
         clientRef.current = client as unknown as typeof clientRef.current;
+        live = client as unknown as { connected?: boolean };
       } catch {
         if (!cancelled) setProblem("Could not start the phone line.");
       }
     };
     start(0);
 
+    /**
+     * Check every minute that the line is still there.
+     *
+     * The close and error handlers above cover a socket that announces it is
+     * going. A laptop that slept through lunch, a wifi change, a VPN — those
+     * come back with a socket that is quietly dead and no event ever fired.
+     * The caller sees a normal-looking screen; Telnyx refuses their calls in a
+     * second each.
+     *
+     * A minute is cheap — it is a boolean on an object — and it bounds the
+     * worst case to a minute of missed calls instead of a shift of them.
+     * Nothing happens while a retry is already pending or a call is up, so it
+     * cannot fight the ladder or hang up on anybody.
+     */
+    const recheck = async (why: string) => {
+      if (cancelled || retry || callRef.current || !live) return;
+      let down = live.connected === false;
+      if (!down && live.getIsRegistered) {
+        // The socket is up; ask whether the gateway behind it still is.
+        // Treated as fine if it throws, since an unanswerable question is not
+        // evidence of a dead line and re-registering on a guess would drop a
+        // working one.
+        try {
+          down = (await live.getIsRegistered()) === false;
+        } catch {
+          down = false;
+        }
+      }
+      // Re-checked after the await: a call can have started while it ran.
+      if (down && !cancelled && !retry && !callRef.current) {
+        console.warn(`[telnyx] line is down (${why}), registering again`);
+        setReady(false);
+        retry = setTimeout(() => start(0), 0);
+      }
+    };
+
+    const watchdog = setInterval(() => void recheck("watchdog"), 60_000);
+
+    // The two moments a dead line is most likely, and least likely to have
+    // said so: coming back online, and coming back to the tab.
+    const onOnline = () => void recheck("back online");
+    const onVisible = () => void recheck("tab focused");
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
       cancelled = true;
+      clearInterval(watchdog);
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
       if (retry) clearTimeout(retry);
       try {
         bridgeRef.current?.close();
