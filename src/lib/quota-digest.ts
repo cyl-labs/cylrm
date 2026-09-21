@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appSetting } from "@/db/schema";
 import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
-import { getWeekProgress, quotaWeekStart } from "@/lib/call-stats";
+import { quotaWeekStart } from "@/lib/call-stats";
 import { STATS_TZ, statsZone } from "@/lib/stats-zones";
 import { pushConfigured, pushToUser } from "@/lib/push";
 
@@ -143,8 +143,11 @@ export type QuotaStanding = {
  * Shared by the Friday notification and the card on Stats rather than each
  * counting its own way — two answers to "did they hit 300" put two numbers in
  * front of one founder, and the one they act on had better be the one that
- * was sent. The same reason the caller's own bar counts through
- * `getCallTotals`.
+ * was sent.
+ *
+ * **Not cheap, and no longer rendered with the page.** Stats asks for it when
+ * a founder presses the button on the card; `/api/quota-standings` is the way
+ * in. See the note on the count below for what it used to cost.
  *
  * Deliberately **not** scoped by the Stats range picker: this is Payroll's
  * week, Monday to now, and a quota that moved with a dropdown would let
@@ -197,9 +200,40 @@ export async function getQuotaStandings(): Promise<{
     order by u.name
   `)) as Row[];
 
-  // Counted through `getWeekProgress`, never a query of its own, so "a call"
-  // means what it means on the caller's own bar, on Stats and on the
-  // Scoreboard.
+  // **Every caller's week in one pass**, not one count each.
+  //
+  // It was a `getWeekProgress` per caller, awaited in the loop below, on the
+  // reasoning that sharing that function is what keeps "a call" meaning the
+  // same thing here as on the caller's own bar. It does — but `getWeekProgress`
+  // answers through `getCallTotals`, which works out eleven figures, two of
+  // them by expanding every lead's `opening_hours` and converting its timezone
+  // per row. This wants one of the eleven, and ran the lot once per caller.
+  //
+  // Traced on 2026-09-22 with `log_min_duration_statement`: thirteen callers
+  // meant 39 executions across three renders, **6.0 of the 6.3 seconds**
+  // `/call-stats` took to render, against a quarter of a second for every
+  // other query on that page put together.
+  //
+  // The price is that the count is restated here instead of shared, so **the
+  // `from` and `where` below have to keep matching `getCallTotals`** — the
+  // join to `call_lead` included, since that is what decides whether a call
+  // against a lead that has since gone still counts. The zone join it also
+  // carries is left out because it cannot move a `count(*)`:
+  // `us_area_code.area_code` is a primary key and the lateral always yields
+  // exactly one row, which `getCallTotals` says in its own comment.
+  const counted = (await db.execute(sql`
+    select c.user_id, count(*) as calls
+    from call c
+    join call_lead l on l.id = c.call_lead_id
+    where c.called_at >= ${weekStartedAt.toISOString()}::timestamptz
+      and c.user_id is not null
+    group by c.user_id
+  `)) as Row[];
+  // Absent means nobody rang: a caller with no row here is at zero, not
+  // missing from the list. Dropping them is how somebody who did nothing all
+  // week disappears off the one card that would have said so.
+  const callsFor = new Map(counted.map((r) => [n(r.user_id), n(r.calls)]));
+
   const standings: QuotaStanding[] = [];
   // Whole days, floored, off the instant rather than the calendar: "joined
   // yesterday evening" is one day on the team, not two, whichever side of
@@ -210,7 +244,7 @@ export async function getQuotaStandings(): Promise<{
   // the week actually starts at the payday hour on it (Friday 9 PM EDT).
   const weekStartMs = weekStartedAt.getTime();
   for (const c of callers) {
-    const { calls } = await getWeekProgress(n(c.id));
+    const calls = callsFor.get(n(c.id)) ?? 0;
     const joinedMs = new Date(String(c.created_at)).getTime();
     const daysOnTeam = Math.max(
       0,

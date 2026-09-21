@@ -11,6 +11,7 @@ import {
   todayInStatsTz,
   monthInStatsTz,
   monthOf,
+  quotaWeekStart,
   isStatsMonth,
   isNonOutcomeLogFilter,
   statsZone,
@@ -21,9 +22,11 @@ import {
 } from "@/lib/call-stats";
 import { DEFAULT_STATS_REGION, STATS_TZ, isStatsRegion } from "@/lib/stats-zones";
 // The same standings the Friday notification sends, so the screen and the
-// push cannot disagree about who is behind.
-import { getQuotaSchedule, getQuotaStandings } from "@/lib/quota-digest";
+// push cannot disagree about who is behind. Fetched by the card when a founder
+// asks for them, never with the page — see `QuotaStandings`.
+import { getQuotaSchedule } from "@/lib/quota-digest";
 import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
+import { QuotaStandings } from "@/components/calls/quota-standings";
 import { ReminderScheduleCard } from "@/components/calls/reminder-schedule";
 import { CallCalendar } from "@/components/calls/call-calendar";
 import { ListStatsRows } from "@/components/calls/list-stats-rows";
@@ -233,7 +236,7 @@ export default async function CallStatsPage({
     (l) => l.total - l.uncalled > 0 || l.id === listId,
   );
 
-  const [totals, outcomes, lists, monthDays, people, log, quota, quotaSchedule] =
+  const [totals, outcomes, lists, monthDays, people, log, weekStarted, quotaSchedule] =
     await Promise.all([
     getCallTotals(w, listId, personId, await hoursAckOf(me?.id)),
     getOutcomeCounts(w, listId, personId),
@@ -246,12 +249,11 @@ export default async function CallStatsPage({
     // row saying what the tiles above it already say.
     mine ? Promise.resolve<PersonStat[]>([]) : getPersonStats(w, listId, personId),
     getCallLog(w, listId, personId, outcome),
-    // The floor's week against the quota. Founders only — a caller seeing
-    // everyone else's numbers is the thing `/call-stats` is split in two to
-    // prevent, and they already carry their own bar in the header.
-    mine
-      ? Promise.resolve({ weekStart: "", since: "", standings: [] })
-      : getQuotaStandings(),
+    // When the quota week reset, for the line above the standings card. Only
+    // the instant, which is one cheap read of `app_setting` — the standings
+    // themselves are a button, since working them out was six of the seven
+    // seconds this page used to take.
+    mine ? Promise.resolve(null) : quotaWeekStart(),
     // When the digest goes out, so the card can offer to move it. Founders
     // only, like the standings it sits under.
     mine ? Promise.resolve(null) : getQuotaSchedule(),
@@ -260,13 +262,13 @@ export default async function CallStatsPage({
   // When the quota week reset, worded the way the strip under the header words
   // it — Eastern, because that is the clock the week is cut in, not the
   // reader's, which would name an hour the reset does not happen at.
-  const quotaSince = quota.since
+  const quotaSince = weekStarted
     ? new Intl.DateTimeFormat("en-US", {
         timeZone: STATS_TZ,
         weekday: "short",
         hour: "numeric",
         timeZoneName: "short",
-      }).format(new Date(quota.since))
+      }).format(weekStarted.at)
     : "";
 
   // Every row in the screen's own zone, and never the reader's browser zone,
@@ -662,8 +664,13 @@ export default async function CallStatsPage({
             notification: a push that is missed or dismissed leaves nothing
             behind, so the same standings have to be readable on a screen.
             Founders only — a caller seeing everyone else's numbers is what
-            this page is split in two to prevent. */}
-        {!mine && quota.standings.length > 0 && (
+            this page is split in two to prevent.
+
+            The card is always here for a founder now; the numbers inside it
+            are fetched when asked for. It used to render only when there were
+            standings to show, which meant working them out first — and that
+            was six of the seven seconds this page took. */}
+        {!mine && (
           <div className={CARD}>
             <div className="border-b border-border/60 px-5 py-3.5">
               <p className="text-sm font-extrabold tracking-[-0.01em]">
@@ -678,69 +685,7 @@ export default async function CallStatsPage({
                 whole week.
               </p>
             </div>
-            <ul className="divide-y divide-border/60">
-              {quota.standings.map((s) => {
-                const met = s.calls >= WEEKLY_CALL_QUOTA;
-                // What to say about how new they are, and nothing at all once
-                // they have been here a month: a tag on every row is noise,
-                // and its absence has to mean something, which the note above
-                // the list says out loud.
-                const age = s.startedThisWeek
-                  ? `New · ${s.daysOfWeek} of 7 days`
-                  : s.daysOnTeam <= 30
-                    ? `${s.daysOnTeam} days on the team`
-                    : null;
-                const width = Math.min(
-                  100,
-                  Math.round((s.calls / WEEKLY_CALL_QUOTA) * 100),
-                );
-                return (
-                  <li
-                    key={s.name}
-                    className="flex items-center gap-3 px-5 py-2"
-                  >
-                    <span className="flex w-28 shrink-0 flex-col">
-                      <span className="truncate text-[13px] font-semibold">
-                        {s.name}
-                      </span>
-                      {/* Under the name rather than beside it: the row is
-                          already name, bar and count, and a fourth column
-                          would take the bar's width on a phone. Shown only
-                          while it could be the explanation — see the note in
-                          `QuotaStanding`. */}
-                      {age && (
-                        <span className="truncate text-[10px] text-muted-foreground">
-                          {age}
-                        </span>
-                      )}
-                    </span>
-                    {/* Decoration over the number printed beside it. */}
-                    <span
-                      aria-hidden
-                      className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted"
-                    >
-                      <span
-                        className={cn(
-                          "block h-full rounded-full",
-                          met ? "bg-success" : "bg-primary",
-                        )}
-                        style={{ width: `${width}%` }}
-                      />
-                    </span>
-                    <span
-                      className={cn(
-                        "w-24 shrink-0 text-right text-[12px] tabular-nums",
-                        met
-                          ? "font-semibold text-success"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {s.calls.toLocaleString()} / {WEEKLY_CALL_QUOTA}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <QuotaStandings />
             {/* When to be told about all this. It sits on the card it reports
                 on rather than in a settings screen, for the reason the payday
                 reminder sits at the foot of Payroll: the moment you wonder
