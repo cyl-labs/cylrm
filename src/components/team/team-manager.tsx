@@ -438,6 +438,12 @@ export function TeamManager({
                     key={m.id}
                     className={cn(
                       "border-b last:border-0",
+                      // Every cell to the top of the row, not the middle. A
+                      // caller holding five lists makes a row four hundred
+                      // pixels tall, and centred controls left the market
+                      // dropdown floating halfway down beside a name pinned
+                      // at the top — so the row stopped reading as one band.
+                      "[&>td]:align-top",
                       !m.active && "opacity-55",
                     )}
                   >
