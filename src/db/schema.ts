@@ -89,6 +89,18 @@ export const dealStageEnum = pgEnum("deal_stage", [
  * with a demo in the diary, so that is the outcome worth recording. What
  * follows a demo is a `trial`, and what follows a trial is `won` (contract
  * signed) or `lost`.
+ *
+ * There is no "emailed them" either, asked for 2026-09-22 and declined. A
+ * caller handed a decision maker's address wanted the pickup without logging
+ * `not_interested`, which would have closed a live lead — but `callback`
+ * already does every part of that: it is in `PICKUP`, it is not terminal, it
+ * does not count toward `MAX_UNANSWERED_TRIES`, and unlike `gatekeeper` it
+ * does not push the lead into `RETRY_AFTER_DAYS`' 21-day wait. So the button
+ * would have bought nothing and cost the floor its rebuttal — an outcome is a
+ * blessed way to end a call, and this one needs no booking, which makes it the
+ * cheapest pickup on the board. It is a rebuttal that failed, not an outcome,
+ * and it is written up that way in both objection sheets and in
+ * `procedure-using-the-crm.md`.
  */
 export const callOutcomeEnum = pgEnum("call_outcome", [
   "no_answer",

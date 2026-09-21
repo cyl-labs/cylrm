@@ -95,7 +95,8 @@ What the outcomes mean:
 - **No answer**: rang out, nobody picked up.
 - **Voicemail**: went to voicemail.
 - **Gatekeeper**: you reached a person, but not one who can decide anything.
-- **Call back**: they asked to be rung at a particular time.
+- **Call back**: they asked to be rung at a particular time, or the only thing
+  they would agree to was an email.
 - **Demo booked**: they agreed to a slot. See *After you book a meeting*.
 - **Not interested**: a clear no from someone who can give one.
 - **Bad number**: dead line, wrong business, or not a real number.
@@ -110,6 +111,23 @@ Choosing **Call back** asks for a time and defaults to tomorrow morning. That
 lead then drops out of the queue and comes back when the time arrives. It also
 appears in **Callbacks**, which is the diary for everyone you owe a call,
 overdue first, across every niche.
+
+## "Just send me an email" is a Call back
+
+A prospect who will not take a meeting and insists on an email is a rebuttal
+that failed, not an outcome of its own. Push for the meeting twice first — see
+*Objection Handling* — and if they still insist, log **Call back** for two or
+three days out with the name, the address and what they said in the notes.
+
+**Not interested is the wrong button here.** It is for a clear no from someone
+who can give one, and it takes the business off the list for good. Someone who
+asked you to send information has not said no. Both outcomes count as a pickup
+either way, so there is nothing to gain by closing a lead you were just handed
+a way into.
+
+There is no "emailed them" outcome and there is not going to be one. Taking an
+email is the easy ending to a call, and a button for it would quietly make it
+the normal one.
 
 ## Logging again is a second dial. Correcting is not.
 

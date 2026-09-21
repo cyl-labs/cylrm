@@ -67,6 +67,34 @@ _(let them answer)_
 
 > **You say** I can send something over, but you'll get more out of hearing it. I built a demo for your business, so we just call you and put the agent on the line — you hear it take a call live. Do you have 15 minutes this week to check it out?
 
+_(let them answer)_
+
+**If they ask a second time:**
+
+> **You say** Of course, I can do that. The only reason I push is that an email can't play you the agent, and that's the whole thing. It's 15 minutes and you'd hear it take a live call. Would earlier or later in the week suit you better?
+
+**Never offer an email yourself, and only ever take a personal one.** This is
+the easiest way out of the call for both of you, which is why it has to be
+their idea twice before it becomes yours. A named address you were handed —
+the owner's own name in front of the @ — is a person who can be chased. An
+info@ or a contact form is a bin, and writing one down is ending the call with
+nothing while feeling like you got something.
+
+**If they still insist, log it as Call back — not Not interested.** Set the
+time two or three days out, once the email has had a chance to land, and put
+their name, the address and what they actually said in the notes.
+
+Both count as a pickup, so this costs you nothing in your numbers or on your
+pay. The difference is what happens to the business. **Not interested** takes
+it off the list for good, and you have just been handed a decision maker's
+name and address — that is the last lead you want closed. **Call back** keeps
+it and puts it in your **Callbacks** diary with a date on it, so the follow-up
+is something you are holding rather than a note nobody opens.
+
+**You cannot send that email from the CRM.** Message a founder with the
+address and what was agreed, the same day, while the call is still fresh. Then
+ring them when your callback comes due.
+
 ## Brushing you off | Prospect: "We're too busy / it's our busy season."
 
 
