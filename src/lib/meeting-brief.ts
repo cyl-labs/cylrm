@@ -280,14 +280,15 @@ export async function ensureTranscripts(
 }
 
 /**
- * How long a demo nobody has logged stays on the briefing.
+ * How long a demo stays on the briefing after its start time.
  *
- * The same window the ring-back rule uses, because it is the same question:
- * a booking whose time has passed and whose outcome nobody has recorded is
- * still owed something. Beyond a week it is not a demo you are about to walk
- * into, it is a record to tidy, and the Meetings screen is where that is done.
+ * An hour, because the thing this is for is dialling five minutes late: the
+ * brief must not vanish at the exact moment the demo begins. It is not a
+ * worklist of everything anybody forgot to log — that was the first version,
+ * at seven days, and it listed demos from Sunday as outstanding work on a
+ * page somebody opens to read before a call they are about to make.
  */
-const UNLOGGED_DAYS = 7;
+const UNLOGGED_MINUTES = 60;
 
 /**
  * Which demos the briefing covers.
@@ -312,31 +313,13 @@ export const briefScope = sql`
   and (
     m.start_at > now()
     or (
-      m.start_at > now() - make_interval(days => ${UNLOGGED_DAYS}::int)
+      m.start_at > now() - make_interval(mins => ${UNLOGGED_MINUTES}::int)
+      -- Gone the moment somebody says what happened, so a demo you have
+      -- already dealt with does not sit there for the rest of the hour.
       and not exists (
         select 1 from call_demo_attendance a
         where a.call_lead_id = m.call_lead_id
           and a.marked_at >= m.start_at
-      )
-      -- ...and only while there is somewhere to go and settle it. This half
-      -- was missing at first and the page listed three demos as outstanding
-      -- when two were settled from a screen it did not name and the third
-      -- could not be settled at all — an outstanding-work list you cannot
-      -- act on teaches people to stop reading it.
-      and (
-        -- Still on the Meetings screen, which keeps a started demo for
-        -- KEEP_AFTER_START_HOURS (12) — see lib/meetings.ts. Marked there.
-        m.start_at > now() - make_interval(hours => 12)
-        -- Or on Payroll's demos-to-confirm list, which is where an older one
-        -- is answered. That list inner-joins the booking call's user on
-        -- role = 'caller', because its job is paying the attendance fee: a
-        -- demo with no caller behind it appears on neither screen and is
-        -- nobody's outstanding work.
-        or exists (
-          select 1 from "call" bc2
-          join app_user bu2 on bu2.id = bc2.user_id and bu2.role = 'caller'
-          where bc2.id = m.call_id
-        )
       )
     )
   )

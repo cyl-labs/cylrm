@@ -82,11 +82,10 @@ export default async function BriefPage() {
             <>
               {" "}
               <span className="font-semibold text-foreground">
-                {waiting} {waiting === 1 ? "has" : "have"} been and gone without
-                an outcome logged
+                {waiting} just started
               </span>{" "}
-              — those stay here until somebody says whether they turned up, on
-              Meetings while it is recent and on Payroll after that.
+              — a demo stays here for an hour after its time, in case you are
+              dialling a few minutes late.
             </>
           )}{" "}
           Written
@@ -127,7 +126,7 @@ export default async function BriefPage() {
                         past, which reads as the page being out of date. */}
                     {m.waiting && (
                       <span className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-amber-700 dark:text-amber-400">
-                        Not logged yet
+                        Started
                       </span>
                     )}
                   </p>
