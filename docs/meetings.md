@@ -412,13 +412,68 @@ the board, the unbooked-demos list and Book a follow-up.
 - **The zone is `leadZone`'s**, the same fragment everything else uses: the
   scraped state first, the area code second, Singapore and the UK by prefix.
   Null for a toll-free number, and then the link is exactly what it was before —
-  no parameter rather than a guess. `getUnbookedDemos` gained the join for this;
-  Book a follow-up uses the booking's own `attendee_tz` instead, that being the
-  prospect's own answer rather than ours.
+  no parameter rather than a guess. `getUnbookedDemos` gained the join for this.
+  Book a follow-up and Move this demo used the booking's own `attendee_tz`
+  instead, on the grounds that it was the prospect's own answer rather than
+  ours — **which turned out to be false, and is now `prospectZone`'s answer
+  like everything else.** See below.
 - **Not a state field.** The first reading of the ask was to prefill where the
   business is; the founders corrected it — the worry was the timezone selector
   on the left of the booking page, not an address. A "State" booking field was
   proposed and deliberately not built.
+
+### Cal.com's attendee timezone is the caller's, not the prospect's (2026-09-22)
+
+**`call_meeting.attendee_tz` records the zone the booking form was sitting in.**
+The floor books on the phone from their own browsers, so for most demos it is
+Singapore or Manila — a fact about who typed the booking, not about where the
+business is. It was read as the prospect's own answer for three days.
+
+- **It showed up as a demo with no prospect clock at all.** A Maui mover came
+  back as `Asia/Singapore`, so "their zone" and "our zone" were the same string,
+  the row printed nothing beside the SGT time, and there was no way to tell that
+  from a Singapore prospect. The same business's booking a week earlier had
+  `Pacific/Honolulu` — the difference was who made it.
+- **Measured over every meeting ever booked: 28 agreed with the lead's own
+  number, 8 did not, and the lead was right in all 8.** A Hawaii business on an
+  808 number filed as Los Angeles, an Alaska business (scraped state *Alaska*)
+  filed as New York on one booking and Chicago on the next, and the Maui one
+  filed as Singapore. The only case where Cal.com's is the better answer is a
+  lead whose number belongs to no place at all.
+- **`prospectZone` in `lib/call-time.ts` settles it**: `leadZone`'s answer
+  first — the scraped state, then the area code, then the SG and UK prefixes,
+  which is the zone the callbacks diary, `parseCallbackAt` and the 9-to-5 filter
+  already read a lead in — and `attendee_tz` only as the fallback, which in
+  practice means toll-free. One helper, so the row, the Telegram reminder and
+  the 8pm digest cannot name three different clocks for one demo.
+- **The booking links move with it.** Move this demo and Book a follow-up
+  passed `attendee_tz` to `cal.tz`, so this booking was offering a Maui prospect
+  slots picked on a Singapore clock — the exact failure that parameter was added
+  to prevent. `getMeetings` and the reminder query grew the `leadZone` join;
+  `call_meeting` is a few dozen rows, so it costs nothing.
+- **Nothing was backfilled.** `attendee_tz` still holds what Cal.com said,
+  because it is a true record of the booking; it is just no longer read as
+  evidence of where the prospect is.
+
+### Their weekday rides along when it is not ours (2026-09-22)
+
+`theirClock` prints "3:30 PM", or **"Wed 3:30 PM"** when the prospect's calendar
+date is not the reader's. A 3:30 AM Singapore demo is the previous afternoon in
+Florida, and the row read `Thu, Sep 24, 3:30 AM SGT · 3:30 PM their time` — the
+hour to say back to them was right there and the day was left to be worked out,
+on the screen whose whole job is that nobody has to.
+
+- **Only when the dates differ.** The date printed beside it already names the
+  day, so a weekday on every row would bury the rows where it matters.
+- **The two clocks are compared, not the two zone names**, so `US/Eastern`
+  against `America/New_York` stays silent rather than printing our own time back
+  at us as though it were theirs.
+- **Both days come from `Intl`, never from arithmetic on the instant.** The gap
+  between two zones is not a whole number of days and moves twice a year — the
+  mistake `wallClockIn` exists to stop anyone making again.
+- The 8pm digest says it too, and **puts a blank line between demos**: each line
+  carries a time, a business, their clock and who booked it, and fourteen of
+  those stacked read as one paragraph on a phone.
 
 ### Moving a meeting (2026-09-19)
 
