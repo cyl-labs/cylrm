@@ -85,7 +85,8 @@ export default async function BriefPage() {
                 {waiting} {waiting === 1 ? "has" : "have"} been and gone without
                 an outcome logged
               </span>{" "}
-              — those stay here until you log them on Meetings.
+              — those stay here until somebody says whether they turned up, on
+              Meetings while it is recent and on Payroll after that.
             </>
           )}{" "}
           Written

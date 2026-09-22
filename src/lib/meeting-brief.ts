@@ -318,6 +318,26 @@ export const briefScope = sql`
         where a.call_lead_id = m.call_lead_id
           and a.marked_at >= m.start_at
       )
+      -- ...and only while there is somewhere to go and settle it. This half
+      -- was missing at first and the page listed three demos as outstanding
+      -- when two were settled from a screen it did not name and the third
+      -- could not be settled at all — an outstanding-work list you cannot
+      -- act on teaches people to stop reading it.
+      and (
+        -- Still on the Meetings screen, which keeps a started demo for
+        -- KEEP_AFTER_START_HOURS (12) — see lib/meetings.ts. Marked there.
+        m.start_at > now() - make_interval(hours => 12)
+        -- Or on Payroll's demos-to-confirm list, which is where an older one
+        -- is answered. That list inner-joins the booking call's user on
+        -- role = 'caller', because its job is paying the attendance fee: a
+        -- demo with no caller behind it appears on neither screen and is
+        -- nobody's outstanding work.
+        or exists (
+          select 1 from "call" bc2
+          join app_user bu2 on bu2.id = bc2.user_id and bu2.role = 'caller'
+          where bc2.id = m.call_id
+        )
+      )
     )
   )
 `;
