@@ -73,6 +73,19 @@ export type Submitter = {
   email?: string;
   name?: string;
   values?: Record<string, string>;
+  /**
+   * The prefills `values` cannot express.
+   *
+   * `values` fills a text or date blank and nothing else. A **signature** field
+   * takes an image, and only through `default_value` here — a `data:` URI is
+   * accepted and DocuSeal stores the image and serves it back from its own
+   * host, so nothing has to be published anywhere for it to fetch. `readonly`
+   * then stops the value being cleared on the signing page.
+   *
+   * Verified against the live instance on 2026-09-22 on a throwaway submission
+   * against template 70, which was archived afterwards.
+   */
+  fields?: { name: string; default_value: string; readonly?: boolean }[];
 };
 
 type SubmitterResponse = {

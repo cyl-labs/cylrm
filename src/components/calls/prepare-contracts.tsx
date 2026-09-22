@@ -193,6 +193,13 @@ export function PrepareContracts({
           signeeName,
           signeeEmail,
           effectiveDate,
+          // Today on this browser's clock, for the date beside both
+          // signatures. Read here rather than reused from `effectiveDate`,
+          // which may have been tapped over to the demo's day, and read again
+          // rather than at open, since the dialog can sit there across
+          // midnight. Same clock as the effective date's own default, for the
+          // timezone reason spelled out where that is set.
+          signedDate: new Intl.DateTimeFormat("en-CA").format(new Date()),
           packageId,
           termId,
           kinds: chosen,

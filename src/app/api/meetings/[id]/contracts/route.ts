@@ -72,6 +72,10 @@ export async function POST(
     signeeName: str(body.signeeName),
     signeeEmail: str(body.signeeEmail),
     effectiveDate: str(body.effectiveDate),
+    // Falls back to the effective date rather than being required, so a
+    // browser holding an older bundle still drafts instead of failing
+    // validation on a field it has never heard of.
+    signedDate: str(body.signedDate) || str(body.effectiveDate),
     packageId: str(body.packageId),
     termId: str(body.termId),
     kinds: Array.isArray(body.kinds)
@@ -108,7 +112,10 @@ export async function POST(
       { status: 400 },
     );
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.effectiveDate)) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(input.effectiveDate) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(input.signedDate)
+  ) {
     return Response.json({ error: "Invalid date." }, { status: 400 });
   }
   if (!packageById(input.packageId) || !termById(input.termId)) {

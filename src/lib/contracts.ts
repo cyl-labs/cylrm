@@ -16,6 +16,7 @@
  * feature exists to remove.
  */
 
+import { readFile } from "node:fs/promises";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -38,6 +39,32 @@ import { pushConfigured, pushToUser } from "@/lib/push";
 const SENDER_EMAIL = process.env.DOCUSEAL_SENDER_EMAIL ?? "";
 const SENDER_NAME = process.env.DOCUSEAL_SENDER_NAME ?? "";
 
+/** A PNG of the signatory's signature, put on our side of every agreement so it
+ *  is not drawn again for each one. A **path** rather than the image itself
+ *  because it is ~40KB, which is no size for an env value: the file lives
+ *  outside `/root/crm`, since the deploy rsyncs that with `--delete`. */
+const SENDER_SIGNATURE_PATH = process.env.DOCUSEAL_SENDER_SIGNATURE_PATH ?? "";
+
+/**
+ * The signature as a `data:` URI, or null when there is not one to use.
+ *
+ * Never throws and never fails a draft. An unset or unreadable path means the
+ * signatory signs by hand exactly as they did before, which is the old
+ * afternoon rather than a broken one — the same rule the rest of this feature
+ * follows, where missing configuration turns a button off instead of
+ * exploding. Read per draft rather than cached at import, so replacing the
+ * file takes effect without a restart.
+ */
+async function senderSignature(): Promise<string | null> {
+  if (!SENDER_SIGNATURE_PATH) return null;
+  try {
+    const png = await readFile(SENDER_SIGNATURE_PATH);
+    return `data:image/png;base64,${png.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 export type ContractKind = "trial" | "paid";
 
 export type DraftInput = {
@@ -49,6 +76,16 @@ export type DraftInput = {
   signeeEmail: string;
   /** `YYYY-MM-DD`. */
   effectiveDate: string;
+  /**
+   * The day the document is being prepared, on the browser's clock — what goes
+   * in the date beside both signatures.
+   *
+   * Its own value rather than `effectiveDate`, which is offered as the demo's
+   * day at one tap: a signature dated next week reads as a mistake on
+   * something somebody is signing now, which is the same objection that moved
+   * the effective date off the meeting's day in the first place.
+   */
+  signedDate: string;
   packageId: string;
   termId: string;
   /** Which agreements to draft. Both, normally. */
@@ -118,6 +155,10 @@ export async function draftContracts(
   }
 
   const fees = contractValues(pkg, term);
+  // Once for both agreements. Deliberately not folded into `senderValues`
+  // below: that is snapshotted into `field_values`, and a 40KB data URI has no
+  // business being written to a jsonb column twice per booked demo.
+  const signature = await senderSignature();
   const made: DraftedContract[] = [];
 
   for (const kind of input.kinds) {
@@ -136,6 +177,11 @@ export async function draftContracts(
       business_name: input.businessName,
       niche_name: input.nicheName,
       cyllabs_name: SENDER_NAME,
+      // Prefilled, not locked. A date beside a signature is the day it was
+      // signed, and this is drafted before the demo rather than during it, so
+      // the one case it gets wrong — signed some days later — has to stay
+      // correctable on the signing page.
+      cyllabs_date: input.signedDate,
       ...(kind === "paid" ? fees : {}),
     };
 
@@ -146,6 +192,21 @@ export async function draftContracts(
           email: SENDER_EMAIL,
           name: SENDER_NAME || undefined,
           values: senderValues,
+          // The signature has to come through `fields`: `values` fills a text
+          // or date blank and cannot carry an image. `readonly` so the one
+          // thing on the page nobody should be able to clear by tapping it is
+          // the thing that was put there to save the tapping.
+          ...(signature
+            ? {
+                fields: [
+                  {
+                    name: "cyllabs_signature",
+                    default_value: signature,
+                    readonly: true,
+                  },
+                ],
+              }
+            : {}),
         },
         {
           role: SIGNER_ROLE,
@@ -154,8 +215,14 @@ export async function draftContracts(
           ...(input.signeeEmail ? { email: input.signeeEmail } : {}),
           name: input.signeeName || undefined,
           // Their printed name, so the signature block agrees with the party
-          // named at the top rather than asking them to type it again.
-          values: { client_name: input.signeeName },
+          // named at the top rather than asking them to type it again, and the
+          // day — left editable for the reason `cyllabs_date` is, which bites
+          // harder on this side: the client is the one who may open the link
+          // days after it was drafted.
+          values: {
+            client_name: input.signeeName,
+            client_date: input.signedDate,
+          },
         },
       ]);
 

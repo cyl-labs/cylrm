@@ -1128,6 +1128,43 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   agreement is worse than the typing this removes, so every value goes in front
   of somebody first. The empty-business-name check is in the route as well as
   the button, because a disabled button is not a validation.
+- **Our signature and both signing dates are prefilled too** (2026-09-22).
+  Until then the signatory drew the same signature on every contract and the
+  client typed the day it already was — the two blanks on the document nobody
+  was ever going to fill differently.
+  - **A signature is an image, so it cannot go through `values`.** That fills a
+    text or date blank and nothing else. It goes in `fields[].default_value`,
+    which takes a `data:` URI: DocuSeal stores the image and serves it back
+    from its own host, so **nothing has to be published anywhere for it to
+    fetch** — the URL form in their guide would have meant hosting a founder's
+    signature on the open internet. Verified on a throwaway submission against
+    template 70, archived afterwards.
+  - **The image is configured as a path, not as the image.** It is 41KB, which
+    is no size for an env value. `DOCUSEAL_SENDER_SIGNATURE_PATH` points at
+    `/root/crm-sender-signature.png` — **outside `/root/crm`, which the deploy
+    rsyncs with `--delete`** — and it is read per draft rather than at import,
+    so replacing the file takes effect without a restart. Unset or unreadable
+    means the signature is drawn by hand exactly as before: this must never be
+    the reason a contract fails to draft.
+  - **It is deliberately not in `senderValues`.** That is snapshotted into
+    `field_values`, and a 40KB data URI has no business being written to a
+    jsonb column twice per booked demo. The dates are in `values`, and are
+    snapshotted, because they are things the agreement says.
+  - **The signature is `readonly`; neither date is.** A date beside a signature
+    is the day it was signed, and these are drafted *before* the demo — the
+    client especially may open their link days later — so that prefill has to
+    stay correctable. The signature is locked only so the one thing put there
+    to save a tap cannot be cleared by one.
+  - **`signedDate` is its own value and not `effectiveDate`**, which is offered
+    as the demo's day at one tap. A signature dated next week reads as a
+    mistake on something somebody is signing now, which is the same objection
+    that moved the effective date off the meeting's day. Browser clock, read at
+    submit rather than at open, since the dialog can sit there across midnight.
+    The route falls back to `effectiveDate` when it is absent, so a browser
+    holding an older bundle still drafts.
+  - The image installed is **the one DocuSeal already had** — the same stored
+    blob reused across submissions 101, 107 and 109 — so what prints is the
+    signature these agreements have carried all along, not a new one.
 - **The client's email is optional** (2026-09-15). Plenty of prospects will
   not give one, and the Cal.com form stopped requiring it on 2026-09-14.
   DocuSeal keeps a signer with only a name (it drops one with no email, phone
