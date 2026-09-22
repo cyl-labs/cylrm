@@ -166,6 +166,12 @@ export function CallbacksList({
     notes: string;
     callbackAt: string;
   } | null>(null);
+  /** The one row asking "really skip?" before `skip` deletes a call row for
+   *  good. The same one-tap-next-to-another risk the outcome menu confirms
+   *  against, sharper here: this cannot be corrected by logging again. */
+  const [confirmingSkip, setConfirmingSkip] = React.useState<number | null>(
+    null,
+  );
 
   const rows = leads.filter((l) => !logged.has(l.id));
 
@@ -231,43 +237,38 @@ export function CallbacksList({
   }
 
   /**
-   * Push the promise forward without pretending a call happened.
+   * Undo the promise, rather than reschedule it.
    *
    * Founders only (gated where this is rendered) — a caller's callback is a
    * commitment made to a real prospect on a real call, and this exists for
-   * the opposite case: a founder's own diary getting more entries than there
-   * are hours, where the honest answer is "not today" rather than a made-up
-   * outcome.
+   * the opposite case: a founder's own follow-up that is no longer wanted, or
+   * was logged against the wrong row.
    *
-   * `PATCH /api/calls`, not `POST`: that route overwrites the lead's latest
-   * call in place rather than logging a new one, which is exactly what this
-   * needs and exactly why it was built — "fix a mis-tapped outcome" without
-   * a second attempt appearing, `called_at` moving, or the caller who made
-   * the original call losing it. A `POST` here would insert a *second*
-   * `callback` row: a phantom attempt nobody made, one call closer to
-   * `MAX_UNANSWERED_TRIES`, and a "last called at" that lies. Same lead,
-   * same promise, same caller of record — only the due time moves.
+   * The first version pushed the due time to tomorrow instead, on the
+   * reasoning that a founder's diary can outrun a day. Asked to get rid of it
+   * outright (2026-09-23) — a snooze is not a skip, and a callback that keeps
+   * quietly rescheduling itself is worse than one that vanished, because it
+   * looks handled while doing nothing.
    *
-   * Notes are left out of the request on purpose: the PATCH only touches
-   * fields it is given, and whatever the lead's last call already says stays
-   * said. There is nothing new to write down, because nothing new happened.
+   * `DELETE /api/calls`, not a `PATCH`: that route already exists to "put a
+   * lead back to never-called by dropping its most recent call" — the escape
+   * hatch for a call logged against the wrong row. Skipping a callback is the
+   * same operation: the callback *is* the lead's latest call, so dropping it
+   * reverts the lead to whatever it was before — the demo it followed, the
+   * voicemail before that, or never-called if this was the first thing anyone
+   * ever logged. Only the callback goes; everything earlier survives.
    */
   async function skip(lead: CallbackLead) {
     const who = lead.company ?? lead.name ?? lead.phone;
     setLogged((p) => new Set(p).add(lead.id));
     try {
-      const res = await fetch("/api/calls", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          callLeadId: lead.id,
-          outcome: "callback",
-          callbackAt: defaultCallbackAt(lead.tz, readerTz),
-        }),
-      });
+      const res = await fetch(
+        `/api/calls?callLeadId=${lead.id}`,
+        { method: "DELETE" },
+      );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        toast.error(data.error ?? "Could not push that back.");
+        toast.error(data.error ?? "Could not skip that.");
         setLogged((p) => {
           const next = new Set(p);
           next.delete(lead.id);
@@ -277,10 +278,10 @@ export function CallbacksList({
       }
       // Not "logged" and not an attempt — say so, rather than reusing the
       // outcome-logged toast and implying a call was made.
-      toast.success(`Pushed to tomorrow: ${who}`);
+      toast.success(`Skipped: ${who}`);
       router.refresh();
     } catch {
-      toast.error("Could not push that back: network error.");
+      toast.error("Could not skip that: network error.");
       setLogged((p) => {
         const next = new Set(p);
         next.delete(lead.id);
@@ -444,16 +445,41 @@ export function CallbacksList({
                   real prospect on a real call, and clearing it with no
                   outcome logged is not theirs to do — the same reason
                   `inbound-list.tsx` gates its own skip action the same way.
-                  This is for a founder's own diary outrunning the day. */}
-              {showWho && (
-                <button
-                  type="button"
-                  onClick={() => skip(l)}
-                  className="rounded-md border border-dashed px-3 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  Skip — push to tomorrow
-                </button>
-              )}
+                  This is for a founder's own follow-up that is no longer
+                  wanted, or was logged against the wrong row. */}
+              {showWho &&
+                (confirmingSkip === l.id ? (
+                  <span className="inline-flex items-center gap-1.5 text-[13px]">
+                    <span className="text-muted-foreground">
+                      Delete this callback?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmingSkip(null);
+                        skip(l);
+                      }}
+                      className="rounded-md border border-destructive/40 px-2.5 py-1 font-semibold text-destructive transition-colors hover:bg-destructive/10"
+                    >
+                      Yes, skip it
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingSkip(null)}
+                      className="rounded-md px-2.5 py-1 font-semibold text-muted-foreground transition-colors hover:bg-muted"
+                    >
+                      Never mind
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingSkip(l.id)}
+                    className="rounded-md border border-dashed px-3 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    Skip
+                  </button>
+                ))}
               {l.email && (
                 <span className="min-w-0 truncate text-[13px] text-muted-foreground">
                   {l.email}

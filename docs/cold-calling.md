@@ -558,26 +558,30 @@ inbound handled.
   said about what happened. The toast is deliberately not "Marked as rung
   back" here — that sentence is still true for the leadless case, and would be
   a claim nobody made for this one.
-- **A due callback can be pushed to tomorrow without a fake attempt — founders
-  only** (`callbacks-list.tsx`, "Skip — push to tomorrow", 2026-09-23). The
-  founders' own diary can outrun a day, and the honest move is "not today",
-  not a made-up outcome typed into the notes box. `PATCH /api/calls`, not
-  `POST`: that route already exists to fix a mis-tapped outcome by overwriting
-  the lead's latest call **in place** — `called_at`, `user_id` and the notes
-  all untouched, only `outcome` and `callback_at` set — which is exactly what
-  this needs and exactly why a new endpoint was not written. A `POST` here
-  would insert a second `callback` row: a phantom attempt nobody made, one
-  call closer to `MAX_UNANSWERED_TRIES`, and a "last called at" on the
-  Spreadsheet that lies about when the lead was actually rung. Same call, same
-  caller of record, same notes — only the due time moves, to
-  `defaultCallbackAt`, the same "tomorrow morning their time" the outcome
-  menu's own callback field defaults to. Verified against a fixture row before
-  shipping: the call id, `called_at` and notes were byte-identical before and
-  after, and the lead still carried exactly one `call` row.
+- **A due callback can be dropped outright — founders only**
+  (`callbacks-list.tsx`, "Skip", behind a confirm, 2026-09-23). First shipped
+  as a snooze — "push to tomorrow" — on the reasoning that the founders' own
+  diary can outrun a day. Corrected within the hour: asked for was "get rid of
+  it", and a callback that keeps quietly rescheduling itself is worse than one
+  that vanished, because it looks handled while doing nothing.
+  - `DELETE /api/calls?callLeadId=`, not a `PATCH`. That route already exists
+    to "put a lead back to never-called by dropping its most recent call" —
+    the escape hatch for a call logged against the wrong row. A due callback
+    *is* the lead's latest call, so skipping one is the same operation:
+    dropping it reverts the lead to whatever it was before — the demo it
+    followed, the voicemail before that, or never-called if this was the first
+    thing anyone logged. Only the callback goes; earlier history survives.
+    Verified against a fixture lead with a `demo_booked` call underneath a
+    `callback` one: after the delete, exactly one row remained and it was the
+    demo, untouched.
+  - **Behind a confirm, unlike the missed-calls skip.** That one writes
+    nothing and can be redone by logging again; this deletes a row for good,
+    so it gets the same "are you sure" weight payout resets and contract
+    discards get elsewhere in the app, not the one-tap outcome menu's.
   - **A caller's callback stays untouchable this way.** It is a promise made
     to a real prospect on a real call, which a founder's is not — a founder
-    does not work call lists, so a follow-up they could not get to today is
-    theirs to defer, not the floor's promise to break.
+    does not work call lists, so a follow-up they no longer want is theirs to
+    drop, not the floor's promise to break.
 - **"Open lead" goes to the dial card, never the spreadsheet**
   (`/calls/<listId>?view=all&lead=<id>`). The grid is a different tool with a
   different shape and a caller sent there mid-shift has to work out where they
