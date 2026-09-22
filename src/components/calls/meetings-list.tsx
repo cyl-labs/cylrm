@@ -1242,16 +1242,29 @@ export function MeetingsList({
                     cold call, which is rarely whoever took the demo. Who ran it
                     is not recorded anywhere — the missing row again — and demos
                     are run from the Founders line, so that is the one honest
-                    answer available rather than a name that would be wrong. */}
-                {m.demoRecordingId && (
+                    answer available rather than a name that would be wrong.
+
+                    Every recording in the window gets its own button, oldest
+                    first, not only the longest — asked for 2026-09-23: "for
+                    calls where i call the meeting back multiple times... it
+                    only shows one part." A demo that drops and gets redialled
+                    is two Telnyx sessions, and `demoRecordings` now carries
+                    both rather than the query silently picking the longer one
+                    and discarding what is usually the first half of the real
+                    conversation. Numbered from the second one on — a single
+                    recording still just says "Demo call", since counting a
+                    demo that was never interrupted would be answering a
+                    question nobody asked. */}
+                {m.demoRecordings.map((rec, i) => (
                   <LogRecording
-                    recordingId={m.demoRecordingId}
-                    recordingMs={m.demoRecordingMs}
+                    key={rec.recordingId}
+                    recordingId={rec.recordingId}
+                    recordingMs={rec.durationMs}
                     company={m.company ?? m.attendeeName ?? "Demo call"}
                     callerName="Founders"
-                    label="Demo call"
+                    label={i === 0 ? "Demo call" : `Demo call ${i + 1}`}
                   />
-                )}
+                ))}
                 {/* Founders only, and not for tidiness: this is a one-tap join
                     into a live client demo. A caller is paid when a booked demo
                     shows up and the demo itself is deliberately none of their

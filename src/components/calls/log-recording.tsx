@@ -47,9 +47,9 @@ export function LogRecording({
    * On Stats a row is one dial among three hundred and "Listen back" is the
    * whole truth. On a Meetings row it is specifically the cold call that *won*
    * the booking — `meetings.ts` reads it off the `demo_booked` call's session —
-   * and a meeting will soon carry a second recording from the demo itself, at
-   * which point two buttons both saying "Listen back" would be a guess. Named
-   * by the caller rather than derived here, because only the caller knows which
+   * and a meeting carries the demo's own recordings too, one button each,
+   * where "Listen back" would be a guess as to which is which. Named by the
+   * caller rather than derived here, because only the caller knows which
    * call it is holding.
    */
   label?: string;

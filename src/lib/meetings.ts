@@ -27,6 +27,74 @@ type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 
+/** A gap this wide between one call ending and the next starting is a
+ *  different conversation, not a redial. See `clusterDemoRecordings`. */
+const DEMO_REDIAL_GAP_MINUTES = 20;
+
+/**
+ * Which of the recordings found in a meeting's (deliberately wide) matching
+ * window actually belong to the demo, rather than to something else rung on
+ * the same business afterward.
+ *
+ * Groups the recordings by the gap between one call ending and the next
+ * starting — under `DEMO_REDIAL_GAP_MINUTES` reads as "got disconnected,
+ * called straight back", anything wider is a separate event. Only the group
+ * containing the single longest recording survives, which is the same
+ * recording `demo_recording_id` picked on its own before this — a no-show
+ * followed by an unrelated call three hours later still correctly finds
+ * whichever of the two is the real demo, because that is still "longest
+ * wins", just applied to a group of one instead of to every row in the
+ * window.
+ *
+ * Pure and synchronous on purpose: `getMeetings` renders every row on the
+ * screen at once, and this runs once per row over what is already an array
+ * in memory rather than another round trip to Postgres.
+ */
+export function clusterDemoRecordings(
+  recordings: { recordingId: string; durationMs: number | null; startedAt: string }[],
+): { recordingId: string; durationMs: number | null }[] {
+  if (recordings.length <= 1) {
+    return recordings.map((r) => ({
+      recordingId: r.recordingId,
+      durationMs: r.durationMs,
+    }));
+  }
+
+  const sorted = [...recordings].sort(
+    (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+  );
+
+  const groups: (typeof sorted)[] = [];
+  for (const r of sorted) {
+    const last = groups[groups.length - 1];
+    const prev = last?.[last.length - 1];
+    const gapMs = prev
+      ? new Date(r.startedAt).getTime() -
+        (new Date(prev.startedAt).getTime() + (prev.durationMs ?? 0))
+      : Infinity;
+    if (prev && gapMs <= DEMO_REDIAL_GAP_MINUTES * 60_000) {
+      last.push(r);
+    } else {
+      groups.push([r]);
+    }
+  }
+
+  // The group holding the longest single call, ties broken toward the
+  // earlier group — the same "order by duration desc, id desc" the old
+  // single-recording query used, restated over groups instead of rows.
+  let best = groups[0];
+  let bestMax = Math.max(...best.map((r) => r.durationMs ?? 0));
+  for (const g of groups.slice(1)) {
+    const max = Math.max(...g.map((r) => r.durationMs ?? 0));
+    if (max > bestMax) {
+      best = g;
+      bestMax = max;
+    }
+  }
+
+  return best.map((r) => ({ recordingId: r.recordingId, durationMs: r.durationMs }));
+}
+
 /**
  * Narrow a query to the niches one person owns.
  *
@@ -397,16 +465,35 @@ export type Meeting = {
 
   /**
    * The demo itself — the conversation at the booked time, not the cold call
-   * that won it.
+   * that won it. Every recording from *that attempt*, oldest first, not only
+   * the longest single call.
+   *
+   * It was one recording — the longest anywhere in the matching window —
+   * until 2026-09-23: "for calls where i call the meeting back multiple
+   * times... it only shows one part." A demo that drops and gets redialled is
+   * two Telnyx sessions, and picking the longer one silently threw the other
+   * away — usually the first half of the actual conversation.
+   *
+   * The matching window is wide on purpose — see `DEMO_RECORDING_WHERE` — and
+   * a lead rung on unrelated business for days afterward (a missed call, a
+   * callback chased down) sits inside it alongside the real demo. Returning
+   * every match in that window verbatim would have labelled all of it "Demo
+   * call 2", "Demo call 3"… — confirmed on `203JUNKIT LLC`, whose window held
+   * six recordings spanning three days, five of which were nothing to do with
+   * the demo. `clusterDemoRecordings` groups by the gap between one call
+   * ending and the next starting, and only the group containing the single
+   * longest recording — the same call the old logic picked on its own —
+   * survives. A gap under `DEMO_REDIAL_GAP_MINUTES` reads as "got
+   * disconnected, called straight back"; anything wider is a different
+   * conversation that happens to be about the same business.
    *
    * Matched on the lead's number within a window around `startAt`, because the
    * demo call usually has no `call` row to hang a session id off: a row is
    * written when an outcome is logged, and nobody logs an outcome mid-demo.
-   * Null until `scripts/backfill-recording-numbers.mjs` has run, and null
+   * Empty until `scripts/backfill-recording-numbers.mjs` has run, and empty
    * afterwards for any meeting whose demo was never recorded or never happened.
    */
-  demoRecordingId: string | null;
-  demoRecordingMs: number | null;
+  demoRecordings: { recordingId: string; durationMs: number | null }[];
 
   /**
    * What the row needs to ring them without leaving the screen.
@@ -542,6 +629,11 @@ const NO_SHOW_RING_DAYS = 7;
  * attempt of a few seconds, and the conversation is the one worth hearing.
  * Either number, since the row rings the booking's where there is one and
  * demos booked before that was stored were rung on the lead's.
+ *
+ * Deliberately wide on the far end (see the 2026-09-20 commit that put it
+ * there), which is why every match cannot simply be shown as the demo:
+ * `clusterDemoRecordings` below is what keeps an unrelated later call out of
+ * the demo's own recording list.
  */
 const DEMO_RECORDING_WHERE = sql`
   cr.to_number in ('+' || l.phone_key, m.attendee_phone)
@@ -658,20 +750,31 @@ const meetingSelect = sql`
   -- Three hours after covers a demo that ran long or started late.
   --
   -- Telnyx stores E.164 and phone_key is bare digits, hence the concatenation.
-  -- Longest wins rather than earliest: a demo slot can contain a failed first
-  -- attempt of a few seconds, and the conversation is the one worth hearing.
   -- Either number: the row rings the booking's where there is one, and demos
   -- booked before that was stored were rung on the lead's.
+  --
+  -- Every recording in the window, oldest first, not only the longest -- a
+  -- demo that drops and gets redialled is two Telnyx sessions, and picking
+  -- one used to throw the other away, usually the first half of the real
+  -- conversation. json_agg, the same way contracts above is aggregated, for
+  -- the same reason: the screen renders every meeting at once, and a query
+  -- per meeting for its recordings would be a query per row. (No backticks
+  -- in here -- this is inside a template literal and one would end the
+  -- string, the trap the Drizzle constraint-name gotcha documents.)
   (
-    select cr.recording_id from call_recording cr
+    select coalesce(
+      json_agg(
+        json_build_object(
+          'recordingId', cr.recording_id,
+          'durationMs', cr.duration_ms,
+          'startedAt', cr.started_at
+        ) order by cr.started_at asc nulls last, cr.id asc
+      ),
+      '[]'::json
+    )
+    from call_recording cr
     where ${DEMO_RECORDING_WHERE}
-    order by cr.duration_ms desc nulls last, cr.id desc limit 1
-  ) as demo_recording_id,
-  (
-    select cr.duration_ms from call_recording cr
-    where ${DEMO_RECORDING_WHERE}
-    order by cr.duration_ms desc nulls last, cr.id desc limit 1
-  ) as demo_recording_ms,
+  ) as demo_recordings,
   f.result as followup_result, f.created_at as followup_at,
   f.by_name as followup_by, f.notes as followup_notes,
   -- Whether a founder has answered "did they turn up" on Payroll.
@@ -891,9 +994,21 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     bookingNotes: (r.booking_notes as string | null) ?? null,
     recordingId: (r.recording_id as string | null) ?? null,
     recordingMs: r.recording_ms === null ? null : Number(r.recording_ms),
-    demoRecordingId: (r.demo_recording_id as string | null) ?? null,
-    demoRecordingMs:
-      r.demo_recording_ms === null ? null : Number(r.demo_recording_ms),
+    demoRecordings: clusterDemoRecordings(
+      (
+        (r.demo_recordings as
+          | {
+              recordingId: string;
+              durationMs: number | null;
+              startedAt: string;
+            }[]
+          | null) ?? []
+      ).map((d) => ({
+        recordingId: d.recordingId,
+        durationMs: d.durationMs === null ? null : Number(d.durationMs),
+        startedAt: d.startedAt,
+      })),
+    ),
     bookingCallId: r.booking_call_id === null ? null : n(r.booking_call_id),
     started: r.started === true,
     startingSoon: r.starting_soon === true,

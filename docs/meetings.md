@@ -446,6 +446,54 @@ demo and no way to say whether they turned up.
   recording is this" is how a row comes to show one call's length beside
   another call's audio.
 
+#### A redial keeps both halves — but not everything in the window (2026-09-23)
+
+`clusterDemoRecordings` in `meetings.ts`. `Meeting.demoRecordings` is now an
+array, rendered as one `LogRecording` button per entry — "Demo call", "Demo
+call 2", "Demo call 3" — in `meetings-list.tsx`.
+
+- **Asked for as** "for calls where i call the meeting back multiple times…
+  since i got disconnected it only shows one part." "Longest wins" was built to
+  pick the *real* demo out of a slot that might also hold a failed first
+  attempt — it was never meant to throw away a second half after a drop, and
+  it did anyway, because only one recording was ever kept.
+- **The naive fix — return every recording the window matches — was wrong**,
+  caught before shipping. The window is deliberately wide on its far end (the
+  fix above put it there on purpose, for the no-show-rebooked-later case), so
+  it also catches whatever else gets rung on that lead afterward. Measured live
+  on `203JUNKIT LLC`: **six recordings spanning three days**, five of them
+  missed-call and callback activity that had nothing to do with the demo.
+  Showing all six as "Demo call" through "Demo call 6" would have been actively
+  wrong, not just short a recording.
+- **So the recordings are clustered by the gap between one call ending and the
+  next starting.** `DEMO_REDIAL_GAP_MINUTES` (20) is the line: under it reads
+  as "got disconnected, called straight back"; over it is a different
+  conversation that happens to be about the same business. Only the group
+  containing the single longest recording survives — which is the exact
+  recording the old logic picked on its own, so the no-show-rebooked-later case
+  is unchanged: that later call is its own group of one and still wins on
+  length.
+- **Verified on `203JUNKIT`'s six recordings**: traced by hand, the clustering
+  collapses back to the original slot's one 30-second call — matching what the
+  old single-recording logic already chose — and none of the five unrelated
+  later calls survive.
+- **Verified on a real redial, `Santa Fe Junk Removal` (meeting 10063)**: two
+  recordings, 1.7 minutes apart, 10.5 and 18.5 minutes long. The old logic
+  silently kept only the second and dropped the first outright — exactly the
+  bug reported. Both now survive as one group and render as "Demo call" then
+  "Demo call 2", in the order they happened.
+- **Clustered in JavaScript, not SQL.** `getMeetings` runs for the whole screen
+  at once, and the gap-and-island grouping this needs is a window-function
+  query if written in SQL, per row, on a screen this codebase has repeatedly
+  had to fight for query time (`call_lead_latest_idx`, the `offset 0` fence).
+  The SQL side still does one thing: `json_agg` every matching recording,
+  ordered, in the same query as everything else on the row — no query per
+  meeting for its recordings. The clustering runs once per row over an array
+  already in memory.
+- **A single recording never gets numbered.** "Demo call 2" only when there
+  actually is a call 1 — counting an interruption that never happened would be
+  answering a question nobody asked.
+
 ### Cancelled off the grid, and a month cell that stays a cell (2026-09-20)
 
 Two changes after a founder read the month view as broken.
