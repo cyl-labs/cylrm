@@ -773,16 +773,19 @@ export function MeetingsCalendar({
           hour: "numeric",
         }).format(at),
         // The first hour of a new day names it, so "2 AM" cannot be read as
-        // this morning's.
+        // this morning's. Kept in two pieces because it is read in the time
+        // gutter, which is 48px wide — see where it is rendered.
         dayBreak:
           i > 0 &&
           dayOf(at.toISOString(), tz) !==
             dayOf(new Date(rollStart + (i - 1) * 3_600_000).toISOString(), tz)
-            ? fmt(dayOf(at.toISOString(), tz), {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-              })
+            ? {
+                weekday: fmt(dayOf(at.toISOString(), tz), { weekday: "short" }),
+                date: fmt(dayOf(at.toISOString(), tz), {
+                  day: "numeric",
+                  month: "short",
+                }),
+              }
             : null,
       };
     });
@@ -811,44 +814,67 @@ export function MeetingsCalendar({
             className={cn(GUTTER, "relative shrink-0")}
             style={{ height: rollGrid.height }}
           >
-            {rollGrid.rows.map((r) =>
-              r.kind === "hour" ? (
+            {rollGrid.rows.map((r) => {
+              if (r.kind !== "hour") return null;
+              const mark = marks[r.i];
+              // A new day is named here rather than over the appointments,
+              // and in place of the hour rather than beside it: the hour a
+              // day breaks in is always midnight, so "12 AM" is the one
+              // label the date does not cost anything to replace.
+              return (
                 <span
                   key={`h${r.i}`}
-                  className="absolute right-1.5 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
+                  className={cn(
+                    "absolute right-1.5 -translate-y-1/2 tabular-nums",
+                    mark.dayBreak
+                      ? "text-right text-[10px] leading-[1.15] font-bold uppercase tracking-[0.04em] text-primary"
+                      : "text-[11px] text-muted-foreground",
+                  )}
                   style={{ top: r.top }}
                 >
-                  {r.i === 0 ? "" : marks[r.i].label}
+                  {r.i === 0 ? (
+                    ""
+                  ) : mark.dayBreak ? (
+                    <>
+                      {mark.dayBreak.weekday}
+                      <br />
+                      {mark.dayBreak.date}
+                    </>
+                  ) : (
+                    mark.label
+                  )}
                 </span>
-              ) : null,
-            )}
+              );
+            })}
           </div>
           <div
             className="relative min-w-0 flex-1 border-l"
             style={{ height: rollGrid.height }}
           >
-            {rollGrid.rows.map((r) => r.kind === "hour" ? (
-              <div key={`l${r.i}`} aria-hidden={!marks[r.i].dayBreak}>
+            {rollGrid.rows.map((r) =>
+              r.kind === "hour" ? (
                 <div
+                  key={`l${r.i}`}
+                  aria-hidden
                   className={cn(
                     "absolute inset-x-0 border-t",
-                    // The day change is drawn heavier than an hour line, and
-                    // named. It is the boundary this view was built to stop
-                    // people falling off.
-                    marks[r.i].dayBreak ? "border-primary/40" : "border-border/60",
+                    // The day change is drawn heavier than an hour line. It is
+                    // the boundary this view was built to stop people falling
+                    // off — but only the line lives here now. The date naming
+                    // it sat at `left-2 z-20` over this column with an opaque
+                    // `bg-card`, and midnight is precisely where a late demo
+                    // is: on 2026-09-22 it covered the name of an 11:30pm
+                    // booking, which reads as a rendering fault rather than a
+                    // label. Anything drawn across this column has the same
+                    // problem, so the date is in the gutter instead.
+                    marks[r.i].dayBreak
+                      ? "border-primary/40"
+                      : "border-border/60",
                   )}
                   style={{ top: r.top }}
                 />
-                {marks[r.i].dayBreak && (
-                  <span
-                    className="absolute left-2 z-20 -translate-y-1/2 rounded bg-card px-1 text-[10px] font-bold uppercase tracking-[0.06em] text-primary"
-                    style={{ top: r.top }}
-                  >
-                    {marks[r.i].dayBreak}
-                  </span>
-                )}
-              </div>
-            ) : null)}
+              ) : null,
+            )}
             {placedRoll.map((pl) => (
               <div
                 key={pl.m.id}

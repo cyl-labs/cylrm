@@ -19,10 +19,10 @@ the callers already offer on both objection sheets.
 
 **The calculator below reads its prices from `src/lib/packages.ts`, which is
 what the contracts are actually drafted from**, so the package price you quote
-mid-demo and the price on the agreement cannot disagree. The one table still
-copied by hand is the term discounts: if a rate moves in that file, it moves
-there and in the Price objection on each caller sheet, or a caller quotes one
-number and the agreement says another.
+mid-demo and the price on the agreement cannot disagree. The one table that was
+still copied by hand was the term discounts, and it is gone — there is no term
+discount to quote. The Price objection on each caller sheet still names a
+monthly figure by hand, so that one has to move when the file does.
 
 ## Ring them at the scheduled time, never before
 
@@ -103,27 +103,19 @@ One job covers the whole month.
 
 _(let them answer)_
 
-Still stuck on price after that? Offer a term discount next, then the trial.
+Still stuck on price after that? Offer the trial.
 
-### The term discounts, when price is the sticking point
+**There is no term discount to offer, and that is deliberate** (2026-09-22).
+Six- and twelve-month plans are off the price list. The only thing a term
+saves us is the cost of finding the next customer, and the discount gives away
+more than that is worth: a year at 25% off hands over $300 on a Ring Rookie to
+save $240 of demos that never had to be booked. Worse, the people who ask for
+a year are the ones who were going to stay a year anyway, so the discount does
+its least work on exactly the people who take it.
 
-Reach for these before you reach for the trial. A discount keeps it a paid
-agreement and moves them off the fence; a trial restarts the whole decision in
-thirty days.
-
-| Package | 6 months (15% off) | 12 months (25% off) |
-| --- | --- | --- |
-| Ring Rookie | $85 / mo — $510 total | $75 / mo — $900 total |
-| Phone Professional | $212.50 / mo — $1,275 total | $187.50 / mo — $2,250 total |
-| Call Commander | $1,700 / mo — $10,200 total | $1,500 / mo — $18,000 total |
-
-> **You say** If you're comfortable committing for six months I can bring that to $212.50 a month, or $187.50 if you go twelve. Same service either way — it just tells me you're serious and I can price it accordingly.
-
-_(let them answer)_
-
-**A term is a commitment, not just a cheaper number.** Section 4 of the paid
-agreement locks them in for the term and makes the balance fall due if they
-leave early. Do not offer a discount you are not willing to hold somebody to.
+A prepaid year offered unprompted is still worth having — the cash is real and
+the churn question goes away. But it gets priced deliberately, afterwards, not
+read off a table mid-call. Say you'll come back to them on it.
 
 ## Objection handling | If they say they don't get enough calls to justify it
 

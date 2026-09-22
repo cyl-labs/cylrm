@@ -1189,9 +1189,19 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
     carry a hand-copied packages table beside the calculator and the two had to
     move together; the table is gone and `PricingCalculator` reads `PACKAGES`
     straight from here, so the price a founder quotes mid-demo and the price on
-    the agreement cannot disagree. **The term-discount table in that document is
-    still copied by hand** and still has to move with `TERMS`, as does the Price
-    objection on each caller sheet.
+    the agreement cannot disagree. The term-discount table beside it was copied
+    by hand too, and **it is gone** (2026-09-22): six- and twelve-month plans
+    came off the price list, so there is no rate for that page to quote. The
+    Price objection on each caller sheet still names a monthly figure by hand
+    and still has to move with `PACKAGES`.
+    - **`TERMS` itself stays**, and so does the term selector on the contract
+      dialog. The decision was that nobody offers a discount on a demo call,
+      not that a term deal cannot be drafted: a founder who agrees a year
+      deliberately still needs section 4's minimum-term clause to exist. The
+      reasoning, and the discounts that would actually break even, are in the
+      commission and pricing note — the short version is that a term only
+      saves the cost of finding the next customer, and 15%/25% gives away more
+      than that is worth.
   - Unresolved and flagged rather than quietly changed: both objection sheets
     still answer "how much" with **"as low as $99 a month"** while Ring Rookie is
     $100. It is what the floor has been saying for months, so it is a pricing
