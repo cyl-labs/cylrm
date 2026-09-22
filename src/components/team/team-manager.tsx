@@ -361,6 +361,10 @@ export function TeamManager({
       // Brian texting on 2026-09-22 read that as frozen and reported it as a
       // bug — the grant had in fact saved.
       toast.success(saved ?? `Saved for ${member.name}.`);
+      // The permission itself always saves; this is Telnyx's own campaign
+      // link/unlink not confirming, which used to fail silently — see
+      // `linkTextingCampaign` in lib/telnyx.ts.
+      if (typeof data.warning === "string") toast.warning(data.warning);
       router.refresh();
       return true;
     } finally {
@@ -840,13 +844,27 @@ export function TeamManager({
                           on={m.textAccess}
                           canManage={canManage}
                           busy={busyId === m.id}
-                          onToggle={() =>
+                          onToggle={() => {
+                            // Granting now links their number to the live SMS
+                            // campaign on Telnyx, not just a database column —
+                            // worth a pause before it fires, the same reason
+                            // sharing a caller ID above gets one. Taking it
+                            // away is the tidy-up and needs no confirming.
+                            if (
+                              !m.textAccess &&
+                              !confirm(
+                                `Give ${m.name} texting?\n\n` +
+                                  `This links ${m.telnyxDid ?? "their number"} to the SMS campaign on Telnyx so it can send, not just receive — it costs money per segment and cannot be unsent. Takes a few minutes to finish on Telnyx's side.`,
+                              )
+                            ) {
+                              return;
+                            }
                             patch(
                               m,
                               { textAccess: !m.textAccess },
                               `Texting ${m.textAccess ? "taken away from" : "granted to"} ${m.name}.`,
-                            )
-                          }
+                            );
+                          }}
                         />
                       </span>
                     </td>

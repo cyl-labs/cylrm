@@ -332,6 +332,57 @@ function withoutBlanks(value: unknown): unknown {
 const TEXTING_PROFILE = "cylrm-sms";
 
 /**
+ * The carrier-approved 10DLC campaign a number must be linked to before it
+ * can *send* texts — being on `TEXTING_PROFILE` above is only enough to
+ * receive them. Unset means this step is skipped, the same rule every
+ * optional integration follows: `text_access` still saves, the number just
+ * stays receive-only until this is set.
+ */
+const TEXTING_CAMPAIGN_ID = process.env.TELNYX_10DLC_CAMPAIGN_ID;
+
+/**
+ * Put a caller's number onto the SMS campaign, the one step `provisionLine`
+ * cannot do for them: a number can be on `cylrm-sms` and still have every
+ * text refused by the carriers until it is linked here too. This was, until
+ * now, a manual `PUT /10dlc/phone_number_campaigns/{number}` done once for
+ * the Founders number — see docs/meetings.md.
+ *
+ * Not instant on Telnyx's side: each carrier maps it separately, and the
+ * Founders number took about fifteen minutes to go from `PENDING_ASSIGNMENT`
+ * to fully `ASSIGNED`. A caller granted texting can see a send fail for a
+ * few minutes before it settles.
+ */
+export async function linkTextingCampaign(phoneNumber: string): Promise<void> {
+  if (!TEXTING_CAMPAIGN_ID) return;
+  await telnyx(`/10dlc/phone_number_campaigns/${encodeURIComponent(phoneNumber)}`, {
+    method: "PUT",
+    body: JSON.stringify({ phoneNumber, campaignId: TEXTING_CAMPAIGN_ID }),
+  });
+}
+
+/**
+ * The reverse: take a number off the campaign, back to the receive-only
+ * state every caller starts in.
+ *
+ * A number already off the campaign (404) is the goal state, not a failure.
+ * Telnyx also takes its own time clearing an unlink — a re-link attempted
+ * seconds later is refused with "resource is being processed" (code 10036)
+ * until it does — worth knowing if texting is switched off and back on for
+ * the same person within a few minutes of each other.
+ */
+export async function unlinkTextingCampaign(phoneNumber: string): Promise<void> {
+  if (!TEXTING_CAMPAIGN_ID) return;
+  try {
+    await telnyx(`/10dlc/phone_number_campaigns/${encodeURIComponent(phoneNumber)}`, {
+      method: "DELETE",
+    });
+  } catch (err) {
+    if (err instanceof Error && /\(404\)/.test(err.message)) return;
+    throw err;
+  }
+}
+
+/**
  * A new credential connection for one person, copied off the shared line.
  *
  * Named `cylrm-<username>` like every line made by hand before this. The SIP

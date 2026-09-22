@@ -1039,7 +1039,9 @@ Telnyx webhook carry replies and delivery receipts. Schema in
   - **A second sender needs the same steps.** The number must be on the
     `cylrm-sms` messaging profile and linked to the campaign. Every caller's
     number has been on the profile since 2026-09-15 (see **Texts screen**
-    below) and none is linked, so they receive and do not send.
+    below); the campaign link is what `linkTextingCampaign`/
+    `unlinkTextingCampaign` (`lib/telnyx.ts`) now automate — see the
+    2026-09-22 entry under **Texts screen**.
   - **Do not test by texting one of our own numbers.** An inbound text pushes a
     notification to whoever holds the number it arrived on, which for every
     number on that profile other than Founders is a caller.
@@ -1114,6 +1116,33 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
   prospect from the number they will ring back, costs money per segment and
   cannot be unsent, so nobody is opted in by having been hired. Admins always
   have it.
+  - **The Team toggle had granted the database column and nothing on
+    Telnyx** (found 2026-09-22, Brian). `text_access` opened his compose bar,
+    but his number was never linked to the 10DLC campaign — only Founders'
+    was, by hand, back on 2026-09-15 — so every send came back from Telnyx
+    with 40010, "texting isn't approved for your number yet." Nothing on
+    screen distinguished that from success at the time he sent it: `call_sms`
+    recorded the failure correctly, but nobody was reading that table, and
+    the grant itself reported success (see the `patch()` comment above about
+    that same evening). `PATCH /api/users/[id]` now calls
+    `linkTextingCampaign`/`unlinkTextingCampaign` (`lib/telnyx.ts`) on an
+    actual `text_access` flip, so granting or taking it away moves the
+    Telnyx side too — best effort, same as `provisionLine`'s messaging-profile
+    step: a Telnyx failure is returned as a `warning` on the response and
+    toasted, not refused, because the alternative is failing to save a
+    database column over Telnyx being briefly unreachable.
+    **`TELNYX_10DLC_CAMPAIGN_ID` is Telnyx's own `campaignId`
+    (`4b3001a0-8f06-…`), not the TCR code `C3DSJFI`** quoted elsewhere in this
+    doc — `GET /10dlc/phone_number_campaigns/+18722778445` returns both and
+    they are easy to swap by mistake. Unset skips linking entirely, so an
+    unconfigured install still saves the permission and simply leaves every
+    number receive-only, same as before this existed.
+    **Linking is not instant and unlinking is not either** — Telnyx refuses a
+    re-link attempted seconds after an unlink with "resource is being
+    processed" (10036) until the removal finishes clearing, which took several
+    minutes live on the Founders number. Toggling texting off and back on for
+    the same person right away can hit this; the column still saves either
+    way, only the Telnyx side lags.
   **Sending and seeing are two different permissions and must stay that way.**
   Reading was never gated — `scope()` limits a caller to `call_sms.user_id =
   them`, so a reassigned number does not hand over the last holder's texts —

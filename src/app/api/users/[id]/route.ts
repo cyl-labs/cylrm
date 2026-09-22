@@ -7,7 +7,9 @@ import { countActiveAdmins } from "@/lib/users";
 import {
   LineSetupError,
   TelnyxNotConfiguredError,
+  linkTextingCampaign,
   provisionLine,
+  unlinkTextingCampaign,
 } from "@/lib/telnyx";
 import { isMarket, numberProblem } from "@/lib/team-numbers";
 
@@ -94,6 +96,11 @@ export async function PATCH(
   }
 
   const values: Partial<typeof appUser.$inferInsert> = {};
+  // Set once the texting grant is decided below, and reported alongside the
+  // save rather than blocking it: the permission is a database column and
+  // must not fail to save over an unreachable Telnyx, the same reasoning
+  // `provisionLine`'s messaging-profile step follows.
+  let telnyxWarning: string | undefined;
 
   if ("name" in body) {
     const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -176,6 +183,31 @@ export async function PATCH(
       );
     }
     values.textAccess = body.textAccess;
+
+    // The Telnyx half of the grant: sending needs the number linked to the
+    // 10DLC campaign, not just the `cylrm-sms` profile `provisionLine` already
+    // puts it on. Only fires on an actual flip, and only when there is a
+    // number to link — text_access on somebody with no DID yet has nothing to
+    // do here. Best effort: a Telnyx failure is reported below, not refused,
+    // because the alternative is the exact silent gap Brian hit on
+    // 2026-09-22, where the grant saved and nothing said texting still would
+    // not work.
+    if (body.textAccess !== target.textAccess && target.telnyxDid) {
+      try {
+        if (body.textAccess) {
+          await linkTextingCampaign(target.telnyxDid);
+        } else {
+          await unlinkTextingCampaign(target.telnyxDid);
+        }
+      } catch (err) {
+        if (!(err instanceof TelnyxNotConfiguredError)) {
+          console.error("[team] 10DLC campaign link failed", err);
+          telnyxWarning = body.textAccess
+            ? "Saved, but Telnyx didn't confirm the campaign link — texts from their number may keep failing until this is retried."
+            : "Saved, but Telnyx didn't confirm the number came off the campaign — check it directly if that matters.";
+        }
+      }
+    }
   }
 
   // The number they ring from. Checked against their market, because a US
@@ -292,5 +324,5 @@ export async function PATCH(
     await session.save();
   }
 
-  return Response.json(row);
+  return Response.json(telnyxWarning ? { ...row, warning: telnyxWarning } : row);
 }
