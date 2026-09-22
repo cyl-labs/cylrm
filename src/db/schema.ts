@@ -1292,6 +1292,52 @@ export const callMeetingFollowup = pgTable(
  * copy of a contract is a second copy that can disagree with the first.
  *
 /**
+ * A call whose recording never turned up.
+ *
+ * On 2026-09-21 Telnyx's recording-publish pipeline failed for about two and a
+ * half hours on one of its sites: 34 answered calls captured their audio in
+ * full and never published it, including the one that booked a demo. Every one
+ * looked normal from here — hangup delivered, duration right, invoice right —
+ * and nothing was looking, so it surfaced three days later when somebody went
+ * to read a brief.
+ *
+ * Telnyx confirmed there is no `recording.failed` webhook, and that
+ * absence-based alerting is the only detection available. This is the claim
+ * table behind it: one row per call, unique on `call_id`, so the tick that
+ * finds a gap is the only one that reports it and the alert cannot repeat
+ * every five minutes for a week. The row is kept afterwards as the record of
+ * what was lost.
+ *
+ * The columns are snapshots rather than joins for that reason — it still has
+ * to say what went missing after the call it hangs off has been tidied.
+ */
+export const callRecordingGap = pgTable(
+  "call_recording_gap",
+  {
+    id: serial("id").primaryKey(),
+    callId: integer("call_id")
+      .notNull()
+      .unique()
+      .references(() => call.id, { onDelete: "cascade" }),
+    telnyxSessionId: text("telnyx_session_id"),
+    durationSeconds: integer("duration_seconds"),
+    calledAt: timestamp("called_at", { withTimezone: true }),
+    userId: integer("user_id").references(() => appUser.id, {
+      onDelete: "set null",
+    }),
+    detectedAt: timestamp("detected_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Null until an alert actually went out. Separate from `detectedAt`: an
+     *  unreachable Telegram must not cause the gap to be forgotten. */
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
+  },
+  // Declared here as well as in the migration — a push drops any index that
+  // lives only in a migration file.
+  (t) => [index("call_recording_gap_detected_idx").on(t.detectedAt.desc())],
+);
+
+/**
  * What was said on the call that won an upcoming demo.
  *
  * The founder taking a demo is usually not the caller who booked it, and the

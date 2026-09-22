@@ -58,6 +58,12 @@ async function run() {
   // and claimed per pay week — so like the two above this is a no-op on all
   // but one tick a week.
   await tick("payroll");
+  // Calls that connected and never got a recording. Unlike the three digests
+  // above this runs on every tick and reports the moment it finds something:
+  // they describe a day that is over, this one describes a fault that may
+  // still be running. Telnyx dropped 34 answered calls on 2026-09-21 and
+  // nothing noticed for three days, because nothing was looking.
+  await tick("recordings");
 }
 
 /**

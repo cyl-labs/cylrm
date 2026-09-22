@@ -137,3 +137,34 @@ export async function notifyReply(r: ReplyNotification): Promise<void> {
 
   await send(lines.join("\n"));
 }
+
+/**
+ * Calls that connected and lost their audio.
+ *
+ * Sent during the shift rather than as a nightly digest, because unlike the
+ * callbacks and quota reports this is a fault that may still be happening —
+ * on 2026-09-21 Telnyx's recording pipeline dropped 34 answered calls over two
+ * and a half hours, and the value of knowing is entirely in knowing while it
+ * is going on.
+ *
+ * Names the caller, because a gap is far more often one person's line than a
+ * global outage: that day one connection lost calls while eight others
+ * recorded normally, and the name is the most actionable word in the message.
+ */
+export async function notifyRecordingGap(g: {
+  calls: number;
+  seconds: number;
+  who: string;
+  more: number;
+}): Promise<void> {
+  const base = process.env.PUBLIC_APP_URL ?? "";
+  const mins = Math.round(g.seconds / 60);
+  const lines = [
+    `🔇 ${g.calls} ${g.calls === 1 ? "call has" : "calls have"} no recording`,
+    `${g.who}${g.more > 0 ? ` and ${g.more} more` : ""} · about ${mins} ${mins === 1 ? "minute" : "minutes"} of conversation`,
+    "",
+    "The calls connected and were billed; the audio never arrived. If this keeps climbing it is Telnyx's recording pipeline, not the callers — check whether one line or all of them.",
+  ];
+  if (base) lines.push("", `${base}/calls`);
+  await send(lines.join("\n"));
+}
