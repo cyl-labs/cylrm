@@ -212,8 +212,9 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
       {resettable.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 px-4 py-2.5">
           <p className="text-[12px] text-muted-foreground">
-            Counters run from the last payment or reset. Cutting one keeps what
-            it has already earned and throws away the spare under{" "}
+            Counters run from the last pickup payment or reset — paying
+            somebody for their meetings does not touch them. Cutting one keeps
+            what it has already earned and throws away the spare under{" "}
             {PICKUPS_PER_BONUS}.
           </p>
           <Button
