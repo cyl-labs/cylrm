@@ -786,10 +786,17 @@ export function MeetingsList({
                     one on the lead. The prospect is asked for the best number
                     when they book, and it is usually a mobile where the lead
                     carries the company's switchboard — so the row says which
-                    one it has, rather than quietly dialling the other. */}
-                {m.listedPhone && (
+                    one it has, rather than quietly dialling the other.
+                    Names both numbers now (2026-09-23): saying only the
+                    listed line and leaving the booking number unsaid meant
+                    the ring confirm's "Calling +1 203 257 8961" matched
+                    neither number printed on the row, and read as a bug
+                    rather than as the number it had just described. */}
+                {m.listedPhone && m.phone && (
                   <p className="mt-0.5 text-[12px] text-muted-foreground">
-                    Rings the number they gave when booking. The listed line is{" "}
+                    Rings the number they gave when booking,{" "}
+                    <span className="tabular-nums">{spokenNumber(m.phone)}</span>.
+                    The listed line is{" "}
                     <span className="tabular-nums">
                       {spokenNumber(m.listedPhone)}
                     </span>
