@@ -66,6 +66,94 @@ export function defaultCallbackAt(
 }
 
 /**
+ * Which clock a prospect is actually on.
+ *
+ * **The lead's own zone first, Cal.com's attendee zone second** (2026-09-22).
+ * Cal.com records the zone the booking form was *sitting in*, and the booking
+ * form is nearly always a caller's browser in Singapore or Manila — so a Maui
+ * mover came back as `Asia/Singapore` and the demo row fell silent about their
+ * clock, because "their zone" and "our zone" were the same string. Measured
+ * over every meeting ever booked: 28 agreed with the lead's own number, 8 did
+ * not, and in every one of those 8 the lead was right — a Hawaii business on
+ * an 808 number filed as Los Angeles, an Alaska business filed as New York,
+ * and this one filed as Singapore.
+ *
+ * `leadTz` is `leadZone`'s answer: the scraped state, then the area code, then
+ * the Singapore and UK prefixes. Null is a real answer there — a toll-free
+ * number belongs to no place — and that is the one case where Cal.com's is the
+ * only evidence there is, so it is the fallback rather than the loser.
+ *
+ * It is also the zone the callbacks diary, the 9-to-5 filter and the dialler
+ * already read a lead in. Two screens disagreeing about what time it is where
+ * the prospect sits is the thing this whole file exists to stop.
+ */
+export function prospectZone(
+  leadTz: string | null | undefined,
+  attendeeTz: string | null | undefined,
+): string | null {
+  return leadTz || attendeeTz || null;
+}
+
+/**
+ * Their clock beside ours — "3:30 PM", or "Wed 3:30 PM" when it is not our day.
+ *
+ * The weekday rides along only when their calendar date differs (2026-09-22).
+ * A 3:30 AM Singapore demo is the previous afternoon in Florida, and the row
+ * read "Thu, Sep 24, 3:30 AM SGT · 3:30 PM their time": the hour to say back
+ * to them was right there and the day was left to be worked out. Only when it
+ * differs, because the date printed beside it already names the day, and a
+ * weekday on every row would bury the rows where it matters.
+ *
+ * Null when they are on our clock, which is the same question asked properly:
+ * the two wall clocks are compared rather than the two zone *names*, so
+ * "US/Eastern" against "America/New_York" stays silent instead of printing our
+ * own time back at us as though it were theirs.
+ *
+ * Both days come from `Intl` rather than from arithmetic on the instant: the
+ * gap between two zones is not a whole number of days and moves twice a year,
+ * which is the mistake `wallClockIn` exists to stop anyone making again.
+ */
+export function theirClock(
+  at: Date,
+  theirTz: string | null | undefined,
+  ourTz: string,
+): string | null {
+  if (!theirTz) return null;
+  try {
+    const wall = (zone: string, opts: Intl.DateTimeFormatOptions = {}) =>
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: zone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "numeric",
+        minute: "2-digit",
+        ...opts,
+      }).format(at);
+    if (wall(theirTz) === wall(ourTz)) return null;
+
+    const day = (zone: string) =>
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: zone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(at);
+    const opts: Intl.DateTimeFormatOptions = {
+      timeZone: theirTz,
+      hour: "numeric",
+      minute: "2-digit",
+    };
+    if (day(theirTz) !== day(ourTz)) opts.weekday = "short";
+    return new Intl.DateTimeFormat("en-US", opts).format(at);
+  } catch {
+    // An unrecognised zone off the API is not worth an error boundary, and on
+    // the digest it is not worth a failed Telegram send either.
+    return null;
+  }
+}
+
+/**
  * What a zone's offset was at a given instant, in minutes.
  *
  * Formatting the instant in the target zone and reassembling those parts as if

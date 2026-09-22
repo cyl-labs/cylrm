@@ -23,6 +23,7 @@ import type { CallOutcome } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import type { SmsStatus, Texting } from "@/lib/sms";
 import { classifyPhone, dialableNumber, spokenNumber } from "@/lib/phone";
+import { prospectZone, theirClock } from "@/lib/call-time";
 import { calBookingHref, calRescheduleHref } from "@/lib/cal-link";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { Badge } from "@/components/ui/badge";
@@ -429,43 +430,14 @@ export function MeetingsList({
    * Their clock, when it is not ours. What you say the time back to them in
    * — the thing the SOP makes a caller work out by hand today.
    *
-   * **It names their weekday when their date is not ours** (2026-09-22). A
-   * 3:30 AM Singapore slot is the previous afternoon in Florida, and the row
-   * read "Thu, Sep 24, 3:30 AM SGT · 3:30 PM their time": the hour you say
-   * back to them was right and the day was left to be worked out, on a screen
-   * whose whole point is not making somebody work a time zone out. Only when
-   * it differs — the date beside it already names the day, so repeating it on
-   * every row would bury the rows where it matters.
-   *
-   * The two days are compared as formatted dates rather than by arithmetic on
-   * the instant: the offset between two zones is not a whole number of days
-   * and moves twice a year, which is the mistake `wallClockIn` exists to stop
-   * anyone making again.
+   * Both halves live in `lib/call-time.ts` so that the row, the Telegram
+   * reminder and the evening digest cannot end up naming three different
+   * clocks for one demo: `prospectZone` picks whose zone to believe, and
+   * `theirClock` carries their weekday when their date is not ours.
    */
   const theirTime = React.useCallback(
-    (iso: string, theirTz: string | null) => {
-      if (!theirTz || theirTz === tz) return null;
-      const at = new Date(iso);
-      try {
-        const dayIn = (zone: string) =>
-          new Intl.DateTimeFormat("en-US", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            timeZone: zone,
-          }).format(at);
-        const opts: Intl.DateTimeFormatOptions = {
-          hour: "numeric",
-          minute: "2-digit",
-          timeZone: theirTz,
-        };
-        if (dayIn(theirTz) !== dayIn(tz)) opts.weekday = "short";
-        return new Intl.DateTimeFormat("en-US", opts).format(at);
-      } catch {
-        // An unrecognised zone off the API is not worth an error boundary.
-        return null;
-      }
-    },
+    (iso: string, m: Meeting) =>
+      theirClock(new Date(iso), prospectZone(m.leadTz, m.attendeeTz), tz),
     [tz],
   );
 
@@ -605,7 +577,12 @@ export function MeetingsList({
         // unique index exists to refuse.
         const rescheduleBase =
           m.kind === "follow_up" ? followUpBookingUrl : bookingUrl;
-        const their = theirTime(m.startAt, m.attendeeTz);
+        const their = theirTime(m.startAt, m);
+        // The one zone this row believes, used for the label and for both
+        // Cal.com links. Kept as one value on purpose: the row said one thing
+        // and the booking pages opened in another while the links read
+        // `attendeeTz` directly.
+        const theirZone = prospectZone(m.leadTz, m.attendeeTz);
         // This business's text conversation, when texting is on.
         const lead =
           texting && m.leadId !== null ? texting.byLead[m.leadId] : undefined;
@@ -901,12 +878,15 @@ export function MeetingsList({
                   <a
                     href={calBookingHref(
                       followUpBookingUrl,
-                      // Their own zone off the booking they already made,
-                      // which is the prospect's own answer rather than ours.
+                      // Their own clock, worked out the way the row's label
+                      // is: where the business actually is, and the zone the
+                      // last booking form was open in only if we have nothing
+                      // better. Off `attendeeTz` alone this offered a Maui
+                      // prospect slots on a Singapore clock.
                       {
                         company: m.company,
                         phone: m.phone ?? "",
-                        tz: m.attendeeTz,
+                        tz: theirZone,
                       },
                       { name: m.attendeeName, email: m.attendeeEmail },
                     )}
@@ -1061,10 +1041,12 @@ export function MeetingsList({
                     href={calRescheduleHref(
                       rescheduleBase,
                       m.calBookingUid,
-                      // Their clock, off their own booking. A founder reading
-                      // this in Singapore would otherwise be offered a Florida
-                      // prospect's slots at four in the morning.
-                      m.attendeeTz,
+                      // Their clock. A founder reading this in Singapore would
+                      // otherwise be offered a Florida prospect's slots at
+                      // four in the morning — and off `attendeeTz` alone that
+                      // is exactly what happened anyway, since a booking made
+                      // by a caller carries the caller's zone.
+                      theirZone,
                     )}
                     target="_blank"
                     rel="noreferrer noopener"

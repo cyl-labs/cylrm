@@ -21,6 +21,7 @@ import {
   listCalBookings,
   type CalBooking,
 } from "@/lib/cal";
+import { prospectZone, theirClock } from "@/lib/call-time";
 
 type Row = Record<string, unknown>;
 const n = (v: unknown) => Number(v ?? 0);
@@ -305,9 +306,16 @@ export type Meeting = {
   title: string | null;
   attendeeName: string | null;
   attendeeEmail: string | null;
-  /** The prospect's own zone, straight off the booking. What the SOP used to
-   *  make the caller work out by hand before saying a time back to them. */
+  /** The prospect's own zone, straight off the booking — which is to say, the
+   *  zone the booking *form* was sitting in. Nearly always a caller's own
+   *  browser, so it is the weaker of the two. See `prospectZone`. */
   attendeeTz: string | null;
+  /** `leadZone`'s answer for this lead: the scraped state, then the area code,
+   *  then the Singapore and UK prefixes. The stronger evidence of where the
+   *  prospect actually sits, and the one the callbacks diary and the 9-to-5
+   *  filter already read them in. Null for a toll-free number, or a booking
+   *  that matched no lead. */
+  leadTz: string | null;
   meetingUrl: string | null;
 
   /** Null for a booking that matched no lead — see `ownedBy`. */
@@ -546,6 +554,10 @@ const meetingSelect = sql`
   m.id, m.cal_booking_uid, m.start_at, m.end_at, m.status, m.title,
   m.attendee_name, m.attendee_email, m.attendee_phone, m.attendee_tz,
   m.meeting_url, m.kind,
+  -- Where the business actually is, which outranks the zone Cal.com recorded:
+  -- that one is the zone the booking form was open in, and the form is a
+  -- caller's browser in Singapore. See prospectZone in lib/call-time.ts.
+  z.tz as lead_tz,
   l.id as lead_id, l.company, l.name as lead_name, l.phone,
   l.dnc_status, l.dnc_checked_at,
   -- Read before a demo rather than during a cold call: "what do they actually
@@ -785,6 +797,10 @@ const joins = sql`
   left join call_list cl on cl.id = l.call_list_id
   left join "call" bc on bc.id = m.call_id
   ${latestFollowup}
+  -- After the call_lead join, which it reads. A cross join lateral over one
+  -- row per meeting, and this screen lists tens of them rather than the 5,231
+  -- leads the calling queries run it over, so the fence inside it is enough.
+  ${leadZone}
 `;
 
 // `dids` is threaded in rather than read here, exactly as `toLead` takes it:
@@ -805,6 +821,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     attendeeName: (r.attendee_name as string | null) ?? null,
     attendeeEmail: (r.attendee_email as string | null) ?? null,
     attendeeTz: (r.attendee_tz as string | null) ?? null,
+    leadTz: (r.lead_tz as string | null) ?? null,
     // Only a link that opens something. The demo event moved to a phone
     // location on 2026-09-11, and Cal.com then fills this field with the
     // prospect's phone number, which rendered as a "Meet link" button pointing
@@ -1393,13 +1410,14 @@ export async function sendMeetingTelegrams(
   // Only a meeting inside the longest offset can have anything due.
   const longest = TELEGRAM_OFFSETS[TELEGRAM_OFFSETS.length - 1].minutesBefore;
   const meetings = (await db.execute(sql`
-    select m.id, m.start_at, m.attendee_name, m.attendee_tz,
+    select m.id, m.start_at, m.attendee_name, m.attendee_tz, z.tz as lead_tz,
       coalesce(l.company, l.name, m.attendee_name) as who,
       u.name as booked_by
     from call_meeting m
     left join call_lead l on l.id = m.call_lead_id
     left join call c on c.id = m.call_id
     left join app_user u on u.id = c.user_id
+    ${leadZone}
     where m.status = 'accepted'
       and m.start_at > ${now.toISOString()}::timestamptz
       and m.start_at <= ${now.toISOString()}::timestamptz
@@ -1433,15 +1451,19 @@ export async function sendMeetingTelegrams(
     // differently and the digest still sends the calm shape.
     const urgent = true;
     const minutesLeft = Math.max(1, Math.round((startAt.getTime() - now.getTime()) / 60_000));
-    const theirTz = typeof m.attendee_tz === "string" ? m.attendee_tz : null;
-    let theirTime: string | null = null;
-    if (theirTz && theirTz !== tz) {
-      try {
-        theirTime = `${clock(startAt, theirTz)} their time`;
-      } catch {
-        // A zone name Intl does not know. The founders' time still stands.
-      }
-    }
+    // Where the business is, then the zone the booking form was open in. A
+    // demo half an hour out is the worst moment to be told a Maui prospect
+    // keeps Singapore hours. `theirClock` says nothing at all when the two
+    // clocks agree, and carries their weekday when the date does not.
+    const their = theirClock(
+      startAt,
+      prospectZone(
+        typeof m.lead_tz === "string" ? m.lead_tz : null,
+        typeof m.attendee_tz === "string" ? m.attendee_tz : null,
+      ),
+      tz,
+    );
+    const theirTime = their === null ? null : `${their} their time`;
 
     try {
       await notifyMeeting({

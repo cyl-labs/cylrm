@@ -100,7 +100,12 @@ export async function notifyMeetingDigest(
   lines: string[],
 ): Promise<void> {
   const base = process.env.PUBLIC_APP_URL ?? "";
-  const out = [`📋 ${heading}`, ...lines];
+  // A blank line between demos, and after the heading (2026-09-22, asked for
+  // on the floor). Each line carries a time, a business, the prospect's own
+  // clock and who booked it, so five of them stacked with no gap read as one
+  // paragraph — Telegram wraps a long line on a phone, and the wrapped half
+  // looked like the next meeting.
+  const out = [`📋 ${heading}`, ...lines.flatMap((line) => ["", line])];
   if (base) out.push("", `${base}/meetings`);
   await send(out.join("\n"));
 }

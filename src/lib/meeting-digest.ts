@@ -1,6 +1,10 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { notificationsConfigured, notifyMeetingDigest } from "@/lib/notify";
+// No cycle: `lib/calls` does not import this module, and `call-time` is Intl
+// and nothing else.
+import { leadZone } from "@/lib/calls";
+import { prospectZone, theirClock } from "@/lib/call-time";
 
 /**
  * One Telegram message each morning: the demos coming up.
@@ -139,13 +143,14 @@ export async function sendMeetingDigest(
   const tz = HOME_TZ;
 
   const meetings = (await db.execute(sql`
-    select m.start_at, m.attendee_tz,
+    select m.start_at, m.attendee_tz, z.tz as lead_tz,
       coalesce(l.company, l.name, m.attendee_name) as who,
       u.name as booked_by
     from call_meeting m
     left join call_lead l on l.id = m.call_lead_id
     left join call c on c.id = m.call_id
     left join app_user u on u.id = c.user_id
+    ${leadZone}
     where m.status = 'accepted'
       and m.start_at > ${now.toISOString()}::timestamptz
       and m.start_at <= ${now.toISOString()}::timestamptz
@@ -166,15 +171,20 @@ export async function sendMeetingDigest(
 
   const lines = meetings.map((m) => {
     const start = new Date(m.start_at as string);
-    const theirTz = typeof m.attendee_tz === "string" ? m.attendee_tz : null;
-    let theirs = "";
-    if (theirTz && theirTz !== tz) {
-      try {
-        theirs = ` (${clock(start, theirTz)} their time)`;
-      } catch {
-        // A zone name Intl does not know. Ours still stands.
-      }
-    }
+    // Where the business is first, the zone the booking form was open in
+    // second — and their weekday with it when their date is not ours. This
+    // message is read at eight in the evening about demos that happen after
+    // midnight, so "their time" without a day was the one number on it that
+    // could be read as the wrong day and look perfectly ordinary.
+    const their = theirClock(
+      start,
+      prospectZone(
+        typeof m.lead_tz === "string" ? m.lead_tz : null,
+        typeof m.attendee_tz === "string" ? m.attendee_tz : null,
+      ),
+      tz,
+    );
+    const theirs = their === null ? "" : ` (${their} their time)`;
     const who = (m.who as string | null) ?? "A meeting";
     const by = m.booked_by ? ` · booked by ${m.booked_by as string}` : "";
     return `• ${at(start, tz)} — ${who}${theirs}${by}`;
