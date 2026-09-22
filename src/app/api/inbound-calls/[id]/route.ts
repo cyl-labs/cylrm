@@ -38,6 +38,11 @@ const OUTCOMES: CallOutcome[] = [
  * Scoped the way the screen is: a caller can only clear a call to their own
  * number, an admin any. Enforced here rather than by hiding the button, since
  * a fetch walks straight past a hidden button.
+ *
+ * **Clearing a row clears every ring it stands for.** The screen shows one row
+ * per burst carrying "rang 5 times", so stamping the representative leg alone
+ * left four behind to re-group and come back as "rang 4 times". See the update
+ * at the bottom for the scope, which is narrower than it first looks.
  */
 export async function PATCH(
   request: Request,
@@ -125,6 +130,7 @@ export async function PATCH(
       ) ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
   }
 
+  let changed = 0;
   await db.transaction(async (tx) => {
     if (outcome !== null && leadId !== null) {
       // Exactly the row `/api/calls` writes. The session is present when the
@@ -142,13 +148,54 @@ export async function PATCH(
       });
     }
 
-    await tx.execute(sql`
-      update inbound_call
-      set handled_at = coalesce(handled_at, now()),
-          handled_by = coalesce(handled_by, ${me.id})
-      where id = ${callId}
-    `);
+    // Every ring this row stands for, not just the leg that represents it.
+    //
+    // Missed calls are rolled up: a prospect whose phone system redials
+    // against an unregistered browser arrives as a burst of legs, and the
+    // screen shows the newest one carrying "rang 5 times". Stamping `id` alone
+    // left the other four unhandled, so they re-grouped into a fresh burst and
+    // the row came straight back saying "rang 4 times". Reported 2026-09-22;
+    // 70 legs across 7 numbers were stranded that way, and one number shows
+    // three presses of the same button at 07:01, 10:03 and 10:04.
+    //
+    // Scoped to the same number *and* the same line, because that pair is what
+    // a caller owes: the same business reaching two callers is two ring backs,
+    // and clearing one must not clear the other. `is not distinct from`
+    // because the line can be null — a number belonging to nobody, which only
+    // an admin sees — and `= null` would match no rows and quietly clear
+    // nothing.
+    //
+    // Everything at or before this ring, rather than this burst only, which is
+    // the same rule `RUNG_BACK_SINCE` already applies to a logged outcome: you
+    // rang them back, so the calls they made before that are settled. A ring
+    // that lands *after* this one is a new attempt and keeps its row.
+    //
+    // The row being cleared is joined in rather than read into JS and bound
+    // back, and that is load-bearing. `started_at` carries milliseconds
+    // (.610), and a round trip through the driver truncated it to the second
+    // (.000) — so `started_at <= [that]` excluded the representative leg
+    // itself and the row came back one ring lighter instead of clearing. The
+    // timestamp never leaves Postgres now, so there is nothing to round.
+    const cleared = (await tx.execute(sql`
+      update inbound_call ic
+      set handled_at = coalesce(ic.handled_at, now()),
+          handled_by = coalesce(ic.handled_by, ${me.id})
+      from inbound_call rep
+      where rep.id = ${callId}
+        and ic.from_number = rep.from_number
+        and ic.user_id is not distinct from rep.user_id
+        and ic.started_at <= rep.started_at
+        and ic.handled_at is null
+        -- Siblings only sweep up calls nobody picked up. An answered call was
+        -- never owed a ring back and never appears on the screen, so stamping
+        -- it "handled by" would put a thing that did not happen in the log.
+        -- The row actually asked for is always cleared, answered or not, which
+        -- is what this route did before it learned about bursts.
+        and (ic.answered_at is null or ic.id = rep.id)
+      returning ic.id
+    `)) as { id: number }[];
+    changed = cleared.length;
   });
 
-  return Response.json({ ok: true, changed: 1, logged: outcome !== null });
+  return Response.json({ ok: true, changed, logged: outcome !== null });
 }

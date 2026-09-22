@@ -495,9 +495,36 @@ inbound handled.
     `countMissedCalls`**, for the reason the counts are shared everywhere else
     here: a badge disagreeing with the screen beside it reads as a bug.
   - It does **not** clear an unmatched row (`call_lead_id` null makes the
-    `exists` false), and it does not touch the repeat-caller case: two
-    businesses account for 19 of the 35 outstanding rows by ringing 14 and 5
-    times. Those are real unanswered calls, not stale state.
+    `exists` false). The repeat-caller case it also left alone is now handled
+    on the write side instead — see below.
+- **Clearing a missed call clears every ring it stands for** (2026-09-22,
+  `2026-09-22-missed-call-burst-clear.sql`). The screen rolls a burst of legs
+  into one row saying "rang 5 times", and the PATCH stamped `handled_at` on the
+  representative leg alone. The other four stayed unhandled, re-grouped into a
+  fresh burst, and the row came straight back saying "rang 4 times" — visible
+  in the data as three presses of the same button at 07:01, 10:03 and 10:04 on
+  one number. 70 legs across 7 numbers were stranded that way.
+  - **Stored, not derived**, which is the opposite call to `RUNG_BACK_SINCE`
+    above and deliberate: `handled_at` is read by the full inbound log and by
+    `handled_by`, so a derived rule would leave the record saying nobody ever
+    dealt with legs somebody did. Hence the one-off backfill, which is safe to
+    run either side of the deploy since the code fix does not depend on it.
+  - **Scoped to the same number *and* the same line.** That pair is what a
+    caller owes: one business reaching two callers is two ring backs. Written
+    `is not distinct from`, because the line is null for a number belonging to
+    nobody and `= null` would silently clear nothing.
+  - **Everything at or before that ring, not just the burst**, which is the
+    rule `RUNG_BACK_SINCE` already applies to a logged outcome: you rang them
+    back, so what they did before that is settled. A ring landing *after* keeps
+    its row, because that is a new attempt to reach us.
+  - **Answered legs are swept up only if they are the row asked for.** An
+    answered call was never owed a ring back and never shows on the screen, so
+    stamping it "handled by" would put something that did not happen in the log.
+  - **The representative row is joined in, never read into JS and bound back.**
+    `started_at` carries milliseconds and the round trip truncated it to the
+    second, so `started_at <= [that]` excluded the representative leg itself and
+    the row cleared one ring short. Caught in testing; the timestamp now never
+    leaves Postgres.
 - **An answered inbound call used to stay in Missed calls for ever** (fixed
   2026-09-16, the guard in `/api/telnyx/webhook`). `answered_at` was set on
   **1 inbound row in 92** on prod, against 38 for `ended_at`. Telnyx does not
