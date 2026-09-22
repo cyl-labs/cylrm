@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2 } from "lucide-react";
+import { Check, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -165,9 +165,12 @@ export function RecordingSheet({
               transcript is worth having. Under the player rather than above
               the list, so it stays put while the words scroll. */}
           {turns !== null && turns.length > 0 && (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Tap any line below to play the call from that moment.
-            </p>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className="text-[11px] text-muted-foreground">
+                Tap any line below to play the call from that moment.
+              </p>
+              <CopyTranscript turns={turns} callerLabel={callerLabel} />
+            </div>
           )}
         </div>
 
@@ -254,5 +257,60 @@ export function RecordingSheet({
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * The whole transcript as plain text, on the clipboard.
+ *
+ * Timestamps included: the reason to take a transcript out of here is to quote
+ * it somewhere — a handover, a Telnyx ticket, a note on a lead — and "at 4:12
+ * he said" is the half that makes a quote checkable against the recording.
+ *
+ * Speakers are named the way the bubbles name them, so a pasted transcript
+ * reads the same as the screen it came from rather than saying "caller" where
+ * the sheet says a person's name.
+ */
+function CopyTranscript({
+  turns,
+  callerLabel,
+}: {
+  turns: TranscriptTurn[];
+  callerLabel: string;
+}) {
+  const [copied, setCopied] = React.useState(false);
+
+  async function copy() {
+    const text = turns
+      .map((t) => {
+        const m = Math.floor(t.start / 60);
+        const s = Math.floor(t.start % 60);
+        const who = t.speaker === "caller" ? callerLabel : "Prospect";
+        return `[${m}:${String(s).padStart(2, "0")}] ${who}: ${t.text}`;
+      })
+      .join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      // Long enough to be seen, short enough that the button is ready again
+      // before somebody wants to paste it a second time.
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // The clipboard is refused on an insecure origin and by some browsers
+      // without a user gesture it recognises. Saying so beats a button that
+      // looks like it worked.
+      toast.error("Could not copy — select the text and copy it by hand.");
+    }
+  }
+
+  return (
+    <Button size="sm" variant="ghost" onClick={copy} className="shrink-0">
+      {copied ? (
+        <Check className="size-3.5 text-success" />
+      ) : (
+        <Copy className="size-3.5" />
+      )}
+      {copied ? "Copied" : "Copy"}
+    </Button>
   );
 }
