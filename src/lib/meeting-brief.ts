@@ -23,6 +23,8 @@ import { sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db } from "@/db";
 import { leadZone } from "@/lib/calls";
+import { transcribeUrl, transcriptionConfigured } from "@/lib/deepgram";
+import { recordingDownloadUrl } from "@/lib/telnyx";
 import type { TranscriptTurn } from "@/db/schema";
 
 const API = "https://api.openai.com/v1/chat/completions";
@@ -70,6 +72,17 @@ export type BriefSource = {
   /** Newest last, as `speaker: text` lines. */
   transcript: string | null;
   transcriptMinutes: number | null;
+  /**
+   * Whether a recording exists at all, which is a different question from
+   * whether there is a transcript.
+   *
+   * Conflating the two is what the first version got wrong: two upcoming demos
+   * showed "No recording or notes from the booking call" when both had one —
+   * 6.2 and 8.0 minutes — that simply had not been transcribed. A brief that
+   * says the call was never recorded, when it is sitting there, sends somebody
+   * looking for a fault that does not exist.
+   */
+  hasRecording: boolean;
   /** The lead's call outcomes, oldest first — "what has happened to this
    *  business so far", which a transcript of one call cannot say. */
   history: string[];
@@ -124,6 +137,7 @@ export async function briefSources(
       bc.notes as notes,
       cr.transcript_turns as turns,
       cr.transcript_text as transcript_text,
+      cr.recording_id as recording_id,
       cr.duration_ms as duration_ms,
       m.call_lead_id as lead_id
     from call_meeting m
@@ -180,10 +194,89 @@ export async function briefSources(
       notes: ((r.notes as string | null) ?? "").trim() || null,
       transcript,
       transcriptMinutes: ms === null ? null : Math.round((ms / 60_000) * 10) / 10,
+      hasRecording: Boolean(r.recording_id),
       history: history.get(id) ?? [],
     });
   }
   return out;
+}
+
+/**
+ * Transcribe the booking calls that have a recording and no transcript yet.
+ *
+ * Transcription is otherwise on demand, because it is billed per minute and
+ * transcribing every dial would be a standing bill for text nobody reads. The
+ * briefing is the case where somebody *is* going to read it: these are the
+ * handful of calls behind demos that are actually in the diary, and without
+ * this the brief for one of them is a shrug.
+ *
+ * Bounded by the upcoming meetings, so the worst run is a dozen or so — and
+ * only ever the first time, since the transcript is stored on the recording
+ * and belongs to the call log afterwards as much as to this page.
+ *
+ * Every failure is swallowed on purpose. A recording Telnyx has since expired,
+ * or one Deepgram cannot read, must leave the other thirteen briefs written:
+ * the brief for that meeting then says a recording exists and could not be
+ * read, which is true and is not the same sentence as "there is no recording".
+ *
+ * Returns how many were newly transcribed, for the message the button shows.
+ */
+export async function ensureTranscripts(
+  meetingIds: number[],
+): Promise<{ transcribed: number; failed: number }> {
+  if (meetingIds.length === 0 || !transcriptionConfigured()) {
+    return { transcribed: 0, failed: 0 };
+  }
+
+  const rows = (await db.execute(sql`
+    select distinct cr.recording_id
+    from call_meeting m
+    join "call" bc on bc.id = m.call_id
+    join call_recording cr on cr.call_session_id = bc.telnyx_session_id
+    where m.id in (${sql.join(
+      meetingIds.map((id) => sql`${id}`),
+      sql`, `,
+    )})
+      and cr.transcript_text is null
+  `)) as unknown as Record<string, unknown>[];
+
+  const ids = rows.map((r) => String(r.recording_id));
+  if (ids.length === 0) return { transcribed: 0, failed: 0 };
+
+  let transcribed = 0;
+  let failed = 0;
+  // Two at a time. Deepgram is given a URL and fetches the audio itself, so
+  // this is mostly waiting — but a burst of presigned Telnyx links all being
+  // pulled at once is the kind of thing that starts failing in ways that look
+  // like the feature being broken.
+  const queue = [...ids];
+  async function worker() {
+    for (;;) {
+      const id = queue.shift();
+      if (id === undefined) return;
+      try {
+        const url = await recordingDownloadUrl(id);
+        if (!url) throw new Error("Telnyx has no download for that recording.");
+        const transcript = await transcribeUrl(url);
+        // Through Drizzle, never the raw postgres client: that one JSON-encodes
+        // a parameter bound to jsonb and would store a string where the reader
+        // expects an array, which fails silently and only on read.
+        await db.execute(sql`
+          update call_recording
+          set transcript_text = ${transcript.text},
+              transcript_turns = ${JSON.stringify(transcript.turns)}::jsonb,
+              transcribed_at = now()
+          where recording_id = ${id}
+        `);
+        transcribed += 1;
+      } catch (err) {
+        console.error("[meeting-brief] transcribe failed", id, err);
+        failed += 1;
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(2, ids.length) }, worker));
+  return { transcribed, failed };
 }
 
 /** One upcoming demo as the briefing document renders it. */
@@ -327,7 +420,9 @@ function userPrompt(s: BriefSource): string {
   parts.push(
     s.transcript
       ? `\nTranscript of the booking call${s.transcriptMinutes ? ` (${s.transcriptMinutes} min)` : ""}:\n${s.transcript}`
-      : "\nThere is no transcript of the booking call.",
+      : s.hasRecording
+        ? "\nThe booking call was recorded but the recording could not be transcribed."
+        : "\nThe booking call was not recorded.",
   );
   return parts.join("\n");
 }
@@ -343,9 +438,14 @@ export async function writeBrief(source: BriefSource): Promise<string> {
   if (!key) throw new Error("No OPENAI_API_KEY is configured on this server.");
 
   // Nothing to read is answered here rather than being sent to a model to be
-  // answered at a cost of one request per empty meeting.
+  // answered at a cost of one request per empty meeting. The two empty cases
+  // are different facts and must not share a sentence: "there is no
+  // recording" sends somebody looking for a fault, and is wrong whenever the
+  // recording is sitting there unread.
   if (!source.transcript && !source.notes) {
-    return "- No recording or notes from the booking call.";
+    return source.hasRecording
+      ? "- The booking call was recorded but could not be transcribed — open the recording on the meeting row to listen."
+      : "- No recording of the booking call, and the caller left no notes.";
   }
 
   const res = await fetch(API, {

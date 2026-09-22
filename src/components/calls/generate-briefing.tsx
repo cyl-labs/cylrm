@@ -44,6 +44,7 @@ export function GenerateBriefing({
         error?: string;
         written?: number;
         reused?: number;
+        transcribed?: number;
         failed?: { company: string }[];
       } | null;
       if (!res.ok) {
@@ -51,12 +52,18 @@ export function GenerateBriefing({
         return;
       }
       const written = data?.written ?? 0;
+      const transcribed = data?.transcribed ?? 0;
       const failed = data?.failed ?? [];
       if (written === 0 && failed.length === 0) {
         toast.success("Already up to date — nothing has changed.");
       } else {
         toast.success(
           `Wrote ${written} ${written === 1 ? "brief" : "briefs"}.` +
+            // Worth saying: it is the slow part, and it is the one thing here
+            // that spends money on something other than the briefs.
+            (transcribed
+              ? ` Transcribed ${transcribed} ${transcribed === 1 ? "call" : "calls"} first.`
+              : "") +
             (data?.reused ? ` ${data.reused} already up to date.` : ""),
         );
       }
@@ -85,6 +92,8 @@ export function GenerateBriefing({
         />
         {busy === "new"
           ? "Reading the calls…"
+          : busy === "all"
+            ? "Rewriting…"
           : todo > 0
             ? `Write ${todo} ${todo === 1 ? "brief" : "briefs"}`
             : "Check for new calls"}

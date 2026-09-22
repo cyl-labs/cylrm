@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import {
   briefConfigured,
   briefSources,
+  ensureTranscripts,
   fingerprint,
   writeBrief,
 } from "@/lib/meeting-brief";
@@ -62,6 +63,14 @@ export async function POST(request: Request) {
   if (ids.length === 0) {
     return Response.json({ briefs: [], written: 0, reused: 0, failed: [] });
   }
+
+  // First: read any booking call that was recorded and never transcribed.
+  // Transcription is on demand everywhere else because it is billed per
+  // minute — this is the one place somebody is definitely going to read it,
+  // and without it the brief for that demo is a shrug. Before `briefSources`,
+  // so the transcripts written here are the ones the briefs are built from
+  // and the fingerprint covers them.
+  const transcripts = await ensureTranscripts(ids);
 
   const sources = await briefSources(ids);
 
@@ -138,5 +147,12 @@ export async function POST(request: Request) {
     Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker),
   );
 
-  return Response.json({ written, reused, failed, total: ids.length });
+  return Response.json({
+    written,
+    reused,
+    failed,
+    total: ids.length,
+    transcribed: transcripts.transcribed,
+    transcribeFailed: transcripts.failed,
+  });
 }

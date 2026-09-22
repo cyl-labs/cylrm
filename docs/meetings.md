@@ -85,6 +85,53 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
     every other date here. The line already carries the start time, the
     prospect's clock and who booked it; "when did we agree this" is a question
     a day answers.
+
+### The demo briefing (2026-09-22)
+
+`/meetings/brief`, founders only. `lib/meeting-brief.ts` gathers and writes,
+`POST /api/meetings/brief` generates, `call_meeting_brief` stores, schema in
+`2026-09-22-meeting-brief.sql` (**applied before the deploy**).
+
+Asked for as "a summary of each of the booked meetings that are coming up — it
+will be useful to know the context of each call in a document". The person
+taking a demo is usually not the caller who booked it.
+
+- **The transcript is the source, not the notes, and that was a measurement
+  rather than a preference.** On the 14 upcoming meetings the day it was
+  built: **3 had handover notes**, 210 characters on average, while **13 had a
+  recording and 11 were already transcribed**. A briefing built on `notes`
+  would have been three-fourteenths of a document. The notes are still shown,
+  under the brief and unsummarised — somebody chose to type those mid-call,
+  which is worth more per word than anything said in passing, and a summary
+  must not be the only place they survive.
+- **Nothing is regenerated that has not changed.** Each row stores
+  `source_fingerprint`, a hash of exactly the material the brief was written
+  from — transcript, notes, the lead's call outcomes. Reopening the document
+  writes nothing; logging another call moves the hash and the page says that
+  entry is stale rather than quietly showing a brief that predates the last
+  conversation. Measured live: first press wrote 14 in 6.8s, second press
+  reused 14 and spent nothing.
+- **A meeting with no recording and no notes never reaches the model.**
+  `writeBrief` answers it directly, so fourteen empty bookings would cost
+  fourteen nothing rather than fourteen requests. One of the fourteen was
+  exactly that case.
+- **The prompt's rules are each there to stop one failure**, and are written
+  out in the file: say "not said on the call" rather than infer, quote the
+  prospect for anything that sounds like a commitment, give no advice. The
+  reader is about to repeat this back to the prospect, and a guessed van count
+  reads exactly like a known one.
+- `gpt-4.1-mini` and plain `fetch`, the same model and shape as
+  `objection-match.ts` — already the measured choice here for reading call
+  transcripts, already configured. Speed matters less than it does on a live
+  call: this runs on a button press.
+- **Its own page, not a fold on the list.** The list is a worklist — ring
+  them, log it, draft a contract — and this is reading material. It is built
+  to print, which is most of what "in a document" asked for; Gotenberg is
+  there if a PDF is ever wanted, the way the SOP handouts use it.
+- Four at a time rather than all at once: fourteen sequential is half a minute
+  of somebody watching a spinner, fourteen at once is a burst OpenAI may rate
+  limit. A failure is reported **by name** — "1 failed" tells nobody which
+  demo they are about to walk into unbriefed.
 - **Server-rendered, every control a URL**, like `CallCalendar`: nothing for the
   browser to do, the back button works, and a pasted link opens on what its
   sender was looking at. `tz` is carried across a view switch and a month turn,
