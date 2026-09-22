@@ -143,6 +143,24 @@ taking a demo is usually not the caller who booked it.
   them, log it, draft a contract — and this is reading material. It is built
   to print, which is most of what "in a document" asked for; Gotenberg is
   there if a PDF is ever wanted, the way the SOP handouts use it.
+- **A demo stays on the briefing until its outcome is logged** (2026-09-22,
+  `briefScope`). It shipped as `start_at > now()` and that was wrong the first
+  evening: a founder at 9pm found the 9pm demo gone from the page before they
+  had made the call — the one moment the page is meant to be open. The scope
+  is now everything ahead **plus anything whose time has passed that nobody
+  has recorded an outcome for**, bounded at `UNLOGGED_DAYS` (7), the same
+  window `needsRingBack` uses. Those sort to the top by themselves, since
+  diary order puts a started demo before the ones still to come, and carry a
+  **Not logged yet** chip — a time in the past with no explanation reads as
+  the page being out of date rather than as work outstanding.
+  - "Logged" is an attendance row marked at or after the booking, the same
+    test the Meetings screen uses. **Not the pipeline**, for the reason
+    `docs/payroll.md` gives: a prospect who turned up and declined is settled,
+    and Lost covers both "no-showed twice" and "showed up and we failed".
+  - **One fragment, used by the page and by the route that writes the
+    briefs.** A demo the page shows must always be one the button can brief,
+    and two copies of that predicate is how the page comes to list something
+    that can never be filled in.
 - Four at a time rather than all at once: fourteen sequential is half a minute
   of somebody watching a spinner, fourteen at once is a burst OpenAI may rate
   limit. A failure is reported **by name** — "1 failed" tells nobody which
