@@ -1,6 +1,6 @@
 import { LogOut } from "lucide-react";
 import { countUnreadReplies } from "@/lib/replies";
-import { countCallbacksDue } from "@/lib/calls";
+import { countCallbacksDue, getSavedLines } from "@/lib/calls";
 import { countMissedCalls } from "@/lib/inbound";
 import { countMeetingsWaitingFor } from "@/lib/meetings";
 import { callScope, getCurrentUser, isSwitchedOff } from "@/lib/session";
@@ -143,7 +143,17 @@ export default async function AppLayout({
       {/* Draws the call on every screen that is not a calling screen: a
           prospect ringing back, and a call still in progress after somebody
           has navigated away from the dial card. */}
-      {reachable && <InboundListener />}
+      {/* The saved lines and the number to dial them from, so the agent can be
+          conferenced in from any screen and not only the three that render a
+          dial card. `getSavedLines` is one small indexed read of `call_number`
+          and is `cache`d, so it does not break the rule about queries that
+          render with every page. */}
+      {reachable && (
+        <InboundListener
+          savedLines={await getSavedLines()}
+          dialFrom={row?.telnyx_did ?? null}
+        />
+      )}
     </div>
     </CallLineProvider>
     </LinePresence>

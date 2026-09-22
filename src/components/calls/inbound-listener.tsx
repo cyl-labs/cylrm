@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Mic, MicOff, PhoneOff } from "lucide-react";
+import { Merge, Mic, MicOff, PhoneCall, PhoneOff } from "lucide-react";
 import { useCallLine } from "./call-line";
 import { IncomingCall } from "./incoming-call";
 import { useLineClaimed } from "./line-presence";
+import { e164 } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,7 +28,17 @@ import { cn } from "@/lib/utils";
  * The line itself is not held here any more. `CallLineProvider` owns it, which
  * is what stops a navigation tearing the call down; this only renders it.
  */
-export function InboundListener() {
+export function InboundListener({
+  savedLines = [],
+  dialFrom = null,
+}: {
+  /** The numbers worth a button mid-call — the voice agent, chiefly. Passed
+   *  from the layout so conferencing works from any screen, not only the
+   *  three that render a dial card. */
+  savedLines?: { phoneNumber: string; label: string }[];
+  /** The caller's own number, which a second leg has to be dialled from. */
+  dialFrom?: string | null;
+} = {}) {
   const { line, live } = useCallLine();
   // A calling screen is showing its own call UI. Not about registration any
   // more — there is one line now — purely about who draws it.
@@ -50,7 +61,9 @@ export function InboundListener() {
         </div>
       )}
 
-      {onCall && !line.incoming && <OngoingCallBar line={line} />}
+      {onCall && !line.incoming && (
+        <OngoingCallBar line={line} savedLines={savedLines} dialFrom={dialFrom} />
+      )}
     </>
   );
 }
@@ -59,7 +72,15 @@ export function InboundListener() {
  *  dialler: how long they have been on, mute, and hang up. Deliberately not a
  *  copy of the dial card — the card is where a call is *worked*, and this is
  *  what is left when you have walked away from it. */
-function OngoingCallBar({ line }: { line: ReturnType<typeof useCallLine>["line"] }) {
+function OngoingCallBar({
+  line,
+  savedLines,
+  dialFrom,
+}: {
+  line: ReturnType<typeof useCallLine>["line"];
+  savedLines: { phoneNumber: string; label: string }[];
+  dialFrom: string | null;
+}) {
   const mins = Math.floor(line.seconds / 60);
   const secs = String(line.seconds % 60).padStart(2, "0");
 
@@ -76,6 +97,44 @@ function OngoingCallBar({ line }: { line: ReturnType<typeof useCallLine>["line"]
         <span className="text-[13px] font-bold tabular-nums text-muted-foreground">
           {mins}:{secs}
         </span>
+        {/* The agent, from wherever you happen to be standing.
+            Conferencing used to live only on the dial card, the Keypad and
+            the Meetings row, so walking to any other screen mid-call — the
+            briefing, Callbacks, Stats — left you able to talk and hang up but
+            not to merge. The call survives the navigation by design; the one
+            control the call is *for* did not go with it.
+            Only while there is a second leg and it is not already merged:
+            with nothing to join this is a button that does nothing. */}
+        {line.second ? (
+          !line.merged && (
+            <button
+              type="button"
+              onClick={line.merge}
+              disabled={line.merging}
+              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+            >
+              <Merge className="size-3.5" strokeWidth={2.4} />
+              {line.merging ? "Merging…" : "Merge"}
+            </button>
+          )
+        ) : (
+          // Nothing dialled yet, so offer the lines worth a button — the same
+          // set the dial card offers, which in practice is the voice agent.
+          // Only with a number to dial them from: a second leg needs the
+          // caller's own DID, and without it this would fail on the press.
+          dialFrom &&
+          savedLines.slice(0, 2).map((l) => (
+            <button
+              key={l.phoneNumber}
+              type="button"
+              onClick={() => line.addCall(e164(l.phoneNumber) ?? l.phoneNumber, dialFrom)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors hover:bg-muted"
+            >
+              <PhoneCall className="size-3.5" strokeWidth={2.4} />
+              {l.label}
+            </button>
+          ))
+        )}
         <button
           type="button"
           onClick={line.toggleMute}

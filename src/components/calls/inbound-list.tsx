@@ -423,6 +423,7 @@ export function InboundList({
                       to={c.from}
                       from={c.to}
                       leadId={c.leadId}
+                      rowKey={`inbound:${c.id}`}
                       blocked={c.dncBlock}
                       note={`They rang ${c.forName ? `${c.forName}'s line` : "us"} and nobody picked up.`}
                       label="Call back"

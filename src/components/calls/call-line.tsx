@@ -139,6 +139,23 @@ type CallLineValue = {
    */
   activeLeadId: number | null;
   /**
+   * Which *row* dialled, where `activeLeadId` is which lead.
+   *
+   * Two different questions. A prospect who booked twice has one lead and two
+   * rows, and a booking that matched no lead has a row and no lead at all — so
+   * the Meetings row cannot work out from the lead whether the call is its
+   * own. It held that in local state until 2026-09-22, which a navigation
+   * threw away: walk to another screen mid-call and back, and the row had
+   * forgotten the call was its, so it fell through to a disabled "On a call"
+   * button with no way left to merge the agent in. It lives here because the
+   * provider is the one thing that survives a page change.
+   *
+   * A string rather than an id, because the rows that dial are not all
+   * meetings — Missed calls dials from the same button — and two tables'
+   * ids would collide.
+   */
+  activeRowKey: string | null;
+  /**
    * The lead the *last* call was to, live or just finished.
    *
    * Kept after the call ends, where `activeLeadId` is cleared, because the
@@ -167,6 +184,9 @@ type CallLineValue = {
   sessionFor: (leadId: number) => { sessionId: string; seconds: number } | null;
   /** Called by the dialler as it dials a lead. */
   setActiveLead: (leadId: number | null) => void;
+  /** Claimed by the booking row that dialled, so it can find its own call
+   *  again after a navigation. Cleared with the call. */
+  setActiveRow: (key: string | null) => void;
   /**
    * Forget the call this tab placed to a lead.
    *
@@ -222,6 +242,7 @@ export function CallLineProvider({
   const line = useTelnyxCall(REMOTE_AUDIO_ID, enabled && leader, SECOND_AUDIO_ID);
 
   const [activeLeadId, setActiveLeadId] = React.useState<number | null>(null);
+  const [activeRowKey, setActiveRowKey] = React.useState<string | null>(null);
   const [lastLeadId, setLastLeadId] = React.useState<number | null>(null);
 
   const firstLeg = React.useRef<Leg | null>(null);
@@ -331,6 +352,7 @@ export function CallLineProvider({
       // The call is over, so it belongs to nobody: a stale id would send the
       // dialler to a lead nobody is talking to.
       setActiveLeadId(null);
+      setActiveRowKey(null);
     }
   }, [busy]);
   React.useEffect(() => {
@@ -353,6 +375,7 @@ export function CallLineProvider({
       line,
       live: enabled && leader,
       activeLeadId,
+      activeRowKey,
       lastLeadId,
       sessionFor: (leadId) => {
         // The ref first, then what the tab wrote down. They agree except
@@ -374,6 +397,7 @@ export function CallLineProvider({
         }
         setLastLeadId((id) => (id === leadId ? null : id));
       },
+      setActiveRow: setActiveRowKey,
       setActiveLead: (leadId) => {
         setActiveLeadId(leadId);
         // Whose call the line is carrying, for as long as the line remembers
@@ -388,7 +412,7 @@ export function CallLineProvider({
         secondLeg.current = { ...meta, addedToCall: true, sessionId: null, seconds: 0 };
       },
     }),
-    [line, enabled, leader, activeLeadId, lastLeadId],
+    [line, enabled, leader, activeLeadId, activeRowKey, lastLeadId],
   );
 
   return (

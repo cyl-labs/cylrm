@@ -43,6 +43,7 @@ export function MeetingCallButton({
   to,
   from,
   leadId,
+  rowKey,
   blocked,
   note,
   label,
@@ -56,6 +57,10 @@ export function MeetingCallButton({
   /** Ours to ring from -- the signed-in person's own number. */
   from: string | null;
   leadId: number | null;
+  /** Identifies this row across a navigation — "meeting:12" or "inbound:34".
+   *  What the row claims while it is on the call, so it can find its own call
+   *  again after the component has been unmounted and remounted. */
+  rowKey: string;
   /** Why this number may not be rung at all, or null. */
   blocked: string | null;
   /** Shown in the confirmation, so the demo time is in front of you. */
@@ -67,7 +72,8 @@ export function MeetingCallButton({
   className?: string;
 }) {
   const lines = linesProp ?? [];
-  const { line, live, setActiveLead } = useCallLine();
+  const { line, live, setActiveLead, activeRowKey, setActiveRow } =
+    useCallLine();
   const [asking, setAsking] = React.useState(false);
   /**
    * This row is the one on the call.
@@ -76,13 +82,22 @@ export function MeetingCallButton({
    * would put the controls on both rows of a prospect who booked twice — and
    * on none at all for a booking that matched no lead.
    */
-  const [dialled, setDialled] = React.useState(false);
+  /**
+   * This row is the one on the call.
+   *
+   * Read from the provider rather than held here. As local state a navigation
+   * threw it away: walking to another screen mid-call and back left the row
+   * showing a disabled "On a call" button with no way to merge the agent in,
+   * because it no longer knew the call was its own.
+   */
+  const dialled = activeRowKey === rowKey;
   const [adding, setAdding] = React.useState(false);
   const [secondName, setSecondName] = React.useState<string | null>(null);
   // Cleared when the call ends, during render rather than in an effect —
   // React's own way of adjusting state when something it derives from changes.
-  if (dialled && line.state === "idle") {
-    setDialled(false);
+  // `dialled` clears itself: the provider drops `activeMeetingId` when the
+  // call ends. Only this row's own scratch state needs resetting.
+  if (!dialled && (adding || secondName !== null)) {
     setAdding(false);
     setSecondName(null);
   }
@@ -226,7 +241,7 @@ export function MeetingCallButton({
           // this lead — which is what lets an outcome logged afterwards pick up
           // the recording instead of orphaning it.
           if (leadId !== null) setActiveLead(leadId);
-          setDialled(true);
+          setActiveRow(rowKey);
           line.reset();
           line.dial(to!, from!);
         }}
