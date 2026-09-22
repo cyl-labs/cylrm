@@ -279,6 +279,49 @@ export async function ensureTranscripts(
   return { transcribed, failed };
 }
 
+/**
+ * How long a demo nobody has logged stays on the briefing.
+ *
+ * The same window the ring-back rule uses, because it is the same question:
+ * a booking whose time has passed and whose outcome nobody has recorded is
+ * still owed something. Beyond a week it is not a demo you are about to walk
+ * into, it is a record to tidy, and the Meetings screen is where that is done.
+ */
+const UNLOGGED_DAYS = 7;
+
+/**
+ * Which demos the briefing covers.
+ *
+ * Everything still ahead, **plus anything whose time has passed that nobody
+ * has said what happened to yet**. It shipped as `start_at > now()` alone and
+ * that was wrong the first evening: a founder at 9pm found the 9pm demo gone
+ * from the page before they had made the call — the one moment the briefing
+ * is meant to be open.
+ *
+ * "Logged" is an attendance row marked at or after the booking, which is the
+ * same test `needsRingBack` and `needsFollowUp` use in `lib/meetings.ts`.
+ * Following the pipeline instead would be wrong for the reason documented
+ * there: a prospect who turned up and declined is settled, and a lead sitting
+ * at Lost covers both "no-showed twice" and "showed up and we failed".
+ *
+ * One fragment, used by the page and by the route that writes the briefs, so
+ * a demo the page shows can always be briefed.
+ */
+export const briefScope = sql`
+  m.status = 'accepted'
+  and (
+    m.start_at > now()
+    or (
+      m.start_at > now() - make_interval(days => ${UNLOGGED_DAYS}::int)
+      and not exists (
+        select 1 from call_demo_attendance a
+        where a.call_lead_id = m.call_lead_id
+          and a.marked_at >= m.start_at
+      )
+    )
+  )
+`;
+
 /** One upcoming demo as the briefing document renders it. */
 export type BriefedMeeting = {
   meetingId: number;
@@ -299,6 +342,9 @@ export type BriefedMeeting = {
    *  call logged, or the recording transcribed. The document says so rather
    *  than quietly showing a brief that predates the last conversation. */
   stale: boolean;
+  /** Its time has passed and nobody has said what happened. The reason it is
+   *  still on the page, so the page has to say so. */
+  waiting: boolean;
 };
 
 /**
@@ -327,7 +373,8 @@ export async function getBriefedMeetings(): Promise<BriefedMeeting[]> {
         case when m.created_at < m.start_at then m.created_at end
       ) as booked_at,
       bc.notes as notes,
-      b.summary, b.generated_at, b.source_fingerprint
+      b.summary, b.generated_at, b.source_fingerprint,
+      (m.start_at <= now()) as waiting
     from call_meeting m
     left join call_lead l on l.id = m.call_lead_id
     left join call_list cl on cl.id = l.call_list_id
@@ -335,7 +382,9 @@ export async function getBriefedMeetings(): Promise<BriefedMeeting[]> {
     left join app_user bu on bu.id = bc.user_id
     left join call_meeting_brief b on b.meeting_id = m.id
     ${leadZone}
-    where m.status = 'accepted' and m.start_at > now()
+    where ${briefScope}
+    -- Diary order, which puts anything overdue at the top by itself: the
+    -- demo nobody has logged started before the ones still to come.
     order by m.start_at asc
   `)) as unknown as Record<string, unknown>[];
 
@@ -367,6 +416,7 @@ export async function getBriefedMeetings(): Promise<BriefedMeeting[]> {
         ? new Date(r.generated_at as string).toISOString()
         : null,
       stale: Boolean(r.summary) && (!source || !fp || fingerprint(source) !== fp),
+      waiting: Boolean(r.waiting),
     };
   });
 }

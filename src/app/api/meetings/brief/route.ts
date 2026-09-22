@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
 import {
   briefConfigured,
+  briefScope,
   briefSources,
   ensureTranscripts,
   fingerprint,
@@ -51,12 +52,13 @@ export async function POST(request: Request) {
   } | null;
   const force = body?.force === true;
 
-  // The same set the screen calls upcoming: accepted demos still ahead of us.
-  // Cancelled ones are not walked into and a past one needs no briefing.
+  // Exactly what the page shows, through the one shared fragment: everything
+  // ahead, plus anything whose time has passed that nobody has logged. A demo
+  // visible on the page must always be one this can write a brief for.
   const upcoming = (await db.execute(sql`
-    select id from call_meeting
-    where status = 'accepted' and start_at > now()
-    order by start_at asc
+    select m.id from call_meeting m
+    where ${briefScope}
+    order by m.start_at asc
   `)) as unknown as Record<string, unknown>[];
   const ids = upcoming.map((r) => Number(r.id));
 

@@ -41,6 +41,7 @@ export default async function BriefPage() {
 
   const stale = meetings.filter((m) => m.stale).length;
   const missing = meetings.filter((m) => !m.summary).length;
+  const waiting = meetings.filter((m) => m.waiting).length;
 
   // Pinned zone and locale, never the browser's: the droplet runs UTC and the
   // team reads from Singapore, so an unpinned format renders one string on the
@@ -74,10 +75,19 @@ export default async function BriefPage() {
         </Link>
 
         <p className="mb-5 max-w-3xl text-[13px] text-muted-foreground">
-          What was said on the call that won each upcoming demo, read off the
-          recording. {meetings.length}{" "}
-          {meetings.length === 1 ? "demo" : "demos"} booked, times in{" "}
+          What was said on the call that won each demo, read off the recording.{" "}
+          {meetings.length} {meetings.length === 1 ? "demo" : "demos"}, times in{" "}
           <span className="font-semibold text-foreground">{zone.name}</span>.
+          {waiting > 0 && (
+            <>
+              {" "}
+              <span className="font-semibold text-foreground">
+                {waiting} {waiting === 1 ? "has" : "have"} been and gone without
+                an outcome logged
+              </span>{" "}
+              — those stay here until you log them on Meetings.
+            </>
+          )}{" "}
           Written
           by a machine from the transcript, so check anything you are about to
           repeat back to them — and print this page if you want it on paper.
@@ -109,6 +119,14 @@ export default async function BriefPage() {
                       <span className="font-semibold text-muted-foreground">
                         {" · "}
                         {their} their time
+                      </span>
+                    )}
+                    {/* Why it is still here after its time. Said on the row
+                        rather than left to be inferred from a time in the
+                        past, which reads as the page being out of date. */}
+                    {m.waiting && (
+                      <span className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-amber-700 dark:text-amber-400">
+                        Not logged yet
                       </span>
                     )}
                   </p>
