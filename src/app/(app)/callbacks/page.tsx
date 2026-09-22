@@ -34,13 +34,18 @@ export default async function CallbacksPage({
    * their own lists by `callScope` either way.
    */
   const mine = isAdmin && who === "mine";
-  const scope = mine ? me.id : callScope(me);
-  const lists = await getCallLists(scope);
+  // Lists are always the reader's scope; only the callbacks narrow to the ones
+  // this person promised.
+  const lists = await getCallLists(callScope(me));
 
   const wanted = Number(list);
   const listId = lists.some((l) => l.id === wanted) ? wanted : undefined;
 
-  const leads = await getCallbacks(listId, scope);
+  const leads = await getCallbacks(
+    listId,
+    mine ? undefined : callScope(me),
+    mine ? me.id : undefined,
+  );
   // `due` and `waiting` are decided by the database's clock, not this render's.
   const due = leads.filter((l) => l.due).length;
   const waiting = leads.filter((l) => l.waiting).length;

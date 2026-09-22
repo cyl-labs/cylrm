@@ -68,9 +68,13 @@ export default async function AppLayout({
   // got, and for the same reason: a founder's badge that counts everybody is
   // never zero and so never says "something new for me". `callScope` widens an
   // admin to everything, which is right for the screen and wrong for a badge.
-  const callbacks = await countCallbacksDue(
-    me?.role === "admin" ? me.id : callScope(me),
-  );
+  const callbacks =
+    me?.role === "admin"
+      ? // Their own promised follow-ups, wherever the lead sits. A founder owns
+        // barely any lists, and after a demo the callback they agreed lands on
+        // the caller's niche — so "lists I own" would show them nothing.
+        await countCallbacksDue(undefined, me.id)
+      : await countCallbacksDue(callScope(me));
   // Scoped by the number that was rung, not by niche ownership: an inbound
   // call is addressed to a person.
   const missed = await countMissedCalls(me);

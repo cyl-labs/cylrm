@@ -152,6 +152,35 @@ const RETRY_READY = sql`(
  */
 const CALLBACK_DUE = sql`(lc.callback_at is null or lc.callback_at <= now())`;
 
+/**
+ * A callback that is the floor's work rather than a founder's.
+ *
+ * A callback belongs to the niche it is on — that is why Replace moves them
+ * with the list rather than with the person, and it is right for a caller
+ * promising to ring somebody back. It is wrong for a **founder**, who does not
+ * work call lists at all: a follow-up agreed on a demo is theirs to make.
+ *
+ * On 2026-09-22 a founder logged a callback on a lead in Brian's list after
+ * taking the demo. It landed on Brian's work order, locked his niche until it
+ * was done, and he rang the prospect — who hung up on the founder, mid-call,
+ * to answer him. Two people ringing one prospect because the promise was filed
+ * under the niche instead of the person who made it.
+ *
+ * Written as a `not in` against a handful of rows so Postgres evaluates it once
+ * rather than per lead: `getCallLists` is hand-tuned and runs over every lead
+ * on every list.
+ */
+/** `CALLER_PROMISED` as a `where` clause fragment. */
+const CALLER_PROMISED_AND = sql`and (
+  lc.user_id is null
+  or lc.user_id not in (select id from app_user where role = 'admin')
+)`;
+
+const CALLER_PROMISED = sql`(
+  lc.user_id is null
+  or lc.user_id not in (select id from app_user where role = 'admin')
+)`;
+
 /** Somebody answered. Gatekeeper counts: a receptionist is a person, and
  *  getting past one is the job. Mirrors PICKUP in call-stats. */
 const SPOKE_TO = sql`('gatekeeper','callback','not_interested','demo_booked','trial','won','lost')`;
@@ -166,6 +195,7 @@ const SPOKE_TO = sql`('gatekeeper','callback','not_interested','demo_booked','tr
 const latestCall = sql`
   left join lateral (
     select c.outcome, c.called_at, c.callback_at, c.notes, c.telnyx_session_id,
+      c.user_id,
       -- Who made it. Joined here rather than on the outer query so it stays
       -- the *latest* call's caller, not every caller this lead has had.
       (select u.name from app_user u where u.id = c.user_id) as by_name,
@@ -486,6 +516,17 @@ export type CallListSummary = {
 const ownedBy = (ownerId?: number) =>
   ownerId === undefined ? sql`` : sql`and cl.assigned_user_id = ${ownerId}`;
 
+/**
+ * Callbacks one person promised, whoever's niche they sit on.
+ *
+ * The founders' half of the rule `CALLER_PROMISED` states: a caller's callback
+ * belongs to the niche, a founder's belongs to them. Without this a founder's
+ * follow-up after a demo appears on nobody's list — taken off the caller's by
+ * that rule and never added to theirs.
+ */
+const promisedBy = (userId?: number) =>
+  userId === undefined ? sql`` : sql`and lc.user_id = ${userId}`;
+
 export async function getCallLists(
   ownerId?: number,
   /** The clock "today" is counted on — the reader's, from `readerZone`. It was
@@ -567,9 +608,12 @@ export async function getCallLists(
       count(l.id) filter (where lc.outcome = 'won') as won,
       -- Every due callback, closed businesses included; the ones waiting for
       -- them to open are taken off in JS (waitingCallbacksByList).
-      count(l.id) filter (where lc.outcome = 'callback' and ${CALLBACK_DUE}) as callbacks_due,
+      count(l.id) filter (
+        where lc.outcome = 'callback' and ${CALLBACK_DUE} and ${CALLER_PROMISED}
+      ) as callbacks_due,
       count(l.id) filter (
         where lc.outcome = 'callback' and lc.callback_at > now()
+          and ${CALLER_PROMISED}
       ) as callbacks_later,
       coalesce(max(d.duplicates), 0) as duplicates,
       coalesce(max(lcs.calls_logged), 0) as calls_logged
@@ -579,7 +623,7 @@ export async function getCallLists(
     -- The latest call, as latestCall picks it, with the two try counts
     -- TRIED_OUT and RETRY_READY read.
     left join lateral (
-      select c.outcome, c.called_at, c.callback_at,
+      select c.outcome, c.called_at, c.callback_at, c.user_id,
         coalesce(t.unanswered, 0) as unanswered,
         coalesce(t.not_reached, 0) as not_reached
       from call c
@@ -966,6 +1010,9 @@ export type CallbackLead = SheetLead & {
 export async function getCallbacks(
   listId?: number,
   ownerId?: number,
+  /** One person's own promised callbacks, whoever's niche they sit on — the
+   *  founders' view. See `promisedBy`. */
+  mine?: number,
 ): Promise<CallbackLead[]> {
   const inList = listId ? sql`and l.call_list_id = ${listId}` : sql``;
 
@@ -980,6 +1027,10 @@ export async function getCallbacks(
     where l.duplicate_of_lead_id is null
       ${inList}
       ${ownedBy(ownerId)}
+      ${promisedBy(mine)}
+      -- A founder's follow-up after a demo is theirs, not the niche's. Skipped
+      -- when asking for one person's own, where the line above says whose.
+      ${mine === undefined ? CALLER_PROMISED_AND : sql``}
       and lc.outcome = 'callback'
     order by lc.callback_at asc nulls last, l.id asc
     limit ${CALL_SHEET_LIMIT}
@@ -1001,7 +1052,7 @@ export async function getCallbacks(
  *  can ring. Cached because the sidebar and `PageShell` both ask while
  *  rendering one page, the same reason `countUnreadReplies` is. */
 export const countCallbacksDue = cache(
-  async (ownerId?: number): Promise<number> => {
+  async (ownerId?: number, mine?: number): Promise<number> => {
     const [row] = (await db.execute(sql`
       select count(l.id) as n
       from call_lead l
@@ -1011,6 +1062,10 @@ export const countCallbacksDue = cache(
       ${latestCall}
       where l.duplicate_of_lead_id is null
         ${ownedBy(ownerId)}
+        ${promisedBy(mine)}
+        -- A founder's follow-up is not the floor's work. Skipped when asking
+        -- for one person's own, where the filter above has already said whose.
+        ${mine === undefined ? CALLER_PROMISED_AND : sql``}
         and lc.outcome = 'callback'
         and ${CALLBACK_DUE}
     `)) as Row[];
