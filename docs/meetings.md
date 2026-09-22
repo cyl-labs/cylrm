@@ -111,10 +111,25 @@ taking a demo is usually not the caller who booked it.
   entry is stale rather than quietly showing a brief that predates the last
   conversation. Measured live: first press wrote 14 in 6.8s, second press
   reused 14 and spent nothing.
+- **It transcribes the booking call first when nobody has** (`ensureTranscripts`,
+  added the same day after the first version shipped without it). Two upcoming
+  demos read *"No recording or notes from the booking call"* when both had one
+  — 6.2 and 8.0 minutes — that had simply never been transcribed. Transcription
+  stays on demand everywhere else, because it is billed per minute and doing
+  every dial would be a standing bill for text nobody reads; this is the one
+  place somebody is definitely going to read it, it is bounded by the demos
+  actually in the diary, and the transcript belongs to the call log afterwards
+  as much as to this page. Two at a time, and a failure is swallowed per
+  recording so one Telnyx has expired still leaves the other thirteen briefs
+  written.
+- **"No recording" and "not transcribed" are different facts and must not
+  share a sentence.** The first version's did, and it sent somebody looking
+  for a fault that did not exist on a call that was sitting there unread.
+  `hasRecording` is carried on `BriefSource` for exactly this.
 - **A meeting with no recording and no notes never reaches the model.**
   `writeBrief` answers it directly, so fourteen empty bookings would cost
-  fourteen nothing rather than fourteen requests. One of the fourteen was
-  exactly that case.
+  fourteen nothing rather than fourteen requests. One of the fourteen is
+  exactly that case — and it is genuinely unrecorded, not merely unread.
 - **The prompt's rules are each there to stop one failure**, and are written
   out in the file: say "not said on the call" rather than infer, quote the
   prospect for anything that sounds like a commitment, give no advice. The
