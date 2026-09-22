@@ -425,17 +425,42 @@ export function MeetingsList({
     [tz],
   );
 
-  /** Their clock, when it is not ours. What you say the time back to them in
-   *  — the thing the SOP makes a caller work out by hand today. */
+  /**
+   * Their clock, when it is not ours. What you say the time back to them in
+   * — the thing the SOP makes a caller work out by hand today.
+   *
+   * **It names their weekday when their date is not ours** (2026-09-22). A
+   * 3:30 AM Singapore slot is the previous afternoon in Florida, and the row
+   * read "Thu, Sep 24, 3:30 AM SGT · 3:30 PM their time": the hour you say
+   * back to them was right and the day was left to be worked out, on a screen
+   * whose whole point is not making somebody work a time zone out. Only when
+   * it differs — the date beside it already names the day, so repeating it on
+   * every row would bury the rows where it matters.
+   *
+   * The two days are compared as formatted dates rather than by arithmetic on
+   * the instant: the offset between two zones is not a whole number of days
+   * and moves twice a year, which is the mistake `wallClockIn` exists to stop
+   * anyone making again.
+   */
   const theirTime = React.useCallback(
     (iso: string, theirTz: string | null) => {
       if (!theirTz || theirTz === tz) return null;
+      const at = new Date(iso);
       try {
-        return new Intl.DateTimeFormat("en-US", {
+        const dayIn = (zone: string) =>
+          new Intl.DateTimeFormat("en-US", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            timeZone: zone,
+          }).format(at);
+        const opts: Intl.DateTimeFormatOptions = {
           hour: "numeric",
           minute: "2-digit",
           timeZone: theirTz,
-        }).format(new Date(iso));
+        };
+        if (dayIn(theirTz) !== dayIn(tz)) opts.weekday = "short";
+        return new Intl.DateTimeFormat("en-US", opts).format(at);
       } catch {
         // An unrecognised zone off the API is not worth an error boundary.
         return null;
