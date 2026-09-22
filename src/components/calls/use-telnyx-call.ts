@@ -67,6 +67,34 @@ const REGISTER_TRIES = 4;
 const REGISTER_BACKOFF_MS = [2_000, 5_000, 12_000];
 
 /**
+ * How long to wait before coming back after the line drops, once it had been
+ * up. Escalating, unlike the start-up ladder above.
+ *
+ * It was a flat `REGISTER_BACKOFF_MS[0]` — two seconds, every time, forever —
+ * which is right for the case it was written for on 2026-09-22 (a socket that
+ * dies quietly overnight and refuses every inbound call until somebody
+ * reloads) and wrong for any cause that is still there when you come back. A
+ * caller reported the Call back button "constantly flashing between
+ * Connecting… and Call back": that is this loop, registering every two
+ * seconds and being knocked straight off again.
+ *
+ * The usual reason it is still there is a second tab: two SIP registrations on
+ * one credential kick each other in turn, and both tabs then sit in this
+ * retry, each evicting the other every two seconds. `line-presence.tsx` is
+ * what stops that happening in the first place; this is what stops it being a
+ * strobe light if it happens anyway, for a reason we have not thought of.
+ *
+ * The first step stays two seconds, so a genuine one-off drop still comes back
+ * as quickly as it did before.
+ */
+const RECONNECT_BACKOFF_MS = [2_000, 5_000, 12_000, 30_000, 60_000];
+
+/** A line that stayed up this long and then dropped is a fresh outage and
+ *  earns the fast retry again. One that drops seconds after registering is
+ *  being pushed off by something, and escalates instead. */
+const STABLE_MS = 30_000;
+
+/**
  * How the last call ended, kept until the next dial or `reset()`.
  *
  * Exists because a call the network refuses ends in under a second and the
@@ -357,6 +385,11 @@ export function useTelnyxCall(
     // tearing the client down to retry then would drop the conversation.
     let everReady = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    /** Consecutive drops that each came too soon after registering. Reset by a
+     *  connection that held — see `STABLE_MS`. */
+    let outages = 0;
+    /** When the current registration came up, or 0 while it is down. */
+    let readySince = 0;
     /**
      * The client as the watchdog below needs to see it.
      *
@@ -416,6 +449,7 @@ export function useTelnyxCall(
         );
         client.on("telnyx.ready", () => {
           everReady = true;
+          readySince = Date.now();
           // Which room this browser actually registered in. A tab left open
           // across a connection change keeps its old registration, so the call
           // rings a room nobody is in — invisible without this.
@@ -454,17 +488,31 @@ export function useTelnyxCall(
         // the first place.
         const reconnect = (why: string) => {
           if (cancelled || callRef.current) return;
-          console.warn(`[telnyx] line lost (${why}), registering again`);
+          // How long it held before this. A line that was up for a while and
+          // then dropped is a fresh outage and earns the fast retry; one that
+          // drops seconds after registering is being pushed off by something,
+          // and hammering it every two seconds is what turns that into a
+          // flashing button rather than a quiet recovery.
+          const upFor = readySince === 0 ? 0 : Date.now() - readySince;
+          readySince = 0;
+          outages = upFor >= STABLE_MS ? 0 : outages + 1;
+          const wait =
+            RECONNECT_BACKOFF_MS[
+              Math.min(outages, RECONNECT_BACKOFF_MS.length - 1)
+            ];
+          console.warn(
+            `[telnyx] line lost (${why}) after ${Math.round(upFor / 1000)}s up, registering again in ${wait / 1000}s`,
+          );
           setReady(false);
           try {
             client.disconnect();
           } catch {
             // Already down; that is the thing being recovered from.
           }
-          // Attempt 0 again: this is a fresh outage, not a continuation of
-          // the one that may have happened at start-up, and it earns the full
-          // ladder rather than whatever was left of an old one.
-          retry = setTimeout(() => start(0), REGISTER_BACKOFF_MS[0]);
+          // Attempt 0 on the *start-up* ladder either way: this is a fresh
+          // registration, not a continuation of one that failed at boot. Only
+          // the wait before it escalates.
+          retry = setTimeout(() => start(0), wait);
         };
 
         client.on("telnyx.socket.close", () => reconnect("socket closed"));

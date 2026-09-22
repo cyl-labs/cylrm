@@ -46,8 +46,46 @@ const STALE_MS = 3500;
  *  behind the token fetch and the SDK import that follow it. */
 const SETTLE_MS = 300;
 
-const LISTENING = 1;
-const CALLING = 2;
+/**
+ * A backgrounded tab ranks below a visible one.
+ *
+ * Added 2026-09-22, after a caller reported the Call back buttons "popping as
+ * green" while he worked two tabs — copying a prospect's details from one to
+ * log the call in the other. That is the line registering and unregistering
+ * over and over, because `enabled && leader` in `call-line.tsx` gates the whole
+ * SIP registration on winning this election.
+ *
+ * The cause is that the election was decided purely by a 1s heartbeat with a
+ * 3.5s stale timeout, and **browsers throttle timers in hidden tabs** — Chrome
+ * to about once a second, and to once a *minute* after five minutes hidden. So
+ * a backgrounded tab stops beating, every other tab declares it dead inside
+ * 3.5s and takes the line, and the flip reverses whenever a throttled beat
+ * finally lands.
+ *
+ * Worse than a flickering button: in the window where the quiet tab has been
+ * written off but still believes it leads, **both hold a registration** — the
+ * exact state the docblock above says must not happen.
+ *
+ * Ranking hidden below visible fixes it without depending on a throttled timer
+ * to fire at all: the visible tab wins on priority, deterministically. All tabs
+ * hidden still elects one, so a caller who switches to another app keeps their
+ * phone.
+ *
+ * **Two questions, not one, and visibility is a tier inside each rather than an
+ * override.** A screen that can dial still outranks one that is only listening,
+ * exactly as it did — that is what stops a forgotten Callbacks tab holding the
+ * phone while somebody is trying to use the dialler, and what stops a live call
+ * being taken away because another tab came to the front. The first attempt at
+ * this demoted only tabs with `holders === 0` and therefore did nothing at all
+ * on the screens where it bites: `holders > 0` means "a screen that can dial is
+ * mounted", which is Meetings, Texts, Missed calls, the Keypad and the dialler
+ * — most of the Call CRM. Caught by testing the handover rather than by
+ * reading, and the numbers below are the fix.
+ */
+const CALLING_VISIBLE = 4;
+const CALLING_HIDDEN = 3;
+const LISTENING_VISIBLE = 2;
+const LISTENING_HIDDEN = 1;
 
 type Peer = { priority: number; seen: number };
 type Message = { t: "hi" | "beat" | "bye"; id: string; priority: number };
@@ -64,19 +102,41 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
   // moment before the first election. A single tab pays SETTLE_MS for that,
   // which is invisible next to minting a token and importing the SDK.
   const [leader, setLeader] = React.useState(false);
+  // Starts visible, which is what the server rendered and what a tab opened by
+  // hand is. Corrected in the effect below on mount: reading
+  // `document.visibilityState` during render is a hydration mismatch.
+  const [hidden, setHidden] = React.useState(false);
 
   const claim = React.useCallback(() => {
     setHolders((n) => n + 1);
     return () => setHolders((n) => Math.max(0, n - 1));
   }, []);
 
-  const priority = holders > 0 ? CALLING : LISTENING;
+  React.useEffect(() => {
+    const sync = () => setHidden(document.visibilityState === "hidden");
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, []);
+
+  const priority =
+    holders > 0
+      ? hidden
+        ? CALLING_HIDDEN
+        : CALLING_VISIBLE
+      : hidden
+        ? LISTENING_HIDDEN
+        : LISTENING_VISIBLE;
   const priorityRef = React.useRef(priority);
   /** Set by the election below, so a priority change can be announced with
    *  this tab's real identity. Announcing it under any other — an empty id
    *  sorts before every uuid and would win every tie-break — silences the
    *  whole browser. */
   const postRef = React.useRef<((t: Message["t"]) => void) | null>(null);
+  /** Same idea, so a tab that has just changed priority can stand down at once
+   *  rather than waiting for its own next beat — which, on the tab that has
+   *  just been hidden, is the very timer the browser has throttled. */
+  const electRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     // No BroadcastChannel means no way to ask, so this tab behaves as it did
@@ -119,6 +179,7 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
       }
       setLeader(win);
     };
+    electRef.current = elect;
 
     channel.onmessage = (e: MessageEvent<Message>) => {
       const m = e.data;
@@ -154,16 +215,23 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
       window.removeEventListener("pagehide", leave);
       leave();
       postRef.current = null;
+      electRef.current = null;
       channel.close();
     };
   }, []);
 
   // Tell the other tabs the moment this one opens or leaves a calling screen,
-  // rather than at the next beat: that is the handover, and a second of an
-  // unregistered dialler is a second the caller cannot dial.
+  // or is hidden or shown, rather than at the next beat: that is the handover,
+  // and a second of an unregistered dialler is a second the caller cannot dial.
+  //
+  // Elects as well as announces. Telling the others is only half of a handover
+  // — a tab that has just been backgrounded has to stand down itself, and its
+  // own beat is exactly the timer the browser has throttled, so waiting for
+  // that is waiting up to a minute while two tabs both hold a registration.
   React.useEffect(() => {
     priorityRef.current = priority;
     postRef.current?.("beat");
+    electRef.current?.();
   }, [priority]);
 
   const value = React.useMemo(

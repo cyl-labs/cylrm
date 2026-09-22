@@ -363,6 +363,53 @@ Not built and not optional before volume dialling: a recorded-line announcement
 in the opener (recording is per-profile, so there is no per-call toggle and no
 beep), a retention period, and Singapore DNC scrubbing.
 
+### Two tabs made the Call back button strobe (2026-09-22)
+
+Reported as the button "constantly flashing between Connecting… and Call back",
+by a caller working two tabs — copying a prospect's details out of one to log
+the call in the other. Two bugs compounding, and both are fixed.
+
+- **`line-presence.tsx` decided the election purely on a 1s heartbeat with a
+  3.5s stale timeout, and browsers throttle timers in hidden tabs** — Chrome to
+  about once a second, and to once a *minute* after five minutes hidden. The
+  backgrounded tab stopped beating, the other declared it dead inside 3.5s and
+  took the line, and the flip reversed whenever a throttled beat landed. In the
+  gap, **both tabs held a registration** — the exact state that file exists to
+  prevent, and which Telnyx answers by knocking one off.
+  - Fixed by ranking a hidden tab **below** a visible one, so the visible tab
+    wins on priority rather than on whether a throttled timer happened to fire.
+  - **Visibility is a tier inside each class, not an override**, and the first
+    attempt got this wrong: it demoted only tabs with `holders === 0`, which
+    does nothing on the screens where it bites. `holders > 0` means "a screen
+    that can dial is mounted" — Meetings, Texts, Missed calls, the Keypad and
+    the dialler, so most of the Call CRM. The four ranks are
+    `CALLING_VISIBLE` > `CALLING_HIDDEN` > `LISTENING_VISIBLE` >
+    `LISTENING_HIDDEN`. A dialler tab still outranks a listening one even when
+    hidden, so switching apps mid-call cannot hand the line away.
+  - A priority change now **elects as well as announces**. Telling the other
+    tabs is half a handover; the tab that has just been hidden has to stand
+    down itself, and its own beat is precisely the throttled timer.
+- **`use-telnyx-call.ts` retried a dropped line at a flat 2 seconds, forever.**
+  Right for the case it was written for the same day — a socket that dies
+  quietly and refuses every inbound call until somebody reloads — and wrong for
+  any cause that is still there when you come back: two tabs evicting each
+  other every two seconds is what turns that into a strobe. `RECONNECT_BACKOFF_MS`
+  now escalates 2s → 5s → 12s → 30s → 60s, and a line that held for
+  `STABLE_MS` (30s) before dropping resets to the fast retry, so a genuine
+  one-off outage still comes back as quickly as it did.
+
+**Verified by driving the handover**, not by reading it: two tabs against a
+local instance with `document.visibilityState` stubbed, using the
+`/api/presence` heartbeat as the signal for which tab holds the line — it is
+gated on the same flag and beats every 15s forever, where the token ladder
+gives up after three tries and stops being an observable. Hiding the holder
+moves the line, showing it moves it back, and both hidden still leaves exactly
+one. **Do not test this against prod Telnyx**: an early attempt pointed a local
+dev server at a real DID and registered a live SIP session on the shared
+connection. It created a `cylrm:devadmin` credential, which was deleted; it
+reached no caller's own connection, but the next one might. Point
+`TELNYX_API_BASE` somewhere dead instead.
+
 ### A recording with no call to sit on (2026-09-20)
 
 `/api/calls` resolves a session server-side when the browser sends none, and
