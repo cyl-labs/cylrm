@@ -733,8 +733,16 @@ export function MeetingsList({
         return (
           <li
             key={m.id}
+            // The calendar's chips link here — `#meeting-<id>` — since a
+            // click there is "take me to the row where anything gets done"
+            // rather than a second place to act from. `scroll-mt-4` keeps the
+            // row's own top edge off the viewport edge when it lands.
+            id={`meeting-${m.id}`}
             className={cn(
-              "rounded-xl border bg-card p-3.5 sm:p-4",
+              // `:target` needs no client JS: the browser sets it just by
+              // matching the URL's fragment, so the row a calendar click
+              // lands on says so even before hydration.
+              "scroll-mt-4 rounded-xl border bg-card p-3.5 sm:p-4 target:ring-2 target:ring-primary/50",
               // The server's answer, so the border cannot differ between the
               // HTML and the hydration. It marks what is nearly here, not work
               // owed — there is no confirmation call to owe any more.

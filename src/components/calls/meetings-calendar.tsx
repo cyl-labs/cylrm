@@ -18,8 +18,10 @@ import { cn } from "@/lib/utils";
  *
  * It is a second calendar rather than a shared one on purpose. `CallCalendar`
  * paints one number per day and links each cell into a filter; this paints
- * named appointments and links nothing, because the row underneath is where
- * anything gets done. The two share their date conventions and no markup.
+ * named appointments, and each one links into its own row in the list below
+ * (2026-09-23) — not a filter, because the row underneath is where anything
+ * gets done and a click here is "take me there," not a second place to act
+ * from. The two share their date conventions and no markup.
  *
  * **Day and week are a time grid; a month stays a grid of chips**
  * (2026-09-19). The founders asked for Google Calendar's shape — hours down
@@ -420,10 +422,14 @@ function Chip({
   const off = m.status === "cancelled";
   const follow = m.kind === "follow_up";
   return (
-    <span
+    // A link into its own row in the list below, not a second place to act
+    // from — see the module comment. `#meeting-<id>` needs the list's `<li>`
+    // to carry that same id, which is the only coupling between the two.
+    <Link
+      href={`#meeting-${m.id}`}
       title={`${timeOf(m.startAt, tz, true)} · ${kindLabel(m)} · ${nameOf(m)}${off ? " · cancelled" : ""}`}
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded px-1 py-0.5 leading-tight",
+        "flex min-w-0 flex-col overflow-hidden rounded px-1 py-0.5 leading-tight transition-opacity hover:opacity-80",
         layout === "month" ? "text-[11px]" : "h-full text-[11px]",
         off
           ? "bg-muted text-muted-foreground line-through"
@@ -462,7 +468,7 @@ function Chip({
       >
         {nameOf(m)}
       </span>
-    </span>
+    </Link>
   );
 }
 
