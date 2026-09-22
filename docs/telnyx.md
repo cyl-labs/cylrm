@@ -363,6 +363,56 @@ Not built and not optional before volume dialling: a recorded-line announcement
 in the opener (recording is per-profile, so there is no per-call toggle and no
 beep), a retention period, and Singapore DNC scrubbing.
 
+### Telnyx dropped 34 recordings and nothing noticed (2026-09-22)
+
+`lib/recording-gaps.ts`, `POST /api/cron/recordings`, table
+`call_recording_gap` (`2026-09-22-recording-gap.sql`, **applied before the
+deploy**), alert in `notifyRecordingGap`.
+
+On 2026-09-21, between 20:08 and 23:24 UTC, **34 answered calls on
+`cylrm-aaron` captured their audio in full and never published it** — 2,008
+seconds, including the call that booked the Wallworth demo. Telnyx confirmed
+it: the media server wrote the file (`RECORD_STOP`, cause success, 9,105,408
+bytes on the longest), and the publish step — transfer to storage,
+registration in the recordings library, `call.recording.saved` webhook — never
+ran. They correlated the failures to their `lv1` processing site while the
+successes on the same connection went through `sv1`.
+
+- **It was invisible from our side by construction.** `call.hangup` arrived,
+  the duration was right, the invoice was right. The only symptom was an
+  absence, and nothing was checking for one — it surfaced three days later
+  when somebody opened a demo briefing and found it blank.
+- **There is no `recording.failed` webhook**, confirmed by Telnyx. Absence is
+  the only thing that can be detected, so the sweep runs on **every** worker
+  tick and reports the moment it finds something — unlike the callbacks, quota
+  and payroll digests beside it, which describe a day that is over. This
+  describes a fault that may still be running.
+- **One row per call, unique on `call_id`.** The insert *is* the claim
+  (`on conflict do nothing … returning`), so the tick that finds a gap is the
+  only one that reports it and two racing ticks cannot both announce it. Same
+  shape the payroll reminder uses to make a weekly job safe on a five-minute
+  loop. The row stays afterwards as the record of what was lost.
+- **Ten minutes of grace, 48 hours of lookback.** Telnyx publishes in about a
+  second and our webhook lands on top of that, so ten minutes is far beyond
+  both: the cost of waiting is a late alert, the cost of not waiting is crying
+  wolf until somebody mutes it. The lookback stops a restored backup
+  announcing a month of history.
+- **A call that never connected is not a fault** — no audio to lose. That is
+  `duration_seconds > 0`, and it matters: 10 of Aaron's 44 unrecorded calls
+  that day were never answered.
+- **The table is seeded with everything already missing** (78 rows, marked
+  notified) so the first live tick reports only what is new. Announcing
+  Sunday's calls in a message that means "something is wrong right now" would
+  have taught everyone to ignore it on day one.
+- The alert **names the caller**, because a gap is far more often one line
+  than a global outage: that day one connection lost calls while eight others
+  recorded normally.
+- **Counting these needs every page of `detail_records`.** `page[size]` caps
+  at **50** whatever you ask for, and there were 168 pages for one week — a
+  six-page fetch gave 33, then 30, then 27 for the same question, because
+  which sessions it happened to contain kept changing. Page to
+  `meta.total_pages` or the number is fiction.
+
 ### Two tabs made the Call back button strobe (2026-09-22)
 
 Reported as the button "constantly flashing between Connecting… and Call back",
