@@ -327,6 +327,14 @@ export async function getInboundCalls(
  * of which read this — say "act now" and agree with each other. The Missed
  * calls screen still lists the ones that can wait.
  *
+ * **Only the reader's own number**, which for a caller is everything they can
+ * see anyway and for a founder is the change: the badge used to count the
+ * whole floor's, so it was never zero and never meant "something new for me".
+ * Asked for on 2026-09-22 — "I want the notification to be for me only so I
+ * know something is new". The Missed calls screen keeps its everyone view and
+ * the badge links to the matching `?who=mine` one, so the number you tap is
+ * the number you land on.
+ *
  * `cache()`d for the reason `countCallbacksDue` and `countUnreadReplies` are:
  * the sidebar and `PageShell` both ask while rendering one page.
  */
@@ -335,7 +343,7 @@ export const countMissedCalls = cache(async function countMissedCalls(
 ): Promise<number> {
   const [row] = (await db.execute(sql`
     select count(*)::int as n
-    from (${ROLLED_UP(me, true, false)}) ic
+    from (${ROLLED_UP(me, true, true)}) ic
     left join call_lead l on l.id = ic.call_lead_id
     ${leadZone}
     -- One per number owed a ring back, the same roll-up the list shows: a

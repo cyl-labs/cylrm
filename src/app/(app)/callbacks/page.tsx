@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { getCallbacks, getCallLists } from "@/lib/calls";
+import { cn } from "@/lib/utils";
 import { PageShell } from "@/components/page-shell";
 import { CallbacksList } from "@/components/calls/callbacks-list";
 import { CallFilters } from "@/components/calls/call-filters";
@@ -18,16 +20,27 @@ export const dynamic = "force-dynamic";
 export default async function CallbacksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ list?: string }>;
+  searchParams: Promise<{ list?: string; who?: string }>;
 }) {
-  const { list } = await searchParams;
+  const { list, who } = await searchParams;
   const me = await getCurrentUser();
-  const lists = await getCallLists(callScope(me));
+  const isAdmin = me?.role === "admin";
+  /**
+   * A founder's own callbacks rather than the floor's.
+   *
+   * The sidebar badge counts only theirs, so without this the number you tap
+   * and the screen you land on disagree — a "1" opening seventeen rows reads
+   * as the badge being broken. Meaningless for a caller, who is narrowed to
+   * their own lists by `callScope` either way.
+   */
+  const mine = isAdmin && who === "mine";
+  const scope = mine ? me.id : callScope(me);
+  const lists = await getCallLists(scope);
 
   const wanted = Number(list);
   const listId = lists.some((l) => l.id === wanted) ? wanted : undefined;
 
-  const leads = await getCallbacks(listId, callScope(me));
+  const leads = await getCallbacks(listId, scope);
   // `due` and `waiting` are decided by the database's clock, not this render's.
   const due = leads.filter((l) => l.due).length;
   const waiting = leads.filter((l) => l.waiting).length;
@@ -41,10 +54,36 @@ export default async function CallbacksPage({
     <PageShell
       title="Callbacks"
       actions={
-        <CallFilters
-          lists={lists.map((l) => ({ id: l.id, name: l.name }))}
-          listId={listId ?? "all"}
-        />
+        <>
+          {/* Whose diary this is. Only a founder has more than one answer:
+              everyone else sees their own lists whatever this says. */}
+          {isAdmin && (
+            <div className="flex items-center gap-1 rounded-lg border p-0.5">
+              <Link
+                href="/callbacks?who=mine"
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-[13px] font-semibold transition-colors",
+                  mine ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                )}
+              >
+                Mine
+              </Link>
+              <Link
+                href="/callbacks"
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-[13px] font-semibold transition-colors",
+                  mine ? "hover:bg-muted" : "bg-primary text-primary-foreground",
+                )}
+              >
+                Everyone
+              </Link>
+            </div>
+          )}
+          <CallFilters
+            lists={lists.map((l) => ({ id: l.id, name: l.name }))}
+            listId={listId ?? "all"}
+          />
+        </>
       }
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 sm:px-6">

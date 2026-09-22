@@ -64,7 +64,13 @@ export default async function AppLayout({
   // Callers cannot open Replies, so an unread count would light a badge on
   // the drawer that leads nowhere they are allowed to go.
   const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
-  const callbacks = await countCallbacksDue(callScope(me));
+  // The reader's own, not the floor's — the same change the missed-calls badge
+  // got, and for the same reason: a founder's badge that counts everybody is
+  // never zero and so never says "something new for me". `callScope` widens an
+  // admin to everything, which is right for the screen and wrong for a badge.
+  const callbacks = await countCallbacksDue(
+    me?.role === "admin" ? me.id : callScope(me),
+  );
   // Scoped by the number that was rung, not by niche ownership: an inbound
   // call is addressed to a person.
   const missed = await countMissedCalls(me);

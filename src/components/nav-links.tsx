@@ -60,12 +60,29 @@ export function NavLinks({
     return new Set(here ? [here] : []);
   });
 
+  /**
+   * Where the badge's number actually is.
+   *
+   * These two badges count only the reader's own — the change asked for on
+   * 2026-09-22, so a founder's badge means "something new for me" rather than
+   * counting the whole floor and never reaching zero. A founder's screens
+   * still default to everyone, so the link has to carry the narrower view or
+   * the number you tap and the rows you land on disagree.
+   *
+   * Nothing changes for a caller: they only ever see their own, and `?who=mine`
+   * is ignored for them.
+   */
+  const hrefFor = (href: string) =>
+    role === "admin" && (href === "/missed-calls" || href === "/callbacks")
+      ? `${href}?who=mine`
+      : href;
+
   const renderLink = ({ href, label, icon: Icon }: WorkspaceLink) => {
     const active = pathname.startsWith(href);
     return (
       <Link
         key={href}
-        href={href}
+        href={hrefFor(href)}
         className={cn(
           "flex h-[38px] items-center gap-2.5 rounded-lg px-3 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
           active &&
