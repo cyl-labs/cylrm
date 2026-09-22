@@ -11,7 +11,7 @@ import {
 } from "@/lib/payroll";
 
 /**
- * Log a payment to one caller and reset their counters.
+ * Log a payment to one caller, and reset only what it actually settled.
  *
  * Everything is recomputed here from the database. The browser sends a user id
  * and nothing else — no amounts, no counts — because a screen that let the
@@ -41,12 +41,30 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     userId?: unknown;
     note?: unknown;
+    covers?: unknown;
   } | null;
 
   const userId = Number(body?.userId);
   if (!Number.isInteger(userId)) {
     return Response.json({ error: "Invalid person." }, { status: 400 });
   }
+
+  /**
+   * Which half of the pay this settles.
+   *
+   * Defaults to both, so anything that called this route before the screen
+   * had two buttons still means what it meant. The screen itself always names
+   * one: the two rates are earned on different clocks — a pickup bonus over a
+   * week of dialling, a $30 fee the moment a founder marks a demo — and
+   * paying one used to force the other, because the counter ran from the last
+   * payout of *any* kind.
+   */
+  const covers: "all" | "pickups" | "meetings" =
+    body?.covers === "pickups" || body?.covers === "meetings"
+      ? body.covers
+      : "all";
+  const paysPickups = covers !== "meetings";
+  const paysMeetings = covers !== "pickups";
   const note =
     typeof body?.note === "string" && body.note.trim()
       ? body.note.trim()
@@ -61,14 +79,22 @@ export async function POST(request: Request) {
       const [person] = (await tx.execute(sql`
         select u.id, u.name, u.role, u.created_at,
           (
+            -- The counter's boundary: the last row that settled or banked
+            -- pickups. A meetings-only payout is not one, which is what lets
+            -- the $30 fees be paid mid-week without binning the progress
+            -- toward the next fifty. Must stay in step with lib/payroll.ts,
+            -- which restates it for the screen. (No backticks in here: this
+            -- is inside a template literal and one would end the string.)
             select paid_at from payout
             where payout.user_id = u.id
+              and payout.kind in ('payment', 'reset', 'pickups')
             order by paid_at desc
             limit 1
           ) as last_paid_at,
           (
             select paid_at from payout
-            where payout.user_id = u.id and payout.kind = 'payment'
+            where payout.user_id = u.id
+              and payout.kind in ('payment', 'pickups')
             order by paid_at desc
             limit 1
           ) as last_payment_at
@@ -139,24 +165,47 @@ export async function POST(request: Request) {
       // reset to nought on Friday and who has not called since is still owed
       // what the reset put aside, and refusing to pay it would be the missed
       // payment this file exists to prevent.
-      if (pickups === 0 && meetings === 0 && banked === 0) {
+      // Judged against what was actually asked for, so "Pay meetings" on
+      // somebody with pickups and no demos is refused rather than quietly
+      // writing a $0 row that would move their counter — the exact side
+      // effect the two buttons exist to remove.
+      const pickupsOwed = pickups > 0 || banked > 0;
+      if (paysPickups && !paysMeetings && !pickupsOwed) {
+        return { error: "No pickups to pay for.", status: 409 } as const;
+      }
+      if (paysMeetings && !paysPickups && meetings === 0) {
+        return { error: "No meetings to pay for.", status: 409 } as const;
+      }
+      if (!pickupsOwed && meetings === 0) {
         return { error: "Nothing owed.", status: 409 } as const;
       }
 
-      const bonus = pickupBonusCents(pickups);
-      const commission = meetings * MEETING_CENTS;
+      // Only the half being settled carries a figure. The other stays nought
+      // so the row is a truthful snapshot of what this payment covered.
+      const paidPickups = paysPickups ? pickups : 0;
+      const bonus = paysPickups ? pickupBonusCents(pickups) : 0;
+      const bankedPaid = paysPickups ? banked : 0;
+      const paidMeetings = paysMeetings ? meetings : 0;
+      const commission = paidMeetings * MEETING_CENTS;
+      const kind = covers === "all" ? "payment" : covers;
 
       const [row] = (await tx.execute(sql`
         insert into payout (
-          user_id, period_start, period_end, week_start,
+          user_id, kind, period_start, period_end, week_start,
           pickups, pickup_bonus_cents, banked_bonus_cents,
           meetings, meeting_commission_cents, total_cents,
           pickups_per_bonus, pickup_bonus_rate_cents, meeting_rate_cents,
           note, created_by_user_id
         ) values (
-          ${userId}, ${periodStart}, now(), ${weekStart},
-          ${pickups}, ${bonus}, ${banked},
-          ${meetings}, ${commission}, ${bonus + banked + commission},
+          ${userId}, ${kind},
+          -- A meetings-only payout settles no pickup period, and claiming one
+          -- would be a lie in the table whose whole job is to be the record
+          -- nobody has to take on trust. An empty window says so; which demos
+          -- it covered is on call_demo_attendance.payout_id, which is the
+          -- only place that question is ever answered from.
+          ${paysPickups ? sql`${periodStart}` : sql`now()`}, now(), ${weekStart},
+          ${paidPickups}, ${bonus}, ${bankedPaid},
+          ${paidMeetings}, ${commission}, ${bonus + bankedPaid + commission},
           ${PICKUPS_PER_BONUS}, ${PICKUP_BONUS_CENTS}, ${MEETING_CENTS},
           ${note}, ${me.id}
         )
@@ -165,7 +214,7 @@ export async function POST(request: Request) {
 
       const payoutId = Number(row.id);
 
-      if (meetings > 0) {
+      if (paidMeetings > 0) {
         const ids = owed.map((o) => Number(o.id));
         await tx.execute(sql`
           update call_demo_attendance
@@ -180,11 +229,12 @@ export async function POST(request: Request) {
       return {
         ok: true as const,
         payoutId,
+        kind,
         name: String(person.name),
-        pickups,
-        meetings,
-        bankedCents: banked,
-        totalCents: bonus + banked + commission,
+        pickups: paidPickups,
+        meetings: paidMeetings,
+        bankedCents: bankedPaid,
+        totalCents: bonus + bankedPaid + commission,
       };
     });
 

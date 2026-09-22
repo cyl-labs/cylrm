@@ -228,6 +228,18 @@ export default async function PayrollPage() {
                                 Counter reset
                               </span>
                             )}
+                            {/* Which half it settled. Said out loud for the
+                                same reason the reset badge is: "$90, 0
+                                pickups" in a table headed "what was actually
+                                paid" reads as a bug unless something says the
+                                pickups were never part of it. */}
+                            {(p.kind === "pickups" || p.kind === "meetings") && (
+                              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-muted-foreground">
+                                {p.kind === "pickups"
+                                  ? "Pickups only"
+                                  : "Meetings only"}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                             {p.pickups.toLocaleString()}

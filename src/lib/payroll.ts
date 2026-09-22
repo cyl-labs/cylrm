@@ -160,19 +160,25 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
           and a.payout_id is null
       ) as meetings
     from app_user u
-    -- The counter's boundary: the last row of either kind, since a reset
-    -- moves it exactly as a payment does.
+    -- The counter's boundary: the last row that settled or banked pickups. A
+    -- reset moves it exactly as a payment does. A meetings-only payout must
+    -- not, and that is the whole reason the kinds are told apart here rather
+    -- than this being "the last row of any kind" — paying the $30 fees on a
+    -- Wednesday used to bin the week's progress toward the next fifty.
     left join lateral (
       select paid_at from payout
       where payout.user_id = u.id
+        and payout.kind in ('payment', 'reset', 'pickups')
       order by paid_at desc
       limit 1
     ) p on true
-    -- The money's boundary: the last actual payment. A reset banks rather
-    -- than settles, so it must not close the account.
+    -- The money's boundary: the last row that actually handed over pickup
+    -- money. A reset banks rather than settles and a meetings payout never
+    -- touches the bonus, so neither closes this account.
     left join lateral (
       select paid_at from payout
-      where payout.user_id = u.id and payout.kind = 'payment'
+      where payout.user_id = u.id
+        and payout.kind in ('payment', 'pickups')
       order by paid_at desc
       limit 1
     ) pay on true
@@ -374,8 +380,16 @@ export type PayoutRecord = {
   id: number;
   userId: number;
   name: string;
-  /** `payment` when money moved, `reset` when only the counter did. */
-  kind: "payment" | "reset";
+  /**
+   * Which half of the pay this row settled.
+   *
+   * `payment` both, `reset` only the counter and no money, `pickups` the
+   * bonus alone, `meetings` the attendance fees alone. The last two exist
+   * because paying one used to force the other: the counter ran from the last
+   * payout of any kind, so settling $30 fees mid-week threw away the week's
+   * progress toward the next fifty.
+   */
+  kind: "payment" | "reset" | "pickups" | "meetings";
   paidAt: string;
   weekStart: string;
   periodStart: string;
@@ -437,7 +451,7 @@ export async function getPayoutHistory(limit = 200): Promise<PayoutRecord[]> {
     id: n(r.id),
     userId: n(r.user_id),
     name: String(r.name),
-    kind: (r.kind as "payment" | "reset") ?? "payment",
+    kind: (r.kind as PayoutRecord["kind"] | null | undefined) ?? "payment",
     paidAt: new Date(r.paid_at as string).toISOString(),
     // Already a YYYY-MM-DD calendar date; never turned into a `Date`, which
     // would resolve at UTC midnight and render as the day before out west.

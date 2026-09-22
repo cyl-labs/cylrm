@@ -35,6 +35,42 @@ sentence claiming a rate nobody is paid.
 - **Pressing paid discards partial progress.** 130 pickups pays $40 and the
   remaining 30 are gone — no rollover, as specified. The confirm dialog says
   the number out loud rather than letting it vanish unremarked.
+- **The two rates are paid separately** (2026-09-22, `2026-09-22-payout-kind-split.sql`,
+  applied before the deploy). There was one "Mark as paid" button, and because
+  a person's counter runs from their last payout, *any* payout cut it — so
+  paying the $30 attendance fees on a Wednesday threw away that week's
+  progress toward the next fifty, which does not carry over. Asked for as
+  "allow me to pay out for showed up meetings without resetting the pickups
+  counter".
+  - `payout.kind` grew two values: **`pickups`** (the bonus plus anything a
+    reset banked) and **`meetings`** (the attendance fees alone). `payment`
+    and `reset` keep their meanings, and every row already on disk — 12
+    payments and 5 resets — still settles exactly what it always did.
+  - **The boundary queries are what actually implement it**, and there are two
+    copies: `getPayrollRows` in `lib/payroll.ts` for the screen, and the
+    locking read in the payout route. The counter's boundary is the last row
+    of kind `('payment', 'reset', 'pickups')`; the bonus account's is the last
+    of `('payment', 'pickups')`. **A `meetings` row is invisible to both** —
+    that is the whole feature, not an optimisation. If one copy changes the
+    other has to, or the figure the screen shows is not the figure that gets
+    paid.
+  - **A meetings payout stores an empty period** (`period_start = period_end =
+    now()`), because it settles no pickup window and claiming one would be a
+    lie in the table whose job is to be the record nobody has to take on
+    trust. Which demos it covered is answered by `payout_id` on
+    `call_demo_attendance`, the same column that makes "commission owed is
+    `payout_id is null`" work. Nothing reads `period_start` back — it is a
+    snapshot, not an input.
+  - The route takes `covers: "all" | "pickups" | "meetings"` and **defaults to
+    `all`**, so the old single-button behaviour is still what an unversioned
+    caller gets. It refuses per half: "Pay meetings" on somebody with pickups
+    and no demos is a 409, never a $0 row that would move their counter.
+  - The dialog lists **only the half being paid** — the other at $0 reads as a
+    payment that came up short rather than one that was never part of it — and
+    names what it is leaving alone. The "this clears N stranded pickups"
+    warning only appears on a pickups payment, since a meetings one clears
+    nothing. The history badges `Pickups only` / `Meetings only` for the same
+    reason the reset badge exists.
 - **`PICKUP` is imported from `call-stats.ts`, not restated.** Two definitions
   of a pickup would be two numbers on two screens, and the one people are paid
   on had better be the one they can see on Stats. Exporting it is the only

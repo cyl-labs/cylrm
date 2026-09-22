@@ -70,11 +70,34 @@ function PaymentMethod({ value }: { value: string }) {
   );
 }
 
+/**
+ * Which half of the pay a button settles.
+ *
+ * The two rates are earned on different clocks — a pickup bonus over a week of
+ * dialling, a $30 fee the moment a founder marks a demo as showed-up — and
+ * until 2026-09-22 one button paid both and cut the counter either way. Paying
+ * the fees on a Wednesday therefore threw away that week's progress toward the
+ * next fifty, which does not carry over.
+ */
+type Covers = "pickups" | "meetings";
+
+const COVER_LABEL: Record<Covers, string> = {
+  pickups: "pickup bonus",
+  meetings: "meeting fees",
+};
+
+/** What a press is actually worth. Never `totalCents`, which is both halves. */
+const amountFor = (r: PayrollRowView, covers: Covers) =>
+  covers === "meetings"
+    ? r.meetingCommissionCents
+    : r.pickupBonusCents + r.bankedBonusCents;
+
 export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
   const router = useRouter();
-  const [confirming, setConfirming] = React.useState<PayrollRowView | null>(
-    null,
-  );
+  const [confirming, setConfirming] = React.useState<{
+    row: PayrollRowView;
+    covers: Covers;
+  } | null>(null);
   // Null when shut. A single row, or every row with something on its counter
   // — payday cuts them all, and one dialog at a time would be fourteen taps.
   const [resetting, setResetting] = React.useState<PayrollRowView[] | null>(
@@ -82,13 +105,16 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
   );
   const [busy, setBusy] = React.useState(false);
 
-  async function pay(row: PayrollRowView) {
+  async function pay(row: PayrollRowView, covers: Covers) {
     setBusy(true);
     try {
       const res = await fetch("/api/payroll/payouts", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userId: row.userId }),
+        // The half, and nothing else. Every figure is still recomputed server
+        // side: a screen that let the client name the amount would be a
+        // screen that could be told any amount.
+        body: JSON.stringify({ userId: row.userId, covers }),
       });
       const data = (await res.json().catch(() => null)) as {
         error?: string;
@@ -99,7 +125,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
         return;
       }
       toast.success(
-        `Recorded ${formatMoney(data?.totalCents ?? row.totalCents)} to ${row.name}.`,
+        `Recorded ${formatMoney(data?.totalCents ?? amountFor(row, covers))} to ${row.name} for ${COVER_LABEL[covers]}.`,
       );
       setConfirming(null);
       router.refresh();
@@ -171,7 +197,12 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
 
   // The pickups not yet worth another bonus. Marking paid discards them, so the
   // confirmation names the number rather than letting them vanish unremarked.
-  const stranded = confirming ? pickupsTowardNext(confirming.pickups) : 0;
+  // Only a pickup payment discards them. Paying the meeting fees leaves the
+  // counter alone, so there is nothing to warn about.
+  const stranded =
+    confirming?.covers === "pickups"
+      ? pickupsTowardNext(confirming.row.pickups)
+      : 0;
 
   // Everyone with something to cut. Payday resets the floor in one press.
   const resettable = rows.filter((r) => r.pickups > 0);
@@ -271,13 +302,25 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                     >
                       Reset count
                     </Button>
+                    {/* Two buttons, because the two rates are earned on
+                        different clocks and settling one must not touch the
+                        other. "Pay meetings" leaves the pickup counter
+                        exactly where it was. */}
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={r.totalCents === 0 && r.pickups === 0}
-                      onClick={() => setConfirming(r)}
+                      disabled={r.meetings === 0}
+                      onClick={() => setConfirming({ row: r, covers: "meetings" })}
                     >
-                      Mark as paid
+                      Pay meetings
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={r.pickups === 0 && r.bankedBonusCents === 0}
+                      onClick={() => setConfirming({ row: r, covers: "pickups" })}
+                    >
+                      Pay pickups
                     </Button>
                   </div>
                 </td>
@@ -368,8 +411,11 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Record {confirming ? formatMoney(confirming.totalCents) : ""} to{" "}
-              {confirming?.name}?
+              Record{" "}
+              {confirming
+                ? formatMoney(amountFor(confirming.row, confirming.covers))
+                : ""}{" "}
+              to {confirming?.row.name}?
             </DialogTitle>
           </DialogHeader>
           {confirming && (
@@ -378,44 +424,81 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                 This records a payment you have already made. It does not send
                 any money.
               </p>
+              {/* Only the half being paid. Listing the other at $0 would read
+                  as a payment that came up short rather than as one that was
+                  never part of this. */}
               <dl className="rounded-lg border bg-muted/40 px-3 py-2.5">
-                <div className="flex justify-between gap-4 py-0.5">
-                  <dt className="text-muted-foreground">
-                    Pickup bonus &middot; {confirming.pickups.toLocaleString()}{" "}
-                    pickups
-                  </dt>
-                  <dd className="font-semibold tabular-nums">
-                    {formatMoney(confirming.pickupBonusCents)}
-                  </dd>
-                </div>
-                {/* Without this the sum does not add up: somebody reset on
-                    Friday and paid on Monday shows nought pickups, nought
-                    meetings and a total of $10, which reads as a fault. */}
-                {confirming.bankedBonusCents > 0 && (
+                {confirming.covers === "pickups" ? (
+                  <>
+                    <div className="flex justify-between gap-4 py-0.5">
+                      <dt className="text-muted-foreground">
+                        Pickup bonus &middot;{" "}
+                        {confirming.row.pickups.toLocaleString()} pickups
+                      </dt>
+                      <dd className="font-semibold tabular-nums">
+                        {formatMoney(confirming.row.pickupBonusCents)}
+                      </dd>
+                    </div>
+                    {/* Without this the sum does not add up: somebody reset on
+                        Friday and paid on Monday shows nought pickups and a
+                        total of $10, which reads as a fault. */}
+                    {confirming.row.bankedBonusCents > 0 && (
+                      <div className="flex justify-between gap-4 py-0.5">
+                        <dt className="text-muted-foreground">
+                          Banked by an earlier reset
+                        </dt>
+                        <dd className="font-semibold tabular-nums">
+                          {formatMoney(confirming.row.bankedBonusCents)}
+                        </dd>
+                      </div>
+                    )}
+                  </>
+                ) : (
                   <div className="flex justify-between gap-4 py-0.5">
                     <dt className="text-muted-foreground">
-                      Banked by an earlier reset
+                      Meetings &middot; {confirming.row.meetings} showed up
                     </dt>
                     <dd className="font-semibold tabular-nums">
-                      {formatMoney(confirming.bankedBonusCents)}
+                      {formatMoney(confirming.row.meetingCommissionCents)}
                     </dd>
                   </div>
                 )}
-                <div className="flex justify-between gap-4 py-0.5">
-                  <dt className="text-muted-foreground">
-                    Meetings &middot; {confirming.meetings} showed up
-                  </dt>
-                  <dd className="font-semibold tabular-nums">
-                    {formatMoney(confirming.meetingCommissionCents)}
-                  </dd>
-                </div>
                 <div className="mt-1.5 flex justify-between gap-4 border-t pt-1.5">
                   <dt className="font-bold">Total</dt>
                   <dd className="font-extrabold tabular-nums">
-                    {formatMoney(confirming.totalCents)}
+                    {formatMoney(amountFor(confirming.row, confirming.covers))}
                   </dd>
                 </div>
               </dl>
+              {/* What this one deliberately leaves alone, since the whole
+                  point of splitting the button is that it no longer touches
+                  the other half. */}
+              {confirming.covers === "meetings" &&
+                (confirming.row.pickups > 0 ||
+                  confirming.row.bankedBonusCents > 0) && (
+                  <p className="rounded-lg border bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
+                    Their{" "}
+                    <span className="font-semibold text-foreground">
+                      {confirming.row.pickups.toLocaleString()}
+                    </span>{" "}
+                    {confirming.row.pickups === 1 ? "pickup" : "pickups"} are
+                    not part of this and their counter keeps running. Pay those
+                    separately when you cut them.
+                  </p>
+                )}
+              {confirming.covers === "pickups" &&
+                confirming.row.meetings > 0 && (
+                  <p className="rounded-lg border bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
+                    Their{" "}
+                    <span className="font-semibold text-foreground">
+                      {confirming.row.meetings}
+                    </span>{" "}
+                    unpaid{" "}
+                    {confirming.row.meetings === 1 ? "meeting" : "meetings"}{" "}
+                    {confirming.row.meetings === 1 ? "is" : "are"} not part of
+                    this and stay owed.
+                  </p>
+                )}
               {stranded > 0 && (
                 // Said out loud, because it is the one part of this that takes
                 // something away: partial progress is not carried, so those
@@ -430,11 +513,11 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
               )}
               {/* Where to send it, next to how much — this is the moment
                   somebody is about to open their banking app. */}
-              {confirming.paymentMethod ? (
+              {confirming.row.paymentMethod ? (
                 <p className="text-[12px]">
                   <span className="text-muted-foreground">Pay via </span>
                   <span className="font-semibold">
-                    <PaymentMethod value={confirming.paymentMethod} />
+                    <PaymentMethod value={confirming.row.paymentMethod} />
                   </span>
                 </p>
               ) : (
@@ -443,14 +526,16 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                 </p>
               )}
               <p className="text-[12px] text-muted-foreground">
-                {confirming.meetings > 0 && (
+                {confirming.covers === "meetings" ? (
                   <>
-                    The {confirming.meetings}{" "}
-                    {confirming.meetings === 1 ? "meeting" : "meetings"} will be
-                    locked to this payout and can no longer be re-marked.{" "}
+                    The {confirming.row.meetings}{" "}
+                    {confirming.row.meetings === 1 ? "meeting" : "meetings"}{" "}
+                    will be locked to this payout and can no longer be
+                    re-marked. Their pickup count is not touched.
                   </>
+                ) : (
+                  <>Their pickup count restarts from now.</>
                 )}
-                Their pickup count restarts from now.
               </p>
             </div>
           )}
@@ -463,7 +548,9 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
               Cancel
             </Button>
             <Button
-              onClick={() => confirming && pay(confirming)}
+              onClick={() =>
+                confirming && pay(confirming.row, confirming.covers)
+              }
               disabled={busy}
             >
               {busy ? "Recording…" : "Record payout"}
