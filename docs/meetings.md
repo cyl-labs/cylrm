@@ -64,6 +64,27 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   job on this screen — ring them, log what happened, draft a contract, merge a
   line in — lives on a row, so switching view must never take the work away.
   The grid links nowhere for the same reason.
+- **Every row says when the demo was agreed** (2026-09-22), on the meta line
+  beside the start time: "booked by Harry on 14 Sep". Asked for as "sometimes
+  im confused when did this meeting get booked i dont remember this" — a slot
+  three days out says nothing about whether it was won this morning or a
+  fortnight ago, and that is what tells a stale booking from a fresh one.
+  - `bookedAt` already existed and was **only readable by opening the notes
+    fold**, which is not rendered at all when the booking call left no notes.
+    The clause it is merged into was the admin-only "booked by": one sentence
+    rather than two, since that is how the question is actually asked. The
+    date shows to everyone, the name stays admin-only as it was.
+  - **It falls back to the row's own `created_at`** when no `demo_booked` call
+    is behind it — a booking made straight off the public link, or by a
+    founder. The sync runs every five minutes, so that is within minutes of
+    the real thing. Guarded on being before the meeting itself, because a row
+    backfilled afterwards would otherwise claim a booking date it cannot know,
+    and no date beats a wrong one. 2 of 36 live meetings take that branch and
+    both are tests.
+  - Date only, and in the reader's zone through the screen's own `tz` like
+    every other date here. The line already carries the start time, the
+    prospect's clock and who booked it; "when did we agree this" is a question
+    a day answers.
 - **Server-rendered, every control a URL**, like `CallCalendar`: nothing for the
   browser to do, the back button works, and a pasted link opens on what its
   sender was looking at. `tz` is carried across a view switch and a month turn,

@@ -383,7 +383,9 @@ export type Meeting = {
   /** Who logged the `demo_booked` call. Shown to admins only, like the
    *  callbacks diary shows who promised the call. */
   bookedBy: string | null;
-  /** When that call happened. */
+  /** When the demo was agreed: that call's time, or — for a booking with no
+   *  call behind it — when the sync first saw it, which is within minutes.
+   *  Null only where neither can be trusted. */
   bookedAt: string | null;
   /** The notes off that call — the handover from whoever booked it to
    *  whoever takes the demo, and usually the only one there is. */
@@ -610,7 +612,18 @@ const meetingSelect = sql`
   -- demo: the caller who booked it is often not the founder taking it, and the
   -- notes are the only handover there is.
   bc.notes as booking_notes,
-  bc.called_at as booked_at,
+  -- When it was agreed, which is the question a demo in the diary that nobody
+  -- remembers agreeing to actually asks. The booking call's own time normally.
+  -- For a booking with no call behind it — made straight off the public link,
+  -- or by a founder — the row's own creation stands in: the sync runs every
+  -- five minutes, so that is within minutes of the real thing. Guarded on
+  -- being before the meeting, since a row backfilled afterwards would
+  -- otherwise claim a booking date it cannot know, and no date beats a wrong
+  -- one.
+  coalesce(
+    bc.called_at,
+    case when m.created_at < m.start_at then m.created_at end
+  ) as booked_at,
   -- Its recording, so the meeting card can offer the same "listen back" the
   -- call log does. Only the id and the length: the audio lives in Telnyx's S3
   -- and a fresh presigned URL is minted per play, which is why one opened a

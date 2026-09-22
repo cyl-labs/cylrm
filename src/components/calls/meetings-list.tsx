@@ -484,6 +484,20 @@ export function MeetingsList({
     [tz],
   );
 
+  /** The day the demo was agreed, in the reader's zone like every other date
+   *  on this screen. Date only: the line it sits on is already carrying the
+   *  start time, the prospect's clock and who booked it, and "when did we
+   *  agree this" is a question a day answers. */
+  const bookedFormat = React.useMemo(
+    () =>
+      new Intl.DateTimeFormat("en-US", {
+        day: "numeric",
+        month: "short",
+        timeZone: tz,
+      }),
+    [tz],
+  );
+
   /**
    * Their clock, when it is not ours. What you say the time back to them in
    * — the thing the SOP makes a caller work out by hand today.
@@ -803,12 +817,32 @@ export function MeetingsList({
               {/* Their clock, so the time you say back to them is the time
                   they will be sitting down at. */}
               {their && ` · ${their} their time`}
-              {showWho && m.bookedBy && (
+              {/* When it was agreed, and by whom — one clause rather than
+                  two, because "booked by Harry on 14 Sep" is the sentence
+                  somebody actually asks of a demo in the diary they do not
+                  remember agreeing to. It used to be readable only by opening
+                  the notes fold, which is not there at all when the booking
+                  call left no notes. The date shows to everyone; only the
+                  name is admin-only, as it is in the callbacks diary. */}
+              {(m.bookedAt || (showWho && m.bookedBy)) && (
                 <>
-                  {" · booked by "}
-                  <span className="font-semibold text-foreground">
-                    {m.bookedBy}
-                  </span>
+                  {" · booked"}
+                  {showWho && m.bookedBy && (
+                    <>
+                      {" by "}
+                      <span className="font-semibold text-foreground">
+                        {m.bookedBy}
+                      </span>
+                    </>
+                  )}
+                  {m.bookedAt && (
+                    <>
+                      {" on "}
+                      <span className="font-semibold text-foreground">
+                        {bookedFormat.format(new Date(m.bookedAt))}
+                      </span>
+                    </>
+                  )}
                 </>
               )}
             </p>
