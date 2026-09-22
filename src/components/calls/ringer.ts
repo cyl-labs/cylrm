@@ -16,25 +16,54 @@
  * throttled in the background still keeps time.
  *
  * Browsers only let a page make sound after somebody has clicked something on
- * it. A caller has always pressed a dial or log button long before a callback
- * arrives, so in practice this rings; on a freshly reloaded tab nobody has
- * touched yet it may stay silent, which is what the notification is for.
+ * it, and **that permission cannot be asked for when the call arrives** — a
+ * `resume()` on a context created at that moment is refused, silently, and the
+ * phone rings in a window nobody can hear. So the context is made and unlocked
+ * on the first click anywhere in the app (`primeRingtone`) and kept for the
+ * life of the page. The notification remains the backstop for a tab nobody has
+ * touched at all.
  */
-export function startRingtone(): () => void {
+
+/** Made once and kept: an unlocked context stays unlocked, and a new one per
+ *  call is a new one to be refused per call. */
+let shared: AudioContext | null = null;
+
+function audioContext(): AudioContext | null {
   const Ctx =
     typeof window === "undefined"
       ? undefined
       : (window.AudioContext ??
         (window as unknown as { webkitAudioContext?: typeof AudioContext })
           .webkitAudioContext);
-  if (!Ctx) return () => {};
-
-  let ctx: AudioContext;
+  if (!Ctx) return null;
+  if (shared && shared.state !== "closed") return shared;
   try {
-    ctx = new Ctx();
+    shared = new Ctx();
   } catch {
-    return () => {};
+    return null;
   }
+  return shared;
+}
+
+/**
+ * Unlock the audio while the page is being used, so the ring is not the first
+ * thing that asks.
+ *
+ * Called from a one-shot listener on the first real interaction — see
+ * `CallLineProvider`. Cheap, idempotent, and does nothing where Web Audio is
+ * unavailable.
+ */
+export function primeRingtone(): void {
+  const ctx = audioContext();
+  if (!ctx) return;
+  void ctx.resume().catch(() => {});
+}
+
+export function startRingtone(): () => void {
+  const ctx = audioContext();
+  if (!ctx) return () => {};
+  // Asked for again in case the browser suspended it while the tab was in the
+  // background. Granted without a gesture once the context has been unlocked.
   void ctx.resume().catch(() => {});
 
   const gain = ctx.createGain();
@@ -62,7 +91,13 @@ export function startRingtone(): () => void {
         // Already stopped.
       }
     }
-    void ctx.close().catch(() => {});
+    // Disconnected, not closed. Closing would throw the unlocked context away
+    // and the next call would be silent again until somebody clicked.
+    try {
+      gain.disconnect();
+    } catch {
+      // Already gone.
+    }
   };
 }
 

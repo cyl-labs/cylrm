@@ -2,7 +2,11 @@
 
 import * as React from "react";
 import { useLineLeader } from "./line-presence";
-import { showIncomingNotification, startRingtone } from "./ringer";
+import {
+  primeRingtone,
+  showIncomingNotification,
+  startRingtone,
+} from "./ringer";
 import { useTelnyxCall, type TelnyxLine } from "./use-telnyx-call";
 
 /**
@@ -240,6 +244,23 @@ export function CallLineProvider({
   // gate instead of three.
   const leader = useLineLeader();
   const line = useTelnyxCall(REMOTE_AUDIO_ID, enabled && leader, SECOND_AUDIO_ID);
+
+  // Unlock the ringtone on the first real interaction, whatever it was.
+  // Browsers refuse to start audio for a page nobody has touched, and the
+  // moment a call arrives is far too late to ask — the refusal is silent and
+  // the phone rings where nobody can hear it. Once, then the listener removes
+  // itself. `pointerdown` and `keydown` because either counts as a gesture and
+  // one of them has always happened by the time a callback lands.
+  React.useEffect(() => {
+    const unlock = () => primeRingtone();
+    const opts = { once: true, passive: true } as const;
+    window.addEventListener("pointerdown", unlock, opts);
+    window.addEventListener("keydown", unlock, opts);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   const [activeLeadId, setActiveLeadId] = React.useState<number | null>(null);
   const [activeRowKey, setActiveRowKey] = React.useState<string | null>(null);
