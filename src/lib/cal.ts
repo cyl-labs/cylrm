@@ -244,3 +244,84 @@ export function bookingPhoneKey(booking: CalBooking): string | null {
   // E.164 allows fifteen digits and needs at least seven to be a real line.
   return digits.length >= 7 && digits.length <= 15 ? digits : null;
 }
+
+/**
+ * The version the guests endpoint is dated at.
+ *
+ * Not `CAL_API_VERSION`: Cal.com dates each endpoint separately and this one
+ * is documented under 2024-08-13. Probed against the live API on 2026-09-22
+ * with a uid that does not exist — both this header and the bookings one reach
+ * the same "Booking with uid … not found", so today it is not enforced. Sent
+ * as documented anyway, since the day it starts being enforced the refusal is
+ * a 404 that reads exactly like "no such booking" and is not.
+ */
+const CAL_GUESTS_VERSION = "2024-08-13";
+
+/**
+ * Put another email address on a booking that already exists.
+ *
+ * **This is the only way to reach a prospect whose address was typed wrong**,
+ * and it exists because the obvious thing does not: Cal.com cannot change an
+ * attendee's name or email. The v2 API has no endpoint for it (calcom/cal.com
+ * issue 27281, open), the v1 one that did now answers `410 API v1 has been
+ * decommissioned`, and the booking page locks both fields on a reschedule —
+ * checked against the live API with our own key on 2026-09-22.
+ *
+ * So the address is added as a *guest*. Cal.com emails the new guest the
+ * "Scheduled Event" mail with the calendar invite and the joining details,
+ * which is the whole of what a prospect is missing. The wrong address stays
+ * on the booking as its attendee and keeps receiving Cal.com's mail; nothing
+ * short of cancelling and rebooking removes it, and the dialog says so rather
+ * than letting somebody believe it was corrected.
+ *
+ * Throws with Cal.com's own message: this runs behind a button somebody is
+ * watching, and "it did not work" without the reason is what sends them to
+ * ask a founder.
+ */
+export async function addBookingGuest(
+  uid: string,
+  guest: { email: string; name?: string | null },
+): Promise<void> {
+  const key = process.env.CAL_API_KEY;
+  if (!key) throw new Error("Cal.com is not configured.");
+
+  const res = await fetch(`${CAL_API}/bookings/${encodeURIComponent(uid)}/guests`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "cal-api-version": CAL_GUESTS_VERSION,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      guests: [
+        // Name and zone are deliberately not sent. The endpoint takes them,
+        // but they belong to the attendee record we are working around rather
+        // than to the guest, and a second name on the invite is one more thing
+        // for a prospect to be confused by.
+        { email: guest.email },
+      ],
+    }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    // Cal.com puts a sentence in `error.message` on a refusal — a duplicate
+    // address, a seated event, the 30-guest ceiling — which is worth far more
+    // on screen than the status code.
+    let message = "";
+    try {
+      const body = JSON.parse(detail) as {
+        error?: { message?: string };
+        message?: string;
+      };
+      message = body.error?.message ?? body.message ?? "";
+    } catch {
+      // Not JSON. The status and the first of the body will do.
+    }
+    throw new Error(
+      message || `Cal.com ${res.status}: ${detail.slice(0, 200)}`,
+    );
+  }
+}

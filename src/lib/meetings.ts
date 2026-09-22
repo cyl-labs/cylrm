@@ -318,6 +318,12 @@ export type Meeting = {
   leadTz: string | null;
   meetingUrl: string | null;
 
+  /** What the CRM holds as this business's email. The booking's `attendeeEmail`
+   *  is a copy taken when the Cal.com link was opened and can never be edited
+   *  afterwards; this one can, so the two drift apart exactly when somebody
+   *  notices a mistake. The invite dialog prefills from here. */
+  leadEmail: string | null;
+
   /** Null for a booking that matched no lead — see `ownedBy`. */
   leadId: number | null;
   company: string | null;
@@ -559,6 +565,11 @@ const meetingSelect = sql`
   -- caller's browser in Singapore. See prospectZone in lib/call-time.ts.
   z.tz as lead_tz,
   l.id as lead_id, l.company, l.name as lead_name, l.phone,
+  -- The CRM's own record of the business's email, which is not always the one
+  -- on the booking: the booking's is frozen at the moment the Cal.com link was
+  -- opened, and this one goes on being corrected afterwards. Where they
+  -- disagree, this is nearly always the right one — see the invite dialog.
+  l.email as lead_email,
   l.dnc_status, l.dnc_checked_at,
   -- Read before a demo rather than during a cold call: "what do they actually
   -- do" is the question the booking notes cannot answer, and a founder walking
@@ -822,6 +833,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     attendeeEmail: (r.attendee_email as string | null) ?? null,
     attendeeTz: (r.attendee_tz as string | null) ?? null,
     leadTz: (r.lead_tz as string | null) ?? null,
+    leadEmail: (r.lead_email as string | null) ?? null,
     // Only a link that opens something. The demo event moved to a phone
     // location on 2026-09-11, and Cal.com then fills this field with the
     // prospect's phone number, which rendered as a "Meet link" button pointing

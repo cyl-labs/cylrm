@@ -7,6 +7,7 @@ import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
 import { getSavedLines } from "@/lib/calls";
+import { calConfigured } from "@/lib/cal";
 import { UnbookedDemos } from "@/components/calls/unbooked-demos";
 import { getTextsByLead, smsEnabled, type Texting } from "@/lib/sms";
 import { classifyPhone } from "@/lib/phone";
@@ -262,6 +263,11 @@ export default async function MeetingsPage({
           // means no button rather than one that cannot work.
           followUpBookingUrl={process.env.CAL_FOLLOWUP_URL ?? null}
           texting={texting}
+          // Re-sending an invitation needs the Cal.com API, so an account
+          // without a key draws no button rather than one that can only fail.
+          // Not gated on role: the caller who typed the address wrong is the
+          // one who notices, and the route scopes them to their own niches.
+          canInvite={calConfigured()}
           // The host a person clicks, which is not the one the server fetches
           // from: in production the API is reached on localhost and the link
           // has to be the public name. Empty hides the contract buttons —

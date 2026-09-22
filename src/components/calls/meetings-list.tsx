@@ -12,6 +12,7 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  Mail,
   MessageSquare,
   PhoneOutgoing,
   ShieldAlert,
@@ -35,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmSend } from "@/components/confirm-send";
 import { useClaimLine } from "@/components/calls/line-presence";
@@ -250,6 +252,7 @@ export function MeetingsList({
   signingBase = "",
   texting = null,
   lines = [],
+  canInvite = false,
 }: {
   meetings: Meeting[];
   /** The screen's clock, chosen on the server. Passed rather than read from
@@ -280,6 +283,10 @@ export function MeetingsList({
   /** Whether this reader dials from the browser at all. Decides whether this
    *  tab claims the phone: a handset caller registers no line to fight over. */
   canDial?: boolean;
+  /** Whether Cal.com is connected, which is the whole of whether an invitation
+   *  can be re-sent. False draws no button rather than one that can only fail
+   *  — the rule every unconfigured feature on this screen follows. */
+  canInvite?: boolean;
 
 }) {
   const router = useRouter();
@@ -367,6 +374,57 @@ export function MeetingsList({
       setBusy(null);
     }
   }
+  /**
+   * The address an invitation is being re-sent to, before it is sent.
+   *
+   * Opened from the row, prefilled with whatever the CRM holds for the
+   * business when that is not what the booking has — which is the usual shape
+   * of this mistake, since the lead goes on being corrected after the booking
+   * has frozen its copy.
+   */
+  const [inviting, setInviting] = React.useState<{
+    meetingId: number;
+    email: string;
+  } | null>(null);
+
+  /**
+   * Send this booking's invitation to another address.
+   *
+   * It adds the address as a guest on Cal.com, because an attendee's email
+   * cannot be changed — see the route. The toast says what actually happened
+   * rather than "saved": somebody who believes the booking was corrected will
+   * not think to check that the prospect got anything.
+   */
+  async function sendInvite(meeting: Meeting, email: string) {
+    setBusy(meeting.id);
+    try {
+      const res = await fetch(`/api/meetings/${meeting.id}/guests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not send the invitation.");
+        return;
+      }
+      setInviting(null);
+      toast.success(
+        `Invitation sent to ${email}${data.savedToLead ? ", and saved as their email" : ""}`,
+      );
+      router.refresh();
+    } catch {
+      // It may have reached Cal.com before the connection went, and a second
+      // attempt on the same address is refused as a duplicate — so this must
+      // not read as "nothing happened, press it again".
+      toast.error(
+        "Lost the connection, so the invitation may or may not have gone. Refresh and check before sending again.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   /**
    * Picked but not yet logged.
    *
@@ -583,6 +641,15 @@ export function MeetingsList({
         // and the booking pages opened in another while the links read
         // `attendeeTz` directly.
         const theirZone = prospectZone(m.leadTz, m.attendeeTz);
+        // The two copies of the prospect's email disagreeing. Compared
+        // case-insensitively because nothing about a mailbox is case
+        // sensitive in practice, and a row shouting about `Vincent@` against
+        // `vincent@` would teach people to ignore it.
+        const emailMismatch =
+          !cancelled &&
+          !!m.leadEmail &&
+          !!m.attendeeEmail &&
+          m.leadEmail.toLowerCase() !== m.attendeeEmail.toLowerCase();
         // This business's text conversation, when texting is on.
         const lead =
           texting && m.leadId !== null ? texting.byLead[m.leadId] : undefined;
@@ -626,6 +693,23 @@ export function MeetingsList({
                     .filter(Boolean)
                     .join(" · ") || "No contact on the booking"}
                 </p>
+                {/* The booking's address against the one the CRM holds, when
+                    they disagree. The booking's copy is frozen the moment the
+                    Cal.com link is opened and can never be edited after; the
+                    lead's goes on being corrected. So a caller who mishears an
+                    address, fixes the lead and moves on leaves a booking whose
+                    invitation went nowhere, with nothing on the screen saying
+                    so — which is exactly what happened to Grab N Junk, spotted
+                    two days later by the caller rather than by this screen. */}
+                {emailMismatch && (
+                  <p className="mt-0.5 text-[12px] text-muted-foreground">
+                    The invitation went to{" "}
+                    <span className="font-semibold">{m.attendeeEmail}</span>.
+                    This business&apos;s email is{" "}
+                    <span className="font-semibold">{m.leadEmail}</span> — if
+                    the booking has it wrong, send the invitation again below.
+                  </p>
+                )}
                 {/* Which number this row is about to ring, when it is not the
                     one on the lead. The prospect is asked for the best number
                     when they book, and it is usually a mobile where the lead
@@ -987,6 +1071,43 @@ export function MeetingsList({
                     Text them
                   </button>
                 )}
+                {/* The repair for an address typed wrong on the booking form.
+                    Named for the problem rather than for what Cal.com calls it
+                    ("add a guest"), because nobody on the floor is looking for
+                    a guest — they are looking for the prospect who never got
+                    the invitation. The panel says what it can and cannot do.
+                    Shown on every live booking, not only the mismatched ones:
+                    a wrong address the CRM also holds looks perfectly fine
+                    here, which is the Safe Movers case. */}
+                {canInvite && !cancelled && (
+                  <button
+                    type="button"
+                    disabled={busy === m.id}
+                    aria-expanded={inviting?.meetingId === m.id}
+                    onClick={() =>
+                      setInviting(
+                        inviting?.meetingId === m.id
+                          ? null
+                          : {
+                              meetingId: m.id,
+                              // The CRM's own record when it disagrees with
+                              // the booking — the corrected one, in the case
+                              // this exists for. Otherwise empty rather than
+                              // the booking's address, which is the value
+                              // being replaced and cannot be sent again.
+                              email: emailMismatch ? (m.leadEmail ?? "") : "",
+                            },
+                      )
+                    }
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50",
+                      emailMismatch && "border-primary/40 text-primary",
+                    )}
+                  >
+                    <Mail className="size-3.5" />
+                    Wrong email?
+                  </button>
+                )}
                 {/* Only after a missed demo. There is nothing to log before
                     one: Cal.com tells the prospect it is coming, the sync
                     brings a cancellation or a new time back on its own, and
@@ -1237,6 +1358,63 @@ export function MeetingsList({
                     variant="outline"
                     disabled={busy === m.id}
                     onClick={() => setPicked(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Sending the invitation somewhere else.
+
+                Every word here is doing work. A caller who reads this as "I
+                fixed the email" will not ring to check the prospect got
+                anything, and the booking will still be carrying the wrong
+                address when the contract goes out. */}
+            {inviting?.meetingId === m.id && (
+              <div className="mt-3 rounded-lg border bg-background p-3">
+                <p className="text-[13px] font-bold">
+                  Send the invitation to another email
+                </p>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">
+                  Cal.com will not let the email on a booking be changed, so
+                  this sends the invitation to the right address instead. They
+                  get the calendar invite and the reminders.{" "}
+                  <span className="font-semibold">
+                    The old address stays on the booking
+                  </span>{" "}
+                  and keeps getting Cal.com&apos;s emails — only cancelling and
+                  booking again removes it, and that is rarely worth it.
+                </p>
+                <Input
+                  autoFocus
+                  type="email"
+                  inputMode="email"
+                  autoComplete="off"
+                  placeholder="name@company.com"
+                  value={inviting.email}
+                  onChange={(e) =>
+                    setInviting({ ...inviting, email: e.target.value })
+                  }
+                  className="mt-2"
+                />
+                <p className="mt-1.5 text-[12px] text-muted-foreground">
+                  Saved as this business&apos;s email too, so the next booking
+                  and the contract use it.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={busy === m.id || !inviting.email.trim()}
+                    onClick={() => sendInvite(m, inviting.email.trim())}
+                  >
+                    {busy === m.id ? "Sending…" : "Send the invitation"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === m.id}
+                    onClick={() => setInviting(null)}
                   >
                     Cancel
                   </Button>
