@@ -11,6 +11,8 @@ import {
   ClipboardCheck,
   Copy,
   ExternalLink,
+  FileSignature,
+  FileText,
   Globe,
   Mail,
   MessageSquare,
@@ -112,16 +114,26 @@ const REPLY_POLL_MS = 15_000;
 /**
  * What the text says before anybody edits it.
  *
- * Only ever sent after a demo-time call they did not pick up or that went to
- * voicemail, so it says that and nothing else. Written as the person who just
- * rang, because it is one: no brand prefix, no footer, and no company name,
- * which the founders asked for on 2026-09-15 ("nobody cares"). No sender name
- * either — the founders share one account, so its name ("Founders") is exactly
- * the word that would give the text away as a system.
+ * Written as the person sending it, because it is one: no brand prefix, no
+ * footer, and no company name, which the founders asked for on 2026-09-15
+ * ("nobody cares"). No "Founders" either, unlike the account it sends from —
+ * that name is exactly the word that would give the text away as a system,
+ * so it signs as the person instead.
+ *
+ * Two drafts, not one, keyed on `needsRingBack` the same way the call button
+ * above it is (`label`/`note`): this box is reached from a no-show's ring
+ * back and from a demo that happened and is now getting the agreement links
+ * (the buttons below append those into whatever is already typed), and
+ * those are different messages to different people. Split 2026-09-23 after
+ * one draft covered both and read wrong for whichever case it wasn't
+ * written for.
  */
 function textDraft(m: Meeting): string {
   const first = m.attendeeName?.trim().split(/\s+/)[0];
-  return `${first ? `Hey ${first}` : "Hey"}, just tried calling you for your demo. I'll call you again now.`;
+  const greeting = first ? `Hey ${first}` : "Hey";
+  return m.needsRingBack
+    ? `${greeting}, just tried calling you for your demo. I'll call you again now.`
+    : `${greeting}, it's Mark sending over the docs right now, let me know if you have any questions.`;
 }
 
 /**
@@ -172,6 +184,44 @@ function when(iso: string, now: number | null) {
   if (mins < 60) return `in ${mins}m`;
   if (mins < 60 * 24) return `in ${Math.round(mins / 60)}h`;
   return `in ${Math.round(mins / 60 / 24)}d`;
+}
+
+/** Handed over by the founders — the intake form sent to a business once
+ *  they're moving forward, alongside the contract link. */
+const FORM_URL = "https://forms.gle/P2K4aMFL4vUJhCWr7";
+
+/** Appends onto whatever is already drafted rather than replacing it, since
+ *  the contract and form links are both dropped into the same text one after
+ *  the other. */
+function appendLink(body: string, url: string): string {
+  const trimmed = body.trimEnd();
+  return trimmed ? `${trimmed}\n${url}` : url;
+}
+
+function CopyFormLink() {
+  const [copied, setCopied] = React.useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(FORM_URL);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1600);
+        } catch {
+          toast.error("Could not copy: select the link and copy it.");
+        }
+      }}
+      className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
+    >
+      {copied ? (
+        <Check className="size-3.5" strokeWidth={2.6} />
+      ) : (
+        <FileText className="size-3.5" strokeWidth={2.2} />
+      )}
+      {copied ? "Copied" : "Copy form link"}
+    </button>
+  );
 }
 
 function CopyNumber({
@@ -1085,6 +1135,7 @@ export function MeetingsList({
                 {m.phone && (
                   <CopyNumber phone={m.phone} blocked={m.dncBlock} />
                 )}
+                <CopyFormLink />
                 {/* For after a call nobody picked up. Opens a box under the
                     row with the words already in it; nothing is sent until
                     Send is pressed there. */}
@@ -1506,6 +1557,50 @@ export function MeetingsList({
                       }
                       className="mt-2 min-h-[64px]"
                     />
+                    {/* Drops the link in rather than making somebody switch
+                        tabs to copy it and paste it back. Each press appends
+                        to whatever is already written, so the contract and
+                        the form link can both be added to the same text. */}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {m.contracts.map((c) => (
+                        <button
+                          key={c.kind}
+                          type="button"
+                          onClick={() =>
+                            setComposing((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    body: appendLink(
+                                      prev.body,
+                                      `${signingBase}/s/${c.signerSlug}`,
+                                    ),
+                                  }
+                                : prev,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[12px] font-semibold transition-colors hover:bg-muted"
+                        >
+                          <FileSignature className="size-3" />
+                          Add {c.kind === "trial" ? "trial" : "paid"} agreement
+                          link
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setComposing((prev) =>
+                            prev
+                              ? { ...prev, body: appendLink(prev.body, FORM_URL) }
+                              : prev,
+                          )
+                        }
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[12px] font-semibold transition-colors hover:bg-muted"
+                      >
+                        <FileText className="size-3" />
+                        Add form link
+                      </button>
+                    </div>
                   </>
                 )}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
