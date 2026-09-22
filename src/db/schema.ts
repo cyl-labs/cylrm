@@ -1291,6 +1291,50 @@ export const callMeetingFollowup = pgTable(
  * deliberately not a copy of the document: DocuSeal owns that, and a second
  * copy of a contract is a second copy that can disagree with the first.
  *
+/**
+ * What was said on the call that won an upcoming demo.
+ *
+ * The founder taking a demo is usually not the caller who booked it, and the
+ * handover has been the `notes` typed onto the booking call. Measured on the
+ * 14 upcoming meetings the day this was built: 3 had notes, averaging 210
+ * characters, while 13 had a recording and 11 of those were already
+ * transcribed. The context existed and was not reaching the person walking
+ * into the demo.
+ *
+ * Stored rather than generated on every press because a brief costs an OpenAI
+ * call, and a recording with no transcript yet costs a Deepgram minute on top.
+ * `sourceFingerprint` is what makes "has anything changed" answerable — it
+ * hashes exactly the material the brief was written from, so logging another
+ * call invalidates it and reopening the document does not. `model` is
+ * snapshotted for the reason `payout` snapshots its rates.
+ */
+export const callMeetingBrief = pgTable(
+  "call_meeting_brief",
+  {
+    id: serial("id").primaryKey(),
+    meetingId: integer("meeting_id")
+      .notNull()
+      .unique()
+      .references(() => callMeeting.id, { onDelete: "cascade" }),
+    /** Markdown, rendered by both the screen and the PDF so there is one
+     *  document rather than two that can disagree. */
+    summary: text("summary").notNull(),
+    sourceFingerprint: text("source_fingerprint"),
+    model: text("model"),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    generatedByUserId: integer("generated_by_user_id").references(
+      () => appUser.id,
+      { onDelete: "set null" },
+    ),
+  },
+  // Declared here as well as in the migration: a push drops any index that is
+  // only in a migration file, the trap `call_user_id_idx` documents.
+  (t) => [index("call_meeting_brief_meeting_idx").on(t.meetingId)],
+);
+
+/**
  * `fieldValues` is a snapshot for the same reason `payout` snapshots its rates.
  * Raising a price must not rewrite what an agreement said on the day it was
  * drafted, and this is the only record of that on our side.

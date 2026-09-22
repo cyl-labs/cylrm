@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { FileText } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { MeetingsList } from "@/components/calls/meetings-list";
 import { MeetingsExplainer } from "@/components/calls/meetings-explainer";
@@ -172,6 +174,19 @@ export default async function MeetingsPage({
             view={view}
             query={`${keepTz}&span=${span}&on=${anchor}`}
           />
+          {/* Reading material rather than work, so it is a link off this
+              screen and not a fold on it. Founders only, matching the route:
+              writing the briefs costs an OpenAI call each and the people who
+              take demos are the people who need one. */}
+          {me?.role === "admin" && (
+            <Link
+              href="/meetings/brief"
+              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
+            >
+              <FileText className="size-3.5" />
+              Briefing
+            </Link>
+          )}
           {/* Per browser, not per person — see PushToggle. Renders nothing at
               all where push cannot work, rather than a dead button. */}
           <PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
