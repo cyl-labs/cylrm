@@ -21,7 +21,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CALL_TIME_OUTCOMES, OUTCOME_LABELS } from "@/components/calls/outcome";
@@ -473,27 +472,6 @@ export function InboundList({
                               {OUTCOME_LABELS[o]}
                             </DropdownMenuItem>
                           ))}
-                          {/* Founders only, enforced again on the server
-                              since a fetch walks straight past a hidden
-                              button. A missed call is a promise owed to
-                              whoever rang in; a caller does not get to clear
-                              it with nothing said about what happened. This
-                              is for the case a founder does get: a number
-                              already worked from somewhere else, or one
-                              decided not worth a ring back. Kept out of the
-                              outcomes above by the separator, and one click
-                              rather than two, because it writes nothing that
-                              could be a false record of a conversation —
-                              which is the only reason those ask for a
-                              confirm first. */}
-                          {showWho && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onSelect={() => save(c, null)}>
-                                Skip — no call needed
-                              </DropdownMenuItem>
-                            </>
-                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     ) : (
@@ -510,6 +488,35 @@ export function InboundList({
                         Mark as rung back
                       </button>
                     ))}
+                  {/* Founders only, enforced again on the server since a
+                      fetch walks straight past a hidden button. A missed call
+                      is a promise owed to whoever rang in; a caller does not
+                      get to clear it with nothing said about what happened.
+                      This is for the case a founder does get: a number
+                      already worked from somewhere else, or one decided not
+                      worth a ring back.
+
+                      A plain sibling button, not a line inside "Log the
+                      call" — it lived there at first and a founder reading
+                      this row next to a leadless one asked why they could
+                      "Mark as rung back" in one case and not the other. Nowhere
+                      near true: a lead-backed row always had the same way out,
+                      one click deeper, where nobody was going to find it. Same
+                      visual weight as "Mark as rung back" now, because it is
+                      answering the same question. One click rather than two,
+                      because it writes nothing that could be a false record of
+                      a conversation — which is the only reason the outcomes in
+                      the menu ask for a confirm first. */}
+                  {outstanding && showWho && c.leadId !== null && (
+                    <button
+                      type="button"
+                      disabled={busy === c.id}
+                      onClick={() => save(c, null)}
+                      className="rounded-md border border-dashed px-3 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    >
+                      Skip
+                    </button>
+                  )}
                   {c.leadId !== null && c.listId !== null && (
                     // Into the dial card in its own niche, never the
                     // spreadsheet: the grid is a different tool with a
