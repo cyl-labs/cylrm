@@ -787,16 +787,21 @@ export function MeetingsList({
                     when they book, and it is usually a mobile where the lead
                     carries the company's switchboard — so the row says which
                     one it has, rather than quietly dialling the other.
-                    Names both numbers now (2026-09-23): saying only the
-                    listed line and leaving the booking number unsaid meant
-                    the ring confirm's "Calling +1 203 257 8961" matched
-                    neither number printed on the row, and read as a bug
-                    rather than as the number it had just described. */}
+                    Leads with the number itself, bold and in the same
+                    `font-semibold` the ring confirm (`confirm-call.tsx`)
+                    gives it, rather than burying it mid-sentence (2026-09-23):
+                    a first pass named both numbers but gave them equal
+                    weight in one run-on line, and the one actually being
+                    dialled still did not stand out against the listed one
+                    beside it — see Pro Junk Removal LLC. */}
                 {m.listedPhone && m.phone && (
                   <p className="mt-0.5 text-[12px] text-muted-foreground">
-                    Rings the number they gave when booking,{" "}
-                    <span className="tabular-nums">{spokenNumber(m.phone)}</span>.
-                    The listed line is{" "}
+                    Calls{" "}
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {spokenNumber(m.phone)}
+                    </span>
+                    , the number they gave when booking — not their listed
+                    line,{" "}
                     <span className="tabular-nums">
                       {spokenNumber(m.listedPhone)}
                     </span>
