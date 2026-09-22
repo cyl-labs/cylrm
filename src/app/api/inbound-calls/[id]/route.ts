@@ -113,6 +113,19 @@ export async function PATCH(
     );
   }
 
+  // Clearing a lead-backed row with no outcome — "Skip", not "rung back" — is
+  // founders only. A caller's missed call is somebody who is owed a ring
+  // back; a row matching no lead has never been anyone's promise, which is
+  // the one case a caller may still clear silently and always could. Enforced
+  // here rather than by hiding the button: a fetch walks straight past a
+  // hidden button, and this route is outside the middleware matcher.
+  if (outcome === null && leadId !== null && me.role !== "admin") {
+    return Response.json(
+      { error: "Only a founder can skip a call without logging it." },
+      { status: 403 },
+    );
+  }
+
   let callbackAt: Date | null = null;
   // The lead test moved up here on 2026-09-17, and it is load-bearing now
   // rather than tidy. The parse used to run before anything knew whether a

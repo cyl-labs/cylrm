@@ -21,6 +21,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CALL_TIME_OUTCOMES, OUTCOME_LABELS } from "@/components/calls/outcome";
@@ -209,7 +210,14 @@ export function InboundList({
       const who = c.company ?? c.leadName ?? c.from;
       toast.success(
         outcome === null
-          ? `Marked as rung back: ${who}`
+          ? // Two different rows share this branch and must not share a
+            // sentence. A number matching no lead really is being marked rung
+            // back — there is nothing else to say about it. A lead-backed row
+            // is being skipped with no call made at all, and "rung back"
+            // would be a claim nobody can stand behind.
+            c.leadId === null
+            ? `Marked as rung back: ${who}`
+            : `Skipped: ${who}`
           : `${OUTCOME_LABELS[outcome]}: ${who}`,
       );
       setPicked(null);
@@ -465,6 +473,27 @@ export function InboundList({
                               {OUTCOME_LABELS[o]}
                             </DropdownMenuItem>
                           ))}
+                          {/* Founders only, enforced again on the server
+                              since a fetch walks straight past a hidden
+                              button. A missed call is a promise owed to
+                              whoever rang in; a caller does not get to clear
+                              it with nothing said about what happened. This
+                              is for the case a founder does get: a number
+                              already worked from somewhere else, or one
+                              decided not worth a ring back. Kept out of the
+                              outcomes above by the separator, and one click
+                              rather than two, because it writes nothing that
+                              could be a false record of a conversation —
+                              which is the only reason those ask for a
+                              confirm first. */}
+                          {showWho && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onSelect={() => save(c, null)}>
+                                Skip — no call needed
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     ) : (

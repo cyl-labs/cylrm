@@ -545,6 +545,39 @@ inbound handled.
     seconds long at MOS 4.46. Not backfilled: which of the existing 91 were
     really answered is not knowable from our own rows, and any that were rung
     back clear themselves through `RUNG_BACK_SINCE`.
+- **A lead-backed row can be skipped with no call logged — founders only**
+  (2026-09-23). "Log the call" always assumed the row would end in a real
+  outcome, and there was no way off it otherwise: a number already worked from
+  the Spreadsheet, or one a founder had simply decided was not worth a ring
+  back, sat there regardless. "Skip — no call needed" is the same bodyless
+  PATCH the leadless "Mark as rung back" already used — `outcome === null`
+  clears the row and logs nothing — the route just never let a lead-backed row
+  reach it before. Gated to admins **on the server as well as the UI**, in the
+  route itself rather than by hiding the button: a missed call is a promise
+  owed to whoever rang in, and a caller does not get to clear one with nothing
+  said about what happened. The toast is deliberately not "Marked as rung
+  back" here — that sentence is still true for the leadless case, and would be
+  a claim nobody made for this one.
+- **A due callback can be pushed to tomorrow without a fake attempt — founders
+  only** (`callbacks-list.tsx`, "Skip — push to tomorrow", 2026-09-23). The
+  founders' own diary can outrun a day, and the honest move is "not today",
+  not a made-up outcome typed into the notes box. `PATCH /api/calls`, not
+  `POST`: that route already exists to fix a mis-tapped outcome by overwriting
+  the lead's latest call **in place** — `called_at`, `user_id` and the notes
+  all untouched, only `outcome` and `callback_at` set — which is exactly what
+  this needs and exactly why a new endpoint was not written. A `POST` here
+  would insert a second `callback` row: a phantom attempt nobody made, one
+  call closer to `MAX_UNANSWERED_TRIES`, and a "last called at" on the
+  Spreadsheet that lies about when the lead was actually rung. Same call, same
+  caller of record, same notes — only the due time moves, to
+  `defaultCallbackAt`, the same "tomorrow morning their time" the outcome
+  menu's own callback field defaults to. Verified against a fixture row before
+  shipping: the call id, `called_at` and notes were byte-identical before and
+  after, and the lead still carried exactly one `call` row.
+  - **A caller's callback stays untouchable this way.** It is a promise made
+    to a real prospect on a real call, which a founder's is not — a founder
+    does not work call lists, so a follow-up they could not get to today is
+    theirs to defer, not the floor's promise to break.
 - **"Open lead" goes to the dial card, never the spreadsheet**
   (`/calls/<listId>?view=all&lead=<id>`). The grid is a different tool with a
   different shape and a caller sent there mid-shift has to work out where they

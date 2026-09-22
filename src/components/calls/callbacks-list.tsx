@@ -230,6 +230,65 @@ export function CallbacksList({
     }
   }
 
+  /**
+   * Push the promise forward without pretending a call happened.
+   *
+   * Founders only (gated where this is rendered) — a caller's callback is a
+   * commitment made to a real prospect on a real call, and this exists for
+   * the opposite case: a founder's own diary getting more entries than there
+   * are hours, where the honest answer is "not today" rather than a made-up
+   * outcome.
+   *
+   * `PATCH /api/calls`, not `POST`: that route overwrites the lead's latest
+   * call in place rather than logging a new one, which is exactly what this
+   * needs and exactly why it was built — "fix a mis-tapped outcome" without
+   * a second attempt appearing, `called_at` moving, or the caller who made
+   * the original call losing it. A `POST` here would insert a *second*
+   * `callback` row: a phantom attempt nobody made, one call closer to
+   * `MAX_UNANSWERED_TRIES`, and a "last called at" that lies. Same lead,
+   * same promise, same caller of record — only the due time moves.
+   *
+   * Notes are left out of the request on purpose: the PATCH only touches
+   * fields it is given, and whatever the lead's last call already says stays
+   * said. There is nothing new to write down, because nothing new happened.
+   */
+  async function skip(lead: CallbackLead) {
+    const who = lead.company ?? lead.name ?? lead.phone;
+    setLogged((p) => new Set(p).add(lead.id));
+    try {
+      const res = await fetch("/api/calls", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          callLeadId: lead.id,
+          outcome: "callback",
+          callbackAt: defaultCallbackAt(lead.tz, readerTz),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Could not push that back.");
+        setLogged((p) => {
+          const next = new Set(p);
+          next.delete(lead.id);
+          return next;
+        });
+        return;
+      }
+      // Not "logged" and not an attempt — say so, rather than reusing the
+      // outcome-logged toast and implying a call was made.
+      toast.success(`Pushed to tomorrow: ${who}`);
+      router.refresh();
+    } catch {
+      toast.error("Could not push that back: network error.");
+      setLogged((p) => {
+        const next = new Set(p);
+        next.delete(lead.id);
+        return next;
+      });
+    }
+  }
+
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-dashed py-16 text-center">
@@ -381,6 +440,20 @@ export function CallbacksList({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+              {/* Founders only. A caller's callback is a promise made to a
+                  real prospect on a real call, and clearing it with no
+                  outcome logged is not theirs to do — the same reason
+                  `inbound-list.tsx` gates its own skip action the same way.
+                  This is for a founder's own diary outrunning the day. */}
+              {showWho && (
+                <button
+                  type="button"
+                  onClick={() => skip(l)}
+                  className="rounded-md border border-dashed px-3 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  Skip — push to tomorrow
+                </button>
+              )}
               {l.email && (
                 <span className="min-w-0 truncate text-[13px] text-muted-foreground">
                   {l.email}
