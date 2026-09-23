@@ -33,6 +33,7 @@ import {
   type CalendarSpan,
 } from "@/components/calls/meetings-calendar";
 import { MeetingsView } from "@/components/calls/meetings-view";
+import { PastMeetingsFilters } from "@/components/calls/past-meetings-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,8 @@ export default async function MeetingsPage({
     span?: string;
     on?: string;
     past?: string;
+    caller?: string;
+    status?: string;
   }>;
 }) {
   const me = await getCurrentUser();
@@ -69,6 +72,8 @@ export default async function MeetingsPage({
     span: rawSpan,
     on: rawOn,
     past: rawPast,
+    caller: rawCaller,
+    status: rawStatus,
   } = await searchParams;
 
   // The full history instead of the rolling work queue, off its own button
@@ -77,6 +82,13 @@ export default async function MeetingsPage({
   // left to find it was the call log, filtered by outcome, which does not
   // say a call was a no-show rather than a follow-up. See `getMeetings`.
   const past = rawPast === "1";
+  // Both meaningless outside history — the work queue is already narrowed to
+  // what is owed, and this reader's own list at that. Defaulted to "all"
+  // rather than left undefined so a stale link (someone filtered, then came
+  // back tomorrow with the same URL) still means something rather than
+  // silently widening back to everything.
+  const caller = rawCaller ?? "all";
+  const status = rawStatus ?? "all";
 
   // Their own clock: the zone in the link if there is one, else the reporting
   // zone they picked, else the market they work, else Eastern — the same order
@@ -94,7 +106,35 @@ export default async function MeetingsPage({
       DEFAULT_STATS_REGION);
   const zone = statsZone(region);
 
-  const meetings = await getMeetings(callScope(me), zone.tz, { past });
+  const allMeetings = await getMeetings(callScope(me), zone.tz, { past });
+  // Who booked each of them, for the caller picker — off the *unfiltered*
+  // history, so picking "Aaron" does not also narrow the list of callers
+  // down to just Aaron. Admin-only like the name itself is everywhere else on
+  // this screen (`showWho`): a caller's own past is already scoped to their
+  // own list by `callScope`, so there is at most one name in it.
+  const pastCallers =
+    past && me?.role === "admin"
+      ? Array.from(
+          new Set(
+            allMeetings.flatMap((m) => (m.bookedBy ? [m.bookedBy] : [])),
+          ),
+        ).sort((a, b) => a.localeCompare(b))
+      : [];
+  // "What happened" rather than the raw `attendance`/`status` columns — see
+  // `PastMeetingsFilters`. Applied here rather than in `getMeetings` because
+  // the whole point is slicing a small, already-fetched history several
+  // different ways without a round trip per click.
+  const meetings =
+    past && (caller !== "all" || status !== "all")
+      ? allMeetings.filter((m) => {
+          if (caller !== "all" && m.bookedBy !== caller) return false;
+          if (status === "all") return true;
+          if (status === "cancelled") return m.status === "cancelled";
+          if (status === "unanswered")
+            return m.attendance === null && m.status !== "cancelled";
+          return m.attendance === status;
+        })
+      : allMeetings;
   // Read once: it decides both the mergeable lines and whether this tab takes
   // the phone.
   const browserDialler = (await dialMethodOf(me?.id)) === "browser";
@@ -212,6 +252,16 @@ export default async function MeetingsPage({
             <History className="size-3.5" />
             {past ? "Upcoming" : "Past meetings"}
           </Link>
+          {/* Who booked it and what happened — only meaningful once looking
+              at history, where the rows are no longer already narrowed down
+              to what is owed. */}
+          {past && (
+            <PastMeetingsFilters
+              callers={pastCallers}
+              caller={caller}
+              status={status}
+            />
+          )}
           {/* Reading material rather than work, so it is a link off this
               screen and not a fold on it. Founders only, matching the route:
               writing the briefs costs an OpenAI call each and the people who
