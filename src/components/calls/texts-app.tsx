@@ -257,6 +257,10 @@ export function TextsApp({
     ? conversations.filter(
         (c) =>
           (c.name ?? "").toLowerCase().includes(q) ||
+          // A founder types a caller's name to see every conversation on
+          // that caller's number. Only admins see whose number a row is on,
+          // and a caller's own list is all theirs anyway.
+          (isAdmin && (c.oursName ?? "").toLowerCase().includes(q)) ||
           (digits.length > 2 && c.their.includes(digits)) ||
           (c.last?.body ?? "").toLowerCase().includes(q),
       )
@@ -305,7 +309,7 @@ export function TextsApp({
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search"
+                placeholder={isAdmin ? "Search, or a caller's name" : "Search"}
                 aria-label="Search texts"
                 className="h-9 w-full rounded-[10px] bg-[#7676801f] pl-8 pr-3 text-[15px] outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-[var(--imsg-sent)]/40 dark:bg-[#7676803d]"
               />
