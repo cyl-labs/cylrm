@@ -413,6 +413,21 @@ successes on the same connection went through `sv1`.
   which sessions it happened to contain kept changing. Page to
   `meta.total_pages` or the number is fiction.
 
+### Clicking another CRM tab hung up the call (2026-09-24)
+
+`ON_CALL` and `useReportCall` in `line-presence.tsx`, reported from
+`CallLineProvider`. The tab election ranked a hidden tab below a visible one
+*within* each tier, so a tab mid-call that was put behind another tab showing
+any screen that can dial (Meetings, Texts, Missed calls, the Keypad, the
+dialler) lost the line — and losing it tears down the registration, which
+hangs up the call. The founders' demo with Next Level Haul Away dropped four
+times in twenty minutes, each cut mid-sentence at the moment the contract was
+being sent from the other tab ("I've sent a new link… it should be the exact
+same document"); Telnyx logged every one as `recv_bye` from the browser.
+"Sometimes", because a tab on a screen that cannot dial ranks too low to take
+it. A tab with a call, a second leg or a call ringing in now outranks every
+other tab, visible or not, until it is idle.
+
 ### Two tabs made the Call back button strobe (2026-09-22)
 
 Reported as the button "constantly flashing between Connecting… and Call back",

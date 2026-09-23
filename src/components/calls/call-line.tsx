@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useLineLeader } from "./line-presence";
+import { useLineLeader, useReportCall } from "./line-presence";
 import {
   primeRingtone,
   showIncomingNotification,
@@ -244,6 +244,12 @@ export function CallLineProvider({
   // gate instead of three.
   const leader = useLineLeader();
   const line = useTelnyxCall(REMOTE_AUDIO_ID, enabled && leader, SECOND_AUDIO_ID);
+  // While anything is up — a call, a second leg, or one ringing in — this tab
+  // keeps the line whatever else is brought to the front. Losing the election
+  // tears down the registration, and that hangs up the call.
+  useReportCall(
+    line.state !== "idle" || line.second !== null || line.incoming !== null,
+  );
 
   // Unlock the ringtone on the first real interaction, whatever it was.
   // Browsers refuse to start audio for a page nobody has touched, and the

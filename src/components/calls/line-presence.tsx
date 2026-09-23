@@ -82,6 +82,16 @@ const SETTLE_MS = 300;
  * — most of the Call CRM. Caught by testing the handover rather than by
  * reading, and the numbers below are the fix.
  */
+/**
+ * On a call outranks everything, visible or not (2026-09-24). Without it a tab
+ * mid-call that was put behind another CRM tab dropped to `CALLING_HIDDEN`,
+ * the tab brought forward — any screen that can dial — won on
+ * `CALLING_VISIBLE`, and the losing tab tore down its registration, which
+ * hangs up the call in it. "sometimes when i click on other crm tabs it ends
+ * the call im in": sometimes, because a tab on a screen that cannot dial ranks
+ * too low to take it. Reported by `CallLineProvider` through `useReportCall`.
+ */
+const ON_CALL = 5;
 const CALLING_VISIBLE = 4;
 const CALLING_HIDDEN = 3;
 const LISTENING_VISIBLE = 2;
@@ -94,7 +104,8 @@ const LineContext = React.createContext<{
   claimed: boolean;
   leader: boolean;
   claim: () => () => void;
-}>({ claimed: false, leader: true, claim: () => () => {} });
+  setOnCall: (onCall: boolean) => void;
+}>({ claimed: false, leader: true, claim: () => () => {}, setOnCall: () => {} });
 
 export function LinePresence({ children }: { children: React.ReactNode }) {
   const [holders, setHolders] = React.useState(0);
@@ -106,6 +117,7 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
   // hand is. Corrected in the effect below on mount: reading
   // `document.visibilityState` during render is a hydration mismatch.
   const [hidden, setHidden] = React.useState(false);
+  const [onCall, setOnCall] = React.useState(false);
 
   const claim = React.useCallback(() => {
     setHolders((n) => n + 1);
@@ -119,8 +131,9 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("visibilitychange", sync);
   }, []);
 
-  const priority =
-    holders > 0
+  const priority = onCall
+    ? ON_CALL
+    : holders > 0
       ? hidden
         ? CALLING_HIDDEN
         : CALLING_VISIBLE
@@ -235,7 +248,7 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
   }, [priority]);
 
   const value = React.useMemo(
-    () => ({ claimed: holders > 0, leader, claim }),
+    () => ({ claimed: holders > 0, leader, claim, setOnCall }),
     [holders, leader, claim],
   );
   return <LineContext.Provider value={value}>{children}</LineContext.Provider>;
@@ -264,4 +277,14 @@ export function useClaimLine(active: boolean): void {
     if (!active) return;
     return claim();
   }, [active, claim]);
+}
+
+/** Held true by the tab's phone while a call is up, ringing included, so the
+ *  election never moves the line out from under it. See `ON_CALL`. */
+export function useReportCall(onCall: boolean): void {
+  const { setOnCall } = React.useContext(LineContext);
+  React.useEffect(() => {
+    setOnCall(onCall);
+  }, [onCall, setOnCall]);
+  React.useEffect(() => () => setOnCall(false), [setOnCall]);
 }
