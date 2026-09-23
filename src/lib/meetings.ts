@@ -661,7 +661,21 @@ const DEMO_RECORDING_WHERE = sql`
 
 const meetingSelect = sql`
   m.id, m.cal_booking_uid, m.start_at, m.end_at, m.status, m.title,
-  m.attendee_name, m.attendee_email, m.attendee_phone, m.attendee_tz,
+  -- The caller's own name typed into the booking form in place of the
+  -- prospect's (2026-09-24: Alex booked Jason's Jacksonville Junk Removal as
+  -- "Alex"). Cal.com cannot rename an attendee and the sync rewrites this
+  -- column, so it is corrected on read: when the booking name is the booking
+  -- caller's own, the lead's name is shown instead. Only then — lead names
+  -- carry typos of their own ("Vinvent" against a booking's "Vincent").
+  case
+    when l.name is not null and bc.user_id is not null
+      and lower(trim(m.attendee_name)) = (
+        select lower(trim(u.name)) from app_user u where u.id = bc.user_id
+      )
+      then l.name
+    else m.attendee_name
+  end as attendee_name,
+  m.attendee_email, m.attendee_phone, m.attendee_tz,
   m.meeting_url, m.kind,
   -- Where the business actually is, which outranks the zone Cal.com recorded:
   -- that one is the zone the booking form was open in, and the form is a
