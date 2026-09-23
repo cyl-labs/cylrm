@@ -928,6 +928,29 @@ const needsFollowUp = sql`coalesce(
   )
 , false)`;
 
+/**
+ * Still belongs with what is coming up: not started, or started and not yet
+ * logged. Logged means the attendance answer ("Log what happened") for a demo,
+ * dated after it began — the same rule `attendance` above reads — or a
+ * follow-up result against its current time for a follow-up meeting, which is
+ * never asked about attendance. Reads `f` from `latestFollowup`, so it only
+ * works inside a query built on `joins`.
+ */
+const stillAhead = sql`(
+  m.start_at > now()
+  or (
+    m.status = 'accepted'
+    and m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS}::int)
+    and case
+      when m.kind = 'follow_up' then f.id is null
+      else not exists (
+        select 1 from call_demo_attendance a
+        where a.call_lead_id = l.id and a.marked_at >= m.start_at
+      )
+    end
+  )
+)`;
+
 const joins = sql`
   left join call_lead l on l.id = m.call_lead_id
   left join call_list cl on cl.id = l.call_list_id
@@ -1105,9 +1128,17 @@ export async function getMeetings(
       -- screen, so they floated to the top and pushed tonight's bookings
       -- under three days of finished business. "Can you move these ones that
       -- are already done down? i want the upcoming ones at the top."
-      (m.start_at > now()) desc,
-      -- Upcoming: soonest first, the diary order.
-      case when m.start_at > now() then m.start_at end asc,
+      --
+      -- "Not happened yet" includes a meeting whose slot has begun but that
+      -- nobody has logged (2026-09-23). It used to be start_at > now() alone,
+      -- so the demo being held that minute dropped under the finished ones
+      -- the second its start time passed — mid-call. "wait until i log a
+      -- outcome its not like i finish the call in 1 minute". Twelve hours at
+      -- most, the window the where clause already keeps a row for.
+      (${stillAhead}) desc,
+      -- Upcoming: soonest first, the diary order — so the one in progress,
+      -- having the earliest time, sits on top.
+      case when ${stillAhead} then m.start_at end asc,
       -- Past: still owed something before finished, so the ring back that
       -- kept the row alive is above the demo that is closed out. Nothing is
       -- hidden either way — this only decides which of two past rows is
