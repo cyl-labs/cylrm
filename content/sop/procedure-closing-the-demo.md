@@ -49,7 +49,7 @@ closing it drops both calls.
 
 Set expectations first, or a generic demo gets judged as the finished product.
 
-> **You say** This is going to be a generic version of what I'd normally build for you — normally I'd put together a proper knowledge base first. But it'll give you the idea. I'll ask it a few questions, run through the intake, then hang up and you can ask me anything.
+> **You say** Before I bring it in, I just want to let you know this is a generic version of what I'd build for you. Normally we'd put together a custom knowledge base based on your business — this is more so you can hear what it sounds like and how the booking flow works. I'm going to conference it in and ask it a few questions, and when I hang up, let me know what you think.
 
 ## Straight after the demo, get their numbers
 
