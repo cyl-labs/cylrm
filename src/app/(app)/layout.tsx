@@ -11,6 +11,7 @@ import { canUseKeypad, dialMethodOf } from "@/lib/users";
 import { LinePresence } from "@/components/calls/line-presence";
 import { InboundListener } from "@/components/calls/inbound-listener";
 import { CallLineProvider } from "@/components/calls/call-line";
+import { TabSync } from "@/components/tab-sync";
 import { CalBookingProvider } from "@/components/calls/book-demo";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
@@ -158,6 +159,9 @@ export default async function AppLayout({
         </CalBookingProvider>
       </main>
       <Toaster />
+      {/* A change saved in one CRM tab refreshes the others — the badges and
+          lists are server-rendered and otherwise wait for a reload. */}
+      <TabSync />
       {/* Draws the call on every screen that is not a calling screen: a
           prospect ringing back, and a call still in progress after somebody
           has navigated away from the dial card. */}
