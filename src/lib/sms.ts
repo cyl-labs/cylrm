@@ -393,8 +393,25 @@ export async function recordInboundText(
       order by created_at desc, id desc
       limit 1
     ),
+    -- Whichever business this conversation was last about, in either
+    -- direction: a conversation linked by hand (linkConversation) may
+    -- never have had a reply, and its number matches no lead.
+    linked as (
+      select call_lead_id from call_sms
+      where call_lead_id is not null
+        and (
+          (direction = 'in' and from_number = ${from} and to_number = ${to})
+          or (direction = 'out' and to_number = ${from} and from_number = ${to})
+        )
+      order by created_at desc, id desc
+      limit 1
+    ),
     lead as (
-      select coalesce((select call_lead_id from convo), ${leadByPhone}) as id
+      select coalesce(
+        (select call_lead_id from convo),
+        (select call_lead_id from linked),
+        ${leadByPhone}
+      ) as id
     )
     insert into call_sms (
       telnyx_message_id, direction, from_number, to_number, body, status,

@@ -3,7 +3,7 @@ import { callerNumberOf, canSendTexts } from "@/lib/users";
 import { classifyPhone, e164 } from "@/lib/phone";
 import { sendSms } from "@/lib/telnyx";
 import { explainTextError, recordOutbound, smsEnabled } from "@/lib/sms";
-import { conversationOptedOut, leadForNumber } from "@/lib/texts";
+import { conversationOptedOut, leadForConversation } from "@/lib/texts";
 import { conversationKey } from "@/lib/text-key";
 
 /** Three texts' worth, the same cap the Meetings screen uses. */
@@ -73,7 +73,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const lead = await leadForNumber(to);
+  // The conversation's own lead first: one linked by hand to a business the
+  // number does not match must stay linked when we reply.
+  const lead = await leadForConversation(to, from);
   if (lead?.dncBlock) {
     return Response.json({ error: lead.dncBlock }, { status: 403 });
   }

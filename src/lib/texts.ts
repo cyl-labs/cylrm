@@ -6,7 +6,7 @@ import type { SmsMedia } from "@/db/schema";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { dncBlockReason } from "@/lib/dnc";
 import { dialCountry } from "@/lib/phone";
-import type { CurrentUser } from "@/lib/session";
+import { callScope, type CurrentUser } from "@/lib/session";
 import { optedOutOf, smsEnabled, type SmsStatus } from "@/lib/sms";
 import { conversationKey } from "@/lib/text-key";
 
@@ -67,6 +67,10 @@ export type Conversation = {
   last: { body: string; direction: "in" | "out"; status: SmsStatus; at: string } | null;
   /** Texts in it that the signed-in person has not opened. */
   unread: number;
+  /** The signed-in person has sent a text in it themselves — a conversation
+   *  somebody is actually having, which Texts lifts above the automatic
+   *  "sorry we missed your call" replies (2026-09-24). */
+  replied: boolean;
   /** Where their demo stands, or null for a business that never booked one.
    *  These are the conversations worth reading; most of the rest are automatic
    *  "sorry we missed your call" replies. */
@@ -138,12 +142,13 @@ export async function getConversations(
         count(*) filter (
           where direction = 'in' and read_at is null and user_id = ${me.id}
         )::int as unread,
+        bool_or(direction = 'out' and user_id = ${me.id}) as replied,
         (array_agg(call_lead_id order by created_at desc, id desc)
           filter (where call_lead_id is not null))[1] as lead_id
       from m
       group by their, ours
     )
-    select c.their, c.ours, c.unread, c.lead_id,
+    select c.their, c.ours, c.unread, c.replied, c.lead_id,
       last.body, last.direction, last.status, last.created_at,
       l.company, l.name as lead_name, l.dnc_status, l.dnc_checked_at,
       cl.id as list_id, cl.name as list_name,
@@ -194,8 +199,9 @@ export async function getConversations(
         )
       end as has_demo
     ) d
-    -- Demo businesses first, so the limit can never push one off the list.
-    order by d.has_demo desc, last.created_at desc
+    -- Demo businesses first, then ones this person has replied to, so the
+    -- limit can never push either off the list.
+    order by d.has_demo desc, c.replied desc, last.created_at desc
     limit 200
   `)) as Row[];
 
@@ -215,6 +221,7 @@ export async function getConversations(
         at: iso(r.created_at),
       },
       unread: Number(r.unread ?? 0),
+      replied: r.replied === true,
       demo: demoOf(r),
     };
   });
@@ -262,6 +269,7 @@ export async function blankConversation(
     dncBlock: found?.dncBlock ?? null,
     last: null,
     unread: 0,
+    replied: false,
     // Only the conversation list reads this, and a blank conversation is
     // never in the list.
     demo: null,
@@ -354,22 +362,16 @@ export async function conversationOptedOut(
   return optedOutOf(rows.map((r) => String(r.body ?? "")));
 }
 
-/**
- * The lead behind a number, and its latest meeting.
- *
- * Duplicates last, the way an inbound text is matched, so a number held on two
- * lists resolves to the original rather than to the copy the importer flagged.
- */
-export async function leadForNumber(phone: string): Promise<{
+type LeadMatch = {
   id: number;
   name: string | null;
   listId: number | null;
   listName: string | null;
   meetingId: number | null;
   dncBlock: string | null;
-} | null> {
-  const keys = phoneKeyCandidates(phone);
-  if (keys.length === 0) return null;
+};
+
+async function leadWhere(where: SQL, phone: string): Promise<LeadMatch | null> {
   const [r] = (await db.execute(sql`
     select l.id as lead_id, l.company, l.name as lead_name,
       l.dnc_status, l.dnc_checked_at,
@@ -378,7 +380,7 @@ export async function leadForNumber(phone: string): Promise<{
         order by m.start_at desc limit 1) as meeting_id
     from call_lead l
     left join call_list cl on cl.id = l.call_list_id
-    where l.phone_key in (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})
+    where ${where}
     order by l.duplicate_of_lead_id nulls first, l.id
     limit 1
   `)) as Row[];
@@ -392,6 +394,127 @@ export async function leadForNumber(phone: string): Promise<{
     meetingId: r.meeting_id === null ? null : Number(r.meeting_id),
     dncBlock: found.dncBlock,
   };
+}
+
+/**
+ * The lead behind a number, and its latest meeting.
+ *
+ * Duplicates last, the way an inbound text is matched, so a number held on two
+ * lists resolves to the original rather than to the copy the importer flagged.
+ */
+export async function leadForNumber(phone: string): Promise<LeadMatch | null> {
+  const keys = phoneKeyCandidates(phone);
+  if (keys.length === 0) return null;
+  return leadWhere(
+    sql`l.phone_key in (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})`,
+    phone,
+  );
+}
+
+/**
+ * The lead a conversation is about: the one its texts carry, else the one the
+ * number matches.
+ *
+ * The texts come first because somebody may have linked the conversation by
+ * hand (`linkConversation`) — an owner texting from their own mobile, which
+ * matches no lead, or matches the wrong one. Reading the number alone would
+ * unlink it on the next reply.
+ */
+export async function leadForConversation(
+  their: string,
+  ours: string,
+): Promise<LeadMatch | null> {
+  const [row] = (await db.execute(sql`
+    select call_lead_id from call_sms
+    where call_lead_id is not null
+      and (
+        (direction = 'in' and from_number = ${their} and to_number = ${ours})
+        or (direction = 'out' and to_number = ${their} and from_number = ${ours})
+      )
+    order by created_at desc, id desc
+    limit 1
+  `)) as Row[];
+  if (row) {
+    const linked = await leadWhere(sql`l.id = ${Number(row.call_lead_id)}`, their);
+    if (linked) return linked;
+  }
+  return leadForNumber(their);
+}
+
+/** Businesses to link a conversation to, by name or by number. Scoped the way
+ *  every calling query is: a caller searches their own lists. */
+export async function searchLeadsToLink(
+  me: CurrentUser,
+  q: string,
+): Promise<{ id: number; name: string; phone: string; listName: string | null }[]> {
+  const text = q.trim();
+  const digits = text.replace(/\D/g, "");
+  if (text.length < 2) return [];
+  const owner = callScope(me);
+  const rows = (await db.execute(sql`
+    select l.id, coalesce(l.company, l.name, l.phone) as name, l.phone,
+      cl.name as list_name
+    from call_lead l
+    left join call_list cl on cl.id = l.call_list_id
+    where (
+        l.company ilike ${"%" + text + "%"}
+        or l.name ilike ${"%" + text + "%"}
+        ${digits.length >= 3 ? sql`or l.phone_key like ${"%" + digits + "%"}` : sql``}
+      )
+      and l.duplicate_of_lead_id is null
+      ${owner === undefined ? sql`` : sql`and cl.assigned_user_id = ${owner}`}
+    order by l.company nulls last, l.id
+    limit 8
+  `)) as Row[];
+  return rows.map((r) => ({
+    id: Number(r.id),
+    name: String(r.name),
+    phone: String(r.phone),
+    listName: (r.list_name as string | null) ?? null,
+  }));
+}
+
+/**
+ * Say which business a conversation is about (2026-09-24).
+ *
+ * An owner often texts from their own mobile rather than the business line we
+ * rang, so the number matches no lead and the conversation sat under
+ * "Everyone else" with no name and no demo. This stamps the chosen lead on
+ * every text in it; both the inbound webhook and the send route then carry it
+ * forward from the conversation, so it stays linked. The latest meeting is
+ * stamped too, the way a matched text's is.
+ *
+ * A caller may only link conversations on their own number, to a lead on
+ * their own lists. Returns false when the lead is out of reach.
+ */
+export async function linkConversation(
+  me: CurrentUser,
+  their: string,
+  ours: string,
+  leadId: number,
+): Promise<boolean> {
+  const owner = callScope(me);
+  const rows = (await db.execute(sql`
+    with target as (
+      select l.id,
+        (select m.id from call_meeting m where m.call_lead_id = l.id
+          order by m.start_at desc limit 1) as meeting_id
+      from call_lead l
+      left join call_list cl on cl.id = l.call_list_id
+      where l.id = ${leadId}
+        ${owner === undefined ? sql`` : sql`and cl.assigned_user_id = ${owner}`}
+    )
+    update call_sms s
+    set call_lead_id = target.id, meeting_id = target.meeting_id
+    from target
+    where (
+        (s.direction = 'in' and s.from_number = ${their} and s.to_number = ${ours})
+        or (s.direction = 'out' and s.to_number = ${their} and s.from_number = ${ours})
+      )
+      and ${scope(me)}
+    returning s.id
+  `)) as Row[];
+  return rows.length > 0;
 }
 
 /**

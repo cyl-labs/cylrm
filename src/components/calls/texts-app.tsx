@@ -264,10 +264,13 @@ export function TextsApp({
   const unreadElsewhere = conversations
     .filter((c) => c.key !== selectedKey)
     .reduce((n, c) => n + c.unread, 0);
-  // Businesses with a demo go on top in a section of their own: most of the
-  // rest are automatic "sorry we missed your call" replies nobody answers.
+  // Conversations you are having go on top (2026-09-24), then businesses with
+  // a demo, then the rest — mostly automatic "sorry we missed your call"
+  // replies nobody answers. A booked business stays under Booked even once
+  // you have replied, so the two sections never hold the same row.
+  const replied = shown.filter((c) => c.demo === null && c.replied);
   const booked = shown.filter((c) => c.demo !== null);
-  const rest = shown.filter((c) => c.demo === null);
+  const rest = shown.filter((c) => c.demo === null && !c.replied);
   const row = (c: Conversation) => (
     <ConversationRow
       key={c.key}
@@ -341,18 +344,30 @@ export function TextsApp({
             <p className="px-6 py-10 text-center text-[13px] text-muted-foreground">
               Nothing matches &ldquo;{query.trim()}&rdquo;.
             </p>
-          ) : booked.length === 0 ? (
+          ) : booked.length === 0 && replied.length === 0 ? (
             <ul>{rest.map(row)}</ul>
           ) : (
             <>
-              <section aria-labelledby="texts-booked">
-                <SectionHeading
-                  id="texts-booked"
-                  title="Booked a demo"
-                  note="Businesses on Meetings. Read these first."
-                />
-                <ul>{booked.map(row)}</ul>
-              </section>
+              {replied.length > 0 && (
+                <section aria-labelledby="texts-replied">
+                  <SectionHeading
+                    id="texts-replied"
+                    title="You replied"
+                    note="Conversations you've texted back in. No demo booked yet."
+                  />
+                  <ul>{replied.map(row)}</ul>
+                </section>
+              )}
+              {booked.length > 0 && (
+                <section aria-labelledby="texts-booked">
+                  <SectionHeading
+                    id="texts-booked"
+                    title="Booked a demo"
+                    note="Businesses on Meetings."
+                  />
+                  <ul>{booked.map(row)}</ul>
+                </section>
+              )}
               {rest.length > 0 && (
                 <section aria-labelledby="texts-rest">
                   <SectionHeading
@@ -802,6 +817,13 @@ function ThreadView({
                 </Link>
               )}
             </div>
+            {c.last && (
+              <LinkBusiness
+                their={c.their}
+                ours={c.ours}
+                linked={c.leadId !== null}
+              />
+            )}
           </div>
         )}
       </header>
@@ -1011,6 +1033,142 @@ function Bubble({
           </p>
         )
       )}
+    </div>
+  );
+}
+
+/**
+ * Attach this conversation to a business (2026-09-24).
+ *
+ * Owners often text from their own mobile rather than the business line we
+ * rang, so the conversation matched no lead: no name, no demo, filed under
+ * "Everyone else". Picking the business here stamps it on the conversation,
+ * and new texts either way keep it. Only for a conversation with texts in it —
+ * there is nothing to stamp on a blank one.
+ */
+function LinkBusiness({
+  their,
+  ours,
+  linked,
+}: {
+  their: string;
+  ours: string;
+  linked: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState("");
+  const [results, setResults] = React.useState<
+    { id: number; name: string; phone: string; listName: string | null }[]
+  >([]);
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open || q.trim().length < 2) return;
+    const ctl = new AbortController();
+    const t = setTimeout(() => {
+      fetch(`/api/texts/link?q=${encodeURIComponent(q.trim())}`, {
+        signal: ctl.signal,
+      })
+        .then((r) => r.json())
+        .then((j) => setResults(j.leads ?? []))
+        .catch(() => {});
+    }, 200);
+    return () => {
+      clearTimeout(t);
+      ctl.abort();
+    };
+  }, [open, q]);
+
+  const pick = async (leadId: number, name: string) => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/texts/link", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ their, ours, leadId }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(j.error ?? "Couldn't link that.");
+        return;
+      }
+      toast.success(`Linked to ${name}.`);
+      setOpen(false);
+      setQ("");
+      setResults([]);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-[13px] font-semibold text-[var(--imsg-sent)]"
+      >
+        {linked ? "Wrong business? Change it" : "Texting from another number? Link to a business"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-sm text-left">
+      <p className="mb-1.5 text-center text-[12px] text-muted-foreground">
+        Which business is this? Search by name or their main number.
+      </p>
+      <input
+        autoFocus
+        type="search"
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          if (e.target.value.trim().length < 2) setResults([]);
+        }}
+        placeholder="Business name or number"
+        aria-label="Search businesses"
+        className="h-9 w-full rounded-[10px] bg-[#7676801f] px-3 text-[15px] outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-[var(--imsg-sent)]/40 dark:bg-[#7676803d]"
+      />
+      {q.trim().length >= 2 && (
+        <ul className="mt-1.5 max-h-56 overflow-y-auto rounded-[10px] border bg-card">
+          {results.length === 0 ? (
+            <li className="px-3 py-2 text-[13px] text-muted-foreground">
+              No business matches that.
+            </li>
+          ) : (
+            results.map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void pick(r.id, r.name)}
+                  className="flex w-full flex-col px-3 py-2 text-left transition-colors hover:bg-muted disabled:opacity-50"
+                >
+                  <span className="truncate text-[14px] font-semibold">{r.name}</span>
+                  <span className="truncate text-[12px] text-muted-foreground">
+                    {spokenNumber(r.phone)}
+                    {r.listName ? ` · ${r.listName}` : ""}
+                  </span>
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(false);
+          setQ("");
+          setResults([]);
+        }}
+        className="mt-1.5 w-full text-center text-[13px] text-muted-foreground"
+      >
+        Cancel
+      </button>
     </div>
   );
 }

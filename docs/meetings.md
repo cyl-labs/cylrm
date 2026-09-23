@@ -1270,6 +1270,22 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
   `telnyx_did` also makes its browser phone try to register against that
   stand-in, which logs `LOGIN_FAILED` — noise, not a texting fault.
 
+- **Three sections now, "You replied" on top** (2026-09-24). A conversation
+  the reader has sent a text in (`replied`, `bool_or` over their own outbound
+  rows) and that has no demo sits above "Booked a demo" and "Everyone else".
+  A booked business stays under Booked even once replied to, so no row is in
+  two sections. The query orders demo, then replied, before the 200 limit, so
+  neither can be pushed off the list.
+- **A conversation can be linked to a business by hand** (2026-09-24,
+  `linkConversation`, `POST /api/texts/link`, "Link to a business" in the
+  thread's details). Owners text from their own mobile, which matches no lead.
+  Linking stamps `call_lead_id` (and the latest meeting) on every text in the
+  conversation, and **both directions then inherit it from the conversation
+  before trying the number**: `leadForConversation` in the send route, and the
+  `linked` CTE in the inbound insert. Reading the number alone would unlink it
+  on the next text. Scoped: a caller links only their own number's
+  conversations, to leads on their own lists.
+
 ### Contracts (DocuSeal)
 
 Both agreements — the 30-day trial and the paid retainer — are drafted from the
