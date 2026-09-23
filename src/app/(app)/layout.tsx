@@ -111,6 +111,7 @@ export default async function AppLayout({
             "Workspace" label between it and its own screens said it twice. */}
         <div className="pt-3.5" />
         <NavLinks
+          grouped
           role={me?.role}
           keypad={keypad}
           texting={smsEnabled()}
