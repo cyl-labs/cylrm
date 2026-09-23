@@ -1052,6 +1052,22 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
 export async function getMeetings(
   ownerId?: number,
   tz: string = "America/New_York",
+  opts: {
+    /**
+     * The whole history instead of the rolling work queue.
+     *
+     * The default `where` below is deliberately narrow — the diary is meant
+     * to be read top to bottom every shift, and a meeting that happened
+     * months ago and was settled is not work. But "not work" is not "gone":
+     * asked for 2026-09-23 after a founder went looking for an old no-show
+     * and found nothing past the seven-day ring-back window — the only place
+     * left to find it was the call log, filtered by outcome, which does not
+     * say whether it was a no-show or a no-booking follow-up. This flag
+     * drops every window and every status filter, so cancelled and settled
+     * meetings come back too — a history, not a queue.
+     */
+    past?: boolean;
+  } = {},
 ): Promise<Meeting[]> {
   const rows = (await db.execute(sql`
     select ${meetingSelect},
@@ -1061,18 +1077,27 @@ export async function getMeetings(
       (${needsFollowUp}) as needs_follow_up
     from call_meeting m
     ${joins}
-    where (
-        m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS})
-        -- A missed demo outstays the twelve hours: it is the one call worth
-        -- making, and a row that vanished overnight is a call nobody makes.
-        or (${needsRingBack})
-        -- So does one that happened and is still being worked: the mock-up
-        -- call comes days later and is logged from this row.
-        or (${needsFollowUp})
-      )
-      and (m.status = 'accepted' or m.start_at > now())
+    where ${
+      opts.past
+        ? sql`m.start_at <= now()`
+        : sql`(
+              m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS})
+              -- A missed demo outstays the twelve hours: it is the one call
+              -- worth making, and a row that vanished overnight is a call
+              -- nobody makes.
+              or (${needsRingBack})
+              -- So does one that happened and is still being worked: the
+              -- mock-up call comes days later and is logged from this row.
+              or (${needsFollowUp})
+            )
+            and (m.status = 'accepted' or m.start_at > now())`
+    }
       ${ownedBy(ownerId)}
-    order by
+    order by ${
+      opts.past
+        ? // History reads newest first, the same order the call log opens on.
+          sql`m.start_at desc, m.id desc`
+        : sql`
       -- What has not happened yet, first (2026-09-20). It was start_at asc
       -- for everything, which is right for a diary and wrong for this one:
       -- the rows that outstay their slot — a no-show owed a ring back, a demo
@@ -1092,6 +1117,8 @@ export async function getMeetings(
       -- is still the thing being dealt with.
       m.start_at desc,
       m.id asc
+    `
+    }
   `)) as Row[];
 
   const dids = await getDids();

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { FileText, History } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
+import { cn } from "@/lib/utils";
 import { MeetingsList } from "@/components/calls/meetings-list";
 import { MeetingsExplainer } from "@/components/calls/meetings-explainer";
 import { PushToggle } from "@/components/calls/push-toggle";
@@ -57,6 +58,7 @@ export default async function MeetingsPage({
     month?: string;
     span?: string;
     on?: string;
+    past?: string;
   }>;
 }) {
   const me = await getCurrentUser();
@@ -66,7 +68,15 @@ export default async function MeetingsPage({
     month: rawMonth,
     span: rawSpan,
     on: rawOn,
+    past: rawPast,
   } = await searchParams;
+
+  // The full history instead of the rolling work queue, off its own button
+  // rather than a fold on the usual list — asked for 2026-09-23 after a
+  // no-show fell out of the seven-day ring-back window and the only place
+  // left to find it was the call log, filtered by outcome, which does not
+  // say a call was a no-show rather than a follow-up. See `getMeetings`.
+  const past = rawPast === "1";
 
   // Their own clock: the zone in the link if there is one, else the reporting
   // zone they picked, else the market they work, else Eastern — the same order
@@ -84,7 +94,7 @@ export default async function MeetingsPage({
       DEFAULT_STATS_REGION);
   const zone = statsZone(region);
 
-  const meetings = await getMeetings(callScope(me), zone.tz);
+  const meetings = await getMeetings(callScope(me), zone.tz, { past });
   // Read once: it decides both the mergeable lines and whether this tab takes
   // the phone.
   const browserDialler = (await dialMethodOf(me?.id)) === "browser";
@@ -129,6 +139,7 @@ export default async function MeetingsPage({
   const soon = meetings.filter((m) => m.startingSoon).length;
   const ringBack = meetings.filter((m) => m.needsRingBack).length;
   const cancelled = meetings.filter((m) => m.status === "cancelled").length;
+  const noShows = meetings.filter((m) => m.attendance === "no_show").length;
 
   // Texting the prospect: whoever is allowed to send, and only once it is
   // switched on. Null is the whole of how the feature stays invisible — the
@@ -169,16 +180,43 @@ export default async function MeetingsPage({
               is what they are looking at or what they would get. */}
           {/* Carries the span and the anchor as well as the zone, so a look at
               the list and back returns to the week you were reading rather
-              than to this month. The list itself ignores both. */}
-          <MeetingsView
-            view={view}
-            query={`${keepTz}&span=${span}&on=${anchor}`}
-          />
+              than to this month. The list itself ignores both. Hidden once
+              looking at history: a past-only view has no calendar to switch
+              to — see the `past` block below. */}
+          {!past && (
+            <MeetingsView
+              view={view}
+              query={`${keepTz}&span=${span}&on=${anchor}`}
+            />
+          )}
+          {/* The whole history rather than the rolling queue — every past
+              demo, no-show included, not only the ones still owed a ring
+              back or a follow-up. Off its own button rather than a fold,
+              because it answers a different question than the rest of this
+              screen ("what happened", not "what is next") and the two should
+              not be scrolled past each other. */}
+          <Link
+            href={
+              past
+                ? `/meetings?view=${view}${keepTz}&span=${span}&on=${anchor}`
+                : `/meetings?past=1${keepTz}`
+            }
+            aria-current={past ? "page" : undefined}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+              past
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted",
+            )}
+          >
+            <History className="size-3.5" />
+            {past ? "Upcoming" : "Past meetings"}
+          </Link>
           {/* Reading material rather than work, so it is a link off this
               screen and not a fold on it. Founders only, matching the route:
               writing the briefs costs an OpenAI call each and the people who
               take demos are the people who need one. */}
-          {me?.role === "admin" && (
+          {me?.role === "admin" && !past && (
             <Link
               href="/meetings/brief"
               className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
@@ -203,44 +241,70 @@ export default async function MeetingsPage({
         {/* Above the list rather than at the foot of it: the question it
             answers ("where did all this come from and what do I do?") is asked
             on the way in, and shut by default so it costs one line of height
-            to everybody who already knows. */}
-        <MeetingsExplainer zoneName={zone.name} isAdmin={me?.role === "admin"} />
-        {/* Demos logged in the CRM with no Cal.com booking behind them: the
-            one thing on this screen that is a job with a deadline. */}
-        <UnbookedDemos
-          ownerId={callScope(me)}
-          showWho={me?.role === "admin"}
-          tz={zone.tz}
-        />
+            to everybody who already knows. Both of these are about the queue,
+            not the history, so past mode skips them. */}
+        {!past && (
+          <>
+            <MeetingsExplainer
+              zoneName={zone.name}
+              isAdmin={me?.role === "admin"}
+            />
+            {/* Demos logged in the CRM with no Cal.com booking behind them:
+                the one thing on this screen that is a job with a deadline. */}
+            <UnbookedDemos
+              ownerId={callScope(me)}
+              showWho={me?.role === "admin"}
+              tz={zone.tz}
+            />
+          </>
+        )}
         {meetings.length > 0 && (
           <p className="text-[13px] text-muted-foreground">
-            {/* Mostly what is coming, not what is owed: nobody rings to confirm
-                any more — a prospect who booked has not forgotten, and asking
-                them to reconfirm only offers them a way out, which is what
-                Cal.com's own reminder emails already cover. The one exception
-                is said first, because it is the only line here that is a job. */}
-            {ringBack > 0 && (
+            {past ? (
+              // A count of what happened, not what is owed — the ring-back
+              // and follow-up flags this list carries are already shown as
+              // badges on the rows themselves.
               <>
-                <span className="font-bold text-destructive">
-                  {ringBack} to ring back
+                <span className="font-bold">
+                  {meetings.length} past meeting
+                  {meetings.length === 1 ? "" : "s"}
                 </span>
-                {" · "}
-              </>
-            )}
-            {soon > 0 ? (
-              <>
-                <span className="font-bold">{soon} within a day</span>
-                {meetings.length > soon &&
-                  `, ${meetings.length - soon} further out`}
+                {noShows > 0 && `, ${noShows} no-show${noShows === 1 ? "" : "s"}`}
+                {cancelled > 0 && `, ${cancelled} cancelled`}
               </>
             ) : (
-              `${meetings.length} booked, nothing in the next day`
+              <>
+                {/* Mostly what is coming, not what is owed: nobody rings to
+                    confirm any more — a prospect who booked has not
+                    forgotten, and asking them to reconfirm only offers them a
+                    way out, which is what Cal.com's own reminder emails
+                    already cover. The one exception is said first, because
+                    it is the only line here that is a job. */}
+                {ringBack > 0 && (
+                  <>
+                    <span className="font-bold text-destructive">
+                      {ringBack} to ring back
+                    </span>
+                    {" · "}
+                  </>
+                )}
+                {soon > 0 ? (
+                  <>
+                    <span className="font-bold">{soon} within a day</span>
+                    {meetings.length > soon &&
+                      `, ${meetings.length - soon} further out`}
+                  </>
+                ) : (
+                  `${meetings.length} booked, nothing in the next day`
+                )}
+                {cancelled > 0 && `, ${cancelled} cancelled`}
+              </>
             )}
-            {cancelled > 0 && `, ${cancelled} cancelled`}. Times are{" "}
+            {". Times are "}
             {zone.name} time.
           </p>
         )}
-        {view === "calendar" && (
+        {!past && view === "calendar" && (
           <MeetingsCalendar
             span={span}
             anchor={anchor}
@@ -298,6 +362,7 @@ export default async function MeetingsPage({
                 "")
               : ""
           }
+          past={past}
         />
       </div>
     </PageShell>

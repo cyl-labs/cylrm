@@ -300,6 +300,7 @@ export function MeetingsList({
   bookingUrl = null,
   followUpBookingUrl = null,
   signingBase = "",
+  past = false,
   texting = null,
   lines = [],
   canInvite = false,
@@ -324,6 +325,11 @@ export function MeetingsList({
   /** DocuSeal's public host. Empty when it is not configured, which is what
    *  hides the contract buttons rather than offering ones that cannot work. */
   signingBase?: string;
+  /** The full history rather than the rolling queue — only changes the empty
+   *  state's wording, which otherwise tells somebody with no past meetings
+   *  that Cal.com bookings "appear here within a few minutes," a sentence
+   *  about the wrong list. */
+  past?: boolean;
   /** Texts to the prospect and their replies. Null when texting is switched
    *  off or the reader is not an admin, which draws no button and no thread. */
   texting?: Texting | null;
@@ -674,9 +680,13 @@ export function MeetingsList({
   if (meetings.length === 0) {
     return (
       <div className="rounded-xl border border-dashed py-16 text-center">
-        <p className="text-sm font-semibold">No meetings booked.</p>
+        <p className="text-sm font-semibold">
+          {past ? "No past meetings." : "No meetings booked."}
+        </p>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          They appear here within a few minutes of being booked on Cal.com.
+          {past
+            ? "A meeting moves here once its time has passed."
+            : "They appear here within a few minutes of being booked on Cal.com."}
         </p>
       </div>
     );
