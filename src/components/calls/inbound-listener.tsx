@@ -4,7 +4,7 @@ import * as React from "react";
 import { Merge, Mic, MicOff, PhoneCall, PhoneOff } from "lucide-react";
 import { useCallLine } from "./call-line";
 import { IncomingCall } from "./incoming-call";
-import { useLineClaimed } from "./line-presence";
+import { useIncomingDrawn, useLineClaimed } from "./line-presence";
 import { e164 } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
@@ -43,14 +43,18 @@ export function InboundListener({
   // A calling screen is showing its own call UI. Not about registration any
   // more — there is one line now — purely about who draws it.
   const claimed = useLineClaimed();
+  // Only the dialler and the Keypad draw a ringing call themselves. Meetings,
+  // Texts and Missed calls claim the line but do not, so the banner must not
+  // stand down for them — see `useDrawsIncoming`.
+  const ringDrawn = useIncomingDrawn();
 
-  if (!live || claimed) return null;
+  if (!live) return null;
 
   const onCall = line.state !== "idle";
 
   return (
     <>
-      {line.incoming && (
+      {line.incoming && !ringDrawn && (
         // Fixed rather than in the flow: this can arrive over any screen in the
         // workspace, most of which know nothing about calls and have no place
         // to put a banner.
@@ -61,7 +65,7 @@ export function InboundListener({
         </div>
       )}
 
-      {onCall && !line.incoming && (
+      {onCall && !line.incoming && !claimed && (
         <OngoingCallBar line={line} savedLines={savedLines} dialFrom={dialFrom} />
       )}
     </>

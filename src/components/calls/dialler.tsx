@@ -30,7 +30,11 @@ import { ObjectionDrawer } from "@/components/sop/objection-drawer";
 import { IncomingCall } from "@/components/calls/incoming-call";
 import { BookDemoFields } from "@/components/calls/book-demo";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
-import { useClaimLine, useLineLeader } from "@/components/calls/line-presence";
+import {
+  useClaimLine,
+  useDrawsIncoming,
+  useLineLeader,
+} from "@/components/calls/line-presence";
 import { useCallLine } from "@/components/calls/call-line";
 import { type TelnyxLine } from "@/components/calls/use-telnyx-call";
 import { callFailure } from "@/components/calls/call-failure";
@@ -857,6 +861,7 @@ export function Dialler({
   // showing. That flag no longer decides who *holds* the line, there being one:
   // only who draws it, which is what stops one call being offered twice.
   useClaimLine(canDialFromBrowser);
+  useDrawsIncoming(canDialFromBrowser);
   const { line, activeLeadId } = useCallLine();
 
   // A call already up wins over the `?lead=` link: if somebody is mid-call and

@@ -413,6 +413,20 @@ successes on the same connection went through `sv1`.
   which sessions it happened to contain kept changing. Page to
   `meta.total_pages` or the number is fiction.
 
+### Incoming calls rang with no banner on Meetings, Texts and Missed calls (2026-09-24)
+
+`useDrawsIncoming` / `useIncomingDrawn` in `line-presence.tsx`. The app-wide
+banner in `InboundListener` stood down whenever the tab was `claimed`, which
+once meant "the dialler or the Keypad is open", both of which draw their own
+banner. Meetings, Texts and Missed calls later started claiming the line so
+the tab election would keep the phone in them, and none of them draws a
+ringing call. So on those three screens a call rang (the tone comes from
+`CallLineProvider`) with nothing on screen to answer it, and went to Missed
+calls. Found from a prospect ringing back ten seconds after a dropped demo: 14s
+of ringing, SIP 487 when they gave up, the founder on Meetings. Claiming the
+line and drawing the ring are now separate questions; only the dialler and the
+Keypad set the second. The ongoing-call bar still follows `claimed`.
+
 ### Clicking another CRM tab hung up the call (2026-09-24)
 
 `ON_CALL` and `useReportCall` in `line-presence.tsx`, reported from

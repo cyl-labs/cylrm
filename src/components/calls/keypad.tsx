@@ -26,7 +26,7 @@ import {
 import { PHONE_KEYS } from "./tone-pad";
 import { useCallLine } from "./call-line";
 import { useObjectionHints } from "./use-objection-hints";
-import { useClaimLine, useLineLeader } from "./line-presence";
+import { useClaimLine, useDrawsIncoming, useLineLeader } from "./line-presence";
 import { IncomingCall } from "./incoming-call";
 import { ObjectionPanel } from "@/components/sop/objection-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
@@ -194,6 +194,7 @@ export function Keypad({
   // showing the pad: who draws the call, not who holds it. The line belongs to
   // the layout now, so leaving this screen no longer hangs up on anybody.
   useClaimLine(Boolean(did));
+  useDrawsIncoming(Boolean(did));
   const leader = useLineLeader();
   const { line, startLeg, startSecondLeg } = useCallLine();
 

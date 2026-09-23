@@ -105,7 +105,16 @@ const LineContext = React.createContext<{
   leader: boolean;
   claim: () => () => void;
   setOnCall: (onCall: boolean) => void;
-}>({ claimed: false, leader: true, claim: () => () => {}, setOnCall: () => {} });
+  ringDrawn: boolean;
+  drawRing: () => () => void;
+}>({
+  claimed: false,
+  leader: true,
+  claim: () => () => {},
+  setOnCall: () => {},
+  ringDrawn: false,
+  drawRing: () => () => {},
+});
 
 export function LinePresence({ children }: { children: React.ReactNode }) {
   const [holders, setHolders] = React.useState(0);
@@ -118,10 +127,16 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
   // `document.visibilityState` during render is a hydration mismatch.
   const [hidden, setHidden] = React.useState(false);
   const [onCall, setOnCall] = React.useState(false);
+  // Counted, like `holders`, for the same dialler-to-Keypad navigation reason.
+  const [ringDrawers, setRingDrawers] = React.useState(0);
 
   const claim = React.useCallback(() => {
     setHolders((n) => n + 1);
     return () => setHolders((n) => Math.max(0, n - 1));
+  }, []);
+  const drawRing = React.useCallback(() => {
+    setRingDrawers((n) => n + 1);
+    return () => setRingDrawers((n) => Math.max(0, n - 1));
   }, []);
 
   React.useEffect(() => {
@@ -248,8 +263,15 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
   }, [priority]);
 
   const value = React.useMemo(
-    () => ({ claimed: holders > 0, leader, claim, setOnCall }),
-    [holders, leader, claim],
+    () => ({
+      claimed: holders > 0,
+      leader,
+      claim,
+      setOnCall,
+      ringDrawn: ringDrawers > 0,
+      drawRing,
+    }),
+    [holders, leader, claim, ringDrawers, drawRing],
   );
   return <LineContext.Provider value={value}>{children}</LineContext.Provider>;
 }
@@ -287,4 +309,30 @@ export function useReportCall(onCall: boolean): void {
     setOnCall(onCall);
   }, [onCall, setOnCall]);
   React.useEffect(() => () => setOnCall(false), [setOnCall]);
+}
+
+/**
+ * Held by a screen that draws its own incoming-call banner — the dialler and
+ * the Keypad, and nothing else (2026-09-24).
+ *
+ * Not the same question as `useClaimLine`, and conflating them lost calls.
+ * The app-wide banner in `InboundListener` used to stand down whenever the tab
+ * was `claimed`, on the assumption that a claiming screen shows the call
+ * itself. Meetings, Texts and Missed calls then started claiming the line for
+ * the tab election — and none of them draws a ringing call. On those screens
+ * a call rang (the ringtone lives in `CallLineProvider`) with no banner and
+ * nothing to press, and landed in Missed calls: a prospect ringing back
+ * straight after a dropped demo, 2026-09-23.
+ */
+export function useDrawsIncoming(active: boolean): void {
+  const { drawRing } = React.useContext(LineContext);
+  React.useEffect(() => {
+    if (!active) return;
+    return drawRing();
+  }, [active, drawRing]);
+}
+
+/** True while a screen in this tab draws its own incoming-call banner. */
+export function useIncomingDrawn(): boolean {
+  return React.useContext(LineContext).ringDrawn;
 }
