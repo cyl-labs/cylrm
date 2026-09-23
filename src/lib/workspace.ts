@@ -245,12 +245,6 @@ export function linksFor(
     );
 }
 
-/** The workspaces this person may switch to. A caller only has the one, and
- *  the switcher renders it as a plain label rather than a menu of one. */
-export function workspacesFor(role: "admin" | "caller" | undefined) {
-  return role === "admin" ? WORKSPACES : WORKSPACES.filter((w) => w.id === "call");
-}
-
 const CALL_PREFIXES = [
   "/calls",
   "/callbacks",

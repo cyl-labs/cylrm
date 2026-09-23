@@ -19,12 +19,16 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-      className="flex h-[38px] w-full items-center gap-2.5 rounded-lg px-3 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      title="Dark or light mode"
+      className="flex h-[38px] w-full items-center gap-2.5 rounded-lg px-3 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsed=true]/sidebar:justify-center"
     >
-      <Moon className="size-[17px] dark:hidden" strokeWidth={1.8} />
-      <Sun className="hidden size-[17px] dark:block" strokeWidth={1.8} />
-      <span className="dark:hidden">Dark mode</span>
-      <span className="hidden dark:inline">Light mode</span>
+      <Moon className="size-[17px] shrink-0 dark:hidden" strokeWidth={1.8} />
+      <Sun className="hidden size-[17px] shrink-0 dark:block" strokeWidth={1.8} />
+      {/* Words hidden when the desktop sidebar is folded to its icons. */}
+      <span className="group-data-[collapsed=true]/sidebar:hidden">
+        <span className="dark:hidden">Dark mode</span>
+        <span className="hidden dark:inline">Light mode</span>
+      </span>
     </button>
   );
 }

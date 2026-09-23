@@ -3,7 +3,6 @@
 import * as React from "react";
 import { LogOut, Menu } from "lucide-react";
 import { NavLinks } from "@/components/nav-links";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import {
@@ -30,7 +29,7 @@ export function MobileNav({
   meetingsWaiting = 0,
   unreadTexts = 0,
 }: {
-  /** Decides whether the drawer offers the Email CRM at all. */
+  /** Decides which screens the drawer offers — a caller has no Admin. */
   role: "admin" | "caller" | undefined;
   /** Granted the Keypad. Admins always are. */
   keypad?: boolean;
@@ -72,13 +71,8 @@ export function MobileNav({
         className="w-[268px] gap-0 bg-sidebar p-0"
       >
         <SheetTitle className="sr-only">Navigation</SheetTitle>
-        {/* Right padding keeps the workspace switcher's chevron clear of the
-            sheet's own close button. */}
-        <div className="px-3 pb-2 pr-11 pt-[18px]">
-          <WorkspaceSwitcher role={role} />
-        </div>
-        {/* See the note in the desktop sidebar. */}
-        <div className="pt-3.5" />
+        {/* Clears the sheet's own close button, top right. */}
+        <div className="pt-14" />
         {/* Navigating is the whole point of opening this, and the drawer
             covers the page it just moved to. Closing on click beats watching
             the pathname, which needs a state-setting effect. */}

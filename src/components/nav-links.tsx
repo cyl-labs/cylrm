@@ -15,8 +15,8 @@ import {
 
 /**
  * The current workspace's screens, and only those — which workspace that is
- * comes from the URL. Switching between Email CRM and Call CRM is the
- * switcher's job, above.
+ * comes from the URL. There is no switcher any more (2026-09-23): nobody moves
+ * between the two, and the Email CRM's screens are reached by address.
  */
 export function NavLinks({
   grouped = false,
@@ -29,9 +29,10 @@ export function NavLinks({
   meetingsWaiting = 0,
   unreadTexts = 0,
 }: {
-  /** Fold the lesser screens under headings, for the phone drawer. The day's
-   *  work — missed calls to texts — always shows, and the fold holding the
-   *  page you are on opens by itself. */
+  /** Fold the lesser screens under headings — the phone drawer only; the
+   *  desktop sidebar shows every link. The day's work — missed calls to
+   *  texts — always shows, and the fold holding the page you are on opens by
+   *  itself. */
   grouped?: boolean;
   /** Decides which of this workspace's screens are on offer — a caller's has
    *  no Stats. Hiding it is the courtesy; the middleware is the control. */
@@ -77,45 +78,46 @@ export function NavLinks({
       ? `${href}?who=mine`
       : href;
 
+  // What each badge counts and its colour. Texts and replies are not red:
+  // unread is news, not work owed, and red there would read as one more thing
+  // holding up the queue.
+  const badges: Record<string, { n: number; red: boolean }> = {
+    "/replies": { n: unreadReplies, red: false },
+    "/missed-calls": { n: missedCalls, red: true },
+    "/callbacks": { n: callbacksDue, red: true },
+    "/meetings": { n: meetingsWaiting, red: true },
+    "/texts": { n: unreadTexts, red: false },
+  };
+
+  // The `group-data-[collapsed=true]/sidebar` variants only match inside the
+  // desktop `Sidebar` folded to its icons: the words go, the icon centres, and
+  // a badge shrinks to a dot on the icon's corner. The hover title names the
+  // screen, since the icon alone is a guess.
   const renderLink = ({ href, label, icon: Icon }: WorkspaceLink) => {
     const active = pathname.startsWith(href);
+    const badge = badges[href];
     return (
       <Link
         key={href}
         href={hrefFor(href)}
+        title={label}
         className={cn(
-          "flex h-[38px] items-center gap-2.5 rounded-lg px-3 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          "relative flex h-[38px] items-center gap-2.5 rounded-lg px-3 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsed=true]/sidebar:justify-center",
           active &&
             "bg-sidebar-primary/10 font-bold text-sidebar-primary hover:bg-sidebar-primary/10 hover:text-sidebar-primary",
         )}
       >
-        <Icon className="size-[17px]" strokeWidth={1.8} />
-        {label}
-        {href === "/replies" && unreadReplies > 0 && (
-          <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-primary-foreground">
-            {unreadReplies > 99 ? "99+" : unreadReplies}
-          </span>
-        )}
-        {href === "/missed-calls" && missedCalls > 0 && (
-          <span className="ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[11px] font-bold leading-none text-primary-foreground">
-            {missedCalls > 99 ? "99+" : missedCalls}
-          </span>
-        )}
-        {href === "/callbacks" && callbacksDue > 0 && (
-          <span className="ml-auto min-w-5 rounded-full bg-destructive px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-white">
-            {callbacksDue > 99 ? "99+" : callbacksDue}
-          </span>
-        )}
-        {href === "/meetings" && meetingsWaiting > 0 && (
-          <span className="ml-auto min-w-5 rounded-full bg-destructive px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-white">
-            {meetingsWaiting > 99 ? "99+" : meetingsWaiting}
-          </span>
-        )}
-        {/* Not red: unread is news, not work owed, and red here would read
-            as one more thing holding up the queue. */}
-        {href === "/texts" && unreadTexts > 0 && (
-          <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-primary-foreground">
-            {unreadTexts > 99 ? "99+" : unreadTexts}
+        <Icon className="size-[17px] shrink-0" strokeWidth={1.8} />
+        <span className="truncate group-data-[collapsed=true]/sidebar:hidden">{label}</span>
+        {badge && badge.n > 0 && (
+          <span
+            className={cn(
+              "ml-auto min-w-5 rounded-full px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums",
+              "group-data-[collapsed=true]/sidebar:absolute group-data-[collapsed=true]/sidebar:right-1 group-data-[collapsed=true]/sidebar:top-1 group-data-[collapsed=true]/sidebar:size-2 group-data-[collapsed=true]/sidebar:min-w-0 group-data-[collapsed=true]/sidebar:p-0 group-data-[collapsed=true]/sidebar:text-[0px]",
+              badge.red ? "bg-destructive text-white" : "bg-primary text-primary-foreground",
+            )}
+          >
+            {badge.n > 99 ? "99+" : badge.n}
           </span>
         )}
       </Link>

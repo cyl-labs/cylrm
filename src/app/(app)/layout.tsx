@@ -1,4 +1,5 @@
 import { LogOut } from "lucide-react";
+import { cookies } from "next/headers";
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue, getSavedLines } from "@/lib/calls";
 import { countMissedCalls } from "@/lib/inbound";
@@ -15,7 +16,8 @@ import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { NavLinks } from "@/components/nav-links";
 import { Toaster } from "@/components/ui/sonner";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { Sidebar } from "@/components/sidebar";
+import { SIDEBAR_COOKIE } from "@/lib/sidebar";
 import { AppThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -103,22 +105,18 @@ export default async function AppLayout({
     <div className="flex min-h-svh">
       {/* Below `lg` this is a drawer instead — see `MobileNav`, whose trigger
           sits in the page header. */}
-      <aside className="sticky top-0 hidden h-svh w-[232px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
-        <div className="px-3 pb-2 pt-[18px]">
-          <WorkspaceSwitcher role={me?.role} />
-        </div>
-        {/* The switcher above already names the workspace you are in, so a
-            "Workspace" label between it and its own screens said it twice. */}
-        <div className="pt-3.5" />
-        {/* Scrolls on its own, the same as the drawer: the sidebar is a fixed
-            `h-svh` column, so with every fold open the list is taller than the
-            screen and used to shove the name, Dark mode and Log out off the
-            bottom of it. Folding the desktop sidebar is what made that
-            reachable — fourteen flat links fitted, fourteen links plus three
-            open folds on a laptop do not. */}
+      <Sidebar
+        defaultCollapsed={
+          (await cookies()).get(SIDEBAR_COOKIE)?.value === "collapsed"
+        }
+      >
+        {/* Every link shows, with no folds. The desktop sidebar folded Tools,
+            Results and Admin for a day (2026-09-23) and the founders asked for
+            them back: opening a fold on every visit cost more than the length
+            ever did. Hiding the whole sidebar is the answer to crowding now.
+            Scrolls on its own so the footer stays on a short laptop screen. */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           <NavLinks
-            grouped
             role={me?.role}
             keypad={keypad}
             texting={smsEnabled()}
@@ -134,7 +132,7 @@ export default async function AppLayout({
               logging a morning of calls under a colleague's name is only
               noticed once the stats are wrong. */}
           {me && (
-            <p className="truncate px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-sidebar-foreground/55 dark:text-sidebar-foreground/75">
+            <p className="truncate px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-sidebar-foreground/55 group-data-[collapsed=true]/sidebar:hidden dark:text-sidebar-foreground/75">
               {me.name}
             </p>
           )}
@@ -142,14 +140,15 @@ export default async function AppLayout({
           <form method="post" action="/api/logout">
             <button
               type="submit"
-              className="flex h-[38px] w-full items-center gap-2.5 rounded-lg px-3 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              title="Log out"
+              className="flex h-[38px] w-full items-center gap-2.5 rounded-lg px-3 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsed=true]/sidebar:justify-center"
             >
-              <LogOut className="size-[17px]" strokeWidth={1.8} />
-              Log out
+              <LogOut className="size-[17px] shrink-0" strokeWidth={1.8} />
+              <span className="group-data-[collapsed=true]/sidebar:hidden">Log out</span>
             </button>
           </form>
         </div>
-      </aside>
+      </Sidebar>
       {/* The Cal.com booking link, for the booking step on every screen that
           can log a demo: a server env value handed to client components once,
           here, rather than threaded through each page. */}
