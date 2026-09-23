@@ -196,6 +196,12 @@ export async function draftContracts(
           // or date blank and cannot carry an image. `readonly` so the one
           // thing on the page nobody should be able to clear by tapping it is
           // the thing that was put there to save the tapping.
+          //
+          // And submitted there and then, so the client's signature is the
+          // last one and completes the contract — which is what sends the
+          // signed copy to Gmail and pushes the founders. Only with the
+          // signature: without the image there is nothing to sign with, and
+          // our side is left open for a founder to sign by hand as before.
           ...(signature
             ? {
                 fields: [
@@ -205,6 +211,7 @@ export async function draftContracts(
                     readonly: true,
                   },
                 ],
+                completed: true,
               }
             : {}),
         },

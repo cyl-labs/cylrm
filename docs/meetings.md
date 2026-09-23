@@ -1343,6 +1343,18 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   - The image installed is **the one DocuSeal already had** — the same stored
     blob reused across submissions 101, 107 and 109 — so what prints is the
     signature these agreements have carried all along, not a new one.
+- **Our side is submitted when the contract is drafted** (2026-09-23,
+  `completed: true` on the First Party submitter, only when the signature
+  image is configured). DocuSeal draws a prefilled signature on the page, so
+  the client saw the document as already signed by us — but it counts a side
+  only once it is *submitted*, so a client signing left it "pending",
+  `submission.completed` never fired, and neither the n8n Gmail draft nor the
+  "Contract signed" push ever happened. Found on James Family Home
+  Improvement, the first client to sign: **no contract had ever completed**,
+  and `signed_at` was null on every row. Now the client's signature is the
+  last one and completes it. Verified on a throwaway submission (119, archived).
+  Contracts drafted before this still need our side submitted by hand once the
+  client has signed.
 - **The client's email is optional** (2026-09-15). Plenty of prospects will
   not give one, and the Cal.com form stopped requiring it on 2026-09-14.
   DocuSeal keeps a signer with only a name (it drops one with no email, phone

@@ -86,6 +86,15 @@ export type Submitter = {
    * against template 70, which was archived afterwards.
    */
   fields?: { name: string; default_value: string; readonly?: boolean }[];
+  /**
+   * Submit this side at creation, with the values given, so nobody has to open
+   * its link and press submit. Used for our own side (2026-09-23): a prefilled
+   * signature is drawn on the page for the client to see, but DocuSeal only
+   * counts a side once it is submitted — so a client signing left the contract
+   * "pending", `submission.completed` never fired, and neither the Gmail draft
+   * of the signed copy nor the push ever happened.
+   */
+  completed?: boolean;
 };
 
 type SubmitterResponse = {
@@ -96,8 +105,8 @@ type SubmitterResponse = {
 
 export type CreatedSubmission = {
   submissionId: number;
-  /** The sender's own link — the one to open at the meeting, since Cyl Labs
-   *  signs first. */
+  /** The sender's own link. Already submitted when the signature image is
+   *  configured, so it only matters as the way to see the document. */
   senderSlug: string;
   signerSlug: string;
 };
