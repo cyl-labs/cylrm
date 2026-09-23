@@ -35,6 +35,7 @@ function mmss(seconds: number) {
 export function RecordingSheet({
   recordingId,
   recordingMs,
+  startedAt = null,
   title,
   subtitle,
   callerLabel = "You",
@@ -43,6 +44,11 @@ export function RecordingSheet({
 }: {
   recordingId: string;
   recordingMs: number | null;
+  /** When the call started, already formatted in the reader's zone by
+   *  whoever rendered the button that opens this sheet — a client component
+   *  cannot format a date itself without one string on the server and
+   *  another on hydration. Null when the caller has no time to offer. */
+  startedAt?: string | null;
   title: string;
   subtitle?: string | null;
   /**
@@ -143,6 +149,7 @@ export function RecordingSheet({
           <SheetDescription>
             {subtitle ? `${subtitle} · ` : ""}
             {recordingMs ? mmss(recordingMs / 1000) : "Recorded call"}
+            {startedAt ? ` · ${startedAt}` : ""}
           </SheetDescription>
         </SheetHeader>
 

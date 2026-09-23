@@ -1331,6 +1331,11 @@ export function MeetingsList({
                     key={rec.recordingId}
                     recordingId={rec.recordingId}
                     recordingMs={rec.durationMs}
+                    startedAt={
+                      rec.startedAt
+                        ? `${format.format(new Date(rec.startedAt))} ${zoneLabel}`
+                        : null
+                    }
                     company={m.company ?? m.attendeeName ?? "Demo call"}
                     callerName="Founders"
                     label={i === 0 ? "Demo call" : `Demo call ${i + 1}`}

@@ -52,11 +52,12 @@ const DEMO_REDIAL_GAP_MINUTES = 20;
  */
 export function clusterDemoRecordings(
   recordings: { recordingId: string; durationMs: number | null; startedAt: string }[],
-): { recordingId: string; durationMs: number | null }[] {
+): { recordingId: string; durationMs: number | null; startedAt: string }[] {
   if (recordings.length <= 1) {
     return recordings.map((r) => ({
       recordingId: r.recordingId,
       durationMs: r.durationMs,
+      startedAt: r.startedAt,
     }));
   }
 
@@ -92,7 +93,11 @@ export function clusterDemoRecordings(
     }
   }
 
-  return best.map((r) => ({ recordingId: r.recordingId, durationMs: r.durationMs }));
+  return best.map((r) => ({
+    recordingId: r.recordingId,
+    durationMs: r.durationMs,
+    startedAt: r.startedAt,
+  }));
 }
 
 /**
@@ -493,7 +498,11 @@ export type Meeting = {
    * Empty until `scripts/backfill-recording-numbers.mjs` has run, and empty
    * afterwards for any meeting whose demo was never recorded or never happened.
    */
-  demoRecordings: { recordingId: string; durationMs: number | null }[];
+  demoRecordings: {
+    recordingId: string;
+    durationMs: number | null;
+    startedAt: string;
+  }[];
 
   /**
    * What the row needs to ring them without leaving the screen.

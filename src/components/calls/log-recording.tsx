@@ -25,6 +25,7 @@ function mmss(ms: number) {
 export function LogRecording({
   recordingId,
   recordingMs,
+  startedAt = null,
   company,
   callerName,
   mine = false,
@@ -32,6 +33,11 @@ export function LogRecording({
 }: {
   recordingId: string;
   recordingMs: number | null;
+  /** When the call started, already formatted in the reader's zone — the
+   *  sheet is a client component and cannot format a date itself without
+   *  rendering one string on the server and another on hydration. Null on
+   *  the call log, which already carries its own date column. */
+  startedAt?: string | null;
   company: string;
   /** Whose call this was. The transcript labels the near side with it, since
    *  an admin reading the floor's calls is not "You". */
@@ -78,6 +84,7 @@ export function LogRecording({
         <RecordingSheet
           recordingId={recordingId}
           recordingMs={recordingMs}
+          startedAt={startedAt}
           title={company}
           subtitle={mine ? null : callerName}
           callerLabel={mine ? "You" : callerName}
