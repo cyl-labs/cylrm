@@ -364,6 +364,7 @@ export default async function MeetingsPage({
             today={today}
             now={now}
             query={keepTz}
+            forCaller={me?.role !== "admin"}
           />
         )}
         {/* The list is rendered under the calendar rather than instead of it.

@@ -927,6 +927,16 @@ export function MeetingsList({
               )}
             </p>
 
+            {/* A caller reads their prospect's name on a follow-up and asks
+                whether to ring them (2026-09-24). It is the founders' call
+                after the demo, so say so where the eye lands. */}
+            {!showWho && m.kind === "follow_up" && (
+              <p className="mt-2 rounded-md bg-success/10 px-3 py-2 text-[13px] font-medium text-success">
+                Founders&apos; call. A founder rings them back after the demo,
+                so there is nothing for you to do here.
+              </p>
+            )}
+
             {/* The one call this screen asks for, and the reason it is worth
                 making is written on it: somebody who agreed to a slot and then
                 missed it is warm, and the reason is usually something ordinary

@@ -414,10 +414,13 @@ function Chip({
   m,
   tz,
   layout,
+  forCaller = false,
 }: {
   m: Meeting;
   tz: string;
   layout: "month" | "grid";
+  /** See `forCaller` on `MeetingsCalendar`. */
+  forCaller?: boolean;
 }) {
   const off = m.status === "cancelled";
   const follow = m.kind === "follow_up";
@@ -427,7 +430,11 @@ function Chip({
     // to carry that same id, which is the only coupling between the two.
     <Link
       href={`#meeting-${m.id}`}
-      title={`${timeOf(m.startAt, tz, true)} · ${kindLabel(m)} · ${nameOf(m)}${off ? " · cancelled" : ""}`}
+      title={`${timeOf(m.startAt, tz, true)} · ${
+        follow && forCaller
+          ? "Founders' call — a founder rings them, nothing for you to do"
+          : kindLabel(m)
+      } · ${nameOf(m)}${off ? " · cancelled" : ""}`}
       className={cn(
         "flex min-w-0 flex-col overflow-hidden rounded px-1 py-0.5 leading-tight transition-opacity hover:opacity-80",
         layout === "month" ? "text-[11px]" : "h-full text-[11px]",
@@ -454,7 +461,7 @@ function Chip({
       <span className="truncate text-[10px] font-semibold opacity-80">
         <span className="tabular-nums">{timeOf(m.startAt, tz)}</span>
         {" · "}
-        {follow ? "Follow-up" : "Demo"}
+        {follow ? (forCaller ? "Founders" : "Follow-up") : "Demo"}
       </span>
       {/* One line in the grid, two in a month cell. A grid block is sized by
           how long the booking runs, and a half-hour one is 32px — exactly two
@@ -481,7 +488,16 @@ export function MeetingsCalendar({
   today,
   now,
   query,
+  forCaller = false,
 }: {
+  /**
+   * The reader is a caller, not a founder (2026-09-24). A follow-up is the
+   * founders' call after a demo, and callers seeing a green block with their
+   * prospect's name on it asked whether they had to ring them. So for them it
+   * is labelled as the founders' and the header says what the two colours
+   * mean. Founders keep "Follow-up": it is their own diary.
+   */
+  forCaller?: boolean;
   /** Day, week or month. */
   span: CalendarSpan;
   /** The date the view is built around, YYYY-MM-DD. For a month only its
@@ -588,6 +604,9 @@ export function MeetingsCalendar({
   });
   const bodyPx = grid.height;
 
+  const anyFollowUp = meetings.some(
+    (m) => m.kind === "follow_up" && m.status !== "cancelled",
+  );
   const header = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2.5">
       <h2 className="text-[15px] font-bold tracking-[-0.01em]">
@@ -652,6 +671,19 @@ export function MeetingsCalendar({
           ))}
         </div>
       </div>
+      {forCaller && anyFollowUp && (
+        <p className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 shrink-0 rounded-sm bg-primary" />
+            Demo you booked
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 shrink-0 rounded-sm bg-success" />
+            Founders&apos; call after a demo. A founder rings them, nothing
+            for you to do.
+          </span>
+        </p>
+      )}
     </div>
   );
 
@@ -714,7 +746,7 @@ export function MeetingsCalendar({
                 </div>
                 <div className="mt-0.5 flex flex-col gap-0.5">
                   {rows.slice(0, MONTH_CHIPS).map((m) => (
-                    <Chip key={m.id} m={m} tz={tz} layout="month" />
+                    <Chip key={m.id} m={m} tz={tz} layout="month" forCaller={forCaller} />
                   ))}
                   {rows.length > MONTH_CHIPS && (
                     <Link
@@ -895,7 +927,7 @@ export function MeetingsCalendar({
                   width: `${(1 / pl.cols) * 100}%`,
                 }}
               >
-                <Chip m={pl.m} tz={tz} layout="grid" />
+                <Chip m={pl.m} tz={tz} layout="grid" forCaller={forCaller} />
               </div>
             ))}
           </div>
@@ -1024,7 +1056,7 @@ export function MeetingsCalendar({
                       width: `${(1 / p.cols) * 100}%`,
                     }}
                   >
-                    <Chip m={p.m} tz={tz} layout="grid" />
+                    <Chip m={p.m} tz={tz} layout="grid" forCaller={forCaller} />
                   </div>
                 );
               })}
