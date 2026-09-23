@@ -613,7 +613,13 @@ export function Keypad({
           // Shown whenever the feature is on, not only mid-call. It used to
           // appear only once a call was up, so an idle screen showed the panel
           // and no button and read as the button being missing.
-            <div className="mb-3">
+          //
+          // The margin is on the top, not the bottom: the thing above it
+          // changes (the book when idle, the number itself on a call) and a
+          // bottom margin left it flush against all of them, while collapsing
+          // into the pad's own `mt-4` below. That read as the button belonging
+          // to whatever was above it.
+          <div className="mt-3">
             <Button
               variant="outline"
               className="h-11 w-full"

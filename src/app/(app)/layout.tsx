@@ -110,18 +110,26 @@ export default async function AppLayout({
         {/* The switcher above already names the workspace you are in, so a
             "Workspace" label between it and its own screens said it twice. */}
         <div className="pt-3.5" />
-        <NavLinks
-          grouped
-          role={me?.role}
-          keypad={keypad}
-          texting={smsEnabled()}
-          unreadReplies={unread}
-          callbacksDue={callbacks}
-          missedCalls={missed}
-          meetingsWaiting={meetings}
-          unreadTexts={unreadTexts}
-        />
-        <div className="mt-auto px-2.5 pb-3.5">
+        {/* Scrolls on its own, the same as the drawer: the sidebar is a fixed
+            `h-svh` column, so with every fold open the list is taller than the
+            screen and used to shove the name, Dark mode and Log out off the
+            bottom of it. Folding the desktop sidebar is what made that
+            reachable — fourteen flat links fitted, fourteen links plus three
+            open folds on a laptop do not. */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <NavLinks
+            grouped
+            role={me?.role}
+            keypad={keypad}
+            texting={smsEnabled()}
+            unreadReplies={unread}
+            callbacksDue={callbacks}
+            missedCalls={missed}
+            meetingsWaiting={meetings}
+            unreadTexts={unreadTexts}
+          />
+        </div>
+        <div className="shrink-0 px-2.5 pb-3.5">
           {/* Who you are, above the way out. The floor shares machines, and
               logging a morning of calls under a colleague's name is only
               noticed once the stats are wrong. */}
