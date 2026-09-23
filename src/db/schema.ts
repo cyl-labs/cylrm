@@ -642,6 +642,14 @@ export const appUser = pgTable("app_user", {
    * ever been used".
    */
   presenceAt: timestamp("presence_at", { withTimezone: true }),
+  /**
+   * The last heartbeat that said "on a call". `presence_at` cannot answer that:
+   * every tab stamps it, idle or not, so on a login open in two browsers the
+   * idle one kept it fresh while the other was mid-call. Liveness of a call is
+   * read from this, and an idle beat may only clear `on_call_since` once this
+   * has gone stale. See `recordPresence`.
+   */
+  onCallAt: timestamp("on_call_at", { withTimezone: true }),
 }, (t) => [index("app_user_presence_at_idx").on(t.presenceAt)]);
 
 export const call = pgTable(

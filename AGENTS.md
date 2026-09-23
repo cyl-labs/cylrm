@@ -241,7 +241,9 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
     than a restart.
   - **The guard watches calls, not the browser phone, and those are not the
     same thing** (2026-09-16). `restart_when_clear` reads `app_user.on_call_since`
-    with a 45-second `presence_at` heartbeat, which is the right test for "is
+    with a 45-second `on_call_at` heartbeat (`presence_at` until 2026-09-23 —
+    an idle browser on the same login kept that fresh and wiped the call, see
+    `recordPresence`), which is the right test for "is
     anybody mid-conversation" and says nothing about a browser that is merely
     *registered*. A restart still 502s `POST /api/telnyx/token`: Caddy logged
     exactly that from a founder's browser at 15:35:51 during a deploy, while

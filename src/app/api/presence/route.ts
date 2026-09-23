@@ -18,8 +18,11 @@ export async function POST(request: Request) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = (await request.json().catch(() => ({}))) as { onCall?: unknown };
-  await recordPresence(me.id, body.onCall === true);
+  const body = (await request.json().catch(() => ({}))) as {
+    onCall?: unknown;
+    ended?: unknown;
+  };
+  await recordPresence(me.id, body.onCall === true, body.ended === true);
   return Response.json({ ok: true });
 }
 

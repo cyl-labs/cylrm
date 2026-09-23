@@ -406,8 +406,9 @@ export type Presence = {
  * Only ever browser calls — a handset caller's phone is invisible to us, and
  * the screens say so rather than reporting them idle.
  *
- * Both halves are required: a stale heartbeat means the tab is gone, whatever
- * `on_call_since` still says. Deliberately not `cache()`d, unlike the counts
+ * Both halves are required: a stale on-call heartbeat means the tab is gone,
+ * whatever `on_call_since` still says. `on_call_at`, not `presence_at` — an
+ * idle browser on the same login keeps the second fresh on its own. Deliberately not `cache()`d, unlike the counts
  * on the sidebar — this is the one query on the app whose whole value is that
  * it is not a moment old.
  */
@@ -417,7 +418,7 @@ export async function getLiveCallers(): Promise<Presence[]> {
       extract(epoch from (now() - on_call_since))::int as seconds
     from app_user
     where on_call_since is not null
-      and presence_at > now() - make_interval(secs => ${PRESENCE_TTL_SECONDS})
+      and on_call_at > now() - make_interval(secs => ${PRESENCE_TTL_SECONDS})
     order by on_call_since
   `)) as {
     id: number;
@@ -434,16 +435,40 @@ export async function getLiveCallers(): Promise<Presence[]> {
   }));
 }
 
-/** The heartbeat. `onCall` false clears the call but still stamps the beat, so
- *  an idle caller with a dialler open is known to be there. */
-export async function recordPresence(userId: number, onCall: boolean) {
+/**
+ * The heartbeat. `onCall` false still stamps the beat, so an idle caller with a
+ * dialler open is known to be there.
+ *
+ * **An idle beat does not end somebody's call** (2026-09-23). It used to null
+ * `on_call_since` outright, and a login open in two browsers — the shared
+ * Founders account — has one tab on the call and another idle, each beating
+ * every 15s. The idle one wiped the start, the busy one set it again, and Team
+ * showed a 40-minute call at 0:11. Between the two beats the deploy guard saw
+ * nobody on a call at all.
+ *
+ * So the call is cleared only by the tab that had it (`ended`, sent on the
+ * transition to idle), or by an idle beat once no on-call beat has arrived for
+ * `PRESENCE_TTL_SECONDS` — which is a browser that crashed or closed mid-call.
+ */
+export async function recordPresence(
+  userId: number,
+  onCall: boolean,
+  ended = false,
+) {
   await db.execute(sql`
     update app_user
     set presence_at = now(),
-        -- Left alone when they are already on a call, so the timer counts from
-        -- when it started rather than restarting on every heartbeat.
-        on_call_since = ${
-          onCall ? sql`coalesce(on_call_since, now())` : sql`null`
+        ${
+          onCall
+            ? // Left alone when already set, so the timer counts from when the
+              // call started rather than restarting on every heartbeat.
+              sql`on_call_since = coalesce(on_call_since, now()), on_call_at = now()`
+            : ended
+              ? sql`on_call_since = null, on_call_at = null`
+              : sql`on_call_since = case
+                  when on_call_at > now() - make_interval(secs => ${PRESENCE_TTL_SECONDS})
+                    then on_call_since
+                  end`
         }
     where id = ${userId}
   `);

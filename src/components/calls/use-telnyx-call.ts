@@ -836,17 +836,26 @@ export function useTelnyxCall(
   // mid-conversation, and the worst case is a status that goes stale on its
   // own. Ringing counts as on a call: the disruptive moment starts when they
   // press dial, not when the far end picks up.
+  //
+  // `ended` rides on the first beat after this tab's own call finishes. It is
+  // the only idle beat allowed to clear the call at once: the same login open
+  // in another browser beats idle all the while, and letting that clear it
+  // reset the call's timer every 15s — see `recordPresence`.
+  const wasOnCallRef = React.useRef(false);
   React.useEffect(() => {
     if (!enabled) return;
     const onCall = state !== "idle";
+    let ended = !onCall && wasOnCallRef.current;
+    wasOnCallRef.current = onCall;
 
     const beat = () => {
       fetch("/api/presence", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ onCall }),
+        body: JSON.stringify({ onCall, ended }),
         keepalive: true,
       }).catch(() => {});
+      ended = false;
     };
 
     beat();
