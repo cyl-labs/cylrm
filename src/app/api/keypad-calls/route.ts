@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { keypadCall } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
@@ -22,10 +23,6 @@ import { canUseKeypad } from "@/lib/users";
 export async function POST(request: Request) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  if (!(await canUseKeypad(me.id, me.role))) {
-    return Response.json({ error: "No keypad access." }, { status: 403 });
-  }
-
   const body = (await request.json().catch(() => null)) as {
     phone?: unknown;
     label?: unknown;
@@ -33,6 +30,7 @@ export async function POST(request: Request) {
     telnyxSessionId?: unknown;
     durationSeconds?: unknown;
     addedToCall?: unknown;
+    ringBack?: unknown;
   } | null;
 
   if (!body) {
@@ -45,6 +43,17 @@ export async function POST(request: Request) {
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
   if (!/^\+\d{6,17}$/.test(phone)) {
     return Response.json({ error: "Invalid number." }, { status: 400 });
+  }
+
+  // A ring back to a number with no lead is filed here too, and a caller
+  // without the Keypad may place one from Missed calls or Texts. Allowed only
+  // when that number really did ring or text them, so this is not a way to
+  // write Keypad history from a screen they cannot open.
+  const allowed =
+    (await canUseKeypad(me.id, me.role)) ||
+    (body.ringBack === true && (await reachedMe(phone, me.id)));
+  if (!allowed) {
+    return Response.json({ error: "No keypad access." }, { status: 403 });
   }
 
   const text = (v: unknown, max: number) =>
@@ -73,4 +82,16 @@ export async function POST(request: Request) {
     id: row.id,
     calledAt: row.calledAt.toISOString(),
   });
+}
+
+/** Whether this number has rung or texted this person. */
+async function reachedMe(phone: string, userId: number): Promise<boolean> {
+  const rows = (await db.execute(sql`
+    select 1 from inbound_call where from_number = ${phone} and user_id = ${userId}
+    union all
+    select 1 from call_sms
+    where direction = 'in' and from_number = ${phone} and user_id = ${userId}
+    limit 1
+  `)) as unknown[];
+  return rows.length > 0;
 }

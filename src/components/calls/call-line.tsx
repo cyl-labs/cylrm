@@ -125,6 +125,10 @@ export type LegMeta = {
   label: string | null;
   did: string | null;
   addedToCall?: boolean;
+  /** Placed from a Missed calls or Texts row to a number with no lead, which
+   *  has no dial card to log an outcome on and would otherwise be filed
+   *  nowhere — recording and all. */
+  ringBack?: boolean;
 };
 
 type Leg = LegMeta & { sessionId: string | null; seconds: number };
@@ -310,6 +314,7 @@ export function CallLineProvider({
         telnyxSessionId: leg.sessionId,
         durationSeconds: leg.seconds,
         addedToCall: leg.addedToCall ?? false,
+        ringBack: leg.ringBack ?? false,
       }),
       keepalive: true,
     }).catch(() => {});

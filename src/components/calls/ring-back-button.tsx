@@ -42,7 +42,7 @@ export function RingBackButton({
   blocked: string | null;
   className?: string;
 }) {
-  const { line, live, setActiveLead } = useCallLine();
+  const { line, live, setActiveLead, startLeg } = useCallLine();
   if (!live || blocked || !from) return null;
 
   const busy = line.state !== "idle";
@@ -54,6 +54,10 @@ export function RingBackButton({
         // Before dialling, so the first moment of the call already belongs to
         // this lead.
         if (leadId !== null) setActiveLead(leadId);
+        // A number with no lead has no outcome to log, so nothing would ever
+        // write a row for the call and its recording would belong to nobody —
+        // not in Stats, not anywhere. File it the way a Keypad dial is filed.
+        else startLeg({ phone: to, label: "Rang back", did: from, ringBack: true });
         line.reset();
         line.dial(to, from);
       }}
