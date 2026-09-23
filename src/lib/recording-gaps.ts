@@ -23,6 +23,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { notificationsConfigured, notifyRecordingGap } from "@/lib/notify";
+import { callConnected } from "@/lib/telnyx";
 
 /**
  * How long after a call ends before a missing recording counts as missing.
@@ -60,7 +61,8 @@ export type GapSweep = {
  *
  * A call qualifies when it has a Telnyx session, actually connected, ended
  * more than `GRACE_MINUTES` ago, and has no `call_recording` row. A call that
- * never connected has no audio to lose and is not a fault.
+ * never connected has no audio to lose and is not a fault, and Telnyx's billing
+ * record decides that rather than the browser's timer.
  *
  * The insert is the claim: `on conflict do nothing` on the unique `call_id`
  * means two ticks racing cannot both report the same call, and `returning`
@@ -68,19 +70,65 @@ export type GapSweep = {
  * reminder uses to make a weekly job safe on a five-minute loop.
  */
 export async function sweepRecordingGaps(): Promise<GapSweep> {
+  const candidates = (await db.execute(sql`
+    select c.id, c.telnyx_session_id
+    from "call" c
+    left join call_recording cr on cr.call_session_id = c.telnyx_session_id
+    left join call_recording_gap g on g.call_id = c.id
+    where c.telnyx_session_id is not null
+      and cr.id is null
+      and g.id is null
+      -- Connected, by the browser's reckoning. A call nobody answered has no
+      -- audio to lose; Telnyx has the final word below.
+      and coalesce(c.duration_seconds, 0) > 0
+      -- Past the grace period, so a recording still in flight is not a fault.
+      and c.called_at < now() - make_interval(mins => ${GRACE_MINUTES}::int)
+      and c.called_at > now() - make_interval(hours => ${LOOKBACK_HOURS}::int)
+  `)) as unknown as { id: number; telnyx_session_id: string }[];
+
+  if (candidates.length === 0) return { found: 0, notified: false };
+
+  // The duration is the browser's timer, and a timer is not proof anybody
+  // picked up: on 2026-09-24 four alerts in one night were all calls Telnyx
+  // billed at zero seconds, carrying the previous call's length. So ask
+  // Telnyx, and correct the call's duration when it says nobody answered,
+  // which also takes the call out of this query for good. When Telnyx cannot
+  // say — no record yet, or the API is down — the call stays in: a false
+  // alarm costs a look, a missed gap costs a recording.
+  const real: number[] = [];
+  const unanswered: number[] = [];
+  for (const c of candidates) {
+    let connected: boolean | null = null;
+    try {
+      connected = await callConnected(c.telnyx_session_id);
+    } catch {
+      connected = null;
+    }
+    if (connected === false) unanswered.push(Number(c.id));
+    else real.push(Number(c.id));
+  }
+
+  if (unanswered.length > 0) {
+    await db.execute(sql`
+      update "call" set duration_seconds = 0
+      where id in (${sql.join(
+        unanswered.map((id) => sql`${id}`),
+        sql`, `,
+      )})
+    `);
+  }
+
+  if (real.length === 0) return { found: 0, notified: false };
+
   const claimed = (await db.execute(sql`
     insert into call_recording_gap
       (call_id, telnyx_session_id, duration_seconds, called_at, user_id)
     select c.id, c.telnyx_session_id, c.duration_seconds, c.called_at, c.user_id
     from "call" c
-    left join call_recording cr on cr.call_session_id = c.telnyx_session_id
-    where c.telnyx_session_id is not null
-      and cr.id is null
-      -- Connected. A call nobody answered has no audio to lose.
-      and coalesce(c.duration_seconds, 0) > 0
-      -- Past the grace period, so a recording still in flight is not a fault.
-      and c.called_at < now() - make_interval(mins => ${GRACE_MINUTES}::int)
-      and c.called_at > now() - make_interval(hours => ${LOOKBACK_HOURS}::int)
+    where c.id in (${sql.join(
+      real.map((id) => sql`${id}`),
+      sql`, `,
+    )})
     on conflict (call_id) do nothing
     returning call_id, duration_seconds, user_id
   `)) as unknown as Record<string, unknown>[];

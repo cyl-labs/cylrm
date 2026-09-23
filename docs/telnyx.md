@@ -407,6 +407,20 @@ successes on the same connection went through `sv1`.
 - The alert **names the caller**, because a gap is far more often one line
   than a global outage: that day one connection lost calls while eight others
   recorded normally.
+- **"Connected" is Telnyx's word, not the browser's** (2026-09-24). The first
+  four live alerts, one night, were all false: Harry ×2, Aaron, Akshansh, and
+  Telnyx billed every one at **0 seconds** (`USER_BUSY`, `UNALLOCATED_NUMBER`,
+  `DECLINE`, `ORIGINATOR_CANCEL`). `duration_seconds` is the browser's timer,
+  and `dial` never reset it — the timer restarts only on answer — so a call
+  nobody picked up posted the previous call's length (Aaron's "85s" was the
+  86s call before it). `dial` now zeroes it, and the sweep asks
+  `callConnected` (`detail_records`, `connected` / `call_sec`) before
+  claiming; a call Telnyx says was unanswered gets its duration set to 0,
+  which is the truth and drops it from the sweep for good. No record, or an
+  API failure, still alerts. Akshansh's also showed a second shape: a real
+  recorded conversation, then a cancelled redial of the same prospect, then
+  the outcome — which lands on the redial's session, leaving the recording
+  unattached. That call was relinked by hand; the dialler still does it.
 - **Counting these needs every page of `detail_records`.** `page[size]` caps
   at **50** whatever you ask for, and there were 168 pages for one week — a
   six-page fetch gave 33, then 30, then 27 for the same question, because

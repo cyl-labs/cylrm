@@ -589,6 +589,30 @@ export async function recordingNumbers(
   return { to: body.data?.to ?? null, from: body.data?.from ?? null };
 }
 
+/**
+ * Whether Telnyx says a call was actually answered, from its billing record.
+ *
+ * The browser's own timer is not proof: until 2026-09-24 it carried the last
+ * call's length into the next one when that one was never answered, and all
+ * four "no recording" alerts that night were calls Telnyx had billed at zero
+ * seconds (busy, unallocated, declined, cancelled). Null when Telnyx has no
+ * record for the session, so the caller can decide what not knowing means.
+ */
+export async function callConnected(
+  sessionId: string,
+): Promise<boolean | null> {
+  const q = new URLSearchParams({
+    "filter[record_type]": "sip-trunking",
+    "filter[telnyx_session_id]": sessionId,
+  });
+  const body = (await telnyx(`/detail_records?${q}`)) as {
+    data?: { connected?: boolean; call_sec?: number }[];
+  };
+  const rows = body.data ?? [];
+  if (rows.length === 0) return null;
+  return rows.some((r) => r.connected === true || (r.call_sec ?? 0) > 0);
+}
+
 export type AccountNumber = {
   phoneNumber: string;
   country: string | null;

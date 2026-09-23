@@ -939,6 +939,10 @@ export function useTelnyxCall(
       if (!clientRef.current || !ready || callRef.current) return;
       setSessionId(null);
       setEnded(null);
+      // The timer only restarts when a call is answered, so without this a
+      // call that never connects reports the previous call's length — which
+      // is how a busy line came to be logged as 85 seconds of conversation.
+      setSeconds(0);
       progressRef.current = {
         at: Date.now(),
         rang: false,
