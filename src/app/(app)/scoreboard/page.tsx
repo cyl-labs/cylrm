@@ -66,10 +66,8 @@ const pct = (num: number, den: number) =>
  * your own, because that is the point — and because a leaderboard nobody else
  * appears on is just your own dashboard.
  *
- * Admin-only since 2026-09-03, which is the reverse of how it shipped — see
- * `ADMIN_ONLY_CALL_PREFIXES` for why a leaderboard of one reads as a thin
- * operation rather than a competition. A caller's own numbers are not what is
- * being withheld: those are on `/call-stats`, which is scoped to them.
+ * Open to callers again since 2026-09-24, after three weeks admin-only — see
+ * `ADMIN_ONLY_CALL_PREFIXES` for why it was closed and why it reopened.
  */
 
 /**

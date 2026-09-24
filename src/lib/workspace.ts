@@ -147,12 +147,12 @@ export const EMAIL_PREFIXES = [
  * EMAIL_PREFIXES so the two reasons stay legible: one is a different product,
  * this is a permission.
  *
- * The Scoreboard joined them on 2026-09-03. It was the one performance screen a
- * caller could open, on the reasoning that a league table motivates a floor
- * without exposing staffing or wages. That holds for a floor; there is one
- * person dialling, and a leaderboard of one reads as a thin operation rather
- * than as a competition. Worth reopening to callers when there are enough of
- * them for it to be one — the screen itself is unchanged, only who may open it.
+ * The Scoreboard was on this list from 2026-09-03 to 2026-09-24. It is the one
+ * performance screen a caller can open, on the reasoning that a league table
+ * motivates a floor without exposing staffing or wages. It was closed while one
+ * person was dialling, because a leaderboard of one reads as a thin operation
+ * rather than as a competition, and reopened at the founders' request once
+ * there was a floor for it to rank. It shows call counts, never pay.
  *
  * `/call-stats` left this list on 2026-09-06 and is the odd one out: it is open
  * to everybody, but it is not one screen. An admin gets the floor's numbers; a
@@ -169,7 +169,6 @@ export const EMAIL_PREFIXES = [
  * one person rather than letting them in. Admins keep it by being admins.
  */
 export const ADMIN_ONLY_CALL_PREFIXES = [
-  "/scoreboard",
   "/team",
   "/payroll",
   // The account balance and every line's usage — the same material Payroll is
@@ -207,14 +206,14 @@ export const isAdminOnlyPath = (pathname: string) =>
   matches(pathname, [...EMAIL_PREFIXES, ...ADMIN_ONLY_CALL_PREFIXES]);
 
 /**
- * The nav for this person: a caller's Call CRM has no Scoreboard, Team or
- * Payroll in it, and the Keypad appears only for someone granted it.
+ * The nav for this person: a caller's Call CRM has no Team, Payroll or Spend in
+ * it, and the Keypad appears only for someone granted it.
  *
  * Stats is relabelled rather than hidden. The link goes to the same screen for
  * everybody, but what it opens is not the same thing — the floor's numbers for
- * an admin, this person's own for a caller — and "Stats" beside a Scoreboard
- * they cannot open would read as the floor's. The label is the one word that
- * says whose numbers are behind it before it is tapped.
+ * an admin, this person's own for a caller — and "Stats" beside the Scoreboard,
+ * which *is* the floor's, would read as more of the same. The label is the one
+ * word that says whose numbers are behind it before it is tapped.
  *
  * `keypad` is read from the database by the layout, not taken off the session,
  * so a grant made on the Team screen shows up on their next page load rather
