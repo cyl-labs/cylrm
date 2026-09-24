@@ -65,7 +65,7 @@ function formatter(symbol: string, rate: number) {
     money,
     // Per-unit costs are fractions of a cent, so they get three places —
     // $0.015 is the answer, $0.02 is a rounding of it and $0.00 is a lie.
-    unit: (n: number) => (n > 0 ? money(n, 3) : "—"),
+    unit: (n: number) => (n > 0 ? money(n, 3) : "-"),
   };
 }
 
@@ -296,7 +296,7 @@ export default async function SpendPage({
               Telnyx balance
             </p>
             <p className="mt-1 text-2xl font-extrabold tabular-nums tracking-[-0.02em]">
-              {spend.balance === null ? "—" : money(spend.balance)}
+              {spend.balance === null ? "-" : money(spend.balance)}
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/75">
               {spend.daysLeft === null
@@ -354,7 +354,7 @@ export default async function SpendPage({
               {byAttendance ? "Per demo that showed" : "Per booked demo"}
             </p>
             <p className="mt-1 text-2xl font-extrabold tabular-nums tracking-[-0.02em]">
-              {perDemo > 0 ? money(perDemo) : "—"}
+              {perDemo > 0 ? money(perDemo) : "-"}
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/75">
               {byAttendance
@@ -439,10 +439,10 @@ export default async function SpendPage({
             </span>{" "}
             a pickup and{" "}
             <span className="font-bold text-foreground">
-              {allInPerDemo > 0 ? money(allInPerDemo) : "—"}
+              {allInPerDemo > 0 ? money(allInPerDemo) : "-"}
             </span>{" "}
-            {byAttendance ? "per demo that showed" : "per booked demo"} — against{" "}
-            {perDemo > 0 ? money(perDemo) : "—"} on the phone bill alone.
+            {byAttendance ? "per demo that showed" : "per booked demo"}, against{" "}
+            {perDemo > 0 ? money(perDemo) : "-"} on the phone bill alone.
             {/* Only where it is true. It has been every month so far, but a
                 sentence that asserts it on a quiet month is a screen saying
                 something it has not checked. */}
@@ -532,8 +532,8 @@ export default async function SpendPage({
                   mapping in their head. */}
               <p className="mt-1 text-[12px] text-muted-foreground">
                 The bill, split by what you were charged for. One browser call
-                bills twice &mdash; the leg out to the prospect and the
-                caller&rsquo;s own &mdash; and the recording of it is charged
+                bills twice (the leg out to the prospect and the
+                caller&rsquo;s own), and the recording of it is charged
                 separately again.
               </p>
             </div>
@@ -579,7 +579,7 @@ export default async function SpendPage({
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                           {idle
-                            ? "—"
+                            ? "-"
                             : p.unit === "minutes"
                               ? `${Math.round(p.used).toLocaleString()} min`
                               : Math.round(p.used).toLocaleString()}
@@ -587,7 +587,7 @@ export default async function SpendPage({
                         <td className="px-4 py-2 text-right font-bold tabular-nums sm:px-5">
                           {idle ? (
                             <span className="font-normal text-muted-foreground/75">
-                              —
+                              -
                             </span>
                           ) : (
                             money(p.cost)
@@ -623,7 +623,7 @@ export default async function SpendPage({
               </p>
               <p className="mt-1 text-[12px] text-muted-foreground">
                 The calls out, by which line placed them. A line with a name
-                and no person is not a caller &mdash; it is a shared or
+                and no person is not a caller. It is a shared or
                 left-over line, or another app on the same Telnyx account.
               </p>
             </div>
@@ -709,8 +709,8 @@ export default async function SpendPage({
           </p>
         )}
         <p className="text-[12px] text-muted-foreground/75">
-          Figures come from Telnyx&rsquo;s own usage reports, cached for an hour
-          — press Refresh to pull them again. Deepgram transcription is billed
+          Figures come from Telnyx&rsquo;s own usage reports, cached for an hour.
+          Press Refresh to pull them again. Deepgram transcription is billed
           separately and is not counted here.
         </p>
       </div>

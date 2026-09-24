@@ -150,7 +150,7 @@ export function IncomingCall({
 
       {busy && (
         <p className="border-t border-success/30 bg-background/40 px-3 pt-2 text-center text-[12px] font-semibold text-muted-foreground">
-          You are on a call — answering will end it.
+          You are on a call. Answering will end it.
         </p>
       )}
       {/* Full width and side by side, because this is answered with a thumb on

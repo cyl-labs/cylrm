@@ -163,7 +163,7 @@ export async function notifyRecordingGap(g: {
     `🔇 ${g.calls} ${g.calls === 1 ? "call has" : "calls have"} no recording`,
     `${g.who}${g.more > 0 ? ` and ${g.more} more` : ""} · about ${mins} ${mins === 1 ? "minute" : "minutes"} of conversation`,
     "",
-    "The calls connected and were billed; the audio never arrived. If this keeps climbing it is Telnyx's recording pipeline, not the callers — check whether one line or all of them.",
+    "The calls connected and were billed; the audio never arrived. If this keeps climbing it is Telnyx's recording pipeline, not the callers. Check whether it is one line or all of them.",
   ];
   if (base) lines.push("", `${base}/calls`);
   await send(lines.join("\n"));

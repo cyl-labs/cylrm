@@ -458,7 +458,7 @@ function Chip({
       href={`#meeting-${m.id}`}
       title={`${timeOf(m.startAt, tz, true)} · ${
         follow && forCaller
-          ? "Founders' call — a founder rings them, nothing for you to do"
+          ? "Founders' call: a founder rings them, nothing for you to do"
           : kindLabel(m)
       } · ${nameOf(m)}${off ? " · cancelled" : ""}`}
       className={cn(

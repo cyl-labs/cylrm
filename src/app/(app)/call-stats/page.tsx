@@ -385,7 +385,7 @@ export default async function CallStatsPage({
             <p>
               These are{" "}
               <span className="font-semibold">your own calls</span> and nobody
-              else&rsquo;s. It starts on the last seven days &mdash; tap any
+              else&rsquo;s. It starts on the last seven days. Tap any
               date on the calendar below to see just that day.
             </p>
             <p className="mt-1 text-muted-foreground">
@@ -704,7 +704,7 @@ export default async function CallStatsPage({
               <p className="mt-0.5 text-[11px] text-muted-foreground/75">
                 Calls against {WEEKLY_CALL_QUOTA} since the week reset on{" "}
                 {quotaSince}, worst first. This is the pay week and does not
-                follow the dates above — the same count the Friday
+                follow the dates above. It is the same count the Friday
                 notification sends. Anyone under a month on the team shows how
                 long they have been here; no note means they have had the
                 whole week.
@@ -725,11 +725,11 @@ export default async function CallStatsPage({
                   caveat={
                     <>
                       At Friday 5pm Singapore it is Friday 5am in New York, so
-                      the US floor has not worked that day yet — move it to
+                      the US floor has not worked that day yet. Move it to
                       Saturday morning for the finished week.
                     </>
                   }
-                  offNote="Switched off — nothing will tell you who missed. The standings above are still here whenever you open Stats."
+                  offNote="Switched off, so nothing will tell you who missed. The standings above are still here whenever you open Stats."
                 />
               </div>
             )}
@@ -743,8 +743,8 @@ export default async function CallStatsPage({
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/75">
               {mine
-                ? "How much of each niche you have ever rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the dates above. Niches with no calls in this range are folded away — search, or show them all."
-                : "How much of each niche has been rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the selected range. Niches with no calls in this range are folded away — search, or show them all."}
+                ? "How much of each niche you have ever rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the dates above. Niches with no calls in this range are folded away. Search, or show them all."
+                :"How much of each niche has been rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the selected range. Niches with no calls in this range are folded away. Search, or show them all."}
             </p>
           </div>
           {/* A table of headings over nothing is the state a new caller lands
@@ -878,7 +878,7 @@ export default async function CallStatsPage({
                                 : "No zone for this number: toll-free, or an area code we have no row for."
                             }
                           >
-                            &mdash;
+                            -
                           </span>
                         ) : c.inHours === null ? (
                           // Their clock is known, but no phone rang: an outcome
@@ -936,7 +936,7 @@ export default async function CallStatsPage({
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
-                        {c.listName ?? "—"}
+                        {c.listName ?? "-"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5">
                         {/* A keypad call has no outcome to log — there is no

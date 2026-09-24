@@ -103,7 +103,7 @@ export default async function PayrollPage() {
           however long ago they were booked. Showed up means they picked up at
           the booked time and stayed on while the agent was brought in. Most
           owed first. The two are paid separately, and paying the meetings
-          leaves the pickup counter running. Nothing here pays anybody — press
+          leaves the pickup counter running. Nothing here pays anybody. Press
           a button once the money has actually gone out.
         </p>
 
@@ -145,7 +145,7 @@ export default async function PayrollPage() {
                   and may still be owed for. */}
               <p className="mt-0.5 text-[11px] text-muted-foreground/75">
                 Every demo ever booked, not just the ones still sitting in the
-                pipeline&rsquo;s Demo booked column — a lead that has moved on
+                pipeline&rsquo;s Demo booked column. A lead that has moved on
                 since was still a meeting, and still earns the $30 if they
                 turned up. Nothing earns it until it is marked.
               </p>
@@ -249,13 +249,13 @@ export default async function PayrollPage() {
                             )}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums">
-                            {p.kind === "reset" ? "—" : formatMoney(p.pickupBonusCents)}
+                            {p.kind === "reset" ? "-" : formatMoney(p.pickupBonusCents)}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
-                            {p.kind === "reset" ? "—" : p.meetings}
+                            {p.kind === "reset" ? "-" : p.meetings}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums">
-                            {p.kind === "reset" ? "—" : formatMoney(p.meetingCommissionCents)}
+                            {p.kind === "reset" ? "-" : formatMoney(p.meetingCommissionCents)}
                           </td>
                           <td className="px-4 py-2.5 text-right font-bold tabular-nums">
                             {p.kind === "reset" ? (
@@ -317,7 +317,7 @@ export default async function PayrollPage() {
             which="payroll"
             initial={reminder}
             carries="with what everybody is owed"
-            offNote="Switched off — nothing will tell you it is payday. What is owed is still on this screen whenever you open it."
+            offNote="Switched off. Nothing will tell you it is payday. What is owed is still on this screen whenever you open it."
           />
         </div>
       </div>

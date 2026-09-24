@@ -44,8 +44,8 @@ export function callbackZoneLabel(
 ): string {
   const short = shortName(tz || readerTz);
   return tz
-    ? `Call back at (${short} — their time)`
-    : `Call back at (${short} — your clock, no zone for this number)`;
+    ? `Call back at (${short}, their time)`
+    : `Call back at (${short}, your clock, no zone for this number)`;
 }
 
 export function defaultCallbackAt(

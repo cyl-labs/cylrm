@@ -59,7 +59,7 @@ export function appBaseUrl(): string {
   if (!base) {
     throw new Error(
       "PUBLIC_APP_URL must be set to the externally reachable origin " +
-        "(e.g. https://crm.cyllabs.com) — unsubscribe links go out in email.",
+        "(e.g. https://crm.cyllabs.com). Unsubscribe links go out in email.",
     );
   }
   return base.replace(/\/$/, "");

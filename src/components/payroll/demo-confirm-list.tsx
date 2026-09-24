@@ -173,7 +173,7 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
           variant={d.status === "invalid" ? "secondary" : "ghost"}
           disabled={busy === d.callId}
           onClick={() => mark(d.callId, "invalid")}
-          title="Not a real booking — a duplicate, a test, or logged against the wrong lead"
+          title="Not a real booking: a duplicate, a test, or logged against the wrong lead"
         >
           <Ban className="size-3.5" strokeWidth={2.5} />
           Not valid

@@ -341,7 +341,7 @@ export function CallBackPrompt({
                   onClick={() => void dead()}
                   disabled={saving !== null}
                 >
-                  {saving === "dead" ? "Saving…" : "Dead — take them off my list"}
+                  {saving === "dead" ? "Saving…" : "Dead: take them off my list"}
                 </Button>
                 <Button variant="ghost" onClick={onClose} disabled={saving !== null}>
                   Decide later

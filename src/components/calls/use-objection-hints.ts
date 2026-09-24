@@ -103,7 +103,7 @@ export function useObjectionHints(opts: {
     if (!audio || asking) return;
     const { caller, prospect } = audio.snapshot();
     if (!prospect) {
-      setProblem("Nothing recorded yet — give it a moment.");
+      setProblem("Nothing recorded yet. Give it a moment.");
       return;
     }
     setAsking(true);

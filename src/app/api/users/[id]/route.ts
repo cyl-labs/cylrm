@@ -204,8 +204,8 @@ export async function PATCH(
         if (!(err instanceof TelnyxNotConfiguredError)) {
           console.error("[team] 10DLC campaign link failed", err);
           telnyxWarning = body.textAccess
-            ? "Saved, but Telnyx didn't confirm the campaign link — texts from their number may keep failing until this is retried."
-            : "Saved, but Telnyx didn't confirm the number came off the campaign — check it directly if that matters.";
+            ? "Saved, but Telnyx didn't confirm the campaign link, so texts from their number may keep failing until this is retried."
+            : "Saved, but Telnyx didn't confirm the number came off the campaign. Check it directly if that matters.";
         }
       }
     }

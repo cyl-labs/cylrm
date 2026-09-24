@@ -19,5 +19,13 @@ export type StoredBrief = { summary: string; generatedAt: string };
 export const briefLines = (summary: string): string[] =>
   summary
     .split("\n")
-    .map((line) => line.replace(/^\s*[-*]\s*/, "").trim())
+    .map((line) =>
+      line
+        .replace(/^\s*[-*]\s*/, "")
+        // No em dashes on screen (2026-09-25). New briefs are told not to use
+        // them; this covers the ones already stored, and any the model slips
+        // in anyway. A comma is the reading that fits most of its asides.
+        .replace(/\s*—\s*/g, ", ")
+        .trim(),
+    )
     .filter(Boolean);

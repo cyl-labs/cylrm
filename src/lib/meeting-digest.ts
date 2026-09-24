@@ -189,7 +189,7 @@ export async function sendMeetingDigest(
     const theirs = their === null ? "" : ` (${their} their time)`;
     const who = (m.who as string | null) ?? "A meeting";
     const by = m.booked_by ? ` · booked by ${m.booked_by as string}` : "";
-    return `• ${at(start, tz)} — ${who}${theirs}${by}`;
+    return `• ${at(start, tz)}: ${who}${theirs}${by}`;
   });
 
   // The clock is named once: these arrive in the small hours here, and a bare

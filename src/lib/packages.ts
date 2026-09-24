@@ -85,14 +85,14 @@ export const TERMS: readonly Term[] = [
   },
   {
     id: "six",
-    label: "6 months — 15% off",
+    label: "6 months, 15% off",
     months: 6,
     discountPct: 15,
     minimumTerm: "6 months",
   },
   {
     id: "twelve",
-    label: "12 months — 25% off",
+    label: "12 months, 25% off",
     months: 12,
     discountPct: 25,
     minimumTerm: "12 months",

@@ -68,8 +68,8 @@ import type { StoredBrief } from "@/lib/brief-lines";
  * which is why it is first.
  */
 const RING_BACK_LABELS: Record<MeetingFollowupResult, string> = {
-  rescheduled: "Rebooked — new time agreed",
-  no_answer: "No answer — try again",
+  rescheduled: "Rebooked, new time agreed",
+  no_answer: "No answer, try again",
   confirmed: "Spoke to them, rebooking later",
   cancelled: "Not rebooking",
 };
@@ -910,7 +910,7 @@ export function MeetingsList({
                     The invitation went to{" "}
                     <span className="font-semibold">{m.attendeeEmail}</span>.
                     This business&apos;s email is{" "}
-                    <span className="font-semibold">{m.leadEmail}</span> — if
+                    <span className="font-semibold">{m.leadEmail}</span>. If
                     the booking has it wrong, send the invitation again below.
                   </p>
                 )}
@@ -932,7 +932,7 @@ export function MeetingsList({
                     <span className="font-semibold tabular-nums text-foreground">
                       {spokenNumber(m.phone)}
                     </span>
-                    , the number they gave when booking — not their listed
+                    , the number they gave when booking, not their listed
                     line,{" "}
                     <span className="tabular-nums">
                       {spokenNumber(m.listedPhone)}
@@ -1164,9 +1164,10 @@ export function MeetingsList({
                 status, like the dial card's booking steps. */}
             {m.needsRingBack && (
               <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[13px]">
-                <span className="font-bold">They did not turn up.</span> Ring
+                <span className="font-bold">They did not turn up.</span>{" "}
+                Ring
                 them, ask what happened, and put a new time in while you have
-                them. Log it below either way — that is what takes this off your
+                them. Log it below either way. That is what takes this off your
                 list.
               </p>
             )}
@@ -1176,9 +1177,10 @@ export function MeetingsList({
                 in Past meetings. */}
             {m.needsLogging && (
               <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[13px]">
-                <span className="font-bold">Not logged yet.</span> Nobody has
-                said what happened at this demo. Use Log what happened below —
-                it decides the caller&apos;s attendance fee, and it stays here
+                <span className="font-bold">Not logged yet.</span>{" "}
+                Nobody has
+                said what happened at this demo. Use Log what happened below.
+                It decides the caller&apos;s attendance fee, and it stays here
                 until it is answered.
               </p>
             )}
@@ -1831,7 +1833,7 @@ export function MeetingsList({
                   <span className="font-semibold">
                     The old address stays on the booking
                   </span>{" "}
-                  and keeps getting Cal.com&apos;s emails — only cancelling and
+                  and keeps getting Cal.com&apos;s emails. Only cancelling and
                   booking again removes it, and that is rarely worth it.
                 </p>
                 <Input

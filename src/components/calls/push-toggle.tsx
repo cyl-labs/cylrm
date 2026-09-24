@@ -99,8 +99,8 @@ export function PushToggle({ vapidKey }: { vapidKey?: string }) {
       <p className="text-[13px] text-muted-foreground">
         <BellOff className="mr-1 inline size-3.5 align-[-2px]" />
         To get reminders on an iPhone, open the CRM in Safari and tap the share
-        button — a box with an arrow coming out of the top, either beside the
-        web address or in the row of buttons at the bottom. Choose &ldquo;Add
+        button (a box with an arrow coming out of the top, either beside the
+        web address or in the row of buttons at the bottom). Choose &ldquo;Add
         to Home Screen&rdquo;, then open the CRM from that new icon: reminders
         only reach you there, never in an ordinary tab.
       </p>

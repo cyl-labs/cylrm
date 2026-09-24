@@ -96,10 +96,10 @@ export function LeadWarning({
                 days for this man and a fortnight for somebody else. */}
             <span className={cn("font-semibold", callerUrgency(c.uncalled, c.daysLeft))}>
               {c.listNames.length === 0
-                ? "no lists at all — their screen is empty"
+                ? "no lists at all, so their screen is empty"
                 : c.uncalled === 0
                   ? "nothing new left to dial"
-                  : `${n(c.uncalled)} never rung — ${whenOut(c.daysLeft!)} at ${n(Math.round(c.perDay))} a day`}
+                  : `${n(c.uncalled)} never rung: ${whenOut(c.daysLeft!)} at ${n(Math.round(c.perDay))} a day`}
             </span>
             {c.uncalled === 0 && c.perDay > 0 && (
               <span className="text-muted-foreground">
@@ -120,7 +120,7 @@ export function LeadWarning({
       <p className="border-t px-4 py-2 text-[12px] text-muted-foreground">
         {pool.length === 0 ? (
           <span className="font-semibold text-destructive">
-            Every list already belongs to somebody — there is nothing to hand
+            Every list already belongs to somebody, so there is nothing to hand
             out. The next scrape needs ordering.
           </span>
         ) : (

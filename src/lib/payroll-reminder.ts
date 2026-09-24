@@ -147,8 +147,8 @@ export async function sendPayrollReminder(
     // not look the same from outside.
     const title =
       owed.length === 0
-        ? "Payday — nothing owed"
-        : `Payday — ${formatMoney(owedCents)} owed`;
+        ? "Payday: nothing owed"
+        : `Payday: ${formatMoney(owedCents)} owed`;
     const body =
       owed.length === 0
         ? "Nobody has a balance this week."

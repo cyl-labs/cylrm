@@ -427,7 +427,7 @@ export function Keypad({
   // What to say under the number. One line, and never more than one problem at
   // a time: the first thing in the way is the thing to fix.
   const hint = !did
-    ? "No caller ID assigned to you yet — an admin sets one on Team."
+    ? "No caller ID assigned to you yet. An admin sets one on Team."
     : !leader
       ? <PhoneElsewhere />
       : line.problem
@@ -633,7 +633,7 @@ export function Keypad({
                 ? "Checking…"
                 : hints.available
                   ? "What did they just say?"
-                  : "What did they just say? — on a call"}
+                  : "What did they just say? (on a call)"}
             </Button>
             {hints.hint || hints.problem ? (
               <div className="mt-1.5 rounded-md border bg-muted/30 px-2.5 py-1.5">
@@ -787,7 +787,7 @@ export function Keypad({
         Numbers dialled here show in the call history on Stats, and calls are
         recorded as {callerName}. There is no lead and no outcome, so nothing
         from this screen reaches the figures or the pipeline.
-        {two && " A merged call is joined inside this tab — closing it ends both."}
+        {two && " A merged call is joined inside this tab, so closing it ends both."}
       </p>
 
       <ScriptDrawer

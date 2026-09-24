@@ -8,7 +8,7 @@ Everything here applies whichever region you call.
 
 **Times are shown in the clock you pick.** Eastern to start with, because that
 is where the work is. The timezone box on **Stats**, next to the other
-filters, changes it — pick Singapore there and every screen follows, not just
+filters, changes it. Pick Singapore there and every screen follows, not just
 that one.
 
 The exception is anything about the **prospect**: when to call them back, when
@@ -32,9 +32,9 @@ It counts calls you have **logged**, and it is your own calls and nobody
 else's. A call you made and did not log is not on it, which is the same rule
 your pay runs on.
 
-The week **resets when payday does** — the bar says what it is counting from,
-for example "from Fri 9 PM" — so the calls you are judged on are the calls in
-the week you are paid for.
+The week **resets when payday does**, so the calls you are judged on are the
+calls in the week you are paid for. The bar says what it is counting from, for
+example "from Fri 9 PM".
 
 It does not stop at 300. Go past and it says so and keeps counting, because
 the target is the floor and not the ceiling.
@@ -115,8 +115,8 @@ overdue first, across every niche.
 ## "Just send me an email" is a Call back
 
 A prospect who will not take a meeting and insists on an email is a rebuttal
-that failed, not an outcome of its own. Push for the meeting twice first — see
-*Objection Handling* — and if they still insist, log **Call back** for two or
+that failed, not an outcome of its own. Push for the meeting twice first (see
+*Objection Handling*), and if they still insist, log **Call back** for two or
 three days out with the name, the address and what they said in the notes.
 
 **Not interested is the wrong button here.** It is for a clear no from someone

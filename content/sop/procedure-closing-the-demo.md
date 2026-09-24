@@ -5,8 +5,8 @@ audience: admins
 title: Closing the Demo
 ---
 
-**Founders and closers only.** This is the demo call, not the cold call —
-everything here happens after a caller has booked the meeting and handed it
+**Founders and closers only.** This is the demo call, not the cold call.
+Everything here happens after a caller has booked the meeting and handed it
 over. **Closers sell month to month only**: a term deal is a founder's to
 price, so the contract dialog only offers you month to month. It is restricted
 for one reason: a caller is paid $30 when a booked demo shows up,
@@ -22,7 +22,7 @@ the callers already offer on both objection sheets.
 **The calculator below reads its prices from `src/lib/packages.ts`, which is
 what the contracts are actually drafted from**, so the package price you quote
 mid-demo and the price on the agreement cannot disagree. The one table that was
-still copied by hand was the term discounts, and it is gone — there is no term
+still copied by hand was the term discounts, and it is gone: there is no term
 discount to quote. The Price objection on each caller sheet still names a
 monthly figure by hand, so that one has to move when the file does.
 
@@ -51,7 +51,7 @@ closing it drops both calls.
 
 Set expectations first, or a generic demo gets judged as the finished product.
 
-> **You say** Before I bring it in, I just want to let you know this is a generic version of what I'd build for you. Normally we'd put together a custom knowledge base based on your business — this is more so you can hear what it sounds like and how the booking flow works. I'm going to conference it in and ask it a few questions, and when I hang up, let me know what you think.
+> **You say** Before I bring it in, I just want to let you know this is a generic version of what I'd build for you. Normally we'd put together a custom knowledge base based on your business. This is more so you can hear what it sounds like and how the booking flow works. I'm going to conference it in and ask it a few questions, and when I hang up, let me know what you think.
 
 ## Straight after the demo, get their numbers
 
@@ -115,7 +115,7 @@ save $240 of demos that never had to be booked. Worse, the people who ask for
 a year are the ones who were going to stay a year anyway, so the discount does
 its least work on exactly the people who take it.
 
-A prepaid year offered unprompted is still worth having — the cash is real and
+A prepaid year offered unprompted is still worth having. The cash is real and
 the churn question goes away. But it gets priced deliberately, afterwards, not
 read off a table mid-call. Say you'll come back to them on it.
 
@@ -150,7 +150,7 @@ change it there too.
 ## Objection handling | Only if they hesitate: the 30-day trial
 
 The fallback, not the opening. Reach for it when the package price has landed
-and they are still not moving — hedging on the spend, "let me think about it",
+and they are still not moving: hedging on the spend, "let me think about it",
 wanting to talk to someone else. If they have not pushed back on price, do not
 introduce this at all: you would be discounting against an objection nobody
 made.
@@ -165,19 +165,19 @@ _(let them answer)_
 
 If they are interested but hesitating:
 
-> **You say** There's no real risk in it. I send over the doc, you fill it in like any other vendor paperwork, and you'll know the exact renewal date — it goes on your calendar. If it hasn't earned its keep by then, you cancel and that's that.
+> **You say** There's no real risk in it. I send over the doc, you fill it in like any other vendor paperwork, and you'll know the exact renewal date, because it goes on your calendar. If it hasn't earned its keep by then, you cancel and that's that.
 
 _(let them answer)_
 
 His version charges a token $1 to open the billing account, so the trial ends
 in a decision rather than in silence. We do not do that today and this does not
-ask you to — but it is the one part of his close worth stealing later, if
+ask you to, but it is the one part of his close worth stealing later, if
 trials keep lapsing without an answer either way.
 
 ## Send the doc while you are still on the call
 
-**Don't narrate the plumbing.** Naming the tools — a form, a text message, a
-link — is what makes a signed agreement sound like admin homework, and it is the
+**Don't narrate the plumbing.** Naming the tools (a form, a text message, a
+link) is what makes a signed agreement sound like admin homework, and it is the
 one part of this call that gets improvised. Say what happens to them and how
 long it takes. Don't announce the channel, just send it.
 
@@ -187,7 +187,7 @@ already filled in" is true and it removes the thing people actually dread.
 > **You say** Great. I'm sending the doc over to you now, while we're on the call. It's already filled in, so it's really just your name and a signature.
 
 Send it, then give them a reason to open it that is **theirs** rather than
-yours. Not "sign on the spot" — that is pressure, and it is asking for your
+yours. Not "sign on the spot": that is pressure, and it is asking for your
 convenience. Questions answered live while you are on the phone is a better
 deal for them and it is the truth.
 
@@ -204,9 +204,9 @@ booked either way.
 
 Two things follow the signature, and they are easier to say in that order: the
 questions you need from them, and the date they hear the result. The second is
-what earns the first — nobody fills in a questionnaire for its own sake.
+what earns the first. Nobody fills in a questionnaire for its own sake.
 
-> **You say** Once that's in, I'll send over a short set of questions about your business — how you want it to answer, what you want it to ask people. That's what I build the agent from.
+> **You say** Once that's in, I'll send over a short set of questions about your business, like how you want it to answer, what you want it to ask people. That's what I build the agent from.
 
 _(let them answer)_
 
@@ -221,7 +221,7 @@ callers are taught to.
 
 **Full onboarding is about a week, and that is a different promise from the call
 above.** The call in two or three days is to show them the agent updated with
-their answers; going live — forwarding set up, test calls run, answering the way
-they want — takes about a week. Only say the week if they ask when it's live,
+their answers. Going live (forwarding set up, test calls run, answering the way
+they want) takes about a week. Only say the week if they ask when it's live,
 and never lead with it: a week quoted while you are booking a call for Thursday
 sounds like a contradiction and costs you the momentum you just built.

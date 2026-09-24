@@ -62,7 +62,7 @@ _(let them answer)_
 
 Do not volunteer this. Most owners have a rough idea what a voice agent is, and
 explaining it to somebody who did not ask moves the call off their problem and
-onto your product — which is where "yeah, we looked into that already" comes
+onto your product, which is where "yeah, we looked into that already" comes
 from. Wait to be asked.
 
 > **Prospect** "What do you mean? / What's a voice agent?"
@@ -73,7 +73,7 @@ _(let them answer, then carry on below)_
 
 ## The close
 
-> **You say** My goal wasn't to sell you anything today. I actually built out a demo for your business — I'm really just trying to see if what we build can help you get more customers. I was hoping to get you a time where my team can call you and put the agent on the line, so you can hear it take a call.
+> **You say** My goal wasn't to sell you anything today. I actually built out a demo for your business. I'm really just trying to see if what we build can help you get more customers. I was hoping to get you a time where my team can call you and put the agent on the line, so you can hear it take a call.
 
 _(let them answer)_
 
@@ -90,13 +90,13 @@ call they did not agree to.
 
 This is a good sign, not an objection. Sound pleased, and still say no.
 
-> **You say** I'd love to, but the team that runs these books up in advance — and I want your agent set up for [their trade] before we call, so you're hearing one that knows your business rather than a generic one. Soonest I can get you is [day] at [time]. Does that work?
+> **You say** I'd love to, but the team that runs these books up in advance, and I want your agent set up for [their trade] before we call, so you're hearing one that knows your business rather than a generic one. Soonest I can get you is [day] at [time]. Does that work?
 
 Two reasons it is a no, and neither is negotiable:
 
 - **The demo is not yours to run.** You book it, a founder takes it. Putting the
-  agent on the line yourself means running the whole close — the pricing, the
-  packages, the trial — which is a different job and not the one you are paid
+  agent on the line yourself means running the whole close (the pricing, the
+  packages, the trial), which is a different job and not the one you are paid
   for.
 - **The calendar will not take it.** Cal.com refuses anything inside seven
   hours, so there is no slot to give them even if you wanted to.
@@ -107,7 +107,7 @@ back on the phone saying no, having made it sound possible.
 ## Only if they say you are selling them something
 
 Do not say "I'm not selling". You are, they know it, and denying it is the one
-move here that actually loses the call — one prospect answered it with "you
+move here that actually loses the call. One prospect answered it with "you
 don't need to lie to me, I'm a business owner, I'm not an idiot", and stopped
 listening a minute before he hung up.
 
@@ -116,7 +116,7 @@ recoverable; arguing about it is not.
 
 > **Prospect** "You're trying to sell me something." / "That's the whole point of this call."
 
-> **You say** Ha — fair enough, you're right, this is what I do. What I meant is I'm not asking you to buy anything today. All I want is for you to hear it and tell me whether it's any good. If it isn't for you, that's a no and I'll leave you alone.
+> **You say** Ha, fair enough, you're right, this is what I do. What I meant is I'm not asking you to buy anything today. All I want is for you to hear it and tell me whether it's any good. If it isn't for you, that's a no and I'll leave you alone.
 
 _(let them answer, then carry on below)_
 
@@ -164,7 +164,7 @@ _(let them answer)_
 
 "Five thirty" on its own is two appointments twelve hours apart. It has already
 cost a demo: the prospect asked for half five in the morning, the booking went
-in for half five in the evening, and nobody caught it — the time was said back
+in for half five in the evening, and nobody caught it. The time was said back
 three times and neither half of the day was ever spoken out loud.
 
 Book the slot you just agreed, while they are still on the phone.
@@ -203,7 +203,7 @@ back to the opener.
 **One message per business, ever.** Leave this the first time a number rings
 out to a greeting and a beep. Every time after that, hang up without speaking:
 a second message says nothing the first one did not, and a stack of them is
-what gets a number blocked. Either way you log the call as **Voicemail** — the
+what gets a number blocked. Either way you log the call as **Voicemail**: the
 number was tried, and that is what the log records.
 
 The dial card tells you which one you are on. If it says a message was already

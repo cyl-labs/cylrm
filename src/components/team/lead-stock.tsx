@@ -110,7 +110,7 @@ function Rows({
                   r.total > 0 && r.uncalled === 0 && "text-destructive",
                 )}
               >
-                {r.total === 0 ? "—" : n(r.uncalled)}
+                {r.total === 0 ? "-" : n(r.uncalled)}
               </span>
               <p className="text-[12px] text-muted-foreground">
                 {r.total === 0
@@ -129,13 +129,13 @@ function Rows({
                   </p>
                 </>
               ) : (
-                <span className="text-muted-foreground">—</span>
+                <span className="text-muted-foreground">-</span>
               )}
             </td>
             <td className="whitespace-nowrap px-4 py-2.5">
               {r.daysLeft === null ? (
                 <>
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-muted-foreground">-</span>
                   {!idle && (
                     <p className="text-[12px] text-muted-foreground">
                       nobody calling it

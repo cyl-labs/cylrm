@@ -65,7 +65,7 @@ _(let them answer)_
 ## Brushing you off | Prospect: "Just send me an email / send me info."
 
 
-> **You say** I can send something over, but you'll get more out of hearing it. I built a demo for your business, so we just call you and put the agent on the line — you hear it take a call live. Do you have 15 minutes this week to check it out?
+> **You say** I can send something over, but you'll get more out of hearing it. I built a demo for your business, so we just call you and put the agent on the line, so you hear it take a call live. Do you have 15 minutes this week to check it out?
 
 _(let them answer)_
 
@@ -75,19 +75,19 @@ _(let them answer)_
 
 **Never offer an email yourself, and only ever take a personal one.** This is
 the easiest way out of the call for both of you, which is why it has to be
-their idea twice before it becomes yours. A named address you were handed —
-the owner's own name in front of the @ — is a person who can be chased. An
+their idea twice before it becomes yours. A named address you were handed
+(the owner's own name in front of the @) is a person who can be chased. An
 info@ or a contact form is a bin, and writing one down is ending the call with
 nothing while feeling like you got something.
 
-**If they still insist, log it as Call back — not Not interested.** Set the
+**If they still insist, log it as Call back, not Not interested.** Set the
 time two or three days out, once the email has had a chance to land, and put
 their name, the address and what they actually said in the notes.
 
 Both count as a pickup, so this costs you nothing in your numbers or on your
 pay. The difference is what happens to the business. **Not interested** takes
 it off the list for good, and you have just been handed a decision maker's
-name and address — that is the last lead you want closed. **Call back** keeps
+name and address. That is the last lead you want closed. **Call back** keeps
 it and puts it in your **Callbacks** diary with a date on it, so the follow-up
 is something you are holding rather than a note nobody opens.
 
@@ -135,7 +135,7 @@ _(let them answer)_
 
 ## Says they don't need it | If they say they don't get enough calls to justify it
 
-Do not argue the volume — you will lose. Low volume is often a visibility
+Do not argue the volume. You will lose. Low volume is often a visibility
 problem rather than a coverage one, so this turns the objection into a second
 reason to buy: they may be getting fewer calls *because* they are not showing
 as always open.
@@ -146,7 +146,7 @@ _(let them answer)_
 
 If they are not:
 
-> **You say** Yeah, that could be part of the reason. Google tends to rank businesses that are open 24 hours a little higher on Maps, especially for people searching later at night — it puts those ones near the top of the list.
+> **You say** Yeah, that could be part of the reason. Google tends to rank businesses that are open 24 hours a little higher on Maps, especially for people searching later at night. It puts those ones near the top of the list.
 
 _(let them answer)_
 
@@ -155,10 +155,10 @@ _(let them answer)_
 ## Says they don't need it | Prospect: "We only need it overnight, not for day calls."
 
 They have accepted the idea and are narrowing it, which is a good place to be.
-Do not argue the scope — widen it by naming the two moments a daytime call
+Do not argue the scope. Widen it by naming the two moments a daytime call
 gets missed, both of which they will recognise.
 
-> **You say** That's fine, it can just do overnight. Out of curiosity though, do you find you miss any during the day too — when you're out on a job, or when someone rings while you're already on with another customer?
+> **You say** That's fine, it can just do overnight. Out of curiosity though, do you find you miss any during the day too, like when you're out on a job, or when someone rings while you're already on with another customer?
 
 _(let them answer)_
 
@@ -203,7 +203,7 @@ If they are still unsure:
 ## Doubts it works | Prospect: "It won't know my business" / "Every job is different"
 
 
-> **You say** It's not guessing at your business — we build it a knowledge base from your services, your pricing, the questions you actually get, so it answers like somebody who works there. And anything it doesn't know, it takes their details and passes it straight to you, so you still get the lead.
+> **You say** It's not guessing at your business. We build it a knowledge base from your services, your pricing, the questions you actually get, so it answers like somebody who works there. And anything it doesn't know, it takes their details and passes it straight to you, so you still get the lead.
 
 _(let them answer)_
 
@@ -212,7 +212,7 @@ entry: that one doubts how it *sounds*, this one doubts what it *knows*.
 Answering it with "people can't tell it's a robot" misses the point they are
 making.
 
-One in six prospects raises some version of this — "every situation is
+One in six prospects raises some version of this: "every situation is
 different", "it's not applicable to my business". They are not doubting that
 you built them a demo; they are doubting it can answer what their customers
 actually ask. The second half of the line matters as much as the first: they
@@ -264,7 +264,7 @@ _(let them answer)_
 
 > **You say** Got it. Ours depends on your call volume and starts as low as $99 a month, so it's cheaper than a lot of services out there. Do you have 15 minutes this week to take a look?
 
-If they are unhappy with it, skip the price question — that is already your opening:
+If they are unhappy with it, skip the price question. That is already your opening:
 
 > **You say** That's exactly why I called. I built a demo for your business, so you can hear it take a call live. Do you have 15 minutes this week to take a look?
 
@@ -272,7 +272,7 @@ If they are unhappy with it, skip the price question — that is already your op
 
 
 That bot answers messages. It does not pick up the phone, so do not compare the
-two or start talking about WhatsApp — bring it back to their calls.
+two or start talking about WhatsApp. Bring it back to their calls.
 
 > **You say** Nice, so your messages are covered. What about the phone calls, though? When you're on a job or closed, does the phone still go to voicemail?
 
@@ -284,7 +284,7 @@ _(let them answer)_
 
 
 Voicemail is the thing being replaced, not a setup worth protecting, so the
-backup answer below does not apply — there is nothing to sit behind. Go at what
+backup answer below does not apply, because there is nothing to sit behind. Go at what
 voicemail actually costs them instead.
 
 > **You say** Well, 80% of callers who hit your voicemail hang up and call the next company. And the ones who do leave a message still need you to call them back, so you're still the one closing the job, just an hour later. Before you spend money on ads or marketing, wouldn't it make sense to capture all of the calls you're currently getting?
@@ -312,14 +312,14 @@ _(let them answer)_
 
 Different from a screener asking who you are: this person has already heard you
 out and is offering to relay it. A relayed message is a message that does not
-get relayed, so the aim is not to be passed on — it is to find out when the
+get relayed, so the aim is not to be passed on. It is to find out when the
 owner is reachable and ring back then.
 
-> **You say** Appreciate that. Rather than passing on a message, would it be easier if I just showed the owner directly? I built a demo for [company] — is there a time they're usually around?
+> **You say** Appreciate that. Rather than passing on a message, would it be easier if I just showed the owner directly? I built a demo for [company]. Is there a time they're usually around?
 
 _(let them answer)_
 
-> **You say** No problem. What's the best way to catch them — are they in tomorrow morning?
+> **You say** No problem. What's the best way to catch them? Are they in tomorrow morning?
 
 _(let them answer)_
 
@@ -369,7 +369,7 @@ one take, and silence is a no.
 
 **Say your name, their business, one reason, then stop.**
 
-> **You say** Hi, my name's [your name]. I'm calling about [company] — wanted to check what time you close today.
+> **You say** Hi, my name's [your name]. I'm calling about [company]. I wanted to check what time you close today.
 
 Four things decide whether they pick up:
 

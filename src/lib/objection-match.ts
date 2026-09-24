@@ -115,13 +115,13 @@ function systemPrompt(sections: SopSection[], expected: string[], asking: string
   // rather than listed here, so editing the script keeps this in step.
   const scripted = expected.length
     ? `\n\n**These answers are already handled by the caller's script. Return an EMPTY
-list for them — even when an entry above looks like a match.** This rule wins
+list for them, even when an entry above looks like a match.** This rule wins
 over the entry list. They are the replies the caller's own opening questions are
 written to produce, so hearing one means the call is going to plan; the caller
 is reading the script beside this card and does not need a second copy of a beat
 they are already on.
 
-This covers anything that MEANS the same, not only these exact words — "I answer
+This covers anything that MEANS the same, not only these exact words: "I answer
 all my own calls", "I pick it up myself", "someone always answers", "we still
 pick up after hours" are all the same answer as "I answer them":
 ${expected.map((e) => `- ${e}`).join("\n")}`
@@ -130,8 +130,8 @@ ${expected.map((e) => `- ${e}`).join("\n")}`
     ? `\n\n**If the caller's last line was one of their scripted opening questions,
 whatever the prospect says back is an ANSWER, not an objection. Return an empty
 list.** These questions exist to find out how the business handles calls, and
-the reply — "we close at six", "they go to voicemail", "no, I still pick up",
-"I answer them myself" — is the information the pitch is built on. The caller
+the reply ("we close at six", "they go to voicemail", "no, I still pick up",
+"I answer them myself") is the information the pitch is built on. The caller
 has not pitched anything yet, so there is nothing to object to. The questions:
 ${asking.map((q) => `- ${q}`).join("\n")}`
     : "";
@@ -156,46 +156,46 @@ Return an EMPTY list for:
   "it would have to be Friday". That is the call going well.
 - Politely ending a call that has already gone well.
 
-**Confirming they miss calls is NOT an objection — it is the problem being sold
+**Confirming they miss calls is NOT an objection. It is the problem being sold
 into.** "They go to voicemail", "calls go to voicemail after hours", "nobody
 picks up after six", "we close at six" are the prospect agreeing they have the
 gap. That is the call going WELL and the entry list has no answer for it.
-The "I answer all of them anyway" entry is the OPPOSITE claim — that they do
-NOT lose calls, because somebody always picks up — and it fires only on that.
+The "I answer all of them anyway" entry is the OPPOSITE claim (that they do
+NOT lose calls, because somebody always picks up), and it fires only on that.
 Match the claim, never the topic: two sentences can both be about after-hours
 calls and mean opposite things.
 
 **The "who is this / what company are you with" entry is only for a challenge to
-your identity** — them asking who YOU are, or refusing to hear you until they
+your identity**: them asking who YOU are, or refusing to hear you until they
 know. A prospect asking what you want, what this has to do with their business, or
-what service you need is **not an objection at all — return an empty list.**
+what service you need is **not an objection at all. Return an empty list.**
 They are doing their job on what they think is an inbound call, and the answer
 is the caller's own opener. Do not reach for a different entry instead: the
 correct output here is nothing.
 
 **Two entries both involve another person, and they are opposites.** "I need to
 talk to my partner first" is the DECISION MAKER wanting to consult somebody
-before saying yes — they can buy, they just will not today. "I'm not the owner /
+before saying yes: they can buy, they just will not today. "I'm not the owner /
 I'll pass it on" is somebody who CANNOT buy handing you off: a receptionist, an
 employee, "I'll pass it to the team", "you'd have to call the office". If the
 speaker cannot decide, it is never the partner entry.
 
 **"Too busy" means seasonal call volume, nothing else.** A prospect saying they
 are out on a job, already on another call, or cannot always answer right away is
-describing the gap this product fills — the problem being sold into, and the
+describing the gap this product fills: the problem being sold into, and the
 answer the caller's own questions are digging for. That is not the busy-season
 objection and usually not an objection at all.
 
 **Objecting to the time it costs is NOT scheduling.** "Ten minutes is a bit of
 a commitment", "we're too busy", "I don't have time for this" are the
 too-busy objection, and they stay an objection even when the same sentence goes
-on to agree — "that's a lot of time, but fine, I'll listen" is someone telling
+on to agree. "That's a lot of time, but fine, I'll listen" is someone telling
 you their hesitation out loud, which is exactly when the script is wanted.
 
 ${scripted}${qualifying}
 
 Prefer an empty list over a weak match: a wrong hint costs more than no hint.
-If it could be two, return both ranked — a short list the caller picks from
+If it could be two, return both ranked: a short list the caller picks from
 beats one confident wrong answer.
 
 "heard" must be a verbatim quote from what the prospect just said, or "" when

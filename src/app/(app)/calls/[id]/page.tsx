@@ -366,7 +366,7 @@ export default async function CallListPage({
               <span className="font-semibold text-foreground">
                 {work.callbacks}
               </span>{" "}
-              you owe {work.callbacks === 1 ? "is" : "are"} done — logging an
+              you owe {work.callbacks === 1 ? "is" : "are"} done. Logging an
               outcome is what clears one, and No answer counts.
             </p>
           )}
@@ -407,8 +407,8 @@ export default async function CallListPage({
                   <span className="font-bold text-foreground">
                     {split.callableNow}
                   </span>{" "}
-                  {split.callableNow === 1 ? "is" : "are"} open right now —
-                  tap <span className="font-semibold">Open now</span> to work
+                  {split.callableNow === 1 ? "is" : "are"} open right now.
+                  Tap <span className="font-semibold">Open now</span> to work
                   just those.
                 </>
               )}

@@ -107,7 +107,7 @@ export function PricingCalculator() {
               <span className="font-bold tabular-nums">
                 ${spokenMoney(job * 100)}
               </span>
-              {" — that's "}
+              {", that's "}
               <span className="font-bold tabular-nums">
                 ${spokenMoney(calls * job * 100)}
               </span>
@@ -245,7 +245,7 @@ export function PricingCalculator() {
                 {noOverage.name}
               </span>{" "}
               is the one with no overage on it. The pitch for the bigger plan is
-              a bill that does not move — not a smaller one.
+              a bill that does not move, not a smaller one.
             </p>
           )}
 
@@ -264,7 +264,7 @@ export function PricingCalculator() {
                       ${money(m)}
                     </span>{" "}
                     a month
-                    {total !== null && <> — ${money(total)} over the term</>}
+                    {total !== null && <>, ${money(total)} over the term</>}
                   </li>
                 );
               })}

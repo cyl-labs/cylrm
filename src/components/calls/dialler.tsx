@@ -436,7 +436,7 @@ function HowToBook() {
       Ask outright if you do not know.
     </>,
     <>
-      Tap <span className="font-bold">Demo booked</span> below first — it shows
+      Tap <span className="font-bold">Demo booked</span> below first. It shows
       which slots are free.
     </>,
     <>
@@ -449,7 +449,7 @@ function HowToBook() {
     </>,
     <>
       On Cal.com (no login needed), switch the time zone to theirs. Every slot
-      then reads in their local time —{" "}
+      then reads in their local time, so{" "}
       <span className="font-bold">do not convert in your head</span>.
     </>,
     <>
@@ -753,7 +753,7 @@ function CallForm({
           dial button taught the day before this. */}
       {rang ? (
         <p className="mt-3 text-center text-[12px] text-muted-foreground">
-          You rang this one. Pick what happened above to move on —{" "}
+          You rang this one. Pick what happened above to move on.{" "}
           <span className="font-semibold">No answer</span> counts.
         </p>
       ) : (
@@ -1363,7 +1363,7 @@ export function Dialler({
                   <p className="text-[11px] text-muted-foreground">{hints.problem}</p>
                 ) : (
                   <p className="text-[11px] font-semibold xl:hidden">
-                    {hints.hint?.title ?? hints.hint?.category} — open Objection
+                    {hints.hint?.title ?? hints.hint?.category}: open Objection
                     handling
                   </p>
                 )}

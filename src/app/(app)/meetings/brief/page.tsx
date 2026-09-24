@@ -84,14 +84,14 @@ export default async function BriefPage() {
               {" "}
               <span className="font-semibold text-foreground">
                 {waiting} just started
-              </span>{" "}
-              — a demo stays here for an hour after its time, in case you are
+              </span>
+              . A demo stays here for an hour after its time, in case you are
               dialling a few minutes late.
             </>
           )}{" "}
           Written
           by a machine from the transcript, so check anything you are about to
-          repeat back to them — and print this page if you want it on paper.
+          repeat back to them, and print this page if you want it on paper.
         </p>
 
         {meetings.length === 0 && (
@@ -178,7 +178,7 @@ export default async function BriefPage() {
                   </>
                 ) : (
                   <p className="text-[13px] text-muted-foreground">
-                    No brief yet — press the button above.
+                    No brief yet. Press the button above.
                   </p>
                 )}
 

@@ -212,7 +212,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
       {resettable.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 px-4 py-2.5">
           <p className="text-[12px] text-muted-foreground">
-            Counters run from the last pickup payment or reset — paying
+            Counters run from the last pickup payment or reset. Paying
             somebody for their meetings does not touch them. Cutting one keeps
             what it has already earned and throws away the spare under{" "}
             {PICKUPS_PER_BONUS}.
@@ -351,7 +351,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
               <p className="text-muted-foreground">
                 Their counts go back to nought. Whole {PICKUPS_PER_BONUS}s
                 already earned stay owed and will be paid next time you mark
-                them paid — nobody loses money they have earned.
+                them paid. Nobody loses money they have earned.
               </p>
               <ul className="space-y-1">
                 {resetting.map((r) => {
@@ -508,7 +508,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                   Also clears{" "}
                   <span className="font-bold">{stranded}</span>{" "}
                   {stranded === 1 ? "pickup" : "pickups"} that have not reached
-                  the next {formatMoney(PICKUP_BONUS_CENTS)} — progress toward a bonus is not
+                  the next {formatMoney(PICKUP_BONUS_CENTS)}, because progress toward a bonus is not
                   carried over. Their count restarts at zero.
                 </p>
               )}
@@ -523,7 +523,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                 </p>
               ) : (
                 <p className="text-[12px] text-muted-foreground">
-                  No payment method on file — add one on the Team screen.
+                  No payment method on file. Add one on the Team screen.
                 </p>
               )}
               <p className="text-[12px] text-muted-foreground">

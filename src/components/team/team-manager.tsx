@@ -650,7 +650,7 @@ export function TeamManager({
                       ) : m.active && isFloor(m.role) ? (
                         <div className="flex min-w-52 max-w-72 flex-col items-start gap-1.5">
                           <span className="whitespace-nowrap text-[12px] font-semibold text-destructive">
-                            None yet — their screen is empty
+                            None yet, so their screen is empty
                           </span>
                           {canManage ? (
                             <AssignListMenu
@@ -670,7 +670,7 @@ export function TeamManager({
                           )}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground">-</span>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
@@ -719,7 +719,7 @@ export function TeamManager({
                               !confirm(
                                 `${v} is already ${held.name}'s caller ID.\n\n` +
                                   `Give it to ${m.name} as well?\n\n` +
-                                  `Both would dial out from it, and an inbound call to it can only ring one of them — whichever the CRM finds first. Pick a free number instead unless you mean to share.`,
+                                  `Both would dial out from it, and an inbound call to it can only ring one of them: whichever the CRM finds first. Pick a free number instead unless you mean to share.`,
                               )
                             ) {
                               return;
@@ -792,7 +792,7 @@ export function TeamManager({
                         />
                       ) : (
                         <span className="text-muted-foreground">
-                          {m.paymentMethod || "—"}
+                          {m.paymentMethod || "-"}
                         </span>
                       )}
                     </td>
@@ -862,7 +862,7 @@ export function TeamManager({
                               !m.textAccess &&
                               !confirm(
                                 `Give ${m.name} texting?\n\n` +
-                                  `This links ${m.telnyxDid ?? "their number"} to the SMS campaign on Telnyx so it can send, not just receive — it costs money per segment and cannot be unsent. Takes a few minutes to finish on Telnyx's side.`,
+                                  `This links ${m.telnyxDid ?? "their number"} to the SMS campaign on Telnyx so it can send, not just receive. It costs money per segment and cannot be unsent. Takes a few minutes to finish on Telnyx's side.`,
                               )
                             ) {
                               return;

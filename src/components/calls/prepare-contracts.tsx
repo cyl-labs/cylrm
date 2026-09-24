@@ -224,7 +224,7 @@ export function PrepareContracts({
       const made = (data.contracts ?? []).filter((c) => !c.existing).length;
       toast.success(
         made === 0
-          ? "Nothing new — those agreements were already drafted."
+          ? "Nothing new. Those agreements were already drafted."
           : `${made === 2 ? "Both agreements" : `The ${chosen[0]} agreement`} ready for ${businessName}. Nothing was sent.`,
       );
       setOpen(false);
@@ -395,7 +395,7 @@ export function PrepareContracts({
             <DialogTitle>Prepare contracts</DialogTitle>
             <DialogDescription>
               Both agreements, filled in and waiting. Nothing is emailed to
-              anyone — you open them when you are ready.
+              anyone. You open them when you are ready.
             </DialogDescription>
           </DialogHeader>
 
@@ -455,7 +455,7 @@ export function PrepareContracts({
                   twice, and the reason this is a form and not a button. */}
               <p className="text-[12px] text-muted-foreground">
                 This goes on the contract as the party. Scrapes give the trading
-                name — check it is what they sign under.
+                name, so check it is what they sign under.
               </p>
             </div>
 
@@ -579,7 +579,7 @@ export function PrepareContracts({
                   </p>
                   <p className="mt-0.5 text-muted-foreground">
                     {commitment === null
-                      ? "Month to month — either side can end it on 7 days' notice."
+                      ? "Month to month. Either side can end it on 7 days' notice."
                       : `Minimum term ${term.minimumTerm} · $${money(commitment)} over the term.`}
                   </p>
                 </div>
@@ -666,7 +666,7 @@ export function PrepareContracts({
             </DialogTitle>
             <DialogDescription>
               It is archived in DocuSeal and taken off this meeting, so you can
-              prepare a corrected one. Your own signature does not stop this —
+              prepare a corrected one. Your own signature does not stop this;
               only {meeting.attendeeName || "the client"} signing does, and then
               nothing is discarded. If you have already sent them the link, it
               stops working.

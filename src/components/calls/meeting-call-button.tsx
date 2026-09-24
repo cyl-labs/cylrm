@@ -120,7 +120,7 @@ export function MeetingCallButton({
   const why = !to
     ? "This number cannot be dialled from here."
     : !from
-      ? "No number assigned to you yet — an admin sets one on Team."
+      ? "No number assigned to you yet. An admin sets one on Team."
       : null;
 
   if (why) {

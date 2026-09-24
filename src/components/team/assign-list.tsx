@@ -168,7 +168,7 @@ export function AssignListMenu({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground">
-              Another market — they cannot ring these
+              Another market: they cannot ring these
             </DropdownMenuLabel>
             {elsewhere.map(item)}
           </>

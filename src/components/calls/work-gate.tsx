@@ -36,8 +36,8 @@ const COPY: Record<
     title: "Ring your missed calls back first",
     why: (n) =>
       n === 1
-        ? "Someone rang you and nobody picked up. They called you, which makes them the warmest lead you will get today — and they go cold in hours."
-        : `${n} people rang you and nobody picked up. They called you, which makes them the warmest leads you will get today — and they go cold in hours.`,
+        ? "Someone rang you and nobody picked up. They called you, which makes them the warmest lead you will get today, and they go cold in hours."
+        : `${n} people rang you and nobody picked up. They called you, which makes them the warmest leads you will get today, and they go cold in hours.`,
     clears:
       "Each one clears when you ring back and tap Mark as rung back. Your lists open again on their own once they are all done.",
   },
@@ -51,7 +51,7 @@ const COPY: Record<
         ? "One person asked you to ring them back and that time has already passed. A callback is a promise with a time on it."
         : `${n} people asked you to ring them back and those times have already passed. A callback is a promise with a time on it.`,
     clears:
-      "Each one clears once you log an outcome on it — No answer counts. Your lists open again on their own once they are all done.",
+      "Each one clears once you log an outcome on it, and No answer counts. Your lists open again on their own once they are all done.",
   },
 };
 

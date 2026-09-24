@@ -99,13 +99,13 @@ asking you. The time itself is read off Cal.com, so that part is not on you.
 
 If you took their email, Cal.com sends the calendar invite within a minute of
 booking, then reminds them again a day before and an hour before. The booking email comes through to
-us at the same time, so nothing depends on you remembering — and neither does
+us at the same time, so nothing depends on you remembering. Neither does
 the prospect turning up.
 
 **The demo is a phone call, not a video call.** We ring the number on the
 booking at the agreed time and put the agent on the line, so they hear it answer
 the way their own customers would. There is no link for them to click and
-nothing for them to install — which is also why the booking form asks for the
+nothing for them to install. That is also why the booking form asks for the
 best number to call, prefilled with the one you are speaking to them on.
 
 The meeting also appears on your **Meetings** screen in the CRM within a few
@@ -134,7 +134,7 @@ try to. Open the screen.
 
 **We stopped making confirmation calls.** A prospect who agreed to a slot has
 not forgotten it, and ringing to ask whether they are still coming hands them an
-easy moment to say no — which is the opposite of what the call is for. Cal.com
+easy moment to say no, which is the opposite of what the call is for. Cal.com
 emails them a reminder a day before and another an hour before, so it is covered
 without us.
 
@@ -161,18 +161,18 @@ decides whether there is a call to make.
 Meetings screen for a week, marked to ring back.
 
 Ring them, **ask what happened**, and **rebook it while you have them**. Somebody
-who agreed to a slot and then missed it is warm — it is usually something
+who agreed to a slot and then missed it is warm. It is usually something
 ordinary, and a new time fixes it. Say the new time back to them the way you did
 the first one.
 
 Then log the ring back on the row, whichever way it went. That is what takes it
 off your list.
 
-- **Rebooked** — you agreed a new time. Put it in Cal.com; it comes back on this
+- **Rebooked**: you agreed a new time. Put it in Cal.com; it comes back on this
   screen by itself.
-- **No answer** — try again. It stays on your list.
-- **Spoke to them, rebooking later** — they will come back to you. Write when.
-- **Not rebooking** — say so, and add the reason they gave.
+- **No answer**: try again. It stays on your list.
+- **Spoke to them, rebooking later**: they will come back to you. Write when.
+- **Not rebooking**: say so, and add the reason they gave.
 
 **You get two misses.** After the second one it is lost, and it stops counting
 toward your pay. Tell us when a lead reaches that point: Lost is a founder's

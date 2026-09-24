@@ -200,7 +200,7 @@ export function RecordingSheet({
             <p className="text-[13px] text-muted-foreground">
               {text?.trim()
                 ? text
-                : "Nothing audible in this recording — no words were picked up."}
+                : "Nothing audible in this recording. No words were picked up."}
             </p>
           ) : (
             <ol className="space-y-2.5">
@@ -306,7 +306,7 @@ function CopyTranscript({
       // The clipboard is refused on an insecure origin and by some browsers
       // without a user gesture it recognises. Saying so beats a button that
       // looks like it worked.
-      toast.error("Could not copy — select the text and copy it by hand.");
+      toast.error("Could not copy. Select the text and copy it by hand.");
     }
   }
 

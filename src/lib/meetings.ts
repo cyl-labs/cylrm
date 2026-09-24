@@ -1660,12 +1660,12 @@ export async function sendMeetingReminders(
       if (!claimedAny) continue;
 
       const deliveries = await pushToUser(userId, {
-        title: `${(m.who as string | null) ?? "A meeting"} — ${whenPhrase(startAt, zone.tz, now)}`,
+        title: `${(m.who as string | null) ?? "A meeting"}, ${whenPhrase(startAt, zone.tz, now)}`,
         // A heads-up, not an instruction. Cal.com emails the prospect their own
         // reminder 24 hours and an hour before, so this one exists only so the
         // demo does not arrive as a surprise on our side — and telling somebody
         // to ring would put back the confirmation call we deliberately dropped.
-        body: "Coming up. Nothing to do — Cal.com has reminded them.",
+        body: "Coming up. Nothing to do: Cal.com has reminded them.",
         url: "/meetings",
         // Tagged per meeting, so two different meetings stack as two
         // notifications while a repeat about one replaces itself.

@@ -55,7 +55,7 @@ export function GenerateBriefing({
       const transcribed = data?.transcribed ?? 0;
       const failed = data?.failed ?? [];
       if (written === 0 && failed.length === 0) {
-        toast.success("Already up to date — nothing has changed.");
+        toast.success("Already up to date. Nothing has changed.");
       } else {
         toast.success(
           `Wrote ${written} ${written === 1 ? "brief" : "briefs"}.` +

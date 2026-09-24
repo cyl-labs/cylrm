@@ -42,7 +42,7 @@ export function RefreshSpend({ days }: { days: number }) {
       } else if (data.error) {
         // The screen keeps the last good numbers, so say which half failed
         // rather than implying everything on it is now wrong.
-        toast.error("Could not reach Telnyx — showing the last figures.");
+        toast.error("Could not reach Telnyx. Showing the last figures.");
       } else {
         toast.success("Up to date.");
       }

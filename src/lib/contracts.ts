@@ -465,7 +465,7 @@ export async function discardContracts(
         return {
           ok: false,
           reason: "signed",
-          error: `The ${kind} agreement has already been signed by ${state.signedBy.join(" and ")}. A contract the client has signed is left alone — archive it in DocuSeal if you really mean to.`,
+          error: `The ${kind} agreement has already been signed by ${state.signedBy.join(" and ")}. A contract the client has signed is left alone. Archive it in DocuSeal if you really mean to.`,
           discarded,
         };
       }

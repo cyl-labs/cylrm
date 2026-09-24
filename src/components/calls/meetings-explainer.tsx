@@ -44,7 +44,7 @@ export function MeetingsExplainer({
           <p className="mt-1 text-muted-foreground">
             Every meeting on this page came from Cal.com. The CRM checks it
             every five minutes, so a demo you book now shows up within a few
-            minutes on its own &mdash; and so does a cancellation or a change of
+            minutes on its own, and so does a cancellation or a change of
             time. You never have to come here and tell it anything.{" "}
             <span className="font-semibold text-foreground">Refresh</span> at
             the top pulls it straight away if you do not want to wait.
@@ -59,8 +59,8 @@ export function MeetingsExplainer({
             meeting back to the lead.{" "}
             <span className="font-semibold text-foreground">
               Do not clear that box when you book
-            </span>{" "}
-            &mdash; a booking with the number deleted still appears, but as a
+            </span>
+            . A booking with the number deleted still appears, but as a
             meeting attached to nobody, and it will not reach the person whose
             niche it is.
           </p>
@@ -75,13 +75,13 @@ export function MeetingsExplainer({
             <li className="flex gap-2">
               <span className="font-bold tabular-nums">24 hours</span>
               <span className="text-muted-foreground">
-                before it starts &mdash; the day-before nudge.
+                before it starts: the day-before nudge.
               </span>
             </li>
             <li className="flex gap-2">
               <span className="font-bold tabular-nums">4 hours</span>
               <span className="text-muted-foreground">
-                before it starts &mdash; still enough time for them to move
+                before it starts, still enough time for them to move
                 their morning around if they had forgotten.
               </span>
             </li>
@@ -90,7 +90,7 @@ export function MeetingsExplainer({
             Reminders are only sent between{" "}
             <span className="font-semibold text-foreground">8am and 7pm</span>{" "}
             on your own clock ({zoneName}). One that falls due overnight is not
-            thrown away &mdash; it waits and arrives once the morning opens.
+            thrown away. It waits and arrives once the morning opens.
           </p>
           {isAdmin && (
             <p className="mt-2 text-muted-foreground">
@@ -101,8 +101,8 @@ export function MeetingsExplainer({
                 30 minutes before it starts
               </span>
               , in the same chat that reports email replies. Those go out at
-              any hour, since the US demos run through the night here &mdash;
-              mute the chat in Telegram to silence them. Before that, a{" "}
+              any hour, since the US demos run through the night here.
+              Mute the chat in Telegram to silence them. Before that, a{" "}
               <span className="font-semibold text-foreground">
                 8:30pm Singapore
               </span>{" "}
@@ -130,7 +130,7 @@ export function MeetingsExplainer({
           </p>
           <p className="mt-1 text-muted-foreground">
             A meeting on your niche goes to you. If you have never turned
-            reminders on, it goes to the founders instead &mdash; so nothing is
+            reminders on, it goes to the founders instead, so nothing is
             ever missed entirely, but the person whose demo it is is not the one
             being told.
           </p>
@@ -148,11 +148,12 @@ export function MeetingsExplainer({
             reminder a day before and again an hour before.
           </p>
           <p className="mt-1 text-muted-foreground">
-            Once a meeting has started, a founder logs{" "}
+            Once a meeting has started, a founder (or the closer it was given
+            to) logs{" "}
             <span className="font-semibold text-foreground">
               what happened
             </span>{" "}
-            on the row &mdash; showed up, no show, or not a real booking. That
+            on the row: showed up, no show, or not a real booking. That
             is the same answer Payroll pays on, so it is recorded once. The demo
             is a phone call, so{" "}
             <span className="font-semibold text-foreground">

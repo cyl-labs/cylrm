@@ -477,7 +477,7 @@ const SYSTEM = [
   "",
   "Write at most 5 short bullets, each one line. Cover only what is actually there:",
   "- What the business does and its size, if said.",
-  "- The problem they described — missed calls, when, what it costs them.",
+  "- The problem they described: missed calls, when, what it costs them.",
   "- Anything they objected to or hesitated over.",
   "- Anything the caller promised or agreed.",
   "- Anything awkward worth knowing before dialling (annoyed, rushed, wrong person, asked not to be called at a certain time).",
@@ -487,6 +487,7 @@ const SYSTEM = [
   "- Quote the prospect in their own words for anything that sounds like a commitment or a number.",
   "- Give no advice and no pitch. Do not suggest what to say.",
   "- No preamble, no heading, no sign-off. Bullets only, starting with '- '.",
+  "- Do not use em dashes.",
   "- If there is no transcript and no notes, reply with exactly: - No recording or notes from the booking call.",
 ].join("\n");
 
@@ -525,7 +526,7 @@ export async function writeBrief(source: BriefSource): Promise<string> {
   // recording is sitting there unread.
   if (!source.transcript && !source.notes) {
     return source.hasRecording
-      ? "- The booking call was recorded but could not be transcribed — open the recording on the meeting row to listen."
+      ? "- The booking call was recorded but could not be transcribed. Open the recording on the meeting row to listen."
       : "- No recording of the booking call, and the caller left no notes.";
   }
 

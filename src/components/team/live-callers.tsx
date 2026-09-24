@@ -86,8 +86,9 @@ export function LiveCallers({ className }: { className?: string }) {
             {live.length === 1
               ? "1 caller is on a call"
               : `${live.length} callers are on a call`}
+            .
             <span className="ml-1.5 font-normal text-muted-foreground">
-              — hold the deploy.
+              Hold the deploy.
             </span>
           </p>
           <ul className="flex flex-wrap gap-2">

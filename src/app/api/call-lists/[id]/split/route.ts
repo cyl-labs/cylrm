@@ -140,7 +140,7 @@ export async function POST(
 
     if (workable.length < parts.length) {
       return {
-        error: `Only ${workable.length} leads can be rung — not enough for ${parts.length} lists.`,
+        error: `Only ${workable.length} leads can be rung, not enough for ${parts.length} lists.`,
       };
     }
 

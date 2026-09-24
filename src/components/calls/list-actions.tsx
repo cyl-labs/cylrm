@@ -292,7 +292,7 @@ export function ListActions({
           <DialogHeader>
             <DialogTitle>Split “{name}”</DialogTitle>
             <DialogDescription>
-              Leads are dealt out one at a time, not cut into blocks — a scrape
+              Leads are dealt out one at a time, not cut into blocks. A scrape
               arrives sorted by city or rating, so slicing it would hand one
               caller every Alaska lead. Every list gets the same mix, whatever
               its size. Calls already logged stay with their lead.

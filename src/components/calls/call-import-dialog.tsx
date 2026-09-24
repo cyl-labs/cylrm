@@ -170,7 +170,7 @@ function SameBusinessPanel({
       <div className="mt-1.5 flex items-start justify-between gap-3">
         <p className="text-[12px] text-muted-foreground">
           Matched on the name or website, so check each one. Tick the ones
-          that are the same business — only those are held back. Anything left
+          that are the same business. Only those are held back. Anything left
           unticked is imported as a new lead.
         </p>
         <TickAll
@@ -368,7 +368,7 @@ export function CallImportDialog({
         if (!res.ok) {
           setError(
             `${s.name || s.file.name}: ${data.error ?? `failed (${res.status})`}` +
-              (done.length ? ` — ${done.length} imported before this.` : ""),
+              (done.length ? ` (${done.length} imported before this.)` : ""),
           );
           break;
         }
@@ -457,7 +457,7 @@ export function CallImportDialog({
             <DialogHeader>
               <DialogTitle>Import call lists</DialogTitle>
               <DialogDescription>
-                CSVs with a phone column. Pick as many as you like — each
+                CSVs with a phone column. Pick as many as you like. Each
                 becomes its own list, and nothing is created until you press
                 Import.
               </DialogDescription>
@@ -535,8 +535,8 @@ export function CallImportDialog({
                                 <p className="mt-0.5 text-[12px] font-semibold text-destructive">
                                   Nothing usable yet
                                   {s.region === "none"
-                                    ? " — pick the folder for this list's country and these will be read in its format."
-                                    : ` — none of these look like ${REGION_LABELS[s.region as CallRegion]} numbers.`}
+                                    ? ". Pick the folder for this list's country and these will be read in its format."
+                                    : `. None of these look like ${REGION_LABELS[s.region as CallRegion]} numbers.`}
                                 </p>
                               ) : (
                                 s.region === "none" &&
@@ -576,8 +576,7 @@ export function CallImportDialog({
                                       already in the CRM
                                       {s.scan.duplicateLists.length > 0 && (
                                         <>
-                                          {" "}
-                                          — on{" "}
+                                          , on{" "}
                                           {s.scan.duplicateLists
                                             .map((d) => `${d.name} (${d.count})`)
                                             .join(", ")}
@@ -610,7 +609,7 @@ export function CallImportDialog({
                                         })
                                       }
                                     />
-                                    Remove them —{" "}
+                                    Remove them:{" "}
                                     <span className="font-semibold">
                                       {toImport(s)}
                                     </span>{" "}
@@ -624,7 +623,7 @@ export function CallImportDialog({
                                   ) : (
                                     toImport(s) === 0 && (
                                       <p className="mt-1 text-[12px] font-semibold text-destructive">
-                                        That is the whole file — you already
+                                        That is the whole file. You already
                                         have every row in it.
                                       </p>
                                     )

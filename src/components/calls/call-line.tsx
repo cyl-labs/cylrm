@@ -227,7 +227,7 @@ export function useCallLine(): CallLineValue {
   const ctx = React.useContext(CallLineContext);
   if (!ctx) {
     throw new Error(
-      "useCallLine must be used inside <CallLineProvider> — it is mounted in the (app) layout.",
+      "useCallLine must be used inside <CallLineProvider>. It is mounted in the (app) layout.",
     );
   }
   return ctx;
