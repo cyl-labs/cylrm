@@ -544,7 +544,7 @@ function CallForm({
 }) {
   // What the line remembers of the call just made to this lead, for the case
   // the outcome is typed after it ended. Read at save time, not here.
-  const { sessionFor, lastLeadId, forgetLead } = useCallLine();
+  const { sessionFor, lastLeadId, forgetLead, activeLeadId } = useCallLine();
   /**
    * Whether this tab rang this lead and has not written it down yet.
    *
@@ -606,8 +606,22 @@ function CallForm({
           // used to post neither — a real recorded call with no "Listen back",
           // for ever. The provider keeps the last finished call for this lead
           // and hands it back here.
-          telnyxSessionId: line.sessionId ?? remembered?.sessionId,
-          durationSeconds: line.seconds || remembered?.seconds || undefined,
+          //
+          // The live line only counts while it is carrying *this* lead's call.
+          // `line.sessionId` is whatever the phone carried last, and until
+          // 2026-09-24 it won outright: a caller who answered somebody ringing
+          // in and then logged the previous prospect filed that prospect's
+          // outcome under the inbound call — another business's 164-second
+          // ring-back on 941JUNK's row, and a "missing recording" alert for a
+          // call that was never this lead's. Every dial sets the active lead
+          // first, so this loses nothing for a call placed from here.
+          telnyxSessionId:
+            (activeLeadId === lead.id ? line.sessionId : null) ??
+            remembered?.sessionId,
+          durationSeconds:
+            (activeLeadId === lead.id ? line.seconds : 0) ||
+            remembered?.seconds ||
+            undefined,
         }),
       });
       const data = await res.json();

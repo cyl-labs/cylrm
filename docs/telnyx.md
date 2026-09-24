@@ -421,6 +421,22 @@ successes on the same connection went through `sv1`.
   recorded conversation, then a cancelled redial of the same prospect, then
   the outcome — which lands on the redial's session, leaving the recording
   unattached. That call was relinked by hand; the dialler still does it.
+- **Most "connected" alerts were a ring-back on the wrong row** (2026-09-24).
+  Of the eight alerts sent 22–24 Sep: two never connected (the check above
+  now stops those), one was recorded at Telnyx and never stored (#4103,
+  backfilled by hand), and **five were inbound calls** — a business the
+  caller had rung earlier, ringing back — filed under the lead on the dial
+  card. The dial card saved `line.sessionId ?? remembered`, and
+  `line.sessionId` is whatever the phone carried last: answer a ring-back,
+  then log the previous prospect, and that prospect's outcome takes the
+  inbound call's session and timer. Inbound calls are mostly not recorded, so
+  the sweep saw a connected call with no audio. The live session now counts
+  only while `activeLeadId` is this lead. Four rows were relinked to the
+  outbound recording that is really theirs (#3992, #4565, #4627, #4668; old
+  session ids in the 2026-09-24 session). **Check `direction` on the detail
+  record before reading an alert as lost audio**: `inbound` means it was never
+  this lead's call. The ring-back conversations themselves were logged
+  nowhere, so those leads still read "No answer".
 - **Counting these needs every page of `detail_records`.** `page[size]` caps
   at **50** whatever you ask for, and there were 168 pages for one week — a
   six-page fetch gave 33, then 30, then 27 for the same question, because
