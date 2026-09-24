@@ -1730,6 +1730,34 @@ export const callSms = pgTable(
 );
 
 /**
+ * A conversation somebody archived on the Texts screen, for them alone.
+ *
+ * The time, not a flag: a conversation is archived only while nothing has
+ * arrived since `archivedAt`, so a new text brings it back by itself.
+ */
+export const callSmsArchive = pgTable(
+  "call_sms_archive",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    theirNumber: text("their_number").notNull(),
+    ourNumber: text("our_number").notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("call_sms_archive_key_idx").on(
+      t.userId,
+      t.theirNumber,
+      t.ourNumber,
+    ),
+  ],
+);
+
+/**
  * Which timezone a US area code sits in.
  *
  * Reference data, kept in `data/us-area-codes.json` and synced here by

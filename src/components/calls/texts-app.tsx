@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowUp,
   ChevronLeft,
   ChevronRight,
@@ -239,6 +241,7 @@ export function TextsApp({
 
   const [query, setQuery] = React.useState("");
   const [composing, setComposing] = React.useState(false);
+  const [showArchived, setShowArchived] = React.useState(false);
 
   // Nothing else redraws this screen when a text lands, and a conversation
   // somebody is in the middle of has to show the reply without a reload.
@@ -272,9 +275,17 @@ export function TextsApp({
   // a demo, then the rest — mostly automatic "sorry we missed your call"
   // replies nobody answers. A booked business stays under Booked even once
   // you have replied, so the two sections never hold the same row.
-  const replied = shown.filter((c) => c.demo === null && c.replied);
-  const booked = shown.filter((c) => c.demo !== null);
-  const rest = shown.filter((c) => c.demo === null && !c.replied);
+  //
+  // Archived ones sit apart at the bottom, behind a button, and come back on
+  // their own when a new text arrives. A search looks through them too: a
+  // thread you put away is still one you may need to find.
+  const live = shown.filter((c) => !c.archived);
+  const archived = shown.filter((c) => c.archived);
+  const archivedTotal = conversations.filter((c) => c.archived).length;
+  const openArchive = showArchived || (q !== "" && archived.length > 0);
+  const replied = live.filter((c) => c.demo === null && c.replied);
+  const booked = live.filter((c) => c.demo !== null);
+  const rest = live.filter((c) => c.demo === null && !c.replied);
   const row = (c: Conversation) => (
     <ConversationRow
       key={c.key}
@@ -348,6 +359,12 @@ export function TextsApp({
             <p className="px-6 py-10 text-center text-[13px] text-muted-foreground">
               Nothing matches &ldquo;{query.trim()}&rdquo;.
             </p>
+          ) : live.length === 0 ? (
+            <p className="px-6 py-10 text-center text-[13px] text-muted-foreground">
+              {q
+                ? "Only archived conversations match. They're below."
+                : "You've archived every conversation. A new text brings one back here."}
+            </p>
           ) : booked.length === 0 && replied.length === 0 ? (
             <ul>{rest.map(row)}</ul>
           ) : (
@@ -383,6 +400,29 @@ export function TextsApp({
                 </section>
               )}
             </>
+          )}
+          {openArchive && archived.length > 0 && (
+            <section aria-labelledby="texts-archived">
+              <SectionHeading
+                id="texts-archived"
+                title="Archived"
+                note="Put away by you. If they text again, it goes back up top."
+              />
+              <ul>{archived.map(row)}</ul>
+            </section>
+          )}
+          {!q && archivedTotal > 0 && (
+            <div className="px-3 py-4 text-center">
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                aria-expanded={showArchived}
+                className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold text-[var(--imsg-sent)] transition-colors hover:bg-muted"
+              >
+                <Archive className="size-4" />
+                {showArchived ? "Hide archived" : `Archived (${archivedTotal})`}
+              </button>
+            </div>
           )}
         </div>
       </aside>
@@ -760,7 +800,7 @@ function ThreadView({
           if (confirming) void deliver(confirming);
         }}
       />
-      <header className="relative shrink-0 border-b bg-[var(--imsg-pane)] px-14 pb-2 pt-2">
+      <header className="relative shrink-0 border-b bg-[var(--imsg-pane)] px-24 pb-2 pt-2">
         <Link
           href="/texts"
           scroll={false}
@@ -774,6 +814,10 @@ function ThreadView({
             </span>
           )}
         </Link>
+        {/* Nothing to put away in a conversation nobody has texted in yet. */}
+        {c.last && (
+          <ArchiveButton conversationKey={c.key} archived={c.archived} />
+        )}
         <button
           type="button"
           onClick={() => setDetails((v) => !v)}
@@ -949,6 +993,79 @@ function ThreadView({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Archive the open conversation, or bring it back.
+ *
+ * Archiving closes it and returns to the list, with an Undo on the toast: the
+ * button sits where a thumb lands, and a thread archived by mistake should not
+ * mean a trip to the Archived section to find it again.
+ */
+function ArchiveButton({
+  conversationKey,
+  archived,
+}: {
+  conversationKey: string;
+  archived: boolean;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState(false);
+
+  async function set(next: boolean): Promise<boolean> {
+    const res = await fetch("/api/texts/archive", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: conversationKey, archived: next }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      toast.error(
+        next ? "Couldn't archive that conversation." : "Couldn't unarchive that conversation.",
+      );
+      return false;
+    }
+    return true;
+  }
+
+  async function toggle() {
+    setBusy(true);
+    const next = !archived;
+    const ok = await set(next);
+    setBusy(false);
+    if (!ok) return;
+    if (next) {
+      toast.success("Archived. If they text again, it comes back.", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void set(false).then((undone) => {
+              if (undone) router.refresh();
+            });
+          },
+        },
+      });
+      router.push("/texts", { scroll: false });
+    } else {
+      toast.success("Moved back to your texts.");
+    }
+    router.refresh();
+  }
+
+  const Icon = archived ? ArchiveRestore : Archive;
+  const label = archived ? "Unarchive" : "Archive";
+  return (
+    <button
+      type="button"
+      onClick={() => void toggle()}
+      disabled={busy}
+      aria-label={label}
+      title={label}
+      className="absolute right-1 top-3 flex items-center gap-1 rounded-md px-2 py-1.5 text-[13px] font-semibold text-[var(--imsg-sent)] transition-colors hover:bg-muted disabled:opacity-50"
+    >
+      <Icon className="size-4" />
+      <span>{label}</span>
+    </button>
   );
 }
 

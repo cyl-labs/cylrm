@@ -1233,6 +1233,21 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
     splitting them, so the 200-conversation limit can never drop one.
   - No section headings at all when nobody has booked, so a list never shows
     "Everyone else" on its own.
+- **A conversation can be archived** (2026-09-24, `call_sms_archive` from
+  `2026-09-24-call-sms-archive.sql` — **apply before deploying**, the list
+  query joins it; `archiveConversation` in `lib/texts.ts`,
+  `POST /api/texts/archive`, `ArchiveButton` in `texts-app.tsx`).
+  - **Per person**, like read receipts: a founder tidying the list must not
+    hide a caller's thread from the caller who has to answer it.
+  - **A timestamp, not a flag.** A conversation is archived only while nothing
+    has arrived since, so a prospect texting again puts it back in the list by
+    itself. An archive that swallowed a reply would be worse than no archive.
+  - Archiving marks it read, or the sidebar badge would keep counting texts
+    somebody deliberately put away. It closes the thread with an Undo on the
+    toast.
+  - Archived rows sort last in the SQL, so they can never push a live
+    conversation past the 200 limit. They sit behind an "Archived (n)" button
+    at the bottom of the list, and a search looks through them too.
 - **The look is Apple's, not the app's palette.** systemBlue `#007AFF`
   (`#0A84FF` dark) for ours, the Messages grey `#E9E9EB` for theirs, and
   systemGray4 `#3A3A3C` for theirs in dark — Messages' own near-black would

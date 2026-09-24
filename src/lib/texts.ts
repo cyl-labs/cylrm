@@ -75,6 +75,9 @@ export type Conversation = {
    *  These are the conversations worth reading; most of the rest are automatic
    *  "sorry we missed your call" replies. */
   demo: ConversationDemo | null;
+  /** The signed-in person archived it and nothing has arrived since. Theirs
+   *  alone — see `archiveConversation`. */
+  archived: boolean;
 };
 
 export type ConversationDemo = {
@@ -155,7 +158,8 @@ export async function getConversations(
       holder.name as ours_name,
       mt.start_at as demo_at, mt.status as demo_status,
       mt.upcoming as demo_upcoming, mt.attendance as demo_attendance,
-      d.has_demo
+      d.has_demo,
+      (ar.archived_at is not null and ar.archived_at >= last.created_at) as archived
     from c
     join lateral (
       select body, direction, status, created_at from m
@@ -163,6 +167,8 @@ export async function getConversations(
       order by created_at desc, id desc
       limit 1
     ) last on true
+    left join call_sms_archive ar
+      on ar.user_id = ${me.id} and ar.their_number = c.their and ar.our_number = c.ours
     left join call_lead l on l.id = c.lead_id
     left join call_list cl on cl.id = l.call_list_id
     left join lateral (
@@ -199,9 +205,10 @@ export async function getConversations(
         )
       end as has_demo
     ) d
-    -- Demo businesses first, then ones this person has replied to, so the
-    -- limit can never push either off the list.
-    order by d.has_demo desc, c.replied desc, last.created_at desc
+    -- Archived last, so a pile of put-away threads can never push a live one
+    -- past the limit. Then demo businesses, then ones this person has replied
+    -- to, so the limit can never push either off the list.
+    order by archived asc, d.has_demo desc, c.replied desc, last.created_at desc
     limit 200
   `)) as Row[];
 
@@ -223,6 +230,7 @@ export async function getConversations(
       unread: Number(r.unread ?? 0),
       replied: r.replied === true,
       demo: demoOf(r),
+      archived: r.archived === true,
     };
   });
 }
@@ -273,6 +281,7 @@ export async function blankConversation(
     // Only the conversation list reads this, and a blank conversation is
     // never in the list.
     demo: null,
+    archived: false,
   };
 }
 
@@ -556,3 +565,45 @@ export const countUnreadTexts = cache(async function countUnreadTexts(
   `)) as { n: number }[];
   return row?.n ?? 0;
 });
+
+/**
+ * Archive a conversation for the person asking, or bring it back.
+ *
+ * Theirs alone, the way read receipts are: a founder putting away a caller's
+ * thread must not hide it from the caller who has to answer it. Archiving
+ * marks it read as well, or the sidebar badge would go on counting texts the
+ * person has deliberately put away.
+ *
+ * Only a conversation they can already see: the same `scope()` the list is
+ * read through, so this cannot be used to learn that a thread exists.
+ */
+export async function archiveConversation(
+  me: CurrentUser,
+  their: string,
+  ours: string,
+  archived: boolean,
+): Promise<boolean> {
+  const [visible] = (await db.execute(sql`
+    select 1 from call_sms s
+    where ${scope(me)}
+      and ((s.direction = 'in' and s.from_number = ${their} and s.to_number = ${ours})
+        or (s.direction = 'out' and s.to_number = ${their} and s.from_number = ${ours}))
+    limit 1
+  `)) as Row[];
+  if (!visible) return false;
+  if (!archived) {
+    await db.execute(sql`
+      delete from call_sms_archive
+      where user_id = ${me.id} and their_number = ${their} and our_number = ${ours}
+    `);
+    return true;
+  }
+  await db.execute(sql`
+    insert into call_sms_archive (user_id, their_number, our_number)
+    values (${me.id}, ${their}, ${ours})
+    on conflict (user_id, their_number, our_number)
+      do update set archived_at = now()
+  `);
+  await markConversationRead(me, their, ours);
+  return true;
+}
