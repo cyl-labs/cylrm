@@ -42,6 +42,8 @@ import { CallFilters } from "@/components/calls/call-filters";
 import { LogFilter } from "@/components/calls/log-filter";
 import { LogRecording } from "@/components/calls/log-recording";
 import { listTeam, type TeamMember } from "@/lib/users";
+import { getMeetingStats } from "@/lib/meeting-stats";
+import { MeetingStatsCard } from "@/components/stats/meeting-stats-card";
 
 export const dynamic = "force-dynamic";
 
@@ -239,7 +241,7 @@ export default async function CallStatsPage({
     (l) => l.total - l.uncalled > 0 || l.id === listId,
   );
 
-  const [totals, outcomes, lists, monthDays, people, log, weekStarted, quotaSchedule] =
+  const [totals, outcomes, lists, monthDays, people, log, weekStarted, quotaSchedule, meetingStats] =
     await Promise.all([
     getCallTotals(w, listId, personId, await hoursAckOf(me?.id)),
     getOutcomeCounts(w, listId, personId),
@@ -260,6 +262,9 @@ export default async function CallStatsPage({
     // When the digest goes out, so the card can offer to move it. Founders
     // only, like the standings it sits under.
     mine ? Promise.resolve(null) : getQuotaSchedule(),
+    // Who booked the demo, for `personId` — their own bookings on a caller's
+    // screen. See `getMeetingStats`.
+    getMeetingStats(w, listId, personId),
   ]);
 
   // When the quota week reset, worded the way the strip under the header words
@@ -673,6 +678,23 @@ export default async function CallStatsPage({
             are fetched when asked for. It used to render only when there were
             standings to show, which meant working them out first — and that
             was six of the seven seconds this page took. */}
+        {/* The meetings in the same window (2026-09-25): what happened at
+            each demo and what came after. Here rather than on Meetings, which
+            is a queue; that screen links here. */}
+        <MeetingStatsCard
+          stats={meetingStats}
+          founders={!mine}
+          zoneName={zone.name}
+          dayHref={(d) =>
+            `/call-stats?${new URLSearchParams({
+              ...(listId ? { list: String(listId) } : {}),
+              ...personParam,
+              ...(region !== DEFAULT_STATS_REGION ? { tz: region } : {}),
+              day: d,
+            })}#meetings`
+          }
+        />
+
         {!mine && (
           <div className={CARD}>
             <div className="border-b border-border/60 px-5 py-3.5">

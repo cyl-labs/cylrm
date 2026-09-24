@@ -2062,3 +2062,29 @@ and the sidebar badge read the new columns on every page).
   404'd on play and on Get transcript. It now admits a recording to the lead's
   or the booking's number from 30 minutes before the slot of a meeting on
   their niche or assigned to them to close.
+
+### Meeting stats (2026-09-25)
+
+`lib/meeting-stats.ts`, `components/stats/meeting-stats-card.tsx`, migration
+`2026-09-25-no-show-reason.sql` (**apply before deploying**).
+
+- **On Stats, not Meetings.** Meetings is a queue read top to bottom; Stats
+  already has the window, the zone and the person picker. Meetings carries one
+  "Last 7 days" line linking to `/call-stats#meetings`.
+- **Demos count on the day they were booked for** (`start_at`, the screen's
+  zone): showed up, voicemail, no answer, not real, not logged, still to come,
+  cancelled. An answer outranks a Cal.com cancellation. The answer rule is
+  stricter than the row's `answersMeeting`: an answer only counts for a meeting
+  if given on it, or after it began and before the lead's next meeting did —
+  otherwise a rebooked lead's answer is counted on both meetings.
+- **Founders also get what came after**: follow-up meetings, calls logged on a
+  lead after a demo it showed up to (with trials, won, lost), and no-show call
+  backs from `call_meeting_followup` (the founders' call backs log there too).
+  Callers see only the demos they booked — `personId` is **who booked it** on
+  every ledger.
+- **Voicemail is `call_demo_attendance.no_show_reason`**, picked from "No show:
+  voicemail" / "No show: no answer" on the row. Still `no_show` to payroll and
+  the ring back. Backfilled from notes matching voicemail/vm; every other old
+  no-show counts as no answer.
+- Clock windows ("last 7 days", all time) stop at now; date windows include
+  meetings still ahead, since "how many meetings do I have today" wants them.

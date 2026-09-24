@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     meetingId?: unknown;
     status?: unknown;
     notes?: unknown;
+    reason?: unknown;
   } | null;
 
   const callId = Number(body?.callId);
@@ -99,6 +100,11 @@ export async function POST(request: Request) {
     );
   }
   const status: DemoStatus = body.status;
+  // Why a no-show was one (2026-09-25): "voicemail" or nothing. Like `notes`,
+  // a missing field means "leave it" — Payroll's confirm list sends none — and
+  // anything else on a no-show from the Meetings row says no answer.
+  const reasonGiven = body.reason !== undefined;
+  const reason = body.reason === "voicemail" ? "voicemail" : null;
 
   // Two different silences, and the write below turns on telling them apart.
   //
@@ -173,8 +179,9 @@ export async function POST(request: Request) {
     await db.execute(sql`
       insert into call_demo_attendance
         (call_id, call_lead_id, status, marked_by_user_id, notes,
-         meeting_id, for_start_at)
+         no_show_reason, meeting_id, for_start_at)
       values (${callId}, ${target.call_lead_id}, ${status}, ${me.id}, ${notes},
+        ${status === "no_show" ? reason : null},
         ${pin?.id ?? null},
         -- Copied inside the database, never through JavaScript: a Date keeps
         -- milliseconds and start_at has microseconds, so a round trip stored a
@@ -188,6 +195,13 @@ export async function POST(request: Request) {
             -- A correction from Payroll carries no meeting, and must not unpin
             -- an answer given on the row: an early "not a real booking" would
             -- otherwise stop counting for the meeting it was about.
+            -- Only a no-show has a reason; a correction from Payroll that
+            -- says nothing about it keeps the one given on the row.
+            no_show_reason = case
+              when excluded.status <> 'no_show' then null
+              when ${reasonGiven}::boolean then excluded.no_show_reason
+              else call_demo_attendance.no_show_reason
+            end,
             meeting_id = coalesce(excluded.meeting_id, call_demo_attendance.meeting_id),
             for_start_at = case
               when excluded.meeting_id is not null then excluded.for_start_at

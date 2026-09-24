@@ -282,29 +282,34 @@ export function dayBackInStatsTz(n: number, tz: string = STATS_TZ): string {
   return d.toISOString().slice(0, 10);
 }
 
-const since = (w: StatsWindow): SQL => {
+/** The window as a condition on any timestamptz column. `since` is this over
+ *  `c.called_at`; meeting stats read it over `m.start_at` and the ring-back
+ *  log's `created_at`, so a day means the same thing on every card. */
+export const sinceOn = (w: StatsWindow, col: SQL): SQL => {
   // Eastern unless the window says otherwise, which is what every window said
   // before the zone picker existed.
   const tz = w.tz ?? STATS_TZ;
   if (w.kind === "all") return sql`true`;
   if (w.kind === "day") {
-    return sql`(c.called_at at time zone ${tz})::date = ${w.date}::date`;
+    return sql`(${col} at time zone ${tz})::date = ${w.date}::date`;
   }
-  // An instant, so no zone is involved: `called_at` is a timestamptz and both
+  // An instant, so no zone is involved: the column is a timestamptz and both
   // sides are absolute. The zone on the window is what a *date* means, and
   // this window has none.
-  if (w.kind === "since") return sql`c.called_at >= ${w.at}::timestamptz`;
+  if (w.kind === "since") return sql`${col} >= ${w.at}::timestamptz`;
   if (w.kind === "between") {
     // Both ends inclusive: someone picking 1st to 31st means the whole month,
     // and a range that quietly dropped its last day would under-report the
     // final shift of every competition.
-    return sql`(c.called_at at time zone ${tz})::date
+    return sql`(${col} at time zone ${tz})::date
       between ${w.from}::date and ${w.to}::date`;
   }
   // A rolling window is a clock, not a set of dates: N days back from this
   // moment is the same instant everywhere, so it has no zone to read.
-  return sql`c.called_at >= now() - ${`${w.days} days`}::interval`;
+  return sql`${col} >= now() - ${`${w.days} days`}::interval`;
 };
+
+const since = (w: StatsWindow): SQL => sinceOn(w, sql`c.called_at`);
 
 /** Narrow to one niche. Joining through the lead is the only route — `call`
  *  has no list of its own, by design. */

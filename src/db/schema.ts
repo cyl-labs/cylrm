@@ -1149,6 +1149,11 @@ export const callDemoAttendance = pgTable(
       onDelete: "set null",
     }),
     forStartAt: timestamp("for_start_at", { withTimezone: true }),
+    /** Why a no-show was one: `voicemail`, or null for no answer / not said
+     *  (2026-09-25). Beside `status` rather than a fourth status, so payroll,
+     *  the ring back and the one-fee index keep reading `no_show` as one
+     *  thing. Null on any other status. */
+    noShowReason: text("no_show_reason").$type<"voicemail">(),
   },
   // Declared here and not only in the migration: `drizzle-kit push` drops any
   // index it cannot see in this file, which is how `call_user_id_idx` went

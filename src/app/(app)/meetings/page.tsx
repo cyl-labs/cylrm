@@ -17,6 +17,7 @@ import { UnbookedDemos } from "@/components/calls/unbooked-demos";
 import { getTextsByLead, smsEnabled, type Texting } from "@/lib/sms";
 import { classifyPhone } from "@/lib/phone";
 import { callScope, getCurrentUser } from "@/lib/session";
+import { getMeetingStats } from "@/lib/meeting-stats";
 import {
   callerNumberOf,
   callRegionOf,
@@ -230,6 +231,17 @@ export default async function MeetingsPage({
           )
         : null;
   const closers = me?.role === "admin" ? await listClosers() : [];
+  // The last week at a glance (2026-09-25); the breakdown is on Stats. A
+  // caller's is the demos they booked, the same scope Stats gives them.
+  const week = past
+    ? null
+    : (
+        await getMeetingStats(
+          { kind: "rolling", days: 7, tz: zone.tz },
+          undefined,
+          me?.role === "admin" ? undefined : (me?.id ?? -1),
+        )
+      ).totals;
 
   // On the calendar a meeting moved to a call back sits at the call back's
   // time, as a call back — the same place the list now puts it.
@@ -358,6 +370,34 @@ export default async function MeetingsPage({
               zoneName={zone.name}
               isAdmin={me?.role === "admin"}
             />
+            {week && (
+              <p className="text-[13px] text-muted-foreground">
+                <span className="font-semibold text-foreground">Last 7 days:</span>{" "}
+                {week.demos === 0 ? (
+                  "no demos yet."
+                ) : (
+                  <>
+                    {week.demos} {week.demos === 1 ? "demo" : "demos"},{" "}
+                    <span className="font-semibold text-success">
+                      {week.showed} showed up
+                    </span>
+                    , {week.voicemail} voicemail, {week.noAnswer} no answer
+                    {week.unlogged > 0 && (
+                      <span className="font-semibold text-destructive">
+                        , {week.unlogged} not logged
+                      </span>
+                    )}
+                    .
+                  </>
+                )}{" "}
+                <Link
+                  href={`/call-stats?range=7&tz=${region}#meetings`}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Day by day on {me?.role === "admin" ? "Stats" : "My stats"}
+                </Link>
+              </p>
+            )}
             {/* Demos logged in the CRM with no Cal.com booking behind them:
                 the one thing on this screen that is a job with a deadline. */}
             <UnbookedDemos
