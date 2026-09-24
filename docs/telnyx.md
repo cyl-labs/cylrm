@@ -511,6 +511,52 @@ other tab, visible or not, until it is idle.
   keeping media up through a socket blip instead of rebuilding the call, and is
   the next thing to try if drops persist — untested, so not switched on.
 
+### A tab on Scripts kept the phone, and "Use the phone here" (2026-09-24)
+
+`take` / `YIELDED` / `elsewhere` in `line-presence.tsx`, `PhoneElsewhere`
+(`components/calls/phone-elsewhere.tsx`), `clearCallState` in
+`use-telnyx-call.ts`.
+
+- **Reported** a minute after a demo was due: the founder's Meetings tab said
+  "the phone is open in another CRM tab", and the only other CRM tab was on
+  Scripts, which cannot dial. Reproduced cleanly it cannot happen — a visible
+  Meetings tab (`CALLING_VISIBLE`) beats a Scripts tab (`LISTENING_*`), checked
+  with two real tabs — so the Scripts tab must have been reporting `ON_CALL`
+  from **call state left over with no call behind it**. The founders' account
+  was reporting *not* on a call to `/api/presence` at the time, so it was a
+  ringing banner or a second leg, not the first line; which one could not be
+  seen from here.
+- **Why it only bit today.** Leftover state was harmless until `ON_CALL`
+  (earlier the same day) made "on a call" outrank everything. From then on, a
+  tab that wrongly believed it had a call kept the phone indefinitely.
+- **Every way to leave state behind is closed:**
+  - Only the tab actually holding the line reports a call
+    (`useReportCall(enabled && leader && …)` in `call-line.tsx`). A tab without
+    the line has no call, whatever its state says.
+  - Tearing the line down clears every call with it (`clearCallState` in the
+    connect effect's cleanup). Before, a tab that lost the phone mid-call or
+    mid-ring kept that state for ever.
+  - A fresh registration with no first call clears any banner or second leg
+    the old connection left (the `telnyx.ready` handler).
+  - `purge`, which the SDK sets on every call when a connection is torn down,
+    now counts as ended. A hangup normally follows it; this stops waiting on
+    one.
+  - `dial` and `addCall` recover when `newCall` throws, instead of sitting on
+    "Connecting…".
+- **"Use the phone here".** The blocked line now says which it is — "Another
+  CRM tab is on a call" or "The phone is in another CRM tab" — with a button.
+  It posts `take`: every other tab drops to `YIELDED` (0) until somebody uses
+  it again (focus, a click, being brought to the front), which also clears any
+  leftover state there, because losing the line runs the teardown. Taking from
+  a tab on a call asks first, since that ends the call. The taker wins ties
+  (+0.5) until another tab takes, or two Meetings windows side by side handed
+  the phone back the moment the other was clicked into.
+- **Verified with real tabs against a local server**: two Meetings tabs hand
+  the phone over and back, clicking the other tab does not take it back, and a
+  stand-in tab reporting a call is named, confirmed and taken from. The
+  ordinary handover (Scripts first, Meetings second) is unchanged. The
+  leftover state itself could not be reproduced without a live Telnyx line.
+
 ### Two tabs made the Call back button strobe (2026-09-22)
 
 Reported as the button "constantly flashing between Connecting… and Call back",

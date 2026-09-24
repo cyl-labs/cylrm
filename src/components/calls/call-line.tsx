@@ -251,8 +251,16 @@ export function CallLineProvider({
   // While anything is up — a call, a second leg, or one ringing in — this tab
   // keeps the line whatever else is brought to the front. Losing the election
   // tears down the registration, and that hangs up the call.
+  //
+  // Only the tab actually holding the line may say so (2026-09-24). A tab that
+  // is not live has no call, whatever its state says: that state can be left
+  // over from a line torn down mid-call, and "on a call" outranks everything,
+  // so a leftover one held the phone in a tab sitting on Scripts and refused it
+  // to the founder's Meetings tab at the start of a demo.
   useReportCall(
-    line.state !== "idle" || line.second !== null || line.incoming !== null,
+    enabled &&
+      leader &&
+      (line.state !== "idle" || line.second !== null || line.incoming !== null),
   );
 
   // Unlock the ringtone on the first real interaction, whatever it was.

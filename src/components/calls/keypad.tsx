@@ -27,6 +27,7 @@ import { PHONE_KEYS } from "./tone-pad";
 import { useCallLine } from "./call-line";
 import { useObjectionHints } from "./use-objection-hints";
 import { useClaimLine, useDrawsIncoming, useLineLeader } from "./line-presence";
+import { PhoneElsewhere } from "./phone-elsewhere";
 import { IncomingCall } from "./incoming-call";
 import { ObjectionPanel } from "@/components/sop/objection-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
@@ -428,7 +429,7 @@ export function Keypad({
   const hint = !did
     ? "No caller ID assigned to you yet — an admin sets one on Team."
     : !leader
-      ? "The phone is open in another CRM tab. Dial from there, or close it and reload."
+      ? <PhoneElsewhere />
       : line.problem
       ? line.problem
       : line.mergeProblem

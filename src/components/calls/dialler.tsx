@@ -28,6 +28,7 @@ import type { CallOutcome, QueueLead } from "@/lib/calls";
 import type { SopSection } from "@/lib/sop";
 import { ObjectionDrawer } from "@/components/sop/objection-drawer";
 import { IncomingCall } from "@/components/calls/incoming-call";
+import { PhoneElsewhere } from "@/components/calls/phone-elsewhere";
 import { BookDemoFields } from "@/components/calls/book-demo";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
 import {
@@ -202,8 +203,7 @@ function DialControls({
   if (!holder) {
     return (
       <p className="mt-2 text-center text-[12px] text-muted-foreground">
-        The phone is open in another CRM tab. Dial from there, or close it and
-        reload this page.
+        <PhoneElsewhere />
       </p>
     );
   }

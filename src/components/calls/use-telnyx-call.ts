@@ -143,8 +143,14 @@ export type SecondLine = {
 
 /**
  * Which SDK state a call is in, in the four words a person needs. Unmapped
- * states — `purge`, `held` and the rest — return null and change nothing,
- * which is how the switch this replaced behaved.
+ * states — `held` and the rest — return null and change nothing, which is how
+ * the switch this replaced behaved.
+ *
+ * `purge` counts as ended (2026-09-24). It is what the SDK sets on every call
+ * when the connection is torn down under it, and a call in it is gone. Left
+ * unmapped, the screen could keep a call that no longer exists — and a tab
+ * that believes it is on a call now holds the phone against every other tab.
+ * A normal hangup follows a purge anyway; this only stops the wait for one.
  */
 function phaseOf(state: string | undefined): CallState | null {
   switch (state) {
@@ -159,6 +165,7 @@ function phaseOf(state: string | undefined): CallState | null {
       return "active";
     case "hangup":
     case "destroy":
+    case "purge":
       return "idle";
     default:
       return null;
@@ -402,6 +409,33 @@ export function useTelnyxCall(
     dropSecondRef.current = dropSecond;
   });
 
+  /**
+   * Forget every call this line was carrying (2026-09-24).
+   *
+   * For the moments the SDK will not tell us a call ended, because the thing
+   * that would have told us is gone: the registration was torn down, or came
+   * back fresh with nothing on it. Everything a person could see — the state,
+   * a ringing banner, a second leg, the merge — goes back to nothing, and the
+   * refs with it so a late update cannot bring any of it back.
+   */
+  const clearCallState = React.useCallback(() => {
+    bridgeRef.current?.close();
+    bridgeRef.current = null;
+    callRef.current = null;
+    secondRef.current = null;
+    firstIdRef.current = null;
+    secondIdRef.current = null;
+    incomingRef.current = null;
+    pendingFirstRef.current = false;
+    pendingSecondRef.current = false;
+    setState("idle");
+    setIncoming(null);
+    setSecond(null);
+    setMerged(false);
+    setMerging(false);
+    setMuted(false);
+  }, []);
+
   // Connect once, on mount. Never per lead: registering again for every number
   // would be a new SIP registration a few seconds apart all day.
   React.useEffect(() => {
@@ -479,6 +513,12 @@ export function useTelnyxCall(
         client.on("telnyx.ready", () => {
           everReady = true;
           readySince = Date.now();
+          // A fresh registration with no call up has nothing ringing and no
+          // second line either, whatever the last connection left behind — a
+          // banner for an invite that died with the old socket, or a second
+          // leg nobody can reach. Cleared rather than trusted: this tab would
+          // otherwise go on reporting a call that is not there.
+          if (!callRef.current && !cancelled) clearCallState();
           // Which room this browser actually registered in. A tab left open
           // across a connection change keeps its old registration, so the call
           // rings a room nobody is in — invisible without this.
@@ -885,6 +925,10 @@ export function useTelnyxCall(
       } catch {
         // Unmounting during a call is already the bad case; nothing to do.
       }
+      // The line is gone, so is every call on it. Without this the state
+      // outlived the teardown — a tab that lost the phone mid-call or mid-ring
+      // kept saying it was on one, and "on a call" wins the tab election.
+      clearCallState();
     };
     // `audioId` is read by the answer handler and is a constant the provider
     // passes; listing it would add nothing and invite the teardown above.
@@ -1020,16 +1064,27 @@ export function useTelnyxCall(
       // Set before `newCall`, which can emit its first updates from inside the
       // call, before there is anywhere to have put its return value.
       pendingFirstRef.current = true;
-      callRef.current = clientRef.current.newCall({
-        destinationNumber: to,
-        callerNumber: from,
-        // Without a sink for the far end there is a call and no sound, which
-        // presents as "it does not work" rather than as a wiring mistake.
-        remoteElement: audioId,
-        audio: true,
-        video: false,
-      });
-      pendingFirstRef.current = false;
+      try {
+        callRef.current = clientRef.current.newCall({
+          destinationNumber: to,
+          callerNumber: from,
+          // Without a sink for the far end there is a call and no sound, which
+          // presents as "it does not work" rather than as a wiring mistake.
+          remoteElement: audioId,
+          audio: true,
+          video: false,
+        });
+      } catch (err) {
+        // Refused before it started — the socket went, say. Back to idle, or
+        // the screen sits on "Connecting…" for a call that does not exist and
+        // the tab keeps the phone against every other one.
+        console.error("[telnyx] could not start the call", err);
+        callRef.current = null;
+        firstIdRef.current = null;
+        setState("idle");
+      } finally {
+        pendingFirstRef.current = false;
+      }
     },
     [ready, audioId],
   );
@@ -1057,15 +1112,22 @@ export function useTelnyxCall(
       setSecond({ state: "connecting", seconds: 0 });
 
       pendingSecondRef.current = true;
-      secondRef.current = client.newCall({
-        destinationNumber: to,
-        callerNumber: from,
-        remoteElement: secondAudioId,
-        audio: true,
-        video: false,
-      });
+      try {
+        secondRef.current = client.newCall({
+          destinationNumber: to,
+          callerNumber: from,
+          remoteElement: secondAudioId,
+          audio: true,
+          video: false,
+        });
+      } catch (err) {
+        // Same as the first line: nothing started, so nothing is left saying
+        // it did — and the first call comes off its private hold.
+        console.error("[telnyx] could not add the call", err);
+        dropSecond();
+      }
     },
-    [audioId, secondAudioId],
+    [audioId, secondAudioId, dropSecond],
   );
 
   const merge = React.useCallback(() => {

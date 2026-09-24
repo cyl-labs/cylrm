@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Mic, MicOff, PhoneCall, PhoneOff, UserPlus } from "lucide-react";
 import { useCallLine } from "@/components/calls/call-line";
+import { PhoneElsewhere } from "@/components/calls/phone-elsewhere";
 import { ConfirmCall } from "@/components/calls/confirm-call";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,13 +111,19 @@ export function MeetingCallButton({
     ? "This number cannot be dialled from here."
     : !from
       ? "No number assigned to you yet — an admin sets one on Team."
-      : !live
-        ? "The phone is open in another CRM tab. Dial from there, or close it and reload this page."
-        : null;
+      : null;
 
   if (why) {
     return (
       <p className="text-[12px] text-muted-foreground">{why}</p>
+    );
+  }
+  // Another tab has the phone: say why, and offer to bring it here.
+  if (!live) {
+    return (
+      <p className="text-[12px] text-muted-foreground">
+        <PhoneElsewhere />
+      </p>
     );
   }
 

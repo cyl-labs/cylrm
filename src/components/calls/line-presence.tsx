@@ -96,9 +96,22 @@ const CALLING_VISIBLE = 4;
 const CALLING_HIDDEN = 3;
 const LISTENING_VISIBLE = 2;
 const LISTENING_HIDDEN = 1;
+/**
+ * Asked to let go (2026-09-24), below everything until somebody uses this tab
+ * again. What "Use the phone here" does to every other tab — see `take`.
+ */
+const YIELDED = 0;
 
 type Peer = { priority: number; seen: number };
-type Message = { t: "hi" | "beat" | "bye"; id: string; priority: number };
+type Message = {
+  t: "hi" | "beat" | "bye" | "take";
+  id: string;
+  priority: number;
+};
+
+/** Why this tab is not holding the phone: another tab is on a call, or simply
+ *  holds it. Null while this tab is the one holding it. */
+export type Elsewhere = "call" | "open" | null;
 
 const LineContext = React.createContext<{
   claimed: boolean;
@@ -107,6 +120,8 @@ const LineContext = React.createContext<{
   setOnCall: (onCall: boolean) => void;
   ringDrawn: boolean;
   drawRing: () => () => void;
+  elsewhere: Elsewhere;
+  take: () => void;
 }>({
   claimed: false,
   leader: true,
@@ -114,6 +129,8 @@ const LineContext = React.createContext<{
   setOnCall: () => {},
   ringDrawn: false,
   drawRing: () => () => {},
+  elsewhere: null,
+  take: () => {},
 });
 
 export function LinePresence({ children }: { children: React.ReactNode }) {
@@ -129,6 +146,13 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
   const [onCall, setOnCall] = React.useState(false);
   // Counted, like `holders`, for the same dialler-to-Keypad navigation reason.
   const [ringDrawers, setRingDrawers] = React.useState(0);
+  const [yielded, setYielded] = React.useState(false);
+  // This tab took the phone on purpose. Wins a tie with an equal tab — two
+  // Meetings windows side by side — until another tab takes it: without it the
+  // tie went back to whichever tab id sorted first, so clicking into the other
+  // window to scroll it handed the phone straight back.
+  const [took, setTook] = React.useState(false);
+  const [elsewhere, setElsewhere] = React.useState<Elsewhere>(null);
 
   const claim = React.useCallback(() => {
     setHolders((n) => n + 1);
@@ -146,15 +170,17 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("visibilitychange", sync);
   }, []);
 
-  const priority = onCall
-    ? ON_CALL
-    : holders > 0
-      ? hidden
-        ? CALLING_HIDDEN
-        : CALLING_VISIBLE
-      : hidden
-        ? LISTENING_HIDDEN
-        : LISTENING_VISIBLE;
+  const priority = yielded
+    ? YIELDED
+    : (onCall
+        ? ON_CALL
+        : holders > 0
+          ? hidden
+            ? CALLING_HIDDEN
+            : CALLING_VISIBLE
+          : hidden
+            ? LISTENING_HIDDEN
+            : LISTENING_VISIBLE) + (took ? 0.5 : 0);
   const priorityRef = React.useRef(priority);
   /** Set by the election below, so a priority change can be announced with
    *  this tab's real identity. Announcing it under any other — an empty id
@@ -193,11 +219,13 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
       if (stopped) return;
       const now = Date.now();
       let win = true;
+      let top = -1;
       for (const [pid, p] of peers) {
         if (now - p.seen > STALE_MS) {
           peers.delete(pid);
           continue;
         }
+        top = Math.max(top, p.priority);
         if (
           p.priority > priorityRef.current ||
           (p.priority === priorityRef.current && pid < id)
@@ -206,6 +234,10 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
         }
       }
       setLeader(win);
+      // Said on the blocked screen, so it can tell somebody whether the other
+      // tab is on a call or merely holding the phone — two different things
+      // to do about it.
+      setElsewhere(win ? null : top >= ON_CALL ? "call" : "open");
     };
     electRef.current = elect;
 
@@ -214,6 +246,14 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
       if (!m || m.id === id) return;
       if (m.t === "bye") peers.delete(m.id);
       else {
+        // Another tab has asked for the phone: stand down until somebody uses
+        // this one again. Losing the line tears down its registration and, with
+        // it, any call state it was holding — which is also what clears a tab
+        // that wrongly believes it is on a call.
+        if (m.t === "take") {
+          setYielded(true);
+          setTook(false);
+        }
         peers.set(m.id, { priority: m.priority, seen: Date.now() });
         // Answer a newcomer directly, so it learns about this tab within a
         // round trip instead of waiting out a whole beat to discover it is not
@@ -262,6 +302,40 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
     electRef.current?.();
   }, [priority]);
 
+  // A tab that stood down rejoins at its own priority the moment somebody uses
+  // it again — brought to the front, clicked into — rather than staying out of
+  // the running for good.
+  React.useEffect(() => {
+    if (!yielded) return;
+    const back = () => setYielded(false);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") back();
+    };
+    window.addEventListener("focus", back);
+    window.addEventListener("pointerdown", back);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", back);
+      window.removeEventListener("pointerdown", back);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [yielded]);
+
+  /**
+   * Bring the phone to this tab (2026-09-24).
+   *
+   * Every other tab stands down until it is used again. Built after a founder's
+   * Meetings tab was refused the phone by a tab sitting on Scripts, minutes
+   * after a demo was due: the only way out was to find and close the other tab.
+   * A tab on a genuine call loses that call, which is why the button says so
+   * when the other tab reports one.
+   */
+  const take = React.useCallback(() => {
+    setYielded(false);
+    setTook(true);
+    postRef.current?.("take");
+  }, []);
+
   const value = React.useMemo(
     () => ({
       claimed: holders > 0,
@@ -270,10 +344,18 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
       setOnCall,
       ringDrawn: ringDrawers > 0,
       drawRing,
+      elsewhere,
+      take,
     }),
-    [holders, leader, claim, ringDrawers, drawRing],
+    [holders, leader, claim, ringDrawers, drawRing, elsewhere, take],
   );
   return <LineContext.Provider value={value}>{children}</LineContext.Provider>;
+}
+
+/** Why another tab has the phone, and the way to bring it here. */
+export function useLineElsewhere(): { elsewhere: Elsewhere; take: () => void } {
+  const { elsewhere, take } = React.useContext(LineContext);
+  return { elsewhere, take };
 }
 
 /** True while a screen in *this tab* is holding its own line. */
