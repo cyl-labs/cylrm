@@ -54,8 +54,7 @@ export function MeetingStatsCard({
       sub: "a real conversation",
       tone: "text-success",
     },
-    { label: "Voicemail", value: String(t.voicemail), sub: "no show, went to voicemail" },
-    { label: "No answer", value: String(t.noAnswer), sub: "no show, nobody picked up" },
+    { label: "No show", value: String(t.noShow), sub: "didn't pick up, or voicemail" },
     {
       label: "Show rate",
       value: rate === null ? "-" : `${Math.round(rate * 100)}%`,
@@ -88,8 +87,7 @@ export function MeetingStatsCard({
   const cols: { key: keyof MeetingStats["totals"]; label: string }[] = [
     { key: "demos", label: "Demos" },
     { key: "showed", label: "Showed up" },
-    { key: "voicemail", label: "Voicemail" },
-    { key: "noAnswer", label: "No answer" },
+    { key: "noShow", label: "No show" },
     { key: "notReal", label: "Not real" },
     { key: "unlogged", label: "Not logged" },
     { key: "upcoming", label: "Still to come" },
@@ -119,9 +117,7 @@ export function MeetingStatsCard({
           {founders
             ? " and follow-up calls and call backs on the day they were logged."
             : " for the demos you booked."}{" "}
-          A no-show is split into voicemail and no answer by what was picked
-          when it was logged. Older no-shows only count as voicemail if the
-          note said so.
+          A demo that was moved to a new time counts on its new day.
         </p>
       </div>
 
@@ -132,7 +128,7 @@ export function MeetingStatsCard({
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 px-5 pt-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 px-5 pt-4 sm:grid-cols-3 lg:grid-cols-5">
             {tiles.map((x) => {
               const body = (
                 <>

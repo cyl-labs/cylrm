@@ -1149,10 +1149,11 @@ export const callDemoAttendance = pgTable(
       onDelete: "set null",
     }),
     forStartAt: timestamp("for_start_at", { withTimezone: true }),
-    /** Why a no-show was one: `voicemail`, or null for no answer / not said
-     *  (2026-09-25). Beside `status` rather than a fourth status, so payroll,
-     *  the ring back and the one-fee index keep reading `no_show` as one
-     *  thing. Null on any other status. */
+    /** No longer written or read (2026-09-25). Shipped for a voicemail / no
+     *  answer split of no-shows and dropped the same day: a no-show is one
+     *  thing, and somebody who picks up and cannot talk has the meeting moved
+     *  instead. Holds 'voicemail' on the 7 no-shows backfilled from notes.
+     *  Declared only so `drizzle-kit push` does not drop it unasked. */
     noShowReason: text("no_show_reason").$type<"voicemail">(),
   },
   // Declared here and not only in the migration: `drizzle-kit push` drops any

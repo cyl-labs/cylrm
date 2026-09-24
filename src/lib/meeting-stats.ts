@@ -8,6 +8,9 @@ import { STATS_TZ } from "@/lib/stats-zones";
  *
  * Asked for as "on this day how many meetings did I have, how many actual
  * conversations, how many voicemails / no shows, then how many follow ups".
+ * A voicemail is a no show: somebody who picks up and cannot talk has the
+ * meeting moved rather than marked, so there is one kind of no show and the
+ * split that shipped briefly (voicemail / no answer) was dropped the same day.
  * The Meetings screen is a queue read top to bottom and the answer is a table,
  * so it lives on Stats with the window, the zone and the person picker that
  * screen already has; Meetings carries one summary line pointing here.
@@ -15,8 +18,8 @@ import { STATS_TZ } from "@/lib/stats-zones";
  * Three ledgers, each counted on its own clock:
  *
  * - **Demos** by when they were booked for (`start_at`), with the answer given
- *   on the row: showed up (a conversation), no show split into voicemail and
- *   no answer, not a real booking, not logged yet, still to come, cancelled.
+ *   on the row: showed up (a conversation), no show, not a real booking, not
+ *   logged yet, still to come, cancelled.
  * - **After a demo that happened**: follow-up meetings on the calendar, and
  *   follow-up calls logged on a lead after it showed up — with the trials,
  *   wins and losses among them. By when the call was logged.
@@ -32,8 +35,7 @@ import { STATS_TZ } from "@/lib/stats-zones";
 export type MeetingCounts = {
   demos: number;
   showed: number;
-  voicemail: number;
-  noAnswer: number;
+  noShow: number;
   notReal: number;
   unlogged: number;
   upcoming: number;
@@ -55,8 +57,7 @@ export type MeetingStats = { totals: MeetingCounts; days: MeetingDay[] };
 const ZERO: MeetingCounts = {
   demos: 0,
   showed: 0,
-  voicemail: 0,
-  noAnswer: 0,
+  noShow: 0,
   notReal: 0,
   unlogged: 0,
   upcoming: 0,
@@ -100,7 +101,7 @@ const filters = (listId?: number, personId?: number): SQL => sql`
  */
 const ANSWER = sql`
   left join lateral (
-    select a.status, a.no_show_reason from call_demo_attendance a
+    select a.status from call_demo_attendance a
     where a.call_lead_id = m.call_lead_id
       and (a.meeting_id is null or a.meeting_id = m.id)
       and (a.marked_at >= m.start_at or a.for_start_at = m.start_at)
@@ -136,10 +137,7 @@ export async function getMeetingStats(
         count(*) filter (where m.kind = 'demo'
           and (att.status is not null or m.status = 'accepted'))::int as demos,
         count(*) filter (where m.kind = 'demo' and att.status = 'showed_up')::int as showed,
-        count(*) filter (where m.kind = 'demo' and att.status = 'no_show'
-          and att.no_show_reason = 'voicemail')::int as voicemail,
-        count(*) filter (where m.kind = 'demo' and att.status = 'no_show'
-          and att.no_show_reason is distinct from 'voicemail')::int as no_answer,
+        count(*) filter (where m.kind = 'demo' and att.status = 'no_show')::int as no_show,
         count(*) filter (where m.kind = 'demo' and att.status = 'invalid')::int as not_real,
         count(*) filter (where m.kind = 'demo' and att.status is null
           and m.status = 'accepted' and m.start_at <= now())::int as unlogged,
@@ -210,8 +208,7 @@ export async function getMeetingStats(
     const d = dayOf(r.day);
     d.demos += Number(r.demos);
     d.showed += Number(r.showed);
-    d.voicemail += Number(r.voicemail);
-    d.noAnswer += Number(r.no_answer);
+    d.noShow += Number(r.no_show);
     d.notReal += Number(r.not_real);
     d.unlogged += Number(r.unlogged);
     d.upcoming += Number(r.upcoming);
@@ -245,6 +242,6 @@ export async function getMeetingStats(
 /** Showed up out of those whose answer is in: the show rate. Not-real and
  *  unlogged are left out of both sides — neither is a prospect deciding. */
 export const showRate = (c: MeetingCounts): number | null => {
-  const den = c.showed + c.voicemail + c.noAnswer;
+  const den = c.showed + c.noShow;
   return den === 0 ? null : c.showed / den;
 };

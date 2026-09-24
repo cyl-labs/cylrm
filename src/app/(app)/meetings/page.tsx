@@ -381,7 +381,7 @@ export default async function MeetingsPage({
                     <span className="font-semibold text-success">
                       {week.showed} showed up
                     </span>
-                    , {week.voicemail} voicemail, {week.noAnswer} no answer
+                    , {week.noShow} no show
                     {week.unlogged > 0 && (
                       <>
                         ,{" "}

@@ -92,23 +92,6 @@ const ATTENDANCE_LABEL = {
   invalid: "Not a real booking",
 } as const;
 
-type NoShowReason = Meeting["attendanceReason"];
-
-/** The answers on offer, in menu order. A no-show is asked which kind
- *  (2026-09-25) so Stats can count voicemails apart from nobody picking up —
- *  it was only ever written into the note before. Still one `no_show` to
- *  payroll and the ring back. */
-const ANSWERS: { status: DemoStatus; reason: NoShowReason; label: string }[] = [
-  { status: "showed_up", reason: null, label: "They showed up" },
-  { status: "no_show", reason: "voicemail", label: "No show: voicemail" },
-  { status: "no_show", reason: null, label: "No show: no answer" },
-  { status: "invalid", reason: null, label: "Not a real booking" },
-];
-
-const answerLabel = (status: DemoStatus, reason: NoShowReason) =>
-  status === "no_show" && reason === "voicemail"
-    ? "No show: voicemail"
-    : ATTENDANCE_LABEL[status];
 
 /** What a logged ring back reads as afterwards. Shorter than the menu labels,
  *  which are written as the answer to "how did the call go". */
@@ -556,7 +539,6 @@ export function MeetingsList({
   const [answering, setAnswering] = React.useState<{
     meetingId: number;
     status: DemoStatus;
-    reason: NoShowReason;
     notes: string;
   } | null>(null);
   /**
@@ -696,7 +678,6 @@ export function MeetingsList({
     meeting: Meeting,
     status: DemoStatus,
     notes: string,
-    reason: NoShowReason = null,
   ) {
     if (meeting.bookingCallId === null) return;
     setBusy(meeting.id);
@@ -713,7 +694,6 @@ export function MeetingsList({
           // lets it be given before the meeting starts (2026-09-25).
           meetingId: meeting.id,
           status,
-          reason,
           notes: notes.trim(),
         }),
       });
@@ -724,7 +704,7 @@ export function MeetingsList({
       }
       setAnswering(null);
       toast.success(
-        `${answerLabel(status, reason)}: ${meeting.company ?? meeting.attendeeName ?? "meeting"}`,
+        `${ATTENDANCE_LABEL[status]}: ${meeting.company ?? meeting.attendeeName ?? "meeting"}`,
       );
       // A no-show is followed up by the founders, every time (2026-09-24), and
       // the decision is asked for now: a call back on their calendar, or dead.
@@ -1027,7 +1007,7 @@ export function MeetingsList({
                         "border-destructive/40 text-destructive",
                     )}
                   >
-                    {answerLabel(m.attendance, m.attendanceReason)}
+                    {ATTENDANCE_LABEL[m.attendance]}
                   </Badge>
                 )}
                 {/* A reply is the one thing on a row that may need answering
@@ -1309,22 +1289,23 @@ export function MeetingsList({
                           saying: this answer is what the caller is paid on. */}
                       <p className="max-w-60 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
                         {hasStarted
-                          ? "Showed up means they picked up and stayed on while the agent was brought in. No answer, or they could not stay, is a no show."
+                          ? "Showed up means they picked up and stayed on while the agent was brought in. Ringing out or voicemail is a no show. Picked up but could not talk now? Move this demo to a new time instead."
                           : "This has not started yet. Answer now only to write off a booking that is not real. Moving the meeting to a new time clears the answer."}
                       </p>
-                      {ANSWERS.map((a) => (
+                      {(
+                        Object.keys(ATTENDANCE_LABEL) as DemoStatus[]
+                      ).map((sVal) => (
                         <DropdownMenuItem
-                          key={a.label}
+                          key={sVal}
                           onSelect={() =>
                             setAnswering({
                               meetingId: m.id,
-                              status: a.status,
-                              reason: a.reason,
+                              status: sVal,
                               notes: m.attendanceNotes ?? "",
                             })
                           }
                         >
-                          {a.label}
+                          {ATTENDANCE_LABEL[sVal]}
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
@@ -1728,7 +1709,7 @@ export function MeetingsList({
             {answering?.meetingId === m.id && (
               <div className="mt-3 rounded-lg border bg-background p-3">
                 <p className="text-[13px] font-bold">
-                  {answerLabel(answering.status, answering.reason)}
+                  {ATTENDANCE_LABEL[answering.status]}
                 </p>
                 <Textarea
                   autoFocus
@@ -1743,9 +1724,7 @@ export function MeetingsList({
                   <Button
                     size="sm"
                     disabled={busy === m.id}
-                    onClick={() =>
-                      mark(m, answering.status, answering.notes, answering.reason)
-                    }
+                    onClick={() => mark(m, answering.status, answering.notes)}
                   >
                     {busy === m.id ? "Saving…" : "Log it"}
                   </Button>

@@ -456,8 +456,6 @@ export type Meeting = {
    * hold notes, and the ring-back notes only exist once a no show is marked.
    */
   attendanceNotes: string | null;
-  /** Why a no-show was one: "voicemail", or null (2026-09-25). */
-  attendanceReason: "voicemail" | null;
   /** Why this number may not be rung, or null. Blocks the clipboard as well
    *  as any dial button, exactly as it does everywhere else. */
   dncBlock: string | null;
@@ -855,12 +853,6 @@ const meetingSelect = sql`
     where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
     order by a.marked_at desc limit 1
   ) as attendance_notes,
-  -- Why, when it was a no-show. Same row and ordering again.
-  (
-    select a.no_show_reason from call_demo_attendance a
-    where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
-    order by a.marked_at desc limit 1
-  ) as attendance_reason,
   -- A founder moved this meeting to a call back (2026-09-24). See the cb
   -- lateral in joins, and the founder_call table.
   cb.id as call_back_id, cb.start_at as call_back_at, cb.tries as call_back_tries,
@@ -1142,7 +1134,6 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     website: (r.website as string | null) ?? null,
     attendance: (r.attendance as Meeting["attendance"]) ?? null,
     attendanceNotes: (r.attendance_notes as string | null) ?? null,
-    attendanceReason: r.attendance_reason === "voicemail" ? "voicemail" : null,
     listId: r.list_id === null || r.list_id === undefined ? null : n(r.list_id),
     listName: (r.list_name as string | null) ?? null,
     niche: (r.niche as string | null) ?? null,

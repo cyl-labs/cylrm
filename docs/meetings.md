@@ -2082,9 +2082,15 @@ and the sidebar badge read the new columns on every page).
   backs from `call_meeting_followup` (the founders' call backs log there too).
   Callers see only the demos they booked — `personId` is **who booked it** on
   every ledger.
-- **Voicemail is `call_demo_attendance.no_show_reason`**, picked from "No show:
-  voicemail" / "No show: no answer" on the row. Still `no_show` to payroll and
-  the ring back. Backfilled from notes matching voicemail/vm; every other old
-  no-show counts as no answer.
+- **One kind of no show.** A voicemail / no answer split shipped and was
+  dropped the same day: a line nobody picks up goes to voicemail anyway, and
+  somebody who picks up and cannot talk has the meeting **moved**, not marked
+  (the menu says so). `call_demo_attendance.no_show_reason` is left in the
+  table, unused, holding 'voicemail' on 7 backfilled rows.
+- **Unlogged demos stay on Meetings for 7 days** (`needsLoggingFor`), from an
+  hour after the start, for founders and the assigned closer, with a red "Not
+  logged yet" note and a place in the badge. They left at twelve hours before,
+  and three sat in Past meetings undecided. "Not logged" counts on Stats and
+  Meetings link to Past meetings filtered to unanswered demos.
 - Clock windows ("last 7 days", all time) stop at now; date windows include
   meetings still ahead, since "how many meetings do I have today" wants them.
