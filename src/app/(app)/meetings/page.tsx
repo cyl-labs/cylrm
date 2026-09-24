@@ -10,6 +10,9 @@ import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
 import { getStoredBriefs } from "@/lib/meeting-brief";
+import { getFounderCalls } from "@/lib/founder-calls";
+import { FounderCallList } from "@/components/calls/founder-calls";
+import type { CalendarEvent } from "@/components/calls/meetings-calendar";
 import { getSavedLines } from "@/lib/calls";
 import { calConfigured } from "@/lib/cal";
 import { UnbookedDemos } from "@/components/calls/unbooked-demos";
@@ -196,6 +199,30 @@ export default async function MeetingsPage({
       ? Object.fromEntries(await getStoredBriefs(meetings.map((m) => m.id)))
       : null;
 
+  // The founders' own call backs (2026-09-24): set from the no-show pop-up,
+  // shown only to founders, and never on the history view.
+  const founderCalls =
+    me?.role === "admin" && !past ? await getFounderCalls() : [];
+  const founderCallsByMeeting = Object.fromEntries(
+    founderCalls.flatMap((c) =>
+      c.meetingId === null ? [] : [[c.meetingId, { id: c.id, startAt: c.startAt }]],
+    ),
+  );
+  // On the calendar beside the bookings, as their own kind of event.
+  const calendarEvents: CalendarEvent[] = [
+    ...meetings,
+    ...founderCalls.map((c) => ({
+      id: c.id,
+      kind: "founder_call" as const,
+      startAt: c.startAt,
+      endAt: null,
+      status: "accepted",
+      company: c.name,
+      attendeeName: null,
+      startingSoon: c.soon,
+    })),
+  ];
+
   let texting: Texting | null = null;
   if (me && smsEnabled() && (await canSendTexts(me.id, me.role))) {
     const did = await callerNumberOf(me.id);
@@ -368,7 +395,7 @@ export default async function MeetingsPage({
           <MeetingsCalendar
             span={span}
             anchor={anchor}
-            meetings={meetings}
+            meetings={calendarEvents}
             tz={zone.tz}
             zoneLabel={zone.label}
             today={today}
@@ -381,6 +408,15 @@ export default async function MeetingsPage({
             The grid answers "which day", and every job on this screen — ring
             them, log what happened, draft a contract — is on a row, so
             switching view must not take the work away. */}
+        {founderCalls.length > 0 && (
+          <FounderCallList
+            calls={founderCalls}
+            tz={zone.tz}
+            zoneLabel={zone.label}
+            dialFrom={await callerNumberOf(me?.id)}
+            lines={browserDialler ? await getSavedLines() : []}
+          />
+        )}
         <MeetingsList
           meetings={meetings}
           // The voice agent's own number among them, so the demo can be merged
@@ -404,6 +440,7 @@ export default async function MeetingsPage({
           followUpBookingUrl={process.env.CAL_FOLLOWUP_URL ?? null}
           texting={texting}
           briefs={briefs}
+          founderCalls={me?.role === "admin" ? founderCallsByMeeting : null}
           // Re-sending an invitation needs the Cal.com API, so an account
           // without a key draws no button rather than one that can only fail.
           // Not gated on role: the caller who typed the address wrong is the

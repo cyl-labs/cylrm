@@ -50,6 +50,7 @@ import { MeetingCallButton } from "@/components/calls/meeting-call-button";
 import type { SavedLine } from "@/components/calls/second-line";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
 import { MeetingBriefFold } from "@/components/calls/meeting-brief-fold";
+import { NoShowDialog } from "@/components/calls/founder-calls";
 import type { StoredBrief } from "@/lib/brief-lines";
 
 /**
@@ -307,6 +308,7 @@ export function MeetingsList({
   lines = [],
   canInvite = false,
   briefs = null,
+  founderCalls = null,
 }: {
   meetings: Meeting[];
   /** The screen's clock, chosen on the server. Passed rather than read from
@@ -350,6 +352,9 @@ export function MeetingsList({
    *  no Briefing fold: writing one costs an OpenAI call and the Briefing page
    *  and its route are founders only. */
   briefs?: Record<number, StoredBrief> | null;
+  /** The founders' own call back set for a meeting, by meeting. Null for a
+   *  caller: those are the founders' alone. */
+  founderCalls?: Record<number, { id: number; startAt: string }> | null;
 }) {
   const router = useRouter();
   /**
@@ -513,6 +518,13 @@ export function MeetingsList({
    * Prefilled from what is stored, so changing an answer carries the note with
    * it rather than asking for it again.
    */
+  // The no-show just marked, while its "when do you call them back?" pop-up
+  // is up. See `NoShowDialog`.
+  const [noShow, setNoShow] = React.useState<{
+    meetingId: number;
+    name: string;
+    theirTz: string | null;
+  } | null>(null);
   const [answering, setAnswering] = React.useState<{
     meetingId: number;
     status: DemoStatus;
@@ -646,6 +658,15 @@ export function MeetingsList({
       toast.success(
         `${ATTENDANCE_LABEL[status]}: ${meeting.company ?? meeting.attendeeName ?? "meeting"}`,
       );
+      // A no-show is followed up by the founders, every time (2026-09-24), and
+      // the decision is asked for now: a call back on their calendar, or dead.
+      if (status === "no_show") {
+        setNoShow({
+          meetingId: meeting.id,
+          name: meeting.company ?? meeting.attendeeName ?? "They",
+          theirTz: prospectZone(meeting.leadTz, meeting.attendeeTz),
+        });
+      }
       router.refresh();
     } catch {
       toast.error("Could not save that: network error.");
@@ -699,6 +720,7 @@ export function MeetingsList({
   }
 
   return (
+    <>
     <ul className="flex flex-col gap-2">
       {meetings.map((m) => {
         const cancelled = m.status === "cancelled";
@@ -948,6 +970,29 @@ export function MeetingsList({
                 missed it is warm, and the reason is usually something ordinary
                 that a new time fixes. Written as what to say rather than as a
                 status, like the dial card's booking steps. */}
+            {founderCalls?.[m.id] && (
+              <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-[13px]">
+                <span className="font-bold">You are calling them back</span>{" "}
+                <span suppressHydrationWarning>
+                  {new Intl.DateTimeFormat("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                    timeZone: tz,
+                  }).format(new Date(founderCalls[m.id].startAt))}
+                </span>
+                .{" "}
+                <a
+                  href={`#call-back-${founderCalls[m.id].id}`}
+                  className="font-semibold text-primary underline-offset-2 hover:underline"
+                >
+                  See your call backs
+                </a>
+              </p>
+            )}
+
             {m.needsRingBack && (
               <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[13px]">
                 <span className="font-bold">They did not turn up.</span> Ring
@@ -1157,6 +1202,15 @@ export function MeetingsList({
                     is what split the call from the outcome: you rang on one
                     screen and said how it went on another, so the recording had
                     nothing to attach to. */}
+                {/* A no-show is the founders' to follow up (2026-09-24), so a
+                    caller is told there is nothing to do rather than handed
+                    a button that rings them. */}
+                {!showWho && m.attendance === "no_show" ? (
+                  <p className="text-[12px] text-muted-foreground">
+                    No show. A founder follows these up, so there is nothing
+                    for you to do here.
+                  </p>
+                ) : (
                 <MeetingCallButton
                   who={m.company ?? m.attendeeName ?? "this prospect"}
                   to={m.dialTo}
@@ -1168,6 +1222,7 @@ export function MeetingsList({
                   label={m.needsRingBack ? "Ring them back" : "Call them"}
                   lines={lines}
                 />
+                )}
                 {/* Still offered when the browser cannot dial — a founder on a
                     handset needs the number in their hand. */}
                 {m.listId !== null && m.leadId !== null && !m.dncBlock && (
@@ -1829,5 +1884,15 @@ export function MeetingsList({
         );
       })}
     </ul>
+    {noShow && (
+      <NoShowDialog
+        meetingId={noShow.meetingId}
+        name={noShow.name}
+        theirTz={noShow.theirTz}
+        readerTz={tz}
+        onClose={() => setNoShow(null)}
+      />
+    )}
+    </>
   );
 }

@@ -1730,6 +1730,44 @@ export const callSms = pgTable(
 );
 
 /**
+ * A call a founder put on the Meetings calendar for themselves (2026-09-24).
+ *
+ * Deliberately not a callback and not a Cal.com booking: callers never see it,
+ * and nothing is ever sent to the prospect. See
+ * `2026-09-24-founder-call.sql`.
+ */
+export const founderCall = pgTable(
+  "founder_call",
+  {
+    id: serial("id").primaryKey(),
+    meetingId: integer("meeting_id").references(() => callMeeting.id, {
+      onDelete: "set null",
+    }),
+    callLeadId: integer("call_lead_id").references(() => callLead.id, {
+      onDelete: "set null",
+    }),
+    name: text("name"),
+    phone: text("phone"),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    notes: text("notes"),
+    createdBy: integer("created_by").references(() => appUser.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+  },
+  // Declared here as well as in the migration: `drizzle-kit push` drops any
+  // index it cannot see in this file.
+  (t) => [
+    index("founder_call_open_idx")
+      .on(t.startAt)
+      .where(sql`done_at is null`),
+  ],
+);
+
+/**
  * A conversation somebody archived on the Texts screen, for them alone.
  *
  * The time, not a flag: a conversation is archived only while nothing has

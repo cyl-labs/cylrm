@@ -86,6 +86,60 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
     prospect's clock and who booked it; "when did we agree this" is a question
     a day answers.
 
+### No-shows are the founders' now: the pop-up and their own call backs (2026-09-24)
+
+`NoShowDialog` and `FounderCallList` (`components/calls/founder-calls.tsx`),
+`lib/founder-calls.ts`, `/api/founder-calls` and `/api/founder-calls/[id]`,
+table `founder_call` from `2026-09-24-founder-call.sql` (**apply before the
+deploy**: the founders' Meetings badge counts it on every page).
+
+- **Asked for in three steps**, and each one ruled something out: "a button for
+  founder callback for meetings — I don't want my callers to call them back",
+  then "don't put it in callback, just set a separate meeting event on the
+  calendar", then "I don't mean reschedule, I don't want to notify them", and
+  finally "for no shows add a pop up asking when to call them back, then a
+  button to say … this is dead … instead of a dedicated call back button,
+  since for all no shows I'll follow up no matter what".
+- **So a founders' call back is neither of the two things that existed.** Not
+  a `call` with outcome `callback`: that is the floor's work order, and lands in
+  the niche owner's queue and morning reminder. Not a `call_meeting`: that is a
+  Cal.com booking, moving one emails the prospect, and attendance and payroll
+  read a row there as a demo. Its own table, read only by founders, sent
+  nowhere.
+- **The pop-up opens the moment a founder saves "No show"** in Log what
+  happened. Three answers:
+  - **A time** (read in the prospect's zone, like every callback box) creates a
+    `founder_call`. Setting it again for the same meeting moves the open one
+    rather than adding a second.
+  - **Dead — take them off my list** logs the ring back as `cancelled` ("Not
+    rebooking") through `POST /api/meetings/[id]/followup`, the same route the
+    ring-back logger uses, so it is recorded the way it always was. It does not
+    relabel the booking call as Lost: that call is what the caller's stats and
+    pay read as a booked demo.
+  - **Decide later** closes it; the no-show stays on the founders' list as a
+    ring back, as before.
+- **A founders' call back takes the ring back off the list** — `needsRingBack`
+  is false once a `founder_call` exists for the meeting, created after it
+  began. The row says "You are calling them back …" and links to the card.
+- **Callers no longer ring no-shows back** (`ringBackFor` in `lib/meetings.ts`).
+  A scoped view — one person's niches — never has a ring back owed: no red
+  note, no "Ring them back", nothing in their badge. A no-show row still on
+  their list says "No show. A founder follows these up" where the call button
+  was. This is a change of policy, not a bug fix: the ring back was the
+  caller's job until this day.
+- **Where the call backs show, founders only**: amber "Call back" chips on the
+  calendar (a third kind of `CalendarEvent`, beside the clay demos and green
+  follow-ups — the calendar only reads eight fields, so no Cal.com fields are
+  faked), a "Your call backs" list above the meetings with Call them, Open
+  lead, Done, Change time and Remove, and due ones in the Meetings badge
+  (`countFounderCallsDue`). Change time only moves the entry; nothing reaches
+  the prospect, which the dialog says because "Move this demo" beside it does
+  email them.
+- Verified in a browser against local data: the pop-up on No show, both
+  answers, Decide later leaving the ring back, Change time, Done, the calendar
+  chip and header count, and a caller's view of both kinds of no-show. The
+  call itself from a card was not placed: there was no live line.
+
 ### The demo briefing (2026-09-22)
 
 `/meetings/brief`, founders only. `lib/meeting-brief.ts` gathers and writes,

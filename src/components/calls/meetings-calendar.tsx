@@ -179,11 +179,30 @@ function minutesOf(isoTime: string, tz: string): number {
 const hourLabel = (hour: number) =>
   `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? "AM" : "PM"}`;
 
-/** What a meeting is, said rather than left to a colour. */
-const kindLabel = (m: Meeting) =>
-  m.kind === "follow_up" ? "Follow-up" : "Demo";
+/**
+ * Anything the calendar draws: a booked meeting, or a call a founder put on
+ * the calendar for themselves (`founder_call`, 2026-09-24 — see
+ * `lib/founder-calls.ts`). Only the fields the grid reads, so a founders' call
+ * back needs none of a booking's Cal.com and attendance machinery to appear.
+ */
+export type CalendarEvent = Pick<
+  Meeting,
+  "id" | "startAt" | "endAt" | "status" | "company" | "attendeeName" | "startingSoon"
+> & { kind: Meeting["kind"] | "founder_call" };
 
-const nameOf = (m: Meeting) => m.company ?? m.attendeeName ?? "Demo";
+/** Meetings and founders' call backs number from different tables, so an id
+ *  alone can repeat across the two. */
+const eventKey = (m: CalendarEvent) => `${m.kind}-${m.id}`;
+
+/** What a meeting is, said rather than left to a colour. */
+const kindLabel = (m: CalendarEvent) =>
+  m.kind === "founder_call"
+    ? "Your call back"
+    : m.kind === "follow_up"
+      ? "Follow-up"
+      : "Demo";
+
+const nameOf = (m: CalendarEvent) => m.company ?? m.attendeeName ?? "Demo";
 
 /**
  * Where each appointment sits in its day, and how wide.
@@ -194,7 +213,7 @@ const nameOf = (m: Meeting) => m.company ?? m.attendeeName ?? "Demo";
  * halve the width of an untroubled 4pm call.
  */
 type Placed = {
-  m: Meeting;
+  m: CalendarEvent;
   start: number;
   end: number;
   col: number;
@@ -202,7 +221,7 @@ type Placed = {
 };
 
 /** How long a booking runs, in minutes. */
-const lengthOf = (m: Meeting) =>
+const lengthOf = (m: CalendarEvent) =>
   m.endAt
     ? Math.max(
         15,
@@ -249,7 +268,7 @@ function assignColumns(items: Placed[]): Placed[] {
 }
 
 /** One day's appointments, measured from its own midnight. */
-function place(rows: Meeting[], tz: string): Placed[] {
+function place(rows: CalendarEvent[], tz: string): Placed[] {
   return assignColumns(
     rows.map((m) => {
       const start = minutesOf(m.startAt, tz);
@@ -269,7 +288,11 @@ function place(rows: Meeting[], tz: string): Placed[] {
 
 /** The same, measured in minutes from a moment — the rolling window's start.
  *  Midnight is just another line here, which is the entire point of it. */
-function placeFrom(rows: Meeting[], startMs: number, minutes: number): Placed[] {
+function placeFrom(
+  rows: CalendarEvent[],
+  startMs: number,
+  minutes: number,
+): Placed[] {
   return assignColumns(
     rows.map((m) => {
       const start = (new Date(m.startAt).getTime() - startMs) / 60000;
@@ -416,7 +439,7 @@ function Chip({
   layout,
   forCaller = false,
 }: {
-  m: Meeting;
+  m: CalendarEvent;
   tz: string;
   layout: "month" | "grid";
   /** See `forCaller` on `MeetingsCalendar`. */
@@ -424,12 +447,14 @@ function Chip({
 }) {
   const off = m.status === "cancelled";
   const follow = m.kind === "follow_up";
+  const mine = m.kind === "founder_call";
   return (
     // A link into its own row in the list below, not a second place to act
     // from — see the module comment. `#meeting-<id>` needs the list's `<li>`
-    // to carry that same id, which is the only coupling between the two.
+    // to carry that same id, which is the only coupling between the two; a
+    // founders' call back links to its card in "Your call backs" the same way.
     <Link
-      href={`#meeting-${m.id}`}
+      href={mine ? `#call-back-${m.id}` : `#meeting-${m.id}`}
       title={`${timeOf(m.startAt, tz, true)} · ${
         follow && forCaller
           ? "Founders' call — a founder rings them, nothing for you to do"
@@ -440,6 +465,12 @@ function Chip({
         layout === "month" ? "text-[11px]" : "h-full text-[11px]",
         off
           ? "bg-muted text-muted-foreground line-through"
+          : mine
+            ? // Amber for a call the founders make themselves: neither a
+              // booking (clay) nor the follow-up after one (green).
+              m.startingSoon
+              ? "bg-amber-500 text-amber-950 font-semibold"
+              : "bg-amber-500/15 text-amber-800 font-medium dark:text-amber-300"
           : follow
             ? // Green for the second conversation, clay for the first. The
               // colour is the glance; the word under it is the answer.
@@ -461,7 +492,13 @@ function Chip({
       <span className="truncate text-[10px] font-semibold opacity-80">
         <span className="tabular-nums">{timeOf(m.startAt, tz)}</span>
         {" · "}
-        {follow ? (forCaller ? "Founders" : "Follow-up") : "Demo"}
+        {mine
+          ? "Call back"
+          : follow
+            ? forCaller
+              ? "Founders"
+              : "Follow-up"
+            : "Demo"}
       </span>
       {/* One line in the grid, two in a month cell. A grid block is sized by
           how long the booking runs, and a half-hour one is 32px — exactly two
@@ -506,7 +543,7 @@ export function MeetingsCalendar({
   /** Every meeting the reader may see. Filtered to the range here rather than
    *  in the query: the list beside it wants the same rows, and paging should
    *  not cost a round trip to the database. */
-  meetings: Meeting[];
+  meetings: CalendarEvent[];
   /** The reader's own clock, from the picker at the top of the screen. */
   tz: string;
   zoneLabel: string;
@@ -521,7 +558,7 @@ export function MeetingsCalendar({
    *  span change — the bug `call-filters.tsx` documents at length. */
   query: string;
 }) {
-  const byDay = new Map<string, Meeting[]>();
+  const byDay = new Map<string, CalendarEvent[]>();
   for (const m of meetings) {
     // Cancelled bookings are off the calendar entirely (2026-09-20, founders':
     // "i dont think theres a point seeing cancelled on the calendar"). They
@@ -560,10 +597,11 @@ export function MeetingsCalendar({
         })
       : [];
 
-  const shown =
-    span === "next24"
-      ? rolling.length
-      : days.reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
+  const inView =
+    span === "next24" ? rolling : days.flatMap((d) => byDay.get(d) ?? []);
+  const shown = inView.length;
+  const callBacks = inView.filter((m) => m.kind === "founder_call").length;
+  const booked = shown - callBacks;
 
   // Every control keeps the view and the zone. The month arrows used to drop
   // `view=calendar`, so turning the page bounced the reader back to the list
@@ -617,7 +655,14 @@ export function MeetingsCalendar({
           ? span === "next24"
             ? "Nothing in the next 24 hours"
             : `Nothing booked this ${span}`
-          : `${shown} ${shown === 1 ? "demo" : "demos"} · times in ${zoneLabel}`}
+          : `${[
+              booked > 0 ? `${booked} ${booked === 1 ? "demo" : "demos"}` : null,
+              callBacks > 0
+                ? `${callBacks} ${callBacks === 1 ? "call back" : "call backs"}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(", ")} · times in ${zoneLabel}`}
       </span>
       <div className="ml-auto flex items-center gap-1">
         {/* No Today and no arrows on the rolling window: it starts at this
@@ -746,7 +791,7 @@ export function MeetingsCalendar({
                 </div>
                 <div className="mt-0.5 flex flex-col gap-0.5">
                   {rows.slice(0, MONTH_CHIPS).map((m) => (
-                    <Chip key={m.id} m={m} tz={tz} layout="month" forCaller={forCaller} />
+                    <Chip key={eventKey(m)} m={m} tz={tz} layout="month" forCaller={forCaller} />
                   ))}
                   {rows.length > MONTH_CHIPS && (
                     <Link
@@ -915,7 +960,7 @@ export function MeetingsCalendar({
             )}
             {placedRoll.map((pl) => (
               <div
-                key={pl.m.id}
+                key={eventKey(pl.m)}
                 className="absolute px-[2px]"
                 style={{
                   top: yFor(rollGrid.slots, pl.start),
@@ -1047,7 +1092,7 @@ export function MeetingsCalendar({
                 );
                 return (
                   <div
-                    key={p.m.id}
+                    key={eventKey(p.m)}
                     className="absolute px-[2px]"
                     style={{
                       top,

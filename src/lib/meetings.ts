@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { sql } from "drizzle-orm";
+import { countFounderCallsDue } from "@/lib/founder-calls";
 import { db } from "@/db";
 import { dncBlockReason } from "@/lib/dnc";
 import { dialCountry, e164 } from "@/lib/phone";
@@ -871,9 +872,29 @@ const needsRingBack = sql`coalesce(
   and not exists (
     select 1 from call_meeting_followup fu
     where fu.meeting_id = m.id and fu.for_start_at = m.start_at
+  )
+  -- A founder put their own call back on the calendar for it (2026-09-24,
+  -- founder_call): the ring back is theirs now, owed from "Your call backs"
+  -- rather than from this row.
+  and not exists (
+    select 1 from founder_call fc
+    where fc.meeting_id = m.id and fc.created_at >= m.start_at
   ),
   false
 )`;
+
+/**
+ * Whose ring back it is: the founders' (2026-09-24).
+ *
+ * A no-show used to be the caller's to ring back — the red note, the "Ring
+ * them back" button and a place in their Meetings badge. The founders now
+ * follow up every no-show themselves ("I don't want my callers to call them
+ * back … for all no shows I'll follow up no matter what"), deciding on the
+ * spot when they mark it: a call back on their own calendar, or dead. So for a
+ * caller's view — any scoped to one person's niches — nothing is owed.
+ */
+const ringBackFor = (ownerId?: number) =>
+  ownerId === undefined ? needsRingBack : sql`false`;
 
 const startingSoon = (tz: string) => sql`
   m.status = 'accepted'
@@ -1110,7 +1131,7 @@ export async function getMeetings(
     select ${meetingSelect},
       (m.start_at <= now()) as started,
       (${startingSoon(tz)}) as starting_soon,
-      (${needsRingBack}) as needs_ring_back,
+      (${ringBackFor(ownerId)}) as needs_ring_back,
       (${needsFollowUp}) as needs_follow_up
     from call_meeting m
     ${joins}
@@ -1122,7 +1143,7 @@ export async function getMeetings(
               -- A missed demo outstays the twelve hours: it is the one call
               -- worth making, and a row that vanished overnight is a call
               -- nobody makes.
-              or (${needsRingBack})
+              or (${ringBackFor(ownerId)})
               -- So does one that happened and is still being worked: the
               -- mock-up call comes days later and is logged from this row.
               or (${needsFollowUp})
@@ -1157,7 +1178,7 @@ export async function getMeetings(
       -- kept the row alive is above the demo that is closed out. Nothing is
       -- hidden either way — this only decides which of two past rows is
       -- higher.
-      (${needsRingBack} or ${needsFollowUp}) desc,
+      (${ringBackFor(ownerId)} or ${needsFollowUp}) desc,
       -- Then most recent, because the further back it is the less likely it
       -- is still the thing being dealt with.
       m.start_at desc,
@@ -1188,7 +1209,7 @@ export const countMeetingsWaiting = cache(
       select count(m.id) as n
       from call_meeting m
       ${joins}
-      where ((${startingSoon(tz)}) or (${needsRingBack})) ${ownedBy(ownerId)}
+      where ((${startingSoon(tz)}) or (${ringBackFor(ownerId)})) ${ownedBy(ownerId)}
     `)) as Row[];
     return n(row?.n);
   },
@@ -1208,11 +1229,14 @@ export async function countMeetingsWaitingFor(
   const zone = statsZone(
     (await statsRegionOf(me?.id)) ?? (await callRegionOf(me?.id)),
   );
-  const [waiting, unbooked] = await Promise.all([
+  const [waiting, unbooked, callBacks] = await Promise.all([
     countMeetingsWaiting(callScope(me), zone.tz),
     countUnbookedDemos(callScope(me)),
+    // The founders' own call backs that are due (2026-09-24) — theirs alone,
+    // so only ever counted for a founder.
+    me?.role === "admin" ? countFounderCallsDue() : Promise.resolve(0),
   ]);
-  return waiting + unbooked;
+  return waiting + unbooked + callBacks;
 }
 
 /**
