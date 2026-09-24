@@ -19,6 +19,7 @@ import {
   listFilterQuery,
   type ListFilters as Filters,
 } from "@/lib/list-filter";
+import { beginNavigation } from "@/components/navigation-progress";
 
 const MARKETS: { value: Filters["market"]; label: string }[] = [
   { value: "any", label: "Any market" },
@@ -53,8 +54,10 @@ export function ListFilters({
   total: number;
 }) {
   const router = useRouter();
-  const go = (next: Filters) =>
+  const go = (next: Filters) => {
+    beginNavigation(`/calls${listFilterQuery(next)}`);
     router.replace(`/calls${listFilterQuery(next)}`, { scroll: false });
+  };
 
   // The search box keeps its own text so typing is instant, and sends it on a
   // short pause rather than on every key, which would re-render the screen

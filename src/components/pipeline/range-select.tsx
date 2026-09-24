@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { beginNavigation } from "@/components/navigation-progress";
 
 const OPTIONS = [
   { value: "7", label: "Last 7 days" },
@@ -22,7 +23,10 @@ export function RangeSelect({ value }: { value: string }) {
   return (
     <Select
       value={value}
-      onValueChange={(v) => router.replace(`${pathname}?range=${v}`)}
+      onValueChange={(v) => {
+        beginNavigation(`${pathname}?range=${v}`);
+        router.replace(`${pathname}?range=${v}`);
+      }}
     >
       <SelectTrigger size="sm" className="w-36">
         <SelectValue />

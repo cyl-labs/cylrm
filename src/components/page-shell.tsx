@@ -76,7 +76,11 @@ export async function PageShell({
           positioned ancestor) resolve against the viewport instead, escape the
           overflow clip, and give tall pages a second window-level scrollbar
           into empty space. */}
-      <div className="relative min-h-0 flex-1 overflow-auto">{children}</div>
+      {/* `data-page-body` is what dims while a filter or another page is
+          loading — see `NavigationProgress`. */}
+      <div data-page-body className="relative min-h-0 flex-1 overflow-auto">
+        {children}
+      </div>
     </div>
   );
 }

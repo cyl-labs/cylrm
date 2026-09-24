@@ -13,6 +13,8 @@ import { InboundListener } from "@/components/calls/inbound-listener";
 import { RingBackLog } from "@/components/calls/ring-back-log";
 import { CallLineProvider } from "@/components/calls/call-line";
 import { TabSync } from "@/components/tab-sync";
+import { NavigationProgress } from "@/components/navigation-progress";
+import { Suspense } from "react";
 import { CalBookingProvider } from "@/components/calls/book-demo";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
@@ -163,6 +165,11 @@ export default async function AppLayout({
       {/* A change saved in one CRM tab refreshes the others — the badges and
           lists are server-rendered and otherwise wait for a reload. */}
       <TabSync />
+      {/* A bar, a "Loading…" label and a dimmed page while a filter or a
+          screen is on its way. Suspense because it reads the search params. */}
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
       {/* Draws the call on every screen that is not a calling screen: a
           prospect ringing back, and a call still in progress after somebody
           has navigated away from the dial card. */}

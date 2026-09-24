@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { beginNavigation } from "@/components/navigation-progress";
 
 /**
  * Narrow the call log to one outcome, or to the keypad.
@@ -57,6 +58,7 @@ export function LogFilter({
     // The table is well down the page, so keep the scroll position: jumping
     // back to the top to read a list you were already reading is worse than
     // no filter at all.
+    beginNavigation(query ? `${pathname}?${query}` : pathname);
     router.replace(query ? `${pathname}?${query}` : pathname, {
       scroll: false,
     });

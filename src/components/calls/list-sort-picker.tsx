@@ -13,6 +13,7 @@ import {
   LIST_SORTS,
   type ListSort,
 } from "@/lib/list-sort";
+import { beginNavigation } from "@/components/navigation-progress";
 
 /**
  * How the Call lists screen is ordered.
@@ -42,6 +43,7 @@ export function ListSortPicker({
           if (mine) q.set("mine", mine);
           if (next !== DEFAULT_LIST_SORT) q.set("sort", next);
           const qs = q.toString();
+          beginNavigation(qs ? `/calls?${qs}` : "/calls");
           router.replace(qs ? `/calls?${qs}` : "/calls", { scroll: false });
         }}
       >

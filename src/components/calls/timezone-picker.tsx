@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { beginNavigation } from "@/components/navigation-progress";
 
 /**
  * Which clock the calling numbers are read in.
@@ -50,6 +51,7 @@ export function TimezonePicker({ region }: { region: StatsRegion }) {
     // A day picked in one zone is a different eight hours in another, but it
     // is still the day that was asked for, so `day`, `range` and `month` are
     // all left exactly as they are.
+    beginNavigation(`${pathname}?${q.toString()}`);
     router.replace(`${pathname}?${q.toString()}`);
   }
 

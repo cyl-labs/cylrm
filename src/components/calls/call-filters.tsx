@@ -13,6 +13,7 @@ import {
 // Same formatter the range tabs use, so "25 Aug 2026" cannot be written one
 // way on one screen and another way on the next.
 import { formatStatsDate } from "@/components/calls/range-tabs";
+import { beginNavigation } from "@/components/navigation-progress";
 
 /**
  * Any other day is one tap on the calendar, which is a better day picker than
@@ -94,6 +95,7 @@ export function CallFilters({
     else if (range) params.set("range", range);
 
     const query = params.toString();
+    beginNavigation(query ? `${pathname}?${query}` : pathname);
     router.replace(query ? `${pathname}?${query}` : pathname);
   }
 

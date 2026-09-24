@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { beginNavigation } from "@/components/navigation-progress";
 
 /**
  * "What happened" rather than the raw `attendance`/`status` columns, because
@@ -54,6 +55,7 @@ export function PastMeetingsFilters({
     const q = new URLSearchParams(params.toString());
     if (value === "all") q.delete(key);
     else q.set(key, value);
+    beginNavigation(`${pathname}?${q.toString()}`);
     router.replace(`${pathname}?${q.toString()}`);
   }
 

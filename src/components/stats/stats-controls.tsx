@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { beginNavigation } from "@/components/navigation-progress";
 
 const RANGE_OPTIONS = [
   { value: "7", label: "Last 7 days" },
@@ -49,6 +50,7 @@ export function StatsControls({
       params.set("a", next.a ?? (a !== null ? String(a) : ""));
       params.set("b", next.b ?? (b !== null ? String(b) : ""));
     }
+    beginNavigation(`/stats?${params.toString()}`);
     router.replace(`/stats?${params.toString()}`);
   }
 

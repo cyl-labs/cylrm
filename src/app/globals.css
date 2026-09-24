@@ -191,3 +191,30 @@
     display: none; /* Chrome, Safari */
   }
 }
+/* The navigation indicator — see `components/navigation-progress.tsx`.
+ *
+ * While a change of page or filter is loading, the screen underneath dims
+ * after a beat so it reads as the old page, not the answer. Only the page's
+ * own body: the header and the sidebar stay as they are, so the thing that was
+ * just clicked stays readable. The delay is on the way in only, so a quick
+ * load never dims and the page comes back at once. */
+@keyframes nav-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes nav-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(260%);
+  }
+}
+[data-page-body] {
+  transition: opacity 150ms ease;
+}
+html[data-navigating] [data-page-body] {
+  opacity: 0.55;
+  transition: opacity 200ms ease 400ms;
+}

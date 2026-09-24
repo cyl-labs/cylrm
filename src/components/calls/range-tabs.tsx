@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { beginNavigation } from "@/components/navigation-progress";
 
 /**
  * Range picker that keeps the rest of the query string.
@@ -118,6 +119,7 @@ export function RangeTabs({
   function push(mutate: (next: URLSearchParams) => void) {
     const next = new URLSearchParams(params.toString());
     mutate(next);
+    beginNavigation(`${pathname}?${next.toString()}`);
     router.push(`${pathname}?${next.toString()}`);
   }
 
