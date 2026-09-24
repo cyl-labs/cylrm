@@ -26,6 +26,7 @@ import { Loader2 } from "lucide-react";
  */
 
 const NAV_EVENT = "cylrm-navigating";
+const HELD_EVENT = "cylrm-navigation-held";
 const GIVE_UP_MS = 20_000;
 
 /** Say a navigation is starting. For code that changes the address itself —
@@ -33,6 +34,14 @@ const GIVE_UP_MS = 20_000;
 export function beginNavigation(href?: string) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(NAV_EVENT, { detail: href ?? null }));
+}
+
+/** Say a navigation that was started will not happen after all — held back by
+ *  `DeployGuard` during a call — so the page is not left dimmed until the
+ *  twenty seconds run out. */
+export function cancelNavigation() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(HELD_EVENT));
 }
 
 /** Where this click would go is where we already are: nothing to wait for. */
@@ -86,11 +95,13 @@ export function NavigationProgress() {
     };
     const onPop = () => setPending(false);
     window.addEventListener(NAV_EVENT, onNav);
+    window.addEventListener(HELD_EVENT, onPop);
     // Capture, so a link whose own handler stops the click still counts.
     document.addEventListener("click", onClick, true);
     window.addEventListener("popstate", onPop);
     return () => {
       window.removeEventListener(NAV_EVENT, onNav);
+      window.removeEventListener(HELD_EVENT, onPop);
       document.removeEventListener("click", onClick, true);
       window.removeEventListener("popstate", onPop);
     };

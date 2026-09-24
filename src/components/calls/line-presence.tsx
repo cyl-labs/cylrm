@@ -117,6 +117,7 @@ const LineContext = React.createContext<{
   claimed: boolean;
   leader: boolean;
   claim: () => () => void;
+  onCall: boolean;
   setOnCall: (onCall: boolean) => void;
   ringDrawn: boolean;
   drawRing: () => () => void;
@@ -126,6 +127,7 @@ const LineContext = React.createContext<{
   claimed: false,
   leader: true,
   claim: () => () => {},
+  onCall: false,
   setOnCall: () => {},
   ringDrawn: false,
   drawRing: () => () => {},
@@ -341,13 +343,14 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
       claimed: holders > 0,
       leader,
       claim,
+      onCall,
       setOnCall,
       ringDrawn: ringDrawers > 0,
       drawRing,
       elsewhere,
       take,
     }),
-    [holders, leader, claim, ringDrawers, drawRing, elsewhere, take],
+    [holders, leader, claim, onCall, ringDrawers, drawRing, elsewhere, take],
   );
   return <LineContext.Provider value={value}>{children}</LineContext.Provider>;
 }
@@ -381,6 +384,12 @@ export function useClaimLine(active: boolean): void {
     if (!active) return;
     return claim();
   }, [active, claim]);
+}
+
+/** True while this tab's phone has a call up, ringing included — the tab a
+ *  reload would hang up on. See `DeployGuard`. */
+export function useTabOnCall(): boolean {
+  return React.useContext(LineContext).onCall;
 }
 
 /** Held true by the tab's phone while a call is up, ringing included, so the

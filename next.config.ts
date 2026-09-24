@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
   // external-module resolution for the packages above.
   outputFileTracingRoot: __dirname,
   turbopack: { root: __dirname },
+  // Which build this is, stamped into the browser's code and the server's
+  // alike, so an open tab can tell when the server has moved past the code it
+  // is running — see `DeployGuard`. Set by scripts/deploy.sh; a build without
+  // it is "dev", which the guard reads as "cannot tell" and never acts on.
+  env: { CYLRM_BUILD_ID: process.env.CYLRM_BUILD_ID || "dev" },
 };
 
 export default nextConfig;
