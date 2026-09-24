@@ -1,3 +1,4 @@
+import { isFloor } from "@/lib/roles";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
       `)) as Record<string, unknown>[];
 
       if (!person) return { error: "No such person.", status: 404 } as const;
-      if (person.role !== "caller") {
+      if (!isFloor(person.role)) {
         return { error: "Only callers are on payroll.", status: 400 } as const;
       }
 

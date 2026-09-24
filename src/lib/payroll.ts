@@ -191,7 +191,7 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
       order by paid_at desc
       limit 1
     ) res on true
-    where u.role = 'caller'
+    where u.role in ('caller', 'closer')
     -- Name order here is only a stable base for the sort below; what the
     -- screen shows is decided in JS, where the total actually exists.
     order by u.name asc
@@ -313,7 +313,7 @@ const NO_SHOW_CORRECTION_DAYS = 14;
  *
  * **Only bookings that could pay somebody appear.** A demo logged by a founder
  * or by nobody at all can never move a commission — `getPayrollRows` counts
- * `role = 'caller'` and nothing else — so asking whether it showed up is a
+ * `role` caller or closer and nothing else — so asking whether it showed up is a
  * question with no consequence, and the answer was being rendered "Showed up ·
  * $30" beside a booking that pays nothing. Three of the first six rows on this
  * screen were the founders' own bookings.
@@ -335,7 +335,7 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
     -- An inner join, unlike everywhere else this table is read: a booking with
     -- no user, or one whose user is not a caller, can never pay anybody, and a
     -- payroll worklist has no business asking a question with no consequence.
-    join app_user u on u.id = c.user_id and u.role = 'caller'
+    join app_user u on u.id = c.user_id and u.role in ('caller', 'closer')
     left join call_demo_attendance a on a.call_id = c.id
     -- Where the lead stands now. The same "most recent call wins" rule the
     -- board and the spreadsheet derive a lead's state from, so the chip on a

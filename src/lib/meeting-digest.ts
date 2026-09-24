@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { notAnsweredYet } from "@/lib/attendance-sql";
 import { notificationsConfigured, notifyMeetingDigest } from "@/lib/notify";
 // No cycle: `lib/calls` does not import this module, and `call-time` is Intl
 // and nothing else.
@@ -152,6 +153,7 @@ export async function sendMeetingDigest(
     left join app_user u on u.id = c.user_id
     ${leadZone}
     where m.status = 'accepted'
+      and ${notAnsweredYet("m")}
       and m.start_at > ${now.toISOString()}::timestamptz
       and m.start_at <= ${now.toISOString()}::timestamptz
         + make_interval(hours => ${LOOKAHEAD_HOURS}::int)

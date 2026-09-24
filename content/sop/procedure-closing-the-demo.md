@@ -5,9 +5,11 @@ audience: admins
 title: Closing the Demo
 ---
 
-**Founders only.** This is the demo call, not the cold call — everything here
-happens after a caller has booked the meeting and handed it over. It is
-restricted for one reason: a caller is paid $30 when a booked demo shows up,
+**Founders and closers only.** This is the demo call, not the cold call —
+everything here happens after a caller has booked the meeting and handed it
+over. **Closers sell month to month only**: a term deal is a founder's to
+price, so the contract dialog only offers you month to month. It is restricted
+for one reason: a caller is paid $30 when a booked demo shows up,
 and nothing on this page changes what earns that. If any of it starts leaking
 into the cold call, callers stop booking and start closing, and the way they
 are paid no longer matches the job.

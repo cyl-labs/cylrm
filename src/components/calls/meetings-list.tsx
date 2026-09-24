@@ -15,6 +15,7 @@ import {
   FileSignature,
   FileText,
   Globe,
+  Handshake,
   Mail,
   MessageSquare,
   PhoneForwarded,
@@ -313,6 +314,8 @@ export function MeetingsList({
   lines = [],
   canInvite = false,
   briefs = null,
+  closerId = null,
+  closers = [],
 }: {
   meetings: Meeting[];
   /** The screen's clock, chosen on the server. Passed rather than read from
@@ -356,6 +359,12 @@ export function MeetingsList({
    *  no Briefing fold: writing one costs an OpenAI call and the Briefing page
    *  and its route are founders only. */
   briefs?: Record<number, StoredBrief> | null;
+  /** The reader's own id when they are a closer, else null. A row they were
+   *  handed (`closerUserId`) gets the closing controls a founder has. */
+  closerId?: number | null;
+  /** Who a founder can hand a meeting to. Empty for anybody else, and when
+   *  nobody on the team is a closer, which draws no control at all. */
+  closers?: { id: number; name: string }[];
 }) {
   const router = useRouter();
   /**
@@ -634,6 +643,36 @@ export function MeetingsList({
     }
   }
 
+  /** Hand a meeting to a closer, or back to the founders (null). */
+  async function assignCloser(
+    meeting: Meeting,
+    closer: { id: number; name: string } | null,
+  ) {
+    if ((closer?.id ?? null) === meeting.closerUserId) return;
+    setBusy(meeting.id);
+    try {
+      const res = await fetch(`/api/meetings/${meeting.id}/closer`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ closerUserId: closer?.id ?? null }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Could not save that.");
+        return;
+      }
+      const who = meeting.company ?? meeting.attendeeName ?? "meeting";
+      toast.success(
+        closer ? `${closer.name} is closing ${who}` : `Founders are taking ${who}`,
+      );
+      router.refresh();
+    } catch {
+      toast.error("Could not save that: network error.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function mark(meeting: Meeting, status: DemoStatus, notes: string) {
     if (meeting.bookingCallId === null) return;
     setBusy(meeting.id);
@@ -646,6 +685,9 @@ export function MeetingsList({
         // shown somebody the note it is about to replace.
         body: JSON.stringify({
           callId: meeting.bookingCallId,
+          // Pins the answer to this meeting at its current time, which is what
+          // lets it be given before the meeting starts (2026-09-25).
+          meetingId: meeting.id,
           status,
           notes: notes.trim(),
         }),
@@ -661,7 +703,10 @@ export function MeetingsList({
       );
       // A no-show is followed up by the founders, every time (2026-09-24), and
       // the decision is asked for now: a call back on their calendar, or dead.
-      if (status === "no_show") setPrompt({ m: meeting, mode: "no_show" });
+      // A closer's no-show goes to the founders the same way a caller's does.
+      if (status === "no_show" && showWho) {
+        setPrompt({ m: meeting, mode: "no_show" });
+      }
       router.refresh();
     } catch {
       toast.error("Could not save that: network error.");
@@ -766,6 +811,11 @@ export function MeetingsList({
         // the demo begins.
         const hasStarted =
           now === null ? m.started : new Date(m.startAt).getTime() <= now;
+        // May this reader close it: a founder always, a closer on the
+        // meetings a founder handed them (2026-09-25). Everything that closes a
+        // meeting — what happened, contracts, the follow-up — hangs off this.
+        const closes =
+          showWho || (closerId !== null && m.closerUserId === closerId);
         // A meeting is moved on the event type it was booked on, or it comes
         // back through the sync as the other kind — a follow-up rescheduled
         // onto the demo link would be asked whether they turned up, and a
@@ -1046,10 +1096,56 @@ export function MeetingsList({
               </p>
             )}
 
+            {/* Who is taking it (2026-09-25). A founder hands a meeting to a
+                closer here; everyone else only needs telling when it is theirs.
+                Not offered on a cancelled booking, which nobody takes. */}
+            {showWho && closers.length > 0 && m.status !== "cancelled" && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                <Handshake className="size-3.5 shrink-0" />
+                <span>Closing it:</span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    disabled={busy === m.id}
+                    className="rounded-md border px-2 py-0.5 font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    {m.closerName ?? "Founders"}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuLabel>Who takes this meeting?</DropdownMenuLabel>
+                    <p className="max-w-64 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
+                      A closer can then log what happened, draft the contracts
+                      and log the follow-up on it. Nobody else&apos;s meetings.
+                    </p>
+                    <DropdownMenuItem
+                      onSelect={() => void assignCloser(m, null)}
+                    >
+                      Founders
+                    </DropdownMenuItem>
+                    {closers.map((c) => (
+                      <DropdownMenuItem
+                        key={c.id}
+                        onSelect={() => void assignCloser(m, c)}
+                      >
+                        {c.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
+            {!showWho && closes && (
+              <p className="mt-2 rounded-md bg-primary/10 px-3 py-2 text-[13px] font-medium text-primary">
+                Yours to close. A founder gave you this meeting: take the call,
+                then log what happened
+                {m.kind === "demo" ? " once it has started" : ""}. Closing the
+                Demo in Scripts has the steps.
+              </p>
+            )}
+
             {/* A caller reads their prospect's name on a follow-up and asks
                 whether to ring them (2026-09-24). It is the founders' call
                 after the demo, so say so where the eye lands. */}
-            {!showWho && m.kind === "follow_up" && (
+            {!showWho && !closes && m.kind === "follow_up" && (
               <p className="mt-2 rounded-md bg-success/10 px-3 py-2 text-[13px] font-medium text-success">
                 Founders&apos; call. A founder rings them back after the demo,
                 so there is nothing for you to do here.
@@ -1150,7 +1246,11 @@ export function MeetingsList({
                     can ask anybody to chase a no-show until somebody has said
                     it was one. Offered from the moment it starts, since that is
                     when it is either happening or not. */}
-                {showWho && hasStarted && m.bookingCallId !== null &&
+                {/* Founders can answer before it starts (2026-09-25): a
+                    booking that is not real is written off while it is still
+                    in the diary, rather than sitting in everybody's reminders
+                    until its slot passes. A closer answers once it begins. */}
+                {closes && (showWho || hasStarted) && m.bookingCallId !== null &&
                   m.kind === "demo" && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
@@ -1171,9 +1271,9 @@ export function MeetingsList({
                           demo is a phone call now, so "turned up" needed
                           saying: this answer is what the caller is paid on. */}
                       <p className="max-w-60 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
-                        Showed up means they picked up and stayed on while the
-                        agent was brought in. No answer, or they could not stay,
-                        is a no show.
+                        {hasStarted
+                          ? "Showed up means they picked up and stayed on while the agent was brought in. No answer, or they could not stay, is a no show."
+                          : "This has not started yet. Answer now only to write off a booking that is not real. Moving the meeting to a new time clears the answer."}
                       </p>
                       {(
                         Object.keys(ATTENDANCE_LABEL) as DemoStatus[]
@@ -1200,7 +1300,7 @@ export function MeetingsList({
                     line is load-bearing, since the sync matches a booking back
                     to its lead by the number in it. A new tab, never a
                     navigation: Cal.com's own flow sends the invite. */}
-                {showWho && followUpBookingUrl && m.leadId !== null &&
+                {closes && followUpBookingUrl && m.leadId !== null &&
                   hasStarted && m.kind === "demo" && (
                   <a
                     href={calBookingHref(
@@ -1230,7 +1330,7 @@ export function MeetingsList({
                     make it, and only while the sale is still open: the row
                     stops offering it the moment one says trial, won or lost.
                     Unlike the no-show ring back, this writes a real call. */}
-                {showWho && m.needsFollowUp && m.leadId !== null && (
+                {closes && m.needsFollowUp && m.leadId !== null && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       disabled={busy === m.id}
@@ -1567,16 +1667,19 @@ export function MeetingsList({
                     entirely where DocuSeal is not configured, in the same
                     spirit as the push toggle: a dead button on a screen
                     somebody works from is worse than no button. */}
-                {signingBase && (
+                {signingBase && closes && (
                   <PrepareContracts
                     meeting={m}
                     tz={tz}
                     signingBase={signingBase}
                     // Same flag the "who booked it" line runs on: an admin.
-                    // Drafting is open to whoever owns the meeting; undoing a
-                    // draft is not, since it takes our only pointer to a real
-                    // document with it.
+                    // Drafting is open to a founder and to the closer a
+                    // meeting was handed to; undoing a draft is founders only,
+                    // since it takes our only pointer to a real document with
+                    // it.
                     canDiscard={showWho}
+                    // A closer sells month to month (2026-09-22).
+                    monthlyOnly={!showWho}
                   />
                 )}
               </div>

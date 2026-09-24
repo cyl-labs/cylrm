@@ -22,6 +22,7 @@ import {
   callRegionOf,
   canSendTexts,
   dialMethodOf,
+  listClosers,
   statsRegionOf,
 } from "@/lib/users";
 import {
@@ -215,10 +216,20 @@ export default async function MeetingsPage({
   // The brief already written for each meeting, for the Briefing fold on its
   // row. Founders only, like the Briefing page and the route that writes them.
   // One query for the whole list, never one per row.
+  // A closer gets the briefs for the meetings handed to them (2026-09-25):
+  // the brief is the handover to whoever takes the demo.
+  const closerId = me?.role === "closer" ? me.id : null;
   const briefs =
     me?.role === "admin"
       ? Object.fromEntries(await getStoredBriefs(meetings.map((m) => m.id)))
-      : null;
+      : closerId !== null
+        ? Object.fromEntries(
+            await getStoredBriefs(
+              meetings.filter((m) => m.closerUserId === closerId).map((m) => m.id),
+            ),
+          )
+        : null;
+  const closers = me?.role === "admin" ? await listClosers() : [];
 
   // On the calendar a meeting moved to a call back sits at the call back's
   // time, as a call back — the same place the list now puts it.
@@ -537,13 +548,15 @@ export default async function MeetingsPage({
           // The route refuses a caller too; this is only what stops a dead
           // button appearing on a screen they work from.
           signingBase={
-            me?.role === "admin"
+            me?.role === "admin" || me?.role === "closer"
               ? (process.env.DOCUSEAL_PUBLIC_URL ??
                 process.env.DOCUSEAL_URL ??
                 "")
               : ""
           }
           past={past}
+          closerId={closerId}
+          closers={closers}
         />
         )}
       </div>

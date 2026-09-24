@@ -1,3 +1,4 @@
+import { isFloor } from "@/lib/roles";
 import { Crown, Medal, Trophy } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { RangeTabs } from "@/components/calls/range-tabs";
@@ -248,7 +249,7 @@ export default async function ScoreboardPage({
   // wide enough to include it, and a leaderboard you cannot win is one nobody
   // looks at twice.
   const callers = new Set(
-    team.filter((t) => t.role === "caller").map((t) => t.id),
+    team.filter((t) => isFloor(t.role)).map((t) => t.id),
   );
   const people = all
     .filter((p) => p.id !== null && callers.has(p.id))

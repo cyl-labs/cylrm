@@ -85,6 +85,7 @@ export function PrepareContracts({
   tz,
   signingBase,
   canDiscard = false,
+  monthlyOnly = false,
 }: {
   meeting: Meeting;
   /** The screen's clock, so the effective date is the date where the reader
@@ -100,6 +101,10 @@ export function PrepareContracts({
    *  recoverable and this is the recovery, but it takes the CRM's only pointer
    *  to a document with it, and these prices are a founder's call anyway. */
   canDiscard?: boolean;
+  /** A closer's dialog: month to month is the only commitment offered, since
+   *  a term deal is a founder's to price (2026-09-22). The route refuses any
+   *  other from a closer too. */
+  monthlyOnly?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -163,7 +168,7 @@ export function PrepareContracts({
     setEffectiveDate(new Intl.DateTimeFormat("en-CA").format(new Date()));
     const already = drafted.find((c) => c.kind === "paid");
     if (already?.packageId) setPackageId(already.packageId as PackageId);
-    if (already?.termId) setTermId(already.termId as TermId);
+    if (already?.termId && !monthlyOnly) setTermId(already.termId as TermId);
     // Whatever is still missing, ticked. Opening this on a meeting that
     // already has a trial offers the paid one alone rather than making
     // somebody untick a box to avoid a no-op.
@@ -550,7 +555,9 @@ export function PrepareContracts({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {TERMS.map((t) => (
+                        {TERMS.filter(
+                          (t) => !monthlyOnly || t.id === "monthly",
+                        ).map((t) => (
                           <SelectItem key={t.id} value={t.id}>
                             {t.label}
                           </SelectItem>

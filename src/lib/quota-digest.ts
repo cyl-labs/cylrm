@@ -10,7 +10,7 @@ import { pushConfigured, pushToUser } from "@/lib/push";
  * The Friday "who finished under 300" digest, to the founders.
  *
  * `WEEKLY_CALL_QUOTA` was read in exactly one place before this — the strip
- * `PageShell` draws — and that strip is `role === "caller"` only. So the number
+ * `PageShell` draws — and that strip is `isFloor` only. So the number
  * the founders set was visible to everybody except them: knowing where the
  * floor stood meant opening Stats and reading it person by person, which is a
  * number nobody looks up. This is that answer arriving on its own.
@@ -188,7 +188,7 @@ export async function getQuotaStandings(): Promise<{
   const callers = (await db.execute(sql`
     select u.id, u.name, u.created_at
     from app_user u
-    where u.role = 'caller' and u.active
+    where u.role in ('caller', 'closer') and u.active
       and (u.telnyx_did is not null or u.dial_method = 'handset')
       and exists (
         select 1 from call_list cl where cl.assigned_user_id = u.id

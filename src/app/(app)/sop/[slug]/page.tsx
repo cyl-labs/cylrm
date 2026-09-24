@@ -82,7 +82,7 @@ export default async function SopDocumentPage({
   const doc = await getSopDocument(
     slug,
     sopRegionFor(await callRegionOf(me?.id)),
-    me?.role === "admin",
+    me?.role,
     { number: did ? spokenNumber(did) : null },
   );
   if (!doc) notFound();

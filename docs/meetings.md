@@ -2023,3 +2023,42 @@ from the same `/api/cron/meetings` tick. Schema in
   `NODE_TLS_REJECT_UNAUTHORIZED=0`. Headless Chromium also hard-codes
   `Notification.permission` to `denied`, so the normal button state only
   renders if the getter is stubbed.
+
+### Closers, and answering a meeting early (2026-09-25)
+
+`lib/roles.ts`, `lib/attendance-sql.ts`, `api/meetings/[id]/closer`,
+migration `2026-09-25-closer.sql` (**apply before deploying** — `meetingSelect`
+and the sidebar badge read the new columns on every page).
+
+- **A closer is a caller who may also close.** Role `closer` on `app_user`.
+  Everything a caller has (lists, dialler, quota bar, pickup pay, Scoreboard,
+  Payroll) — `isFloor` replaced every `role === "caller"` — plus, **only on
+  meetings a founder handed them** (`call_meeting.closer_user_id`): Log what
+  happened (once it has started), draft contracts (**month to month only**,
+  refused server-side too), Book / Log a follow-up, and the meeting's Briefing.
+  They also read `procedure-closing-the-demo` (`CLOSER_SOP_SLUGS` — named one by
+  one, so the next `audience: admins` document does not leak to them). Undoing
+  a contract, no-show call backs, Team, Payroll and Stats stay founders only.
+- **Founders hand meetings out** from the "Closing it:" control on each row
+  (only drawn once somebody is a closer). Only an active closer can be named.
+  Closers get the push reminders for their meetings alongside the niche owner.
+- **Made a closer on Team** ("Make closer" / "Make caller" on a floor row, or
+  the role on Add person). The role is now read from the database on every
+  request with the `active` check, not off the cookie, so it takes effect on
+  the next click; the middleware still uses the cookie's copy for admin-only
+  screens.
+- **Founders can answer "what happened" before a meeting starts** — chiefly to
+  write off a booking that is not real. The old rule counted an answer only if
+  `marked_at >= start_at`, so an early answer saved and applied to nothing. An
+  answer from the Meetings row now records `meeting_id` + `for_start_at`
+  (pinned like `call_meeting_followup`), and `answersMeeting` is the one rule
+  everywhere. Moving the meeting reopens the question. A written-off future
+  meeting drops out of "upcoming", the badge, the brief, push, Telegram and
+  the digest (`notAnsweredYet`). **`for_start_at` is copied in SQL, never via a
+  JS `Date`**: start_at has microseconds, a Date keeps milliseconds, and the
+  round trip stored a time that never matched.
+- **Callers can hear the demo call now.** `recordingVisibleTo` had no branch
+  for it — the demo writes no call row — so every caller's "Demo call" button
+  404'd on play and on Get transcript. It now admits a recording to the lead's
+  or the booking's number from 30 minutes before the slot of a meeting on
+  their niche or assigned to them to close.

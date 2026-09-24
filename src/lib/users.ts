@@ -1,3 +1,4 @@
+import type { Role } from "@/lib/roles";
 import { cache } from "react";
 import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -10,7 +11,7 @@ export type TeamMember = {
   id: number;
   username: string;
   name: string;
-  role: "admin" | "caller";
+  role: Role;
   active: boolean;
   createdAt: string;
   lastSeenAt: string | null;
@@ -199,7 +200,7 @@ export const hoursAckOf = cache(
 export const canUseKeypad = cache(
   async (
     userId: number | null | undefined,
-    role: "admin" | "caller" | undefined,
+    role: Role | undefined,
   ): Promise<boolean> => {
     if (role === "admin") return true;
     if (!userId) return false;
@@ -255,7 +256,7 @@ export const canUseLiveHints = cache(
 export const canSendTexts = cache(
   async (
     userId: number | null | undefined,
-    role: "admin" | "caller" | undefined,
+    role: Role | undefined,
   ): Promise<boolean> => {
     if (role === "admin") return true;
     if (!userId) return false;
@@ -352,7 +353,7 @@ export async function createUser(input: {
   username: string;
   name: string;
   password: string;
-  role: "admin" | "caller";
+  role: Role;
   /** Their market, or null/absent for every market. Set on creation so a new
    *  hire's scripts and number picker are right from their first sign-in. */
   callRegion?: "sg" | "us" | "gb" | null;
@@ -482,4 +483,16 @@ export async function countActiveAdmins(): Promise<number> {
     .from(appUser)
     .where(sql`${appUser.role} = 'admin' and ${appUser.active}`);
   return Number(row?.n ?? 0);
+}
+
+/** Active closers, for the founders' "who takes this meeting" control on
+ *  Meetings (2026-09-25). Empty is the normal state until somebody is made one
+ *  on Team, and draws no control at all. */
+export async function listClosers(): Promise<{ id: number; name: string }[]> {
+  const rows = (await db.execute(sql`
+    select id, name from app_user
+    where role = 'closer' and active
+    order by name
+  `)) as { id: number; name: string }[];
+  return rows.map((r) => ({ id: Number(r.id), name: String(r.name) }));
 }

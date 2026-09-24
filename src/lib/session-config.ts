@@ -1,3 +1,4 @@
+import type { Role } from "@/lib/roles";
 /**
  * The session cookie's shape and options, in a module with no database import.
  *
@@ -23,7 +24,7 @@ export interface SessionData {
   /** Denormalised so the sidebar and the call routes do not query for a name
    *  on every request. Refreshed at login; a rename shows up next sign-in. */
   userName?: string;
-  role?: "admin" | "caller";
+  role?: Role;
 }
 
 export const sessionOptions: SessionOptions = {

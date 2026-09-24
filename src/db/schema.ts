@@ -1,3 +1,4 @@
+import type { Role } from "../lib/roles";
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -505,7 +506,7 @@ export const appUser = pgTable("app_user", {
   /** scrypt, salted, parameters embedded — see lib/password.ts. */
   passwordHash: text("password_hash").notNull(),
   /** `admin` can manage the team; `caller` can do everything else. */
-  role: text("role").notNull().default("caller").$type<"admin" | "caller">(),
+  role: text("role").notNull().default("caller").$type<Role>(),
   /** Deactivated rather than deleted: their calls are still theirs, and the
    *  numbers would move if the rows went. Blocks signing in, nothing else. */
   active: boolean("active").notNull().default(true),
@@ -1138,6 +1139,16 @@ export const callDemoAttendance = pgTable(
      *  however old it is. It is also the audit trail: which meetings a given
      *  payout covered is one query. */
     payoutId: integer("payout_id").references(() => payout.id),
+    /** The meeting and slot this answer was given for, when it was given
+     *  before the meeting began (2026-09-25). An answer marked after the start
+     *  needs neither — `marked_at >= start_at` already ties it to the meeting —
+     *  but a founder writing off a future booking as not real has no start to
+     *  be after. Pinned to the time like `call_meeting_followup.for_start_at`,
+     *  so moving the meeting reopens the question. */
+    meetingId: integer("meeting_id").references(() => callMeeting.id, {
+      onDelete: "set null",
+    }),
+    forStartAt: timestamp("for_start_at", { withTimezone: true }),
   },
   // Declared here and not only in the migration: `drizzle-kit push` drops any
   // index it cannot see in this file, which is how `call_user_id_idx` went
@@ -1229,6 +1240,12 @@ export const callMeeting = pgTable(
      *  makes the caller work out by hand. */
     attendeeTz: text("attendee_tz"),
     meetingUrl: text("meeting_url"),
+    /** The closer a founder handed this meeting to (2026-09-25), or null for
+     *  the founders' own. A closer may log what happened, draft contracts and
+     *  log follow-ups on the meetings named here and on no others. */
+    closerUserId: integer("closer_user_id").references(() => appUser.id, {
+      onDelete: "set null",
+    }),
     syncedAt: timestamp("synced_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

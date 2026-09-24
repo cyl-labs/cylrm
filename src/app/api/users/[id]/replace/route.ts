@@ -1,3 +1,4 @@
+import { isFloor } from "@/lib/roles";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser } from "@/db/schema";
@@ -93,10 +94,12 @@ export async function POST(
   if (!outgoing) {
     return Response.json({ error: "Person not found." }, { status: 404 });
   }
-  // Only callers. An admin's account is the founders' own business, and a
+  // Only the floor. A closer who leaves is replaced by a caller: closing is
+  // given to somebody by a founder, never inherited with a phone number.
+  // An admin's account is the founders' own business, and a
   // switched-off one has nothing live left to hand over — add the new person
   // instead.
-  if (outgoing.role !== "caller" || outgoing.isOwner) {
+  if (!isFloor(outgoing.role) || outgoing.isOwner) {
     return Response.json(
       { error: "Only a caller can be replaced." },
       { status: 400 },

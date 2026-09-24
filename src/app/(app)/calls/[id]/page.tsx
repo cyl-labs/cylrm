@@ -1,3 +1,4 @@
+import { isFloor } from "@/lib/roles";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Clock, Table2 } from "lucide-react";
@@ -468,7 +469,7 @@ export default async function CallListPage({
         // Callers only, matching who the SOP asks to post: a founder's own
         // booking pays nobody and is not the floor's news, the same reason
         // they are off the Scoreboard and off the confirm list.
-        callerName={me?.role === "caller" ? me.name : undefined}
+        callerName={me && isFloor(me.role) ? me.name : undefined}
         // Only while the filter is doing the hiding. With it off an empty
         // queue really is an empty queue.
         hiddenByHours={callableNow ? split.total - split.callableNow : 0}

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { marked } from "marked";
 import { db } from "@/db";
 import type { SopRegion } from "@/lib/calls";
+import { CLOSER_SOP_SLUGS, type Role } from "@/lib/roles";
 
 /**
  * The scripts and procedures callers work from.
@@ -245,9 +246,10 @@ function toDoc(r: Row, fill?: SopFill): SopDoc {
  * which was theirs. Null means show everything, which is what an admin
  * reviewing both markets wants.
  *
- * `isAdmin` withholds. It defaults to false so a call site that forgets it
+ * `role` withholds. It defaults to nobody so a call site that forgets it
  * fails closed — a founder seeing one document too few is a puzzle, a caller
- * seeing the commercial terms is the thing this exists to prevent.
+ * seeing the commercial terms is the thing this exists to prevent. A closer
+ * gets the founders-only documents named in `CLOSER_SOP_SLUGS` and no others.
  */
 /**
  * The document that teaches the tool rather than the pitch.
@@ -261,14 +263,23 @@ export const GUIDE_SLUG = "procedure-using-the-crm";
 
 export async function listSopDocuments(
   region: SopRegion | null,
-  isAdmin = false,
+  role?: Role,
   fill?: SopFill,
 ): Promise<SopDoc[]> {
   const rows = (await db.execute(sql`
     select id, slug, kind, region, admin_only, title, body_md, updated_at
     from sop_document
     where ${region ? sql`(region is null or region = ${region})` : sql`true`}
-      and ${isAdmin ? sql`true` : sql`not admin_only`}
+      and ${
+        role === "admin"
+          ? sql`true`
+          : role === "closer"
+            ? sql`(not admin_only or slug in (${sql.join(
+                CLOSER_SOP_SLUGS.map((slug) => sql`${slug}`),
+                sql`, `,
+              )}))`
+            : sql`not admin_only`
+      }
     order by
       -- The guide first, above the scripts. It is the only document here that
       -- is not read to a prospect, and it sat last because procedures sort
@@ -288,10 +299,10 @@ export async function listSopDocuments(
 export async function getSopDocument(
   slug: string,
   region: SopRegion | null,
-  isAdmin = false,
+  role?: Role,
   fill?: SopFill,
 ): Promise<SopDoc | null> {
-  const all = await listSopDocuments(region, isAdmin, fill);
+  const all = await listSopDocuments(region, role, fill);
   return all.find((d) => d.slug === slug) ?? null;
 }
 

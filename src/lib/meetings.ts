@@ -2,6 +2,7 @@ import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { countFounderCallsDue } from "@/lib/founder-calls";
 import { db } from "@/db";
+import { answersMeeting, notAnsweredYet } from "@/lib/attendance-sql";
 import { dncBlockReason } from "@/lib/dnc";
 import { dialCountry, e164 } from "@/lib/phone";
 // The meeting row dials in place now, so it needs what the dial card needs.
@@ -115,7 +116,11 @@ export function clusterDemoRecordings(
  * caller who cannot tell whose prospect it is.
  */
 const ownedBy = (ownerId?: number) =>
-  ownerId === undefined ? sql`` : sql`and cl.assigned_user_id = ${ownerId}`;
+  ownerId === undefined
+    ? sql``
+    : // Their own niches, plus any meeting a founder handed them to close
+      // (2026-09-25) — which is usually on somebody else's niche.
+      sql`and (cl.assigned_user_id = ${ownerId} or m.closer_user_id = ${ownerId})`;
 
 /* ------------------------------------------------------------------ *
  * Sync
@@ -454,6 +459,11 @@ export type Meeting = {
   /** Why this number may not be rung, or null. Blocks the clipboard as well
    *  as any dial button, exactly as it does everywhere else. */
   dncBlock: string | null;
+  /** The closer a founder handed this meeting to, or null when the founders
+   *  are taking it themselves (2026-09-25). Only that closer, and founders,
+   *  may close it: log what happened, draft contracts, log follow-ups. */
+  closerUserId: number | null;
+  closerName: string | null;
   /** Who logged the `demo_booked` call. Shown to admins only, like the
    *  callbacks diary shows who promised the call. */
   bookedBy: string | null;
@@ -694,6 +704,9 @@ const meetingSelect = sql`
   end as attendee_name,
   m.attendee_email, m.attendee_phone, m.attendee_tz,
   m.meeting_url, m.kind,
+  -- Who a founder handed it to close (2026-09-25), or null for their own.
+  m.closer_user_id,
+  (select u.name from app_user u where u.id = m.closer_user_id) as closer_name,
   -- Where the business actually is, which outranks the zone Cal.com recorded:
   -- that one is the zone the booking form was open in, and the form is a
   -- caller's browser in Singapore. See prospectZone in lib/call-time.ts.
@@ -825,7 +838,7 @@ const meetingSelect = sql`
   -- Latest first, so a corrected answer wins.
   (
     select a.status from call_demo_attendance a
-    where a.call_lead_id = l.id and a.marked_at >= m.start_at
+    where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
     order by a.marked_at desc limit 1
   ) as attendance,
   -- What happened, in words. Same row, same ordering as the answer above, so
@@ -834,7 +847,7 @@ const meetingSelect = sql`
   -- another's answer.
   (
     select a.notes from call_demo_attendance a
-    where a.call_lead_id = l.id and a.marked_at >= m.start_at
+    where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
     order by a.marked_at desc limit 1
   ) as attendance_notes,
   -- A founder moved this meeting to a call back (2026-09-24). See the cb
@@ -874,7 +887,7 @@ const needsRingBack = sql`coalesce(
   and m.start_at > now() - make_interval(days => ${NO_SHOW_RING_DAYS}::int)
   and (
     select a.status from call_demo_attendance a
-    where a.call_lead_id = l.id and a.marked_at >= m.start_at
+    where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
     order by a.marked_at desc limit 1
   ) = 'no_show'
   -- Only the lead's latest booking asks. Attendance is recorded per business
@@ -925,6 +938,12 @@ const hasCallBack = (ownerId?: number) =>
 const startingSoon = (tz: string) => sql`
   m.status = 'accepted'
   and m.start_at > now()
+  -- Already answered ahead of time — a founder writing off a booking that is
+  -- not real (2026-09-25) — is nothing coming.
+  and not exists (
+    select 1 from call_demo_attendance a
+    where a.call_lead_id = m.call_lead_id and ${answersMeeting("a", "m")}
+  )
   -- The cast on the parameter is load-bearing. A bare placeholder makes
   -- adding to a date ambiguous -- "operator is not unique: date + unknown"
   -- -- because Postgres cannot tell an integer's worth of days from an
@@ -968,7 +987,7 @@ const needsFollowUp = sql`coalesce(
   -- sale to work.
   and (
     select a.status from call_demo_attendance a
-    where a.call_lead_id = l.id and a.marked_at >= m.start_at
+    where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
     order by a.marked_at desc limit 1
   ) = 'showed_up'
   and (
@@ -998,7 +1017,18 @@ const needsFollowUp = sql`coalesce(
  * works inside a query built on `joins`.
  */
 const stillAhead = sql`(
-  m.start_at > now()
+  (
+    m.start_at > now()
+    -- Unless a founder already answered it early (2026-09-25): a booking
+    -- written off as not real drops to the finished rows straight away.
+    and (
+      m.kind = 'follow_up'
+      or not exists (
+        select 1 from call_demo_attendance a
+        where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
+      )
+    )
+  )
   or (
     m.status = 'accepted'
     and m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS}::int)
@@ -1006,7 +1036,7 @@ const stillAhead = sql`(
       when m.kind = 'follow_up' then f.id is null
       else not exists (
         select 1 from call_demo_attendance a
-        where a.call_lead_id = l.id and a.marked_at >= m.start_at
+        where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
       )
     end
   )
@@ -1093,6 +1123,11 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     // from one screen can be rung from the other.
     dialTo: phone ? e164(phone) : null,
     dialFrom: didFor(dialCountry(phone ?? ""), dids),
+    closerUserId:
+      r.closer_user_id === null || r.closer_user_id === undefined
+        ? null
+        : n(r.closer_user_id),
+    closerName: (r.closer_name as string | null) ?? null,
     bookedBy: (r.booked_by as string | null) ?? null,
     bookedAt: iso(r.booked_at),
     bookingNotes: (r.booking_notes as string | null) ?? null,
@@ -1525,12 +1560,13 @@ export async function sendMeetingReminders(
   const meetings = (await db.execute(sql`
     select m.id, m.start_at,
       coalesce(l.company, l.name, m.attendee_name) as who,
-      cl.assigned_user_id as owner_id
+      cl.assigned_user_id as owner_id, m.closer_user_id
     from call_meeting m
     left join call_lead l on l.id = m.call_lead_id
     left join call_list cl on cl.id = l.call_list_id
     where m.status = 'accepted'
       and m.start_at > now()
+      and ${notAnsweredYet("m")}
   `)) as Row[];
 
   const result = { ...empty, considered: meetings.length };
@@ -1550,9 +1586,15 @@ export async function sendMeetingReminders(
     // otherwise mean a booked meeting nobody is reminded about at all, which
     // is the exact failure this feature exists to prevent. Better a founder
     // hears about it than no one does.
+    //
+    // A closer a founder handed it to is told as well (2026-09-25): it is
+    // their demo to take, and the niche's caller only booked it.
     const ownerId = m.owner_id === null ? null : n(m.owner_id);
-    const targets =
-      ownerId !== null && byId.has(ownerId) ? [ownerId] : admins;
+    const closerId = m.closer_user_id === null ? null : n(m.closer_user_id);
+    const people = [...new Set([ownerId, closerId])].filter(
+      (id): id is number => id !== null && byId.has(id),
+    );
+    const targets = people.length > 0 ? people : admins;
 
     if (targets.length === 0) {
       result.unreachable += 1;
@@ -1720,6 +1762,7 @@ export async function sendMeetingTelegrams(
     left join app_user u on u.id = c.user_id
     ${leadZone}
     where m.status = 'accepted'
+      and ${notAnsweredYet("m")}
       and m.start_at > ${now.toISOString()}::timestamptz
       and m.start_at <= ${now.toISOString()}::timestamptz
         + make_interval(mins => ${longest}::int)

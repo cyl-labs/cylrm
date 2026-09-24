@@ -42,7 +42,10 @@ const CONCURRENCY = 4;
 export async function POST(request: Request) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.role !== "admin") {
+  // A closer too, for the meetings handed to them and nothing else — checked
+  // once the ids are read (2026-09-25). The brief is the handover from whoever
+  // booked it to whoever takes the demo, and that is now sometimes them.
+  if (me.role !== "admin" && me.role !== "closer") {
     return Response.json(
       { error: "Only a founder can generate the briefing." },
       { status: 403 },
@@ -67,6 +70,21 @@ export async function POST(request: Request) {
     : null;
   if (asked !== null && asked.length === 0) {
     return Response.json({ error: "No meeting given." }, { status: 400 });
+  }
+  if (me.role === "closer") {
+    const mine = asked
+      ? ((await db.execute(sql`
+          select count(*)::int as n from call_meeting
+          where closer_user_id = ${me.id}
+            and id in (${sql.join(asked.map((id) => sql`${id}`), sql`, `)})
+        `)) as { n: number }[])
+      : [];
+    if (!asked || Number(mine[0]?.n) !== asked.length) {
+      return Response.json(
+        { error: "You can only brief the meetings you were given to close." },
+        { status: 403 },
+      );
+    }
   }
 
   // Exactly what the page shows, through the one shared fragment: everything

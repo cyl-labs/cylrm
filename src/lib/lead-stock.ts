@@ -1,3 +1,4 @@
+import { isFloor } from "@/lib/roles";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import type { CallListSummary } from "@/lib/calls";
@@ -237,7 +238,7 @@ export function callersRunningOut(
 ): ShortCaller[] {
   const out: ShortCaller[] = [];
   for (const p of team) {
-    if (!p.active || p.role !== "caller") continue;
+    if (!p.active || !isFloor(p.role)) continue;
     const theirs = lists[p.id] ?? [];
     if (theirs.length === 0 && p.calls === 0) {
       const days =

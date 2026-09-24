@@ -1,3 +1,4 @@
+import { isFloor } from "@/lib/roles";
 import Link from "next/link";
 import { ChevronRight, Lock, PhoneCall } from "lucide-react";
 import {
@@ -93,7 +94,7 @@ export default async function CallsPage({
   // it is posted to, so prompting them to file one would be a card asking
   // nobody for anything, the same reason they are off the Scoreboard.
   const report =
-    me && me.role === "caller" ? await dailyReport(me.id, me.name) : null;
+    me && isFloor(me.role) ? await dailyReport(me.id, me.name) : null;
 
   // The guide, offered while somebody is new and then never again. The count
   // is already on the page for the team list, so this costs no second query.
@@ -104,7 +105,7 @@ export default async function CallsPage({
   // they have met every screen the video covers. Admins are excluded outright;
   // the founders wrote the thing.
   const myCalls = team.find((t) => t.id === me?.id)?.calls ?? 0;
-  const showGuide = me?.role === "caller" && myCalls < 50;
+  const showGuide = isFloor(me?.role) && myCalls < 50;
 
   // The number this person rings from, labelled where they start the day.
   // Callers always — "not assigned yet" is the answer that explains why their
@@ -112,7 +113,7 @@ export default async function CallsPage({
   // Admins only when they have one: an admin reading "ask an admin" is a card
   // pointing at itself, and Team is one click away for them anyway.
   const myNumber = await callerNumberOf(me?.id);
-  const showNumber = me?.role === "caller" || myNumber !== null;
+  const showNumber = isFloor(me?.role) || myNumber !== null;
 
   // One section per market, plus whatever nobody has filed yet. Empty folders
   // are dropped rather than left as a heading with nothing under it, so the

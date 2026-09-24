@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { callRegionOf } from "@/lib/users";
 import { sopRegionFor } from "@/lib/calls";
 import { GUIDE_SLUG, listSopDocuments, type SopKind } from "@/lib/sop";
+import { CLOSER_SOP_SLUGS } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +29,7 @@ const KIND_ICON: Record<SopKind, typeof ScrollText> = {
 export default async function SopPage() {
   const me = await getCurrentUser();
   const region = await callRegionOf(me?.id);
-  const isAdmin = me?.role === "admin";
-  const docs = await listSopDocuments(sopRegionFor(region), isAdmin);
+  const docs = await listSopDocuments(sopRegionFor(region), me?.role);
 
   return (
     <PageShell title="Scripts">
@@ -76,13 +76,13 @@ export default async function SopPage() {
                         {d.region === "sg" ? "Singapore" : "US"}
                       </span>
                     )}
-                    {/* Every row here is already one only a founder can open,
-                        so the label is not about access — it is so a founder
-                        can tell at a glance which documents their callers
-                        cannot see, before quoting one at somebody. */}
+                    {/* Not about access — whoever sees the row can open it.
+                        It is so a founder can tell at a glance which documents
+                        their callers cannot see, before quoting one at
+                        somebody. "Closers" where a closer can read it too. */}
                     {d.adminOnly && (
                       <span className="shrink-0 rounded-[3px] bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.06em] text-primary">
-                        Founders
+                        {CLOSER_SOP_SLUGS.includes(d.slug) ? "Closers" : "Founders"}
                       </span>
                     )}
                     <span className="shrink-0 text-[13px] tabular-nums text-muted-foreground">

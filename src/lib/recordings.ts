@@ -36,6 +36,21 @@ export const recordingVisibleTo = (userId: number | undefined): SQL =>
           where k.telnyx_session_id = r.call_session_id
             and k.user_id = ${userId}
         )
+        -- The demo of a meeting on their niche, or one handed to them to
+        -- close (2026-09-25). A demo is rung from the meeting row by whoever
+        -- takes it and writes no call row, so neither branch above can reach
+        -- it: the row offered callers a "Demo call" button whose audio and
+        -- transcript both 404'd. Matched the way the row finds it -- the
+        -- lead's number or the booking's, from half an hour before the slot.
+        or exists (
+          select 1
+          from call_meeting m
+          join call_lead l on l.id = m.call_lead_id
+          left join call_list cl on cl.id = l.call_list_id
+          where (cl.assigned_user_id = ${userId} or m.closer_user_id = ${userId})
+            and r.to_number in ('+' || l.phone_key, m.attendee_phone)
+            and r.started_at >= m.start_at - interval '30 minutes'
+        )
       )`;
 
 export type LeadRecording = {
@@ -117,8 +132,8 @@ export type VisibleRecording = {
  * `recordingDownloadUrl` will fetch any id on the account, so the table is
  * what limits this to calls the app itself placed.
  *
- * A caller may hear three things, and the second is what this was widened for
- * on 2026-09-06:
+ * A caller may hear four things; the second is what this was widened for on
+ * 2026-09-06, the fourth on 2026-09-25:
  *
  * - a call on a niche assigned to them, which is what the rule was;
  * - **a call they made**, whoever holds the niche now. Their own Stats lists
@@ -128,6 +143,9 @@ export type VisibleRecording = {
  * - **a keypad dial they placed.** Those live in `keypad_call`, which the old
  *   query could not reach at all: it joined `call` alone, so every keypad
  *   recording in the Stats log was unplayable for admins too.
+ * - **the demo of a meeting on their niche**, or one a founder assigned them
+ *   to close. The demo has no call row to own, so without this every "Demo
+ *   call" button on a caller's Meetings screen refused to play or transcribe.
  *
  * Admins hear everything, which is the whole floor and their own business.
  */

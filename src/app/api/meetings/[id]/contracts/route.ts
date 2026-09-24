@@ -33,15 +33,16 @@ export async function POST(
 ) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  // Founders only, like the rest of the commercial side. A contract carries
-  // the prices, the minimum term and the client's legal name — the same
-  // material `procedure-closing-the-demo` is withheld from the floor for, and
-  // for the same reason: a caller is paid to book demos, not to close them.
-  // Enforced here as well as by not rendering the button, since `/api` is
-  // outside the middleware matcher and a hidden button is not a permission.
-  if (me.role !== "admin") {
+  // Founders, and a closer on a meeting a founder handed them (checked below,
+  // once the meeting is loaded). A contract carries the prices, the minimum
+  // term and the client's legal name — the same material
+  // `procedure-closing-the-demo` is withheld from the floor for, and for the
+  // same reason: a caller is paid to book demos, not to close them. Enforced
+  // here as well as by not rendering the button, since `/api` is outside the
+  // middleware matcher and a hidden button is not a permission.
+  if (me.role !== "admin" && me.role !== "closer") {
     return Response.json(
-      { error: "Contracts are admin-only." },
+      { error: "Contracts are for founders and closers." },
       { status: 403 },
     );
   }
@@ -64,6 +65,12 @@ export async function POST(
   const meeting = await getMeeting(id, callScope(me));
   if (!meeting) {
     return Response.json({ error: "Meeting not found." }, { status: 404 });
+  }
+  if (me.role === "closer" && meeting.closerUserId !== me.id) {
+    return Response.json(
+      { error: "That meeting has not been given to you to close." },
+      { status: 403 },
+    );
   }
 
   const input: DraftInput = {
@@ -120,6 +127,15 @@ export async function POST(
   }
   if (!packageById(input.packageId) || !termById(input.termId)) {
     return Response.json({ error: "Unknown package." }, { status: 400 });
+  }
+  // A closer sells month to month (2026-09-22): a term deal is priced by a
+  // founder, and a commission on one pays the closer to steer clients into a
+  // discount they never asked for.
+  if (me.role === "closer" && input.termId !== "monthly") {
+    return Response.json(
+      { error: "Closers sell month to month. Ask a founder about a longer term." },
+      { status: 403 },
+    );
   }
   if (input.kinds.length === 0) {
     return Response.json(

@@ -19,15 +19,16 @@ import type { DemoStatus } from "@/lib/payroll";
 export async function POST(request: Request) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.role !== "admin") {
+  if (me.role !== "admin" && me.role !== "closer") {
     return Response.json(
-      { error: "Only an admin can confirm a meeting." },
+      { error: "Only a founder or the meeting's closer can say what happened." },
       { status: 403 },
     );
   }
 
   const body = (await request.json().catch(() => null)) as {
     callId?: unknown;
+    meetingId?: unknown;
     status?: unknown;
     notes?: unknown;
   } | null;
@@ -35,6 +36,57 @@ export async function POST(request: Request) {
   const callId = Number(body?.callId);
   if (!Number.isInteger(callId)) {
     return Response.json({ error: "Invalid meeting." }, { status: 400 });
+  }
+
+  // The meeting it was answered on, when it came from the Meetings row. Payroll
+  // sends none and keeps the old rule (an answer counts for whichever meeting
+  // of the lead began before it). With one, the answer is pinned to that
+  // meeting and its current time — which is what lets a founder answer before
+  // the meeting starts. See `answersMeeting`.
+  const meetingId =
+    body?.meetingId === undefined || body?.meetingId === null
+      ? null
+      : Number(body.meetingId);
+  if (meetingId !== null && !Number.isInteger(meetingId)) {
+    return Response.json({ error: "Invalid meeting." }, { status: 400 });
+  }
+  let pin: { id: number } | null = null;
+  if (meetingId !== null) {
+    const [m] = (await db.execute(sql`
+      select id, start_at, call_id, closer_user_id, kind,
+        start_at <= now() as started
+      from call_meeting where id = ${meetingId}
+    `)) as Record<string, unknown>[];
+    // The meeting has to be the one this booking call made: the pin and the
+    // answer must describe the same booking.
+    if (!m || Number(m.call_id) !== callId) {
+      return Response.json({ error: "Meeting not found." }, { status: 404 });
+    }
+    // A closer answers the meetings a founder handed them, once they have
+    // begun, and nothing else (2026-09-25). Founders answer any, at any time:
+    // writing off a booking that is not real before it sits in everybody's
+    // reminders is the reason the early answer exists.
+    if (me.role === "closer") {
+      if (Number(m.closer_user_id) !== me.id) {
+        return Response.json(
+          { error: "That meeting has not been given to you to close." },
+          { status: 403 },
+        );
+      }
+      if (m.started !== true) {
+        return Response.json(
+          { error: "You can say what happened once the meeting has started." },
+          { status: 400 },
+        );
+      }
+    }
+    pin = { id: Number(m.id) };
+  } else if (me.role !== "admin") {
+    // Payroll's confirm list: founders only, as it always was.
+    return Response.json(
+      { error: "Only a founder can confirm a meeting from here." },
+      { status: 403 },
+    );
   }
   if (
     body?.status !== "showed_up" &&
@@ -120,12 +172,27 @@ export async function POST(request: Request) {
   try {
     await db.execute(sql`
       insert into call_demo_attendance
-        (call_id, call_lead_id, status, marked_by_user_id, notes)
-      values (${callId}, ${target.call_lead_id}, ${status}, ${me.id}, ${notes})
+        (call_id, call_lead_id, status, marked_by_user_id, notes,
+         meeting_id, for_start_at)
+      values (${callId}, ${target.call_lead_id}, ${status}, ${me.id}, ${notes},
+        ${pin?.id ?? null},
+        -- Copied inside the database, never through JavaScript: a Date keeps
+        -- milliseconds and start_at has microseconds, so a round trip stored a
+        -- time that never equalled the meeting's and the answer applied to
+        -- nothing.
+        (select start_at from call_meeting where id = ${pin?.id ?? null}))
       on conflict (call_id) do update
         set status = excluded.status,
             marked_by_user_id = excluded.marked_by_user_id,
             marked_at = now(),
+            -- A correction from Payroll carries no meeting, and must not unpin
+            -- an answer given on the row: an early "not a real booking" would
+            -- otherwise stop counting for the meeting it was about.
+            meeting_id = coalesce(excluded.meeting_id, call_demo_attendance.meeting_id),
+            for_start_at = case
+              when excluded.meeting_id is not null then excluded.for_start_at
+              else call_demo_attendance.for_start_at
+            end,
             -- Only a caller who mentioned notes can change them. Correcting an
             -- answer from Payroll a day later must not silently delete what
             -- somebody wrote here: the sentence about the receptionist is worth

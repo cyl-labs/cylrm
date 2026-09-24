@@ -1,9 +1,17 @@
 "use client";
 
+import { isFloor, ROLE_LABEL, type Role } from "@/lib/roles";
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { KeyRound, Pencil, Plus, ShieldCheck, UserRound } from "lucide-react";
+import {
+  Handshake,
+  KeyRound,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { TeamMember } from "@/lib/users";
 import type { PoolList, TeamList } from "@/lib/lead-stock";
@@ -493,14 +501,14 @@ export function TeamManager({
                             or "Switched off" tag says something; a "Caller"
                             tag on thirteen of fifteen rows is noise, and the
                             icon beside the name already carries it. */}
-                        {(!m.active || m.role === "admin") && (
+                        {(!m.active || m.role !== "caller") && (
                           <>
                             <span aria-hidden>·</span>
                             <Badge
                               variant={m.active ? "secondary" : "outline"}
                               className="px-1.5 py-0 text-[10px]"
                             >
-                              {!m.active ? "Switched off" : "Admin"}
+                              {!m.active ? "Switched off" : ROLE_LABEL[m.role]}
                             </Badge>
                           </>
                         )}
@@ -639,7 +647,7 @@ export function TeamManager({
                             />
                           )}
                         </div>
-                      ) : m.active && m.role === "caller" ? (
+                      ) : m.active && isFloor(m.role) ? (
                         <div className="flex min-w-52 max-w-72 flex-col items-start gap-1.5">
                           <span className="whitespace-nowrap text-[12px] font-semibold text-destructive">
                             None yet — their screen is empty
@@ -933,11 +941,40 @@ export function TeamManager({
                             Make caller
                           </Button>
                           )}
+                          {/* Closing is handed out and taken back here, one
+                              step either way. Unlike making an admin this
+                              grants nothing beyond the meetings a founder then
+                              assigns them, so it sits on the row rather than
+                              being reserved for Add person. */}
+                          {isFloor(m.role) && m.active && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7"
+                              disabled={busyId === m.id}
+                              onClick={() => {
+                                const toCloser = m.role === "caller";
+                                if (
+                                  !window.confirm(
+                                    toCloser
+                                      ? `Make ${m.name} a closer?\n\nThey keep calling as now. They can also read Closing the Demo, and log what happened, draft contracts and log follow-ups on the meetings you assign them on Meetings.`
+                                      : `Make ${m.name} a caller again?\n\nThey lose Closing the Demo and closing their assigned meetings. The meetings stay assigned until you change them.`,
+                                  )
+                                ) {
+                                  return;
+                                }
+                                patch(m, { role: toCloser ? "closer" : "caller" });
+                              }}
+                            >
+                              <Handshake data-icon="inline-start" />
+                              {m.role === "caller" ? "Make closer" : "Make caller"}
+                            </Button>
+                          )}
                           {/* For when a caller leaves: one step that hands their
                               number, line, call lists, missed calls and texts to
                               the new person and switches them off. Callers only,
                               and only while active — see the replace route. */}
-                          {m.role === "caller" && m.active && (
+                          {isFloor(m.role) && m.active && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1267,7 +1304,7 @@ function AddPersonDialog({
   holderName: (phone: string) => string | null;
 }) {
   const fields = useLoginFields(open);
-  const [role, setRole] = React.useState<"caller" | "admin">("caller");
+  const [role, setRole] = React.useState<Role>("caller");
   const [market, setMarket] = React.useState("us");
   const [dialMethod, setDialMethod] = React.useState<"browser" | "handset">(
     "browser",
@@ -1331,7 +1368,7 @@ function AddPersonDialog({
           : dialMethod === "handset"
             ? "They dial from their own phone."
             : "No number yet: pick one on their row when there is one free.",
-        role === "caller"
+        isFloor(role)
           ? "Next: give them call lists on Call lists, or their screen will be empty."
           : "They can manage the team.",
       ];
@@ -1379,13 +1416,14 @@ function AddPersonDialog({
                   <Label htmlFor="add-role">Role</Label>
                   <Select
                     value={role}
-                    onValueChange={(v) => setRole(v as "caller" | "admin")}
+                    onValueChange={(v) => setRole(v as Role)}
                   >
                     <SelectTrigger id="add-role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="caller">Caller</SelectItem>
+                      <SelectItem value="closer">Closer</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>

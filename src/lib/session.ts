@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sessionOptions, type SessionData } from "@/lib/session-config";
+import { toRole, type Role } from "@/lib/roles";
 
 // Re-exported so the sixty-odd `from "@/lib/session"` imports are unchanged;
 // the definitions live in a database-free module because the edge middleware
@@ -19,7 +20,7 @@ export async function getSession() {
 export type CurrentUser = {
   id: number;
   name: string;
-  role: "admin" | "caller";
+  role: Role;
 };
 
 /**
@@ -41,13 +42,20 @@ export type CurrentUser = {
  * `cache()`d, so the layout, the page and any route handler rendering one
  * request share a single primary-key lookup.
  */
-const stillActive = cache(async (userId: number): Promise<boolean> => {
-  const rows = (await db.execute(
-    sql`select active from app_user where id = ${userId}`,
-  )) as { active: boolean }[];
-  // A row that has gone is not a reason to let somebody in.
-  return rows[0]?.active === true;
-});
+const accountState = cache(
+  async (userId: number): Promise<{ active: boolean; role: Role } | null> => {
+    const rows = (await db.execute(
+      sql`select active, role from app_user where id = ${userId}`,
+    )) as { active: boolean; role: string }[];
+    // A row that has gone is not a reason to let somebody in.
+    return rows[0]
+      ? { active: rows[0].active === true, role: toRole(rows[0].role) }
+      : null;
+  },
+);
+
+const stillActive = async (userId: number): Promise<boolean> =>
+  (await accountState(userId))?.active === true;
 
 /**
  * The signed-in employee, or null.
@@ -61,19 +69,24 @@ const stillActive = cache(async (userId: number): Promise<boolean> => {
  * one check closes the API routes and empties the screens at once; the app
  * layout turns it into a sign-out notice rather than a blank app.
  *
- * `name` and `role` still come off the cookie deliberately: they are
- * denormalised so the sidebar does not query for a name on every request, and
- * a rename showing up at next sign-in is a documented trade. Being switched
- * off is not in that category.
+ * `name` still comes off the cookie deliberately: it is denormalised so the
+ * sidebar does not query for a name on every request, and a rename showing up
+ * at next sign-in is a documented trade. Being switched off is not in that
+ * category, and neither is the role (2026-09-25): it rides on the same
+ * primary-key lookup, so making somebody a closer — or taking it away — works
+ * on their next click rather than after a sign-in nobody would think to ask
+ * for. The middleware still reads the cookie's copy for the admin-only
+ * screens, since it has no database; a new admin signs in again to reach them.
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const session = await getSession();
   if (!session.loggedIn || !session.userId) return null;
-  if (!(await stillActive(session.userId))) return null;
+  const account = await accountState(session.userId);
+  if (account?.active !== true) return null;
   return {
     id: session.userId,
     name: session.userName ?? "Unknown",
-    role: session.role ?? "caller",
+    role: account.role,
   };
 }
 

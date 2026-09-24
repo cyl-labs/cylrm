@@ -1,3 +1,4 @@
+import { toRole } from "@/lib/roles";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser } from "@/db/schema";
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const role = body.role === "admin" ? "admin" : "caller";
+  const role = toRole(body.role);
   const callRegion = isMarket(body.callRegion) ? body.callRegion : null;
   const dialMethod = body.dialMethod === "handset" ? "handset" : "browser";
 

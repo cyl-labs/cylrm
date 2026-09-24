@@ -1,3 +1,4 @@
+import type { Role } from "@/lib/roles";
 import {
   BarChart3,
   CalendarClock,
@@ -226,7 +227,7 @@ export const isAdminOnlyPath = (pathname: string) =>
  */
 export function linksFor(
   workspace: Workspace,
-  role: "admin" | "caller" | undefined,
+  role: Role | undefined,
   keypad = false,
   texting = false,
 ) {

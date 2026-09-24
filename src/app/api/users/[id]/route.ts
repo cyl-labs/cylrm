@@ -1,3 +1,4 @@
+import { toRole } from "@/lib/roles";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser } from "@/db/schema";
@@ -272,7 +273,7 @@ export async function PATCH(
   }
 
   if ("role" in body) {
-    values.role = body.role === "admin" ? "admin" : "caller";
+    values.role = toRole(body.role);
   }
 
   if ("active" in body) {
@@ -290,7 +291,7 @@ export async function PATCH(
   const losingAdmin =
     target.role === "admin" &&
     target.active &&
-    (values.role === "caller" || values.active === false);
+    ((values.role !== undefined && values.role !== "admin") || values.active === false);
   if (losingAdmin && (await countActiveAdmins()) <= 1) {
     return Response.json(
       { error: "Someone has to stay an admin: promote another first." },

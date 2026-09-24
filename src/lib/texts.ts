@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
+import { answersMeeting } from "@/lib/attendance-sql";
 import type { SmsMedia } from "@/db/schema";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { dncBlockReason } from "@/lib/dnc";
@@ -179,13 +180,12 @@ export async function getConversations(
     ) holder on true
     -- Their booking, live ones before cancelled ones: a prospect who cancelled
     -- Thursday and rebooked for Wednesday is booked, not cancelled. The
-    -- attendance answer is read the way Meetings reads it — only one given
-    -- after the meeting began can be about it.
+    -- attendance answer is read the way Meetings reads it (answersMeeting).
     left join lateral (
       select mm.start_at, mm.status, mm.start_at > now() as upcoming,
         (
           select a.status from call_demo_attendance a
-          where a.call_lead_id = mm.call_lead_id and a.marked_at >= mm.start_at
+          where a.call_lead_id = mm.call_lead_id and ${answersMeeting("a", "mm")}
           order by a.marked_at desc limit 1
         ) as attendance
       from call_meeting mm

@@ -22,6 +22,7 @@
 import { sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db } from "@/db";
+import { answersMeeting } from "@/lib/attendance-sql";
 import { leadZone } from "@/lib/calls";
 import { transcribeUrl, transcriptionConfigured } from "@/lib/deepgram";
 import { recordingDownloadUrl } from "@/lib/telnyx";
@@ -311,18 +312,14 @@ const UNLOGGED_MINUTES = 60;
  */
 export const briefScope = sql`
   m.status = 'accepted'
-  and (
-    m.start_at > now()
-    or (
-      m.start_at > now() - make_interval(mins => ${UNLOGGED_MINUTES}::int)
-      -- Gone the moment somebody says what happened, so a demo you have
-      -- already dealt with does not sit there for the rest of the hour.
-      and not exists (
-        select 1 from call_demo_attendance a
-        where a.call_lead_id = m.call_lead_id
-          and a.marked_at >= m.start_at
-      )
-    )
+  and m.start_at > now() - make_interval(mins => ${UNLOGGED_MINUTES}::int)
+  -- Gone the moment somebody says what happened, so a demo you have already
+  -- dealt with does not sit there for the rest of the hour -- and one a founder
+  -- wrote off before it began (2026-09-25) is never briefed at all.
+  and not exists (
+    select 1 from call_demo_attendance a
+    where a.call_lead_id = m.call_lead_id
+      and ${answersMeeting("a", "m")}
   )
 `;
 

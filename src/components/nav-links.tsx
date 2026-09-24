@@ -1,5 +1,6 @@
 "use client";
 
+import type { Role } from "@/lib/roles";
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -36,7 +37,7 @@ export function NavLinks({
   grouped?: boolean;
   /** Decides which of this workspace's screens are on offer — a caller's has
    *  no Stats. Hiding it is the courtesy; the middleware is the control. */
-  role: "admin" | "caller" | undefined;
+  role: Role | undefined;
   /** Granted the Keypad. Admins always are. */
   keypad?: boolean;
   /** Texting is switched on, so there is a Texts screen to link to. */

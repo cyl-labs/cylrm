@@ -1,5 +1,6 @@
 "use client";
 
+import type { Role } from "@/lib/roles";
 import * as React from "react";
 import { LogOut, Menu } from "lucide-react";
 import { NavLinks } from "@/components/nav-links";
@@ -30,7 +31,7 @@ export function MobileNav({
   unreadTexts = 0,
 }: {
   /** Decides which screens the drawer offers — a caller has no Admin. */
-  role: "admin" | "caller" | undefined;
+  role: Role | undefined;
   /** Granted the Keypad. Admins always are. */
   keypad?: boolean;
   texting?: boolean;
