@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { GenerateBriefing } from "@/components/calls/generate-briefing";
 import { getBriefedMeetings } from "@/lib/meeting-brief";
+import { briefLines } from "@/lib/brief-lines";
 import { getCurrentUser } from "@/lib/session";
 import { readerZone } from "@/lib/users";
 import { prospectZone, theirClock } from "@/lib/call-time";
@@ -150,26 +151,20 @@ export default async function BriefPage() {
 
                 {m.summary ? (
                   <>
-                    {/* Rendered as plain lines rather than through a markdown
-                        parser: the prompt asks for bullets and nothing else,
-                        and a parser here would be a dependency earning its
-                        keep on one shape of output. */}
+                    {/* The same lines the fold on each Meetings row draws —
+                        see `briefLines`. */}
                     <ul className="space-y-1">
-                      {m.summary
-                        .split("\n")
-                        .map((line) => line.replace(/^\s*[-*]\s*/, "").trim())
-                        .filter(Boolean)
-                        .map((line, i) => (
-                          <li
-                            key={i}
-                            className="flex gap-2 text-[13px] leading-snug"
-                          >
-                            <span className="select-none text-muted-foreground">
-                              &bull;
-                            </span>
-                            <span>{line}</span>
-                          </li>
-                        ))}
+                      {briefLines(m.summary).map((line, i) => (
+                        <li
+                          key={i}
+                          className="flex gap-2 text-[13px] leading-snug"
+                        >
+                          <span className="select-none text-muted-foreground">
+                            &bull;
+                          </span>
+                          <span>{line}</span>
+                        </li>
+                      ))}
                     </ul>
                     {m.stale && (
                       // Said out loud rather than silently rewritten: a brief

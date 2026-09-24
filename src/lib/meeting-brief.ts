@@ -26,6 +26,7 @@ import { leadZone } from "@/lib/calls";
 import { transcribeUrl, transcriptionConfigured } from "@/lib/deepgram";
 import { recordingDownloadUrl } from "@/lib/telnyx";
 import type { TranscriptTurn } from "@/db/schema";
+import type { StoredBrief } from "@/lib/brief-lines";
 
 const API = "https://api.openai.com/v1/chat/completions";
 
@@ -324,6 +325,36 @@ export const briefScope = sql`
     )
   )
 `;
+
+/**
+ * The briefs already written for these meetings, keyed by meeting.
+ *
+ * One query for the whole Meetings list, which is what puts a brief under
+ * every row without a lookup per row. Staleness is not worked out here: that
+ * needs every meeting's transcript, and the fold asks the route to check the
+ * one meeting somebody actually opens instead.
+ */
+export async function getStoredBriefs(
+  meetingIds: number[],
+): Promise<Map<number, StoredBrief>> {
+  const out = new Map<number, StoredBrief>();
+  if (meetingIds.length === 0) return out;
+  const rows = (await db.execute(sql`
+    select meeting_id, summary, generated_at
+    from call_meeting_brief
+    where meeting_id in (${sql.join(
+      meetingIds.map((id) => sql`${id}`),
+      sql`, `,
+    )})
+  `)) as unknown as Record<string, unknown>[];
+  for (const r of rows) {
+    out.set(Number(r.meeting_id), {
+      summary: String(r.summary),
+      generatedAt: new Date(r.generated_at as string).toISOString(),
+    });
+  }
+  return out;
+}
 
 /** One upcoming demo as the briefing document renders it. */
 export type BriefedMeeting = {

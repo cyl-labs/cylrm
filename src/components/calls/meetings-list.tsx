@@ -49,6 +49,8 @@ import { CallBackButton } from "@/components/calls/call-back-button";
 import { MeetingCallButton } from "@/components/calls/meeting-call-button";
 import type { SavedLine } from "@/components/calls/second-line";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
+import { MeetingBriefFold } from "@/components/calls/meeting-brief-fold";
+import type { StoredBrief } from "@/lib/brief-lines";
 
 /**
  * How the ring back after a missed demo ended.
@@ -304,6 +306,7 @@ export function MeetingsList({
   texting = null,
   lines = [],
   canInvite = false,
+  briefs = null,
 }: {
   meetings: Meeting[];
   /** The screen's clock, chosen on the server. Passed rather than read from
@@ -343,7 +346,10 @@ export function MeetingsList({
    *  can be re-sent. False draws no button rather than one that can only fail
    *  — the rule every unconfigured feature on this screen follows. */
   canInvite?: boolean;
-
+  /** Each meeting's written brief, by meeting. Null for a caller, which draws
+   *  no Briefing fold: writing one costs an OpenAI call and the Briefing page
+   *  and its route are founders only. */
+  briefs?: Record<number, StoredBrief> | null;
 }) {
   const router = useRouter();
   /**
@@ -1700,6 +1706,17 @@ export function MeetingsList({
                 "Texted back" in its chips — the fold repeating that would be
                 the noise this removes. The summary carries the count and when
                 the last one was, so it is worth reading closed. */}
+            {/* What was said on the call that won this meeting, so a founder
+                reads it on the row they dial from rather than on the Briefing
+                page (2026-09-24). Not on a cancelled booking: there is no
+                demo to prepare for. */}
+            {briefs && !cancelled && (
+              <MeetingBriefFold
+                meetingId={m.id}
+                initial={briefs[m.id] ?? null}
+              />
+            )}
+
             {lead && lead.texts.length > 0 && (
               <details className="group mt-3 rounded-lg border bg-muted/30">
                 <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">

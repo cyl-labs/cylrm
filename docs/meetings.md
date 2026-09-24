@@ -139,10 +139,27 @@ taking a demo is usually not the caller who booked it.
   `objection-match.ts` — already the measured choice here for reading call
   transcripts, already configured. Speed matters less than it does on a live
   call: this runs on a button press.
-- **Its own page, not a fold on the list.** The list is a worklist — ring
-  them, log it, draft a contract — and this is reading material. It is built
-  to print, which is most of what "in a document" asked for; Gotenberg is
-  there if a PDF is ever wanted, the way the SOP handouts use it.
+- **Its own page, and since 2026-09-24 a fold on each row as well.** It shipped
+  as the page alone — the list is a worklist, this is reading material, and
+  the page is built to print, which is most of what "in a document" asked for
+  (Gotenberg is there if a PDF is ever wanted, the way the SOP handouts use
+  it). The founders then asked for it under each meeting too, so it could be
+  read without leaving the row they dial from. `MeetingBriefFold`
+  (`components/calls/meeting-brief-fold.tsx`), founders only, on every booking
+  that is not cancelled:
+  - **What is stored shows at once**: the page reads every row's brief in one
+    query (`getStoredBriefs`), never one per row. Staleness is not worked out
+    for the list, since that needs every transcript.
+  - **Opening the fold checks that one meeting** — `POST /api/meetings/brief`
+    with `meetingIds` — which writes the brief if there is none and rewrites it
+    if its material has moved, then hands it back so the fold updates without a
+    reload. The fingerprint makes an unchanged brief free to check. Once per
+    page view, not on every open. Named meetings are not held to `briefScope`,
+    so yesterday's demo can be briefed when somebody opens it.
+  - A rewrite that fails leaves the old brief showing **and says it may be
+    missing the latest call**, since only a changed brief is ever rewritten.
+  - `briefLines` (`lib/brief-lines.ts`) draws the bullets for both the page and
+    the fold, so one brief cannot render two ways.
 - **A demo stays on the briefing until its outcome is logged** (2026-09-22,
   `briefScope`). It shipped as `start_at > now()` and that was wrong the first
   evening: a founder at 9pm found the 9pm demo gone from the page before they

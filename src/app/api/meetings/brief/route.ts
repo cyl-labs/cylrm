@@ -7,6 +7,7 @@ import {
   briefSources,
   ensureTranscripts,
   fingerprint,
+  getStoredBriefs,
   writeBrief,
 } from "@/lib/meeting-brief";
 
@@ -24,6 +25,13 @@ import {
  * a lead, or transcribing its recording for the first time, moves that hash
  * and only that one is rewritten. `force` overrides it, for when the prompt
  * itself has changed rather than the material.
+ *
+ * `meetingIds` narrows it to the meetings named, which is how the Briefing
+ * fold on a Meetings row writes or refreshes its own brief when it is opened
+ * (2026-09-24). Those come back in `briefs`, so the fold can show the result
+ * without reloading the list. Named meetings are not held to `briefScope`: a
+ * founder opening the fold on a demo from yesterday wants its context too, and
+ * the cost is still one brief, written because somebody asked to read it.
  */
 
 /** How many to write at once. Fourteen sequential calls is half a minute of
@@ -49,18 +57,30 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as {
     force?: unknown;
+    meetingIds?: unknown;
   } | null;
   const force = body?.force === true;
+  const asked = Array.isArray(body?.meetingIds)
+    ? body.meetingIds
+        .filter((v): v is number => Number.isInteger(v) && (v as number) > 0)
+        .slice(0, 50)
+    : null;
+  if (asked !== null && asked.length === 0) {
+    return Response.json({ error: "No meeting given." }, { status: 400 });
+  }
 
   // Exactly what the page shows, through the one shared fragment: everything
   // ahead, plus anything whose time has passed that nobody has logged. A demo
   // visible on the page must always be one this can write a brief for.
-  const upcoming = (await db.execute(sql`
-    select m.id from call_meeting m
-    where ${briefScope}
-    order by m.start_at asc
-  `)) as unknown as Record<string, unknown>[];
-  const ids = upcoming.map((r) => Number(r.id));
+  const ids =
+    asked ??
+    (
+      (await db.execute(sql`
+        select m.id from call_meeting m
+        where ${briefScope}
+        order by m.start_at asc
+      `)) as unknown as Record<string, unknown>[]
+    ).map((r) => Number(r.id));
 
   if (ids.length === 0) {
     return Response.json({ briefs: [], written: 0, reused: 0, failed: [] });
@@ -149,6 +169,15 @@ export async function POST(request: Request) {
     Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker),
   );
 
+  // The named meetings' briefs as they now stand, written or reused, for the
+  // fold that asked. Not sent for the whole document, which reloads instead.
+  const briefs = asked
+    ? [...(await getStoredBriefs(asked))].map(([meetingId, b]) => ({
+        meetingId,
+        ...b,
+      }))
+    : undefined;
+
   return Response.json({
     written,
     reused,
@@ -156,5 +185,6 @@ export async function POST(request: Request) {
     total: ids.length,
     transcribed: transcripts.transcribed,
     transcribeFailed: transcripts.failed,
+    briefs,
   });
 }

@@ -9,6 +9,7 @@ import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
+import { getStoredBriefs } from "@/lib/meeting-brief";
 import { getSavedLines } from "@/lib/calls";
 import { calConfigured } from "@/lib/cal";
 import { UnbookedDemos } from "@/components/calls/unbooked-demos";
@@ -187,6 +188,14 @@ export default async function MeetingsPage({
   // which may not exist yet. It was `role === "admin"` until texting became a
   // permission an admin can hand out on Team; `canSendTexts` still answers yes
   // for every founder, so nothing changed for them.
+  // The brief already written for each meeting, for the Briefing fold on its
+  // row. Founders only, like the Briefing page and the route that writes them.
+  // One query for the whole list, never one per row.
+  const briefs =
+    me?.role === "admin"
+      ? Object.fromEntries(await getStoredBriefs(meetings.map((m) => m.id)))
+      : null;
+
   let texting: Texting | null = null;
   if (me && smsEnabled() && (await canSendTexts(me.id, me.role))) {
     const did = await callerNumberOf(me.id);
@@ -262,10 +271,11 @@ export default async function MeetingsPage({
               status={status}
             />
           )}
-          {/* Reading material rather than work, so it is a link off this
-              screen and not a fold on it. Founders only, matching the route:
-              writing the briefs costs an OpenAI call each and the people who
-              take demos are the people who need one. */}
+          {/* Every demo's brief in one document, for reading a run of them or
+              printing. Each row also carries its own brief in a fold since
+              2026-09-24. Founders only, matching the route: writing the briefs
+              costs an OpenAI call each and the people who take demos are the
+              people who need one. */}
           {me?.role === "admin" && !past && (
             <Link
               href="/meetings/brief"
@@ -393,6 +403,7 @@ export default async function MeetingsPage({
           // means no button rather than one that cannot work.
           followUpBookingUrl={process.env.CAL_FOLLOWUP_URL ?? null}
           texting={texting}
+          briefs={briefs}
           // Re-sending an invitation needs the Cal.com API, so an account
           // without a key draws no button rather than one that can only fail.
           // Not gated on role: the caller who typed the address wrong is the
