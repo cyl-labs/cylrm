@@ -1,10 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { Mic, MicOff, PhoneCall, PhoneOff, UserPlus } from "lucide-react";
+import {
+  Grid3x3,
+  Mic,
+  MicOff,
+  PhoneCall,
+  PhoneOff,
+  UserPlus,
+} from "lucide-react";
 import { useCallLine } from "@/components/calls/call-line";
 import { PhoneElsewhere } from "@/components/calls/phone-elsewhere";
 import { ConfirmCall } from "@/components/calls/confirm-call";
+import { TonePad } from "@/components/calls/tone-pad";
 import { Button } from "@/components/ui/button";
 import {
   LinePair,
@@ -94,13 +102,15 @@ export function MeetingCallButton({
   const dialled = activeRowKey === rowKey;
   const [adding, setAdding] = React.useState(false);
   const [secondName, setSecondName] = React.useState<string | null>(null);
+  const [padOpen, setPadOpen] = React.useState(false);
   // Cleared when the call ends, during render rather than in an effect —
   // React's own way of adjusting state when something it derives from changes.
   // `dialled` clears itself: the provider drops `activeMeetingId` when the
   // call ends. Only this row's own scratch state needs resetting.
-  if (!dialled && (adding || secondName !== null)) {
+  if (!dialled && (adding || secondName !== null || padOpen)) {
     setAdding(false);
     setSecondName(null);
+    setPadOpen(false);
   }
 
   // Screened out. The copy button beside this says "Do not call", so adding a
@@ -213,6 +223,25 @@ export function MeetingCallButton({
             >
               <UserPlus data-icon="inline-start" />
               Add call
+            </Button>
+          )
+        )}
+        {/* The tone pad the dial card has (2026-09-25). A demo rung on the
+            business's main line meets the same "press 1 for sales" a cold call
+            does, and this row had no way to press anything — the call had to
+            be hung up and rung again from the Keypad. Hidden while picking a
+            line to add, which is its own list of buttons. */}
+        {line.state === "active" && !adding && (
+          padOpen ? (
+            <TonePad line={line} onClose={() => setPadOpen(false)} />
+          ) : (
+            <Button
+              variant="outline"
+              className="h-11 w-full"
+              onClick={() => setPadOpen(true)}
+            >
+              <Grid3x3 data-icon="inline-start" />
+              Keypad
             </Button>
           )
         )}
