@@ -10,6 +10,7 @@ import { countUnreadTexts } from "@/lib/texts";
 import { canUseKeypad, dialMethodOf } from "@/lib/users";
 import { LinePresence } from "@/components/calls/line-presence";
 import { InboundListener } from "@/components/calls/inbound-listener";
+import { RingBackLog } from "@/components/calls/ring-back-log";
 import { CallLineProvider } from "@/components/calls/call-line";
 import { TabSync } from "@/components/tab-sync";
 import { CalBookingProvider } from "@/components/calls/book-demo";
@@ -174,6 +175,16 @@ export default async function AppLayout({
         <InboundListener
           savedLines={await getSavedLines()}
           dialFrom={row?.telnyx_did ?? null}
+        />
+      )}
+      {/* A ring-back that was answered asks what came of it, on every screen,
+          until it is logged on the business that rang. Only for someone who can
+          be rung in the browser, since nobody else can answer one here. */}
+      {reachable && (
+        <RingBackLog
+          calBookingUrl={process.env.CAL_BOOKING_URL ?? null}
+          callerName={me?.name ?? null}
+          isAdmin={me?.role === "admin"}
         />
       )}
     </div>

@@ -460,6 +460,51 @@ sharing `same-business-rows.tsx`. Route `/api/call-leads/same-business`.
   on its own retry clock, so the same office can still be rung twice in a
   week. Fixing that means making retry spacing business-aware, not lead-aware.
 
+### An answered ring-back asks what came of it (2026-09-24)
+
+`RingBackLog` (`components/calls/ring-back-log.tsx`, mounted in the app
+layout), fed by `getRingBacksToLog` in `lib/inbound.ts` through
+`GET /api/inbound-calls/to-log`. No migration.
+
+- **Why.** Only *missed* calls were ever owed anything. An answered one rang,
+  was picked up and talked through, and then the screen went back to whatever
+  card was open — usually the business the caller had just finished dialling,
+  a different one. **26 of the 41 answered calls from a lead's number in the
+  fortnight to 2026-09-24 had nothing logged on that lead afterwards.** Aaron
+  spent 164 seconds with Patriot Roll Off Dumpster Rentals, which still read
+  "No answer", and the outcome he did type went on 941JUNK's card with
+  Patriot's session (see the dial-card fix in `docs/telnyx.md`).
+- **A card on every screen, from the moment the call is answered until it is
+  logged.** "On the phone with…" while the call is up, so the dial card of the
+  business you were ringing is not mistaken for the one on the line; "Log your
+  call with…" once it ends. It carries what was said to them before they rang,
+  the outcomes a ring-back can end in (Demo booked, Call back, Gatekeeper, Not
+  interested — never No answer, Voicemail or Bad number), notes, the call-back
+  box in their zone, and the dial card's booking step. A demo turns the card
+  into the Slack post reminder.
+- **The outcome is posted to `/api/calls` with the call's own session**, taken
+  from the `inbound_call` row rather than from the line — `call_session_id`
+  there is the same id the browser holds, checked against prod.
+- **Owed is derived, not stored**: answered, from a lead, to your own number,
+  in the last `RING_BACK_LOG_HOURS` (12), not `handled_at`, and no `call` on
+  the lead since it was answered — the `RUNG_BACK_SINCE` idea. So logging it on
+  the dial card or the Spreadsheet settles it as well, and a reload, a second
+  tab or a crash cannot lose one. The card asks again when a call picks up or
+  ends, when anything is saved (it listens on `TabSync`'s `CHANGED_CHANNEL`)
+  and when the tab is looked at.
+- **Never modal and never blocking.** Hide folds it to one line and keeps it.
+  Only a logged outcome or a founder's **Skip, nothing to log** (the bodyless
+  `PATCH /api/inbound-calls/[id]`, founders only as on Missed calls) settles
+  one. Oldest first, with a count of the rest.
+- Only for `reachable` people — a browser line and a number of their own —
+  since nobody else can answer a call in the CRM. Unknown numbers get no card:
+  there is no lead to log against.
+- **Verified in a browser against local data**: call back, demo booked with the
+  pre-filled Cal.com link and the email written back, Hide and Open, the
+  founders' Skip, a 20-hour-old call left out, 390px light and dark with no
+  overflow. The "On the phone with" state needs a real inbound call and has
+  not been seen live.
+
 ### Missed calls log an outcome, not a tick
 
 `PATCH /api/inbound-calls/[id]` takes an optional `outcome` (plus `notes` and

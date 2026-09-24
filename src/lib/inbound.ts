@@ -353,3 +353,122 @@ export const countMissedCalls = cache(async function countMissedCalls(
   `)) as { n: number }[];
   return row?.n ?? 0;
 });
+
+/**
+ * A ring-back somebody answered and nothing has been logged about yet.
+ *
+ * Built 2026-09-24. An answered inbound call never asked for an outcome: the
+ * banner rang, the caller picked up and talked, and when it ended the screen
+ * went back to whatever card was open — usually a *different* business, the
+ * one they had just finished dialling. Over the fortnight to that day, 26 of
+ * the 41 answered calls from a lead's number had nothing logged on that lead
+ * afterwards. Aaron's 164 seconds with Patriot Roll Off Dumpster Rentals left
+ * the lead reading "No answer", and the outcome he did type landed on the card
+ * in front of him.
+ *
+ * Derived rather than stored, like `RUNG_BACK_SINCE`: any call logged on the
+ * lead since it was answered settles it, wherever that was typed — the prompt,
+ * the dial card, the Spreadsheet — so there is no second flag to fall out of
+ * step. A founder's Skip stamps `handled_at`, which settles it too.
+ */
+export type RingBackToLog = {
+  /** The `inbound_call` row. */
+  id: number;
+  /** Telnyx's session for the call, which is what its recording joins on —
+   *  the same id the browser holds while it is up. */
+  sessionId: string;
+  answeredAt: string;
+  /** Seconds on the call, once it has ended. Null while it is still up, or
+   *  until the hangup has reached us. */
+  seconds: number | null;
+  leadId: number;
+  company: string | null;
+  name: string | null;
+  phone: string;
+  email: string | null;
+  listName: string | null;
+  /** The prospect's zone, for the call-back box and Cal.com's slots. */
+  tz: string | null;
+  /** What was logged on them before they rang — the reason they are ringing
+   *  back is usually in these notes. */
+  last: {
+    outcome: string;
+    at: string;
+    notes: string | null;
+    by: string | null;
+  } | null;
+};
+
+/** Long enough for a shift, short enough that yesterday's calls, which nobody
+ *  remembers the detail of, are not dredged up as if they had just happened. */
+export const RING_BACK_LOG_HOURS = 12;
+
+/**
+ * The calls this person answered from a lead's number and has not logged.
+ *
+ * Only calls to their own number, founders included: whoever's line rang is
+ * whoever picked up, since a call is answered in the browser that holds that
+ * number. Oldest first, so they are cleared in the order they happened.
+ */
+export async function getRingBacksToLog(
+  me: CurrentUser,
+): Promise<RingBackToLog[]> {
+  const rows = (await db.execute(sql`
+    select ic.id, ic.call_session_id, ic.answered_at, ic.ended_at,
+      l.id as lead_id, l.company, l.name as lead_name, l.phone, l.email,
+      cl.name as list_name, z.tz,
+      last.outcome as last_outcome, last.called_at as last_at,
+      last.notes as last_notes, lu.name as last_by
+    from inbound_call ic
+    join call_lead l on l.id = ic.call_lead_id
+    left join call_list cl on cl.id = l.call_list_id
+    ${leadZone}
+    left join lateral (
+      select c.outcome::text as outcome, c.called_at, c.notes, c.user_id
+      from call c
+      where c.call_lead_id = l.id
+      order by c.called_at desc, c.id desc
+      limit 1
+    ) last on true
+    left join app_user lu on lu.id = last.user_id
+    where ic.user_id = ${me.id}
+      and ic.answered_at is not null
+      and ic.handled_at is null
+      and ic.answered_at > now() - ${`${RING_BACK_LOG_HOURS} hours`}::interval
+      and not exists (
+        select 1 from call c
+        where c.call_lead_id = ic.call_lead_id
+          and c.called_at >= ic.answered_at
+      )
+    order by ic.answered_at asc
+    limit 5
+  `)) as Record<string, unknown>[];
+
+  return rows.map((r) => {
+    const answeredAt = new Date(r.answered_at as string);
+    const endedAt = r.ended_at ? new Date(r.ended_at as string) : null;
+    return {
+      id: Number(r.id),
+      sessionId: String(r.call_session_id),
+      answeredAt: answeredAt.toISOString(),
+      seconds: endedAt
+        ? Math.max(0, Math.round((endedAt.getTime() - answeredAt.getTime()) / 1000))
+        : null,
+      leadId: Number(r.lead_id),
+      company: (r.company as string | null) ?? null,
+      name: (r.lead_name as string | null) ?? null,
+      phone: String(r.phone),
+      email: (r.email as string | null) ?? null,
+      listName: (r.list_name as string | null) ?? null,
+      tz: (r.tz as string | null) ?? null,
+      last: r.last_outcome
+        ? {
+            outcome: String(r.last_outcome),
+            at: new Date(r.last_at as string).toISOString(),
+            notes: (r.last_notes as string | null) ?? null,
+            by: (r.last_by as string | null) ?? null,
+          }
+        : null,
+    };
+  });
+}

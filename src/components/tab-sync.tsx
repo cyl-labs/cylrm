@@ -28,7 +28,9 @@ import { useCallLine } from "@/components/calls/call-line";
  * server, it does not reload.
  */
 
-const CHANNEL = "cylrm-changed";
+/** Exported for anything else that has to hear about a save — the ring-back
+ *  card asks again whether its call has been logged. */
+export const CHANGED_CHANNEL = "cylrm-changed";
 /** Away this long and the tab refreshes on return even if nothing was said. */
 const AWAY_MS = 60_000;
 /** Several saves in a burst — a row cleared, then a text sent — are one refresh. */
@@ -94,7 +96,7 @@ export function TabSync() {
   // Announce this tab's changes.
   React.useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
-    const channel = new BroadcastChannel(CHANNEL);
+    const channel = new BroadcastChannel(CHANGED_CHANNEL);
     const original = window.fetch;
     window.fetch = async (input, init) => {
       const res = await original(input, init);
