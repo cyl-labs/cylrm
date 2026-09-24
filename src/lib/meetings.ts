@@ -565,6 +565,9 @@ export type Meeting = {
    *  are logged from this row, and it stays until one says trial, won or
    *  lost. */
   needsFollowUp: boolean;
+  /** Over for an hour or more and nobody has said what happened, and this
+   *  reader is the one to say it. See `needsLoggingFor`. */
+  needsLogging: boolean;
   /** "demo" or "follow_up". A follow-up is never asked the attendance
    *  question: the fee belongs to the demo, once per business. */
   kind: "demo" | "follow_up";
@@ -938,6 +941,33 @@ const needsRingBack = sql`coalesce(
 const ringBackFor = (ownerId?: number) =>
   ownerId === undefined ? needsRingBack : sql`false`;
 
+/**
+ * A demo that has been over for a while and nobody has said what happened
+ * (2026-09-25).
+ *
+ * It used to leave this screen twelve hours after it started, answered or
+ * not, and then it was only in Past meetings — three from the week before this
+ * sat there unlogged, which is three attendance fees nobody had decided. Now
+ * it stays, and says so, until somebody answers it or a week has passed.
+ *
+ * An hour's grace so a demo still in progress is not nagged about. Whose job
+ * it is: the founders', or the closer it was handed to. A caller cannot answer
+ * it, so for them it is `false` and their list is unchanged.
+ */
+const UNLOGGED_DAYS = 7;
+const needsLoggingFor = (ownerId?: number) => sql`coalesce(
+  m.kind = 'demo'
+  and m.status = 'accepted'
+  and m.start_at < now() - interval '1 hour'
+  and m.start_at > now() - make_interval(days => ${UNLOGGED_DAYS}::int)
+  and not exists (
+    select 1 from call_demo_attendance a
+    where a.call_lead_id = m.call_lead_id and ${answersMeeting("a", "m")}
+  )
+  ${ownerId === undefined ? sql`` : sql`and m.closer_user_id = ${ownerId}`},
+  false
+)`;
+
 /** The meeting has an open founders' call back — for a founder's view only,
  *  since a caller's never shows one. Reads `cb` from `joins`. */
 const hasCallBack = (ownerId?: number) =>
@@ -1162,6 +1192,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     startingSoon: r.starting_soon === true,
     needsRingBack: r.needs_ring_back === true,
     needsFollowUp: r.needs_follow_up === true,
+    needsLogging: r.needs_logging === true,
     kind: r.kind === "follow_up" ? "follow_up" : "demo",
     callBack: r.call_back_id
       ? {
@@ -1223,7 +1254,8 @@ export async function getMeetings(
       (m.start_at <= now()) as started,
       (${startingSoon(tz)}) as starting_soon,
       (${ringBackFor(ownerId)}) as needs_ring_back,
-      (${needsFollowUp}) as needs_follow_up
+      (${needsFollowUp}) as needs_follow_up,
+      (${needsLoggingFor(ownerId)}) as needs_logging
     from call_meeting m
     ${joins}
     where ${
@@ -1238,6 +1270,9 @@ export async function getMeetings(
               -- So does one that happened and is still being worked: the
               -- mock-up call comes days later and is logged from this row.
               or (${needsFollowUp})
+              -- And a demo nobody has said the outcome of, for up to a week
+              -- (2026-09-25): it used to vanish here at twelve hours.
+              or (${needsLoggingFor(ownerId)})
               -- And one a founder has moved to a call back: it is upcoming
               -- work again, at the call back's time.
               or (${hasCallBack(ownerId)})
@@ -1274,7 +1309,7 @@ export async function getMeetings(
       -- kept the row alive is above the demo that is closed out. Nothing is
       -- hidden either way — this only decides which of two past rows is
       -- higher.
-      (${ringBackFor(ownerId)} or ${needsFollowUp}) desc,
+      (${needsLoggingFor(ownerId)} or ${ringBackFor(ownerId)} or ${needsFollowUp}) desc,
       -- Then most recent, because the further back it is the less likely it
       -- is still the thing being dealt with.
       m.start_at desc,
@@ -1309,7 +1344,8 @@ export const countMeetingsWaiting = cache(
       select count(m.id) as n
       from call_meeting m
       ${joins}
-      where ((${startingSoon(tz)}) or (${ringBackFor(ownerId)})) ${ownedBy(ownerId)}
+      where ((${startingSoon(tz)}) or (${ringBackFor(ownerId)})
+        or (${needsLoggingFor(ownerId)})) ${ownedBy(ownerId)}
     `)) as Row[];
     return n(row?.n);
   },
@@ -1856,7 +1892,7 @@ export async function getMeeting(
     -- (the follow-up route), which asks whether the row exists and who owns it,
     -- never how it should be drawn on the diary.
     select ${meetingSelect}, false as started, false as starting_soon,
-      false as needs_ring_back
+      false as needs_ring_back, false as needs_logging
     from call_meeting m
     ${joins}
     where m.id = ${id} ${ownedBy(ownerId)}

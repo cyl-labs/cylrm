@@ -900,7 +900,7 @@ export function MeetingsList({
               m.startingSoon && "border-primary/40",
               // The only row on this screen that is work owed, so it is the
               // only one that shouts.
-              m.needsRingBack && "border-destructive/40",
+              (m.needsRingBack || m.needsLogging) && "border-destructive/40",
               m.callBack?.due && "border-amber-500/60",
               cancelled && "opacity-70",
             )}
@@ -1188,6 +1188,18 @@ export function MeetingsList({
                 them, ask what happened, and put a new time in while you have
                 them. Log it below either way — that is what takes this off your
                 list.
+              </p>
+            )}
+
+            {/* Over, and nobody has said what happened (2026-09-25). It
+                used to drop off this screen at twelve hours and only be found
+                in Past meetings. */}
+            {m.needsLogging && (
+              <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[13px]">
+                <span className="font-bold">Not logged yet.</span> Nobody has
+                said what happened at this demo. Use Log what happened below —
+                it decides the caller&apos;s attendance fee, and it stays here
+                until it is answered.
               </p>
             )}
 
