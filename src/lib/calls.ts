@@ -423,7 +423,17 @@ const CALLBACK_OWED = sql`(${CALLBACK_DUE} and not ${CALLBACK_WAITING})`;
  * the planner to that order) and only those are placed on a clock.
  */
 const waitingCallbacksByList = cache(
-  async (ownerId?: number): Promise<Map<number, number>> => {
+  async (
+    ownerId?: number,
+    /** One person's own promised callbacks, as `countCallbacksDue` takes it. */
+    mine?: number,
+  ): Promise<Map<number, number>> => {
+    // Whose callbacks, filtered exactly as the counts this is subtracted from
+    // (2026-09-24). It filtered by niche alone, so a founder's callback waiting
+    // for its business to open was taken off a caller's count that had never
+    // included it — a caller's badge and gate could read low, hiding one of
+    // their own — and every caller's waiting callback came off a founder's own
+    // badge, which counts only theirs.
     const rows = (await db.execute(sql`
       with due as materialized (
         select l.id, l.call_list_id, l.phone_key, l.source_fields, l.opening_hours
@@ -432,6 +442,8 @@ const waitingCallbacksByList = cache(
         ${latestCall}
         where l.duplicate_of_lead_id is null
           ${ownedBy(ownerId)}
+          ${promisedBy(mine)}
+          ${mine === undefined ? CALLER_PROMISED_AND : sql``}
           and lc.outcome = 'callback'
           and ${CALLBACK_DUE}
       )
@@ -1070,7 +1082,9 @@ export const countCallbacksDue = cache(
         and ${CALLBACK_DUE}
     `)) as Row[];
     let waiting = 0;
-    for (const v of (await waitingCallbacksByList(ownerId)).values()) waiting += v;
+    for (const v of (await waitingCallbacksByList(ownerId, mine)).values()) {
+      waiting += v;
+    }
     return n(row?.n) - waiting;
   },
 );
@@ -1099,6 +1113,9 @@ export async function countCallbacksDueToday(
     ${latestCall}
     where l.duplicate_of_lead_id is null
       ${ownedBy(ownerId)}
+      -- A caller's reminder counts the floor's callbacks, not a founder's
+      -- (2026-09-24). A founder's own reminder, unscoped, still counts every one.
+      ${ownerId === undefined ? sql`` : CALLER_PROMISED_AND}
       and lc.outcome = 'callback'
       and (
         lc.callback_at is null
@@ -1181,7 +1198,19 @@ export async function getCallBoard(
  * screen that the queue underneath it disagrees with, which is worse than no
  * number at all.
  */
-function queueWhere(filter: CallQueueFilter) {
+function queueWhere(
+  filter: CallQueueFilter,
+  /**
+   * The reader is a caller (2026-09-24). A founder's callback is theirs, not
+   * the niche's (`CALLER_PROMISED`), and the diary, the badge and the gate
+   * already left it out — but the queue did not, so a due one still sat at the
+   * top of the caller's dialler and on their Callbacks tab: exactly how Brian
+   * came to ring a prospect a founder was already talking to. Founders see
+   * every callback, their own included.
+   */
+  forCaller = false,
+) {
+  const whose = forCaller ? CALLER_PROMISED_AND : sql``;
   return filter === "queue"
     ? // A callback booked for Tuesday is not Monday's work. It leaves the
       // queue when it is logged and comes back when its time passes, which
@@ -1199,10 +1228,10 @@ function queueWhere(filter: CallQueueFilter) {
           -- different days instead of one afternoon.
           and ${RETRY_READY}
         )
-        or (lc.outcome = 'callback' and ${CALLBACK_DUE})
+        or (lc.outcome = 'callback' and ${CALLBACK_DUE} ${whose})
       )`
     : filter === "callbacks"
-      ? sql`and lc.outcome = 'callback'`
+      ? sql`and lc.outcome = 'callback' ${whose}`
       : filter === "closed"
         ? sql`and lc.outcome in ${TERMINAL}`
         : sql``;
@@ -1228,6 +1257,8 @@ function queueWhere(filter: CallQueueFilter) {
 export async function countQueueSplit(
   callListId: number,
   filter: CallQueueFilter = "queue",
+  /** See `queueWhere`: the same leads the queue under it holds. */
+  forCaller = false,
 ): Promise<{ total: number; callableNow: number; alwaysOpen: number }> {
   const [row] = (await db.execute(sql`
     select count(l.id) as total,
@@ -1243,7 +1274,7 @@ export async function countQueueSplit(
     ${leadZone}
     where l.call_list_id = ${callListId}
       and l.duplicate_of_lead_id is null
-      ${queueWhere(filter)}
+      ${queueWhere(filter, forCaller)}
   `)) as Row[];
   return {
     total: n(row?.total),
@@ -1277,8 +1308,10 @@ export async function getCallQueue(
    * filtered afterwards hands back a short page and calls it a queue.
    */
   hideAlwaysOpen = false,
+  /** See `queueWhere`. */
+  forCaller = false,
 ): Promise<QueueLead[]> {
-  const where = queueWhere(filter);
+  const where = queueWhere(filter, forCaller);
 
   const rows = (await db.execute(sql`
     select ${leadColumns}

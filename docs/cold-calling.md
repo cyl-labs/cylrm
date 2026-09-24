@@ -344,6 +344,21 @@ opening a niche to check something is not somebody skipping their callbacks.
     the badge now costs about 50ms, and the list query is unchanged.
   - The morning digest (`countCallbacksDueToday`) still counts every callback
     promised for today, closed or not: it is a briefing, not a gate.
+- **A founder's callback is never the floor's** (`CALLER_PROMISED`, 2026-09-22,
+  finished 2026-09-24). The first pass kept it out of the diary, the badge,
+  the gate and each list's counts, and missed three places: the dialler's
+  Queue and Callbacks tab (`queueWhere`, now told `forCaller`) still put a due
+  one at the top of the caller's queue; the morning reminder
+  (`countCallbacksDueToday`) still counted it for them; and
+  `waitingCallbacksByList` filtered by niche alone while the counts it is
+  subtracted from filter by who promised, so a founder's callback waiting for
+  a closed business came off a caller's count that never included it.
+  Reproduced before fixing, on four due callbacks (a founder's and a caller's,
+  each at an open and a closed business): the caller's badge read **0** with
+  one owed — so the gate let them skip it — their Callbacks tab carried the
+  founder's lead, and the founder's own badge read 0 too. After: 1, their
+  own only, and 1. **Anything new that counts or lists callbacks has to take
+  the same "whose" filter as the badge**, or the two disagree again.
 - It gates the **dialler only**. The spreadsheet and the pipeline board can
   still log a call, and are deliberately left alone — they are reference
   screens rather than a queue, and blocking every way to touch a lead would

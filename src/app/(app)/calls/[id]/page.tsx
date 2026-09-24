@@ -147,14 +147,21 @@ export default async function CallListPage({
   // cannot disagree with the queue.
   const hideAlwaysOpen = await hidesAlwaysOpen(me?.id);
   const [leads, sop, split] = await Promise.all([
-    getCallQueue(listId, filter, callableNow, hideAlwaysOpen),
+    // A caller's queue leaves out a founder's callbacks; see `queueWhere`.
+    getCallQueue(
+      listId,
+      filter,
+      callableNow,
+      hideAlwaysOpen,
+      me?.role !== "admin",
+    ),
     getDiallerSop(sopRegion, {
       number: myNumber ? spokenNumber(myNumber) : null,
     }),
     // Both halves. The tiles above are list-wide by design and never move, so
     // without these the toggle changes one small badge and reads as broken —
     // and one number alone reads as "135 are being shown" when 194 are.
-    countQueueSplit(listId, filter),
+    countQueueSplit(listId, filter, me?.role !== "admin"),
   ]);
 
   // What the Queue tab holds: never rung, rung and not reached, and callbacks
