@@ -1339,6 +1339,10 @@ export const callRecordingGap = pgTable(
     /** Null until an alert actually went out. Separate from `detectedAt`: an
      *  unreachable Telegram must not cause the gap to be forgotten. */
     notifiedAt: timestamp("notified_at", { withTimezone: true }),
+    /** Set when no recording was ever going to exist, so nothing was lost and
+     *  nothing is announced: `inbound` — they rang us, and recording is on the
+     *  outbound voice profile only. Null for a real gap. */
+    expected: text("expected"),
   },
   // Declared here as well as in the migration — a push drops any index that
   // lives only in a migration file.

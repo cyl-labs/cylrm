@@ -95,17 +95,40 @@ export async function sweepRecordingGaps(): Promise<GapSweep> {
   // which also takes the call out of this query for good. When Telnyx cannot
   // say — no record yet, or the API is down — the call stays in: a false
   // alarm costs a look, a missed gap costs a recording.
+  //
+  // A call the prospect placed to us is the other exception. Recording lives
+  // on the outbound voice profile, so a ring-back answered in the browser was
+  // never recorded — all three alerts on the night of 2026-09-24 were that.
+  // It is claimed with `expected` set, never announced, so it is asked about
+  // once rather than on every tick.
   const real: number[] = [];
   const unanswered: number[] = [];
+  const inbound: number[] = [];
   for (const c of candidates) {
-    let connected: boolean | null = null;
+    let verdict: Awaited<ReturnType<typeof callConnected>> = null;
     try {
-      connected = await callConnected(c.telnyx_session_id);
+      verdict = await callConnected(c.telnyx_session_id);
     } catch {
-      connected = null;
+      verdict = null;
     }
-    if (connected === false) unanswered.push(Number(c.id));
+    if (verdict && !verdict.connected) unanswered.push(Number(c.id));
+    else if (verdict?.inbound) inbound.push(Number(c.id));
     else real.push(Number(c.id));
+  }
+
+  if (inbound.length > 0) {
+    await db.execute(sql`
+      insert into call_recording_gap
+        (call_id, telnyx_session_id, duration_seconds, called_at, user_id, expected)
+      select c.id, c.telnyx_session_id, c.duration_seconds, c.called_at, c.user_id,
+        'inbound'
+      from "call" c
+      where c.id in (${sql.join(
+        inbound.map((id) => sql`${id}`),
+        sql`, `,
+      )})
+      on conflict (call_id) do nothing
+    `);
   }
 
   if (unanswered.length > 0) {

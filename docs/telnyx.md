@@ -437,6 +437,19 @@ successes on the same connection went through `sv1`.
   record before reading an alert as lost audio**: `inbound` means it was never
   this lead's call. The ring-back conversations themselves were logged
   nowhere, so those leads still read "No answer".
+- **An inbound call is never recorded, so it is not a gap** (2026-09-25,
+  `call_recording_gap.expected`, `2026-09-25-recording-gap-expected.sql`,
+  applied before the deploy). The next three alerts, 24 Sep 17:47–18:17 UTC
+  (Alex ×2, Brian), were not misfiled at all: each was the lead itself ringing
+  back minutes after a voicemail, answered in the browser, and the outcome
+  logged on that lead correctly. Recording is on the outbound voice profile, so
+  those calls had no audio to lose. The sweep now reads `direction` from the
+  detail record and claims an all-inbound session with `expected = 'inbound'`,
+  unannounced. All seven live alerts from 23 Sep on were inbound. **Recording
+  inbound calls is a separate decision** — it needs a recording set up for the
+  answered leg, and the same recorded-line question as the outbound opener.
+  `detail_records` rate-limits hard (429 after ~55 quick lookups); the sweep
+  treats a 429 as "cannot say" and alerts.
 - **Counting these needs every page of `detail_records`.** `page[size]` caps
   at **50** whatever you ask for, and there were 168 pages for one week — a
   six-page fetch gave 33, then 30, then 27 for the same question, because

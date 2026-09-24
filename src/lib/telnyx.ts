@@ -597,20 +597,27 @@ export async function recordingNumbers(
  * four "no recording" alerts that night were calls Telnyx had billed at zero
  * seconds (busy, unallocated, declined, cancelled). Null when Telnyx has no
  * record for the session, so the caller can decide what not knowing means.
+ *
+ * `inbound` because recording is on the outbound voice profile only: a call a
+ * prospect placed to us was never recorded, so its absence is not a fault.
+ * All three alerts on the night of 2026-09-24 were that.
  */
 export async function callConnected(
   sessionId: string,
-): Promise<boolean | null> {
+): Promise<{ connected: boolean; inbound: boolean } | null> {
   const q = new URLSearchParams({
     "filter[record_type]": "sip-trunking",
     "filter[telnyx_session_id]": sessionId,
   });
   const body = (await telnyx(`/detail_records?${q}`)) as {
-    data?: { connected?: boolean; call_sec?: number }[];
+    data?: { connected?: boolean; call_sec?: number; direction?: string }[];
   };
   const rows = body.data ?? [];
   if (rows.length === 0) return null;
-  return rows.some((r) => r.connected === true || (r.call_sec ?? 0) > 0);
+  return {
+    connected: rows.some((r) => r.connected === true || (r.call_sec ?? 0) > 0),
+    inbound: rows.every((r) => r.direction === "inbound"),
+  };
 }
 
 export type AccountNumber = {
