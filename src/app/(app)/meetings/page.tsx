@@ -30,6 +30,7 @@ import {
   DEFAULT_STATS_REGION,
 } from "@/lib/stats-zones";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
+import { screenRegion } from "@/lib/screen-zone";
 import {
   MeetingsCalendar,
   type CalendarSpan,
@@ -109,11 +110,14 @@ export default async function MeetingsPage({
   // meeting is agreed in the prospect's zone and kept in the caller's, and
   // those are rarely the same country. Someone in Singapore reading "2:00 PM
   // ET" has to do the arithmetic themselves at exactly the moment it matters.
-  const region = isStatsRegion(rawTz)
-    ? rawTz
-    : ((await statsRegionOf(me?.id)) ??
+  const region = await screenRegion(
+    "meetings",
+    rawTz,
+    async () =>
+      (await statsRegionOf(me?.id)) ??
       (await callRegionOf(me?.id)) ??
-      DEFAULT_STATS_REGION);
+      DEFAULT_STATS_REGION,
+  );
   const zone = statsZone(region);
 
   const allMeetings = await getMeetings(callScope(me), zone.tz, { past });
@@ -324,7 +328,7 @@ export default async function MeetingsPage({
           <PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
           {/* Last, like it is on Stats: the control you set once and leave,
               rather than one you move through while reading. */}
-          <TimezonePicker region={region} />
+          <TimezonePicker region={region} screen="meetings" />
         </>
       }
     >

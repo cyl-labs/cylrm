@@ -20,7 +20,7 @@ import {
   type LogFilterValue,
   type PersonStat,
 } from "@/lib/call-stats";
-import { DEFAULT_STATS_REGION, STATS_TZ, isStatsRegion } from "@/lib/stats-zones";
+import { DEFAULT_STATS_REGION, STATS_TZ } from "@/lib/stats-zones";
 // The same standings the Friday notification sends, so the screen and the
 // push cannot disagree about who is behind. Fetched by the card when a founder
 // asks for them, never with the page — see `QuotaStandings`.
@@ -31,6 +31,7 @@ import { ReminderScheduleCard } from "@/components/calls/reminder-schedule";
 import { CallCalendar } from "@/components/calls/call-calendar";
 import { ListStatsRows } from "@/components/calls/list-stats-rows";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
+import { screenRegion } from "@/lib/screen-zone";
 import { getCurrentUser } from "@/lib/session";
 import { hoursAckOf, statsRegionOf } from "@/lib/users";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
@@ -143,9 +144,11 @@ export default async function CallStatsPage({
   // screen rather than open to the whole floor's numbers.
   const mine = me?.role !== "admin";
   const scopeId = mine ? (me?.id ?? -1) : undefined;
-  const region = isStatsRegion(rawTz)
-    ? rawTz
-    : ((await statsRegionOf(me?.id)) ?? DEFAULT_STATS_REGION);
+  const region = await screenRegion(
+    "call-stats",
+    rawTz,
+    async () => (await statsRegionOf(me?.id)) ?? DEFAULT_STATS_REGION,
+  );
   const zone = statsZone(region);
 
   // An outcome that is not one of ours falls back to all of them, like a
@@ -361,7 +364,7 @@ export default async function CallStatsPage({
           {/* Last of the four: it is the one you set once and leave, where
               the niche, the person and the range are what a reader moves
               through while looking at something. */}
-          <TimezonePicker region={region} />
+          <TimezonePicker region={region} screen="call-stats" />
         </>
       }
     >

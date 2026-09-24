@@ -11,8 +11,9 @@ import {
   todayInStatsTz,
   type StatsWindow,
 } from "@/lib/call-stats";
-import { DEFAULT_STATS_REGION, isStatsRegion } from "@/lib/stats-zones";
+import { DEFAULT_STATS_REGION } from "@/lib/stats-zones";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
+import { screenRegion } from "@/lib/screen-zone";
 import { statsRegionOf } from "@/lib/users";
 import { cn } from "@/lib/utils";
 
@@ -223,10 +224,13 @@ export default async function ScoreboardPage({
   const me = await getCurrentUser();
   // Which clock this board is read in: the URL first — the board gets pasted
   // into Discord, and a link should show what the sender was looking at — then
-  // whatever this person last chose on either screen, then Eastern.
-  const region = isStatsRegion(rawTz)
-    ? rawTz
-    : ((await statsRegionOf(me?.id)) ?? DEFAULT_STATS_REGION);
+  // whatever was last chosen on this screen in this browser, then the
+  // account's zone, then Eastern.
+  const region = await screenRegion(
+    "scoreboard",
+    rawTz,
+    async () => (await statsRegionOf(me?.id)) ?? DEFAULT_STATS_REGION,
+  );
   const zone = statsZone(region);
 
   const today = todayInStatsTz(zone.tz);
@@ -283,7 +287,7 @@ export default async function ScoreboardPage({
             }
             zoneName={zone.name}
           />
-          <TimezonePicker region={region} />
+          <TimezonePicker region={region} screen="scoreboard" />
         </>
       }
     >

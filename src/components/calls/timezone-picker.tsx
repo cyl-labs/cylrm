@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { beginNavigation } from "@/components/navigation-progress";
+import { SCREEN_ZONE_COOKIE, type ZoneScreen } from "@/lib/screen-zone-cookie";
 
 /**
  * Which clock the calling numbers are read in.
@@ -22,29 +23,35 @@ import { beginNavigation } from "@/components/navigation-progress";
  * what "Today" resolves to, and the times in the call log.
  *
  * Two places at once, and deliberately: the choice goes into the URL so a
- * link says what it is showing, and onto the account so the next visit opens
- * the same way. The URL wins when both are set, that being someone saying
- * which zone they mean for *this* look at the screen.
+ * link says what it is showing, and into a cookie for *this screen in this
+ * browser* so the next visit opens the same way (`screenRegion`). The URL wins
+ * when both are set, that being someone saying which zone they mean for
+ * *this* look at the screen.
+ *
+ * It used to be saved on the account, one zone for every screen — so the
+ * Scoreboard in Eastern and Meetings in Singapore meant picking again on every
+ * visit, and the choice also moved the clock on screens with no picker.
  *
  * It keeps the rest of the query string rather than rebuilding it, the bug
  * `call-filters.tsx` documents at length — the difference being that this one
  * reads the live parameters instead of taking them as props, since it is
  * mounted next to the other filters rather than inside them.
  */
-export function TimezonePicker({ region }: { region: StatsRegion }) {
+export function TimezonePicker({
+  region,
+  screen,
+}: {
+  region: StatsRegion;
+  screen: ZoneScreen;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
 
   function go(next: string) {
-    // Saved first, best effort: a preference that fails to store costs the
-    // next page load, and there is nothing useful to say to someone who only
-    // wanted to change a clock. The navigation happens either way.
-    fetch("/api/me", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ statsRegion: next }),
-    }).catch(() => {});
+    // Written before navigating, so the server render that follows already
+    // reads it. A year, because it is a preference, not a session.
+    document.cookie = `${SCREEN_ZONE_COOKIE(screen)}=${next}; path=/; max-age=31536000; samesite=lax`;
 
     const q = new URLSearchParams(params.toString());
     q.set("tz", next);
