@@ -35,6 +35,9 @@ export type TeamList = {
   uncalled: number;
   /** 0 to 1, `listProgress` — the same arithmetic as the card and the sort. */
   fraction: number;
+  /** The list's market, so moving it to somebody in another one can be
+   *  warned about before it happens: they could not ring a single lead. */
+  region: string | null;
 };
 
 /**
@@ -57,6 +60,7 @@ export function listsByOwner(
       leftToCall,
       uncalled: l.uncalled,
       fraction,
+      region: l.region ?? null,
     });
   }
   for (const rows of Object.values(by)) {

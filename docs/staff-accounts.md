@@ -163,3 +163,13 @@ Employees sign in individually so every call has a name on it. The single shared
   the Telnyx settings, and the founders asked for it beside the person rather
   than beyond a horizontal scroll. Who somebody is reads left to right — name,
   login, how long — and how they are set up follows.
+
+- **Lists move between people on Team by drag and drop** (2026-09-25,
+  `components/team/list-mover.tsx`). Drag a list card onto another person's
+  row, or use the card's menu ("Give to someone else", "Take it off {name}").
+  Always a confirmation window first (with a warning when the list is another
+  market's), then an Undo on the toast. "Take it off" **unassigns, never
+  deletes**: the leads, calls and callbacks stay on the list, invisible to
+  callers until it is given out again. Same `PATCH /api/call-lists/[id]` as
+  every other assign. HTML5 drag never fires on touch, so on a phone the menu
+  is the route. Founders only (`canManage`).

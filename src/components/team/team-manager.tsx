@@ -17,6 +17,29 @@ import type { TeamMember } from "@/lib/users";
 import type { PoolList, TeamList } from "@/lib/lead-stock";
 import { callerUrgency, whenOut } from "@/lib/lead-words";
 import { AssignListMenu } from "@/components/team/assign-list";
+import {
+  ListDropZone,
+  ListMoverProvider,
+  MovableList,
+  type MoverPerson,
+} from "@/components/team/list-mover";
+
+/** Moving lists is a founder's control; everyone else gets the plain table. */
+function MaybeMover({
+  enabled,
+  people,
+  children,
+}: {
+  enabled: boolean;
+  people: MoverPerson[];
+  children: React.ReactNode;
+}) {
+  return enabled ? (
+    <ListMoverProvider people={people}>{children}</ListMoverProvider>
+  ) : (
+    <>{children}</>
+  );
+}
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -406,6 +429,12 @@ export function TeamManager({
             scroll against the sticky heading tracked the page instead and
             slid off the top — hence the cap. */}
         <div className="max-h-[75vh] overflow-auto">
+          <MaybeMover
+            enabled={canManage}
+            people={team
+              .filter((t) => t.active)
+              .map((t) => ({ id: t.id, name: t.name, market: t.callRegion }))}
+          >
           <table className="w-full text-[13px]">
             <thead>
               <tr className="text-left">
@@ -559,16 +588,29 @@ export function TeamManager({
                         that caller has nothing new to dial, whatever the bar
                         says about retries still owed. */}
                     <td className="px-4 py-2.5">
+                      {/* Drop a list dragged from another row here, to give
+                          it to this person (2026-09-25). Confirmed first. */}
+                      <ListDropZone
+                        person={{ id: m.id, name: m.name, market: m.callRegion }}
+                      >
                       {listsOf(m.id).length > 0 ? (
                         <div className="flex min-w-52 max-w-72 flex-col gap-1.5">
                           {listsOf(m.id).map((l) => {
                             const pct = Math.round(l.fraction * 100);
                             return (
-                              <Link
+                              <MovableList
                                 key={l.id}
+                                list={l}
+                                owner={{ id: m.id, name: m.name, market: m.callRegion }}
+                              >
+                              <Link
                                 href={`/calls/${l.id}`}
+                                draggable={false}
                                 title={`${l.total} leads · ${l.leftToCall} left to call · ${l.uncalled} never rung`}
-                                className="block rounded-md border px-2 py-1.5 transition-colors hover:bg-muted/60"
+                                className={cn(
+                                  "block rounded-md border px-2 py-1.5 transition-colors hover:bg-muted/60",
+                                  canManage && "pr-7",
+                                )}
                               >
                                 <span className="flex items-baseline justify-between gap-2">
                                   <span className="truncate text-[12px] font-semibold">
@@ -611,6 +653,7 @@ export function TeamManager({
                                   )}
                                 </span>
                               </Link>
+                              </MovableList>
                             );
                           })}
                           {/* The total, under the lists it adds up. Asked for
@@ -672,6 +715,7 @@ export function TeamManager({
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
+                      </ListDropZone>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       {canManage ? (
@@ -1030,6 +1074,7 @@ export function TeamManager({
               )}
             </tbody>
           </table>
+          </MaybeMover>
         </div>
       </div>
 
