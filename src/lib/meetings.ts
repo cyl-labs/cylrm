@@ -556,6 +556,22 @@ export type Meeting = {
   /** "demo" or "follow_up". A follow-up is never asked the attendance
    *  question: the fee belongs to the demo, once per business. */
   kind: "demo" | "follow_up";
+  /**
+   * A founder moved this meeting to a call back after a no-show (2026-09-24):
+   * when, how many times it has gone unanswered, and the note. The row is
+   * drawn at this time rather than the booking's. Always null for a caller —
+   * the call back is the founders' alone.
+   */
+  callBack: {
+    id: number;
+    at: string;
+    tries: number;
+    notes: string | null;
+    /** Its time has come. */
+    due: boolean;
+    /** Due within the hour, for the calendar's strong colour. */
+    soon: boolean;
+  } | null;
   followup: {
     result: MeetingFollowupResult;
     at: string;
@@ -820,7 +836,13 @@ const meetingSelect = sql`
     select a.notes from call_demo_attendance a
     where a.call_lead_id = l.id and a.marked_at >= m.start_at
     order by a.marked_at desc limit 1
-  ) as attendance_notes
+  ) as attendance_notes,
+  -- A founder moved this meeting to a call back (2026-09-24). See the cb
+  -- lateral in joins, and the founder_call table.
+  cb.id as call_back_id, cb.start_at as call_back_at, cb.tries as call_back_tries,
+  cb.notes as call_back_notes,
+  (cb.start_at <= now()) as call_back_due,
+  (cb.start_at <= now() + interval '1 hour') as call_back_soon
 `;
 
 /**
@@ -873,9 +895,8 @@ const needsRingBack = sql`coalesce(
     select 1 from call_meeting_followup fu
     where fu.meeting_id = m.id and fu.for_start_at = m.start_at
   )
-  -- A founder put their own call back on the calendar for it (2026-09-24,
-  -- founder_call): the ring back is theirs now, owed from "Your call backs"
-  -- rather than from this row.
+  -- A founder moved it to a call back (2026-09-24, founder_call): the ring
+  -- back is owed at the call back's time, on the same row, rather than now.
   and not exists (
     select 1 from founder_call fc
     where fc.meeting_id = m.id and fc.created_at >= m.start_at
@@ -895,6 +916,11 @@ const needsRingBack = sql`coalesce(
  */
 const ringBackFor = (ownerId?: number) =>
   ownerId === undefined ? needsRingBack : sql`false`;
+
+/** The meeting has an open founders' call back — for a founder's view only,
+ *  since a caller's never shows one. Reads `cb` from `joins`. */
+const hasCallBack = (ownerId?: number) =>
+  ownerId === undefined ? sql`cb.id is not null` : sql`false`;
 
 const startingSoon = (tz: string) => sql`
   m.status = 'accepted'
@@ -991,6 +1017,17 @@ const joins = sql`
   left join call_list cl on cl.id = l.call_list_id
   left join "call" bc on bc.id = m.call_id
   ${latestFollowup}
+  -- The founders' call back on this meeting while it is open: the meeting
+  -- "moved" to that time as a call back, without Cal.com or the prospect ever
+  -- hearing of it. The booking's own time is left alone — attendance, the ring
+  -- back and payroll are all read against it.
+  left join lateral (
+    select fc.id, fc.start_at, fc.tries, fc.notes
+    from founder_call fc
+    where fc.meeting_id = m.id and fc.done_at is null
+    order by fc.id desc
+    limit 1
+  ) cb on true
   -- After the call_lead join, which it reads. A cross join lateral over one
   -- row per meeting, and this screen lists tens of them rather than the 5,231
   -- leads the calling queries run it over, so the fence inside it is enough.
@@ -1082,6 +1119,16 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     needsRingBack: r.needs_ring_back === true,
     needsFollowUp: r.needs_follow_up === true,
     kind: r.kind === "follow_up" ? "follow_up" : "demo",
+    callBack: r.call_back_id
+      ? {
+          id: Number(r.call_back_id),
+          at: iso(r.call_back_at)!,
+          tries: Number(r.call_back_tries ?? 0),
+          notes: (r.call_back_notes as string | null) ?? null,
+          due: r.call_back_due === true,
+          soon: r.call_back_soon === true,
+        }
+      : null,
     followup: r.followup_result
       ? {
           result: r.followup_result as MeetingFollowupResult,
@@ -1147,6 +1194,9 @@ export async function getMeetings(
               -- So does one that happened and is still being worked: the
               -- mock-up call comes days later and is logged from this row.
               or (${needsFollowUp})
+              -- And one a founder has moved to a call back: it is upcoming
+              -- work again, at the call back's time.
+              or (${hasCallBack(ownerId)})
             )
             and (m.status = 'accepted' or m.start_at > now())`
     }
@@ -1170,10 +1220,12 @@ export async function getMeetings(
       -- the second its start time passed — mid-call. "wait until i log a
       -- outcome its not like i finish the call in 1 minute". Twelve hours at
       -- most, the window the where clause already keeps a row for.
-      (${stillAhead}) desc,
+      (${stillAhead} or ${hasCallBack(ownerId)}) desc,
       -- Upcoming: soonest first, the diary order — so the one in progress,
-      -- having the earliest time, sits on top.
-      case when ${stillAhead} then m.start_at end asc,
+      -- having the earliest time, sits on top. A meeting moved to a call back
+      -- sorts at the call back's time, which is where it now is.
+      case when ${stillAhead} or ${hasCallBack(ownerId)}
+        then coalesce(cb.start_at, m.start_at) end asc,
       -- Past: still owed something before finished, so the ring back that
       -- kept the row alive is above the demo that is closed out. Nothing is
       -- hidden either way — this only decides which of two past rows is
@@ -1188,7 +1240,11 @@ export async function getMeetings(
   `)) as Row[];
 
   const dids = await getDids();
-  return rows.map((r) => toMeeting(r, dids));
+  return rows.map((r) => {
+    const m = toMeeting(r, dids);
+    // The founders' own: a caller's view never carries it.
+    return ownerId === undefined ? m : { ...m, callBack: null };
+  });
 }
 
 /**

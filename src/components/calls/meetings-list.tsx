@@ -9,6 +9,7 @@ import {
   CalendarX2,
   ChevronRight,
   ClipboardCheck,
+  Clock,
   Copy,
   ExternalLink,
   FileSignature,
@@ -16,6 +17,7 @@ import {
   Globe,
   Mail,
   MessageSquare,
+  PhoneForwarded,
   PhoneOutgoing,
   ShieldAlert,
   Video,
@@ -50,7 +52,10 @@ import { MeetingCallButton } from "@/components/calls/meeting-call-button";
 import type { SavedLine } from "@/components/calls/second-line";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
 import { MeetingBriefFold } from "@/components/calls/meeting-brief-fold";
-import { NoShowDialog } from "@/components/calls/founder-calls";
+import {
+  CallBackPrompt,
+  type CallBackMode,
+} from "@/components/calls/founder-calls";
 import type { StoredBrief } from "@/lib/brief-lines";
 
 /**
@@ -308,7 +313,6 @@ export function MeetingsList({
   lines = [],
   canInvite = false,
   briefs = null,
-  founderCalls = null,
 }: {
   meetings: Meeting[];
   /** The screen's clock, chosen on the server. Passed rather than read from
@@ -352,9 +356,6 @@ export function MeetingsList({
    *  no Briefing fold: writing one costs an OpenAI call and the Briefing page
    *  and its route are founders only. */
   briefs?: Record<number, StoredBrief> | null;
-  /** The founders' own call back set for a meeting, by meeting. Null for a
-   *  caller: those are the founders' alone. */
-  founderCalls?: Record<number, { id: number; startAt: string }> | null;
 }) {
   const router = useRouter();
   /**
@@ -518,12 +519,12 @@ export function MeetingsList({
    * Prefilled from what is stored, so changing an answer carries the note with
    * it rather than asking for it again.
    */
-  // The no-show just marked, while its "when do you call them back?" pop-up
-  // is up. See `NoShowDialog`.
-  const [noShow, setNoShow] = React.useState<{
-    meetingId: number;
-    name: string;
-    theirTz: string | null;
+  // The "when do you call them back?" prompt, and which way in: after a
+  // no-show, after a call back went unanswered or rebooking was put off, or
+  // to move one. See `CallBackPrompt`.
+  const [prompt, setPrompt] = React.useState<{
+    m: Meeting;
+    mode: CallBackMode;
   } | null>(null);
   const [answering, setAnswering] = React.useState<{
     meetingId: number;
@@ -660,16 +661,51 @@ export function MeetingsList({
       );
       // A no-show is followed up by the founders, every time (2026-09-24), and
       // the decision is asked for now: a call back on their calendar, or dead.
-      if (status === "no_show") {
-        setNoShow({
-          meetingId: meeting.id,
-          name: meeting.company ?? meeting.attendeeName ?? "They",
-          theirTz: prospectZone(meeting.leadTz, meeting.attendeeTz),
-        });
-      }
+      if (status === "no_show") setPrompt({ m: meeting, mode: "no_show" });
       router.refresh();
     } catch {
       toast.error("Could not save that: network error.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * "Rebooked" and "Not rebooking" on a call back: logged at once, nothing to
+   * ask. The other two ask when to ring next, through the prompt.
+   */
+  async function closeCallBack(
+    meeting: Meeting,
+    result: "rescheduled" | "cancelled",
+  ) {
+    if (!meeting.callBack) return;
+    const who = meeting.company ?? meeting.attendeeName ?? "meeting";
+    if (
+      result === "cancelled" &&
+      !window.confirm(`Not rebooking ${who}? This takes them off your list for good.`)
+    ) {
+      return;
+    }
+    setBusy(meeting.id);
+    try {
+      const res = await fetch(`/api/founder-calls/${meeting.callBack.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not log the call back.");
+        return;
+      }
+      toast.success(
+        result === "rescheduled"
+          ? `Rebooked: ${who}. Put the new time in with Move this demo.`
+          : `Not rebooking: ${who} is off your list.`,
+      );
+      router.refresh();
+    } catch {
+      toast.error("Could not log the call back: network error.");
     } finally {
       setBusy(null);
     }
@@ -738,6 +774,8 @@ export function MeetingsList({
         const rescheduleBase =
           m.kind === "follow_up" ? followUpBookingUrl : bookingUrl;
         const their = theirTime(m.startAt, m);
+        // Where a moved meeting now is, on their clock.
+        const theirCallBack = m.callBack ? theirTime(m.callBack.at, m) : null;
         // The one zone this row believes, used for the label and for both
         // Cal.com links. Kept as one value on purpose: the row said one thing
         // and the booking pages opened in another while the links read
@@ -788,6 +826,7 @@ export function MeetingsList({
               // The only row on this screen that is work owed, so it is the
               // only one that shouts.
               m.needsRingBack && "border-destructive/40",
+              m.callBack?.due && "border-amber-500/60",
               cancelled && "opacity-70",
             )}
           >
@@ -874,6 +913,21 @@ export function MeetingsList({
                     <CalendarX2 className="size-3" strokeWidth={2.4} />
                     Cancelled
                   </Badge>
+                ) : m.callBack ? (
+                  // Moved to a call back: the countdown is to that, since it
+                  // is where the meeting now is.
+                  <Badge
+                    suppressHydrationWarning
+                    className={cn(
+                      "border-transparent",
+                      m.callBack.due
+                        ? "bg-amber-500 text-amber-950"
+                        : "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+                    )}
+                  >
+                    <PhoneForwarded className="size-3" strokeWidth={2.4} />
+                    Call back · {when(m.callBack.at, now)}
+                  </Badge>
                 ) : (
                   // Counts down live, so it can cross a boundary between the
                   // render and the hydration — same note as the board.
@@ -917,7 +971,31 @@ export function MeetingsList({
               </div>
             </div>
 
-            <p className="mt-1.5 text-[13px] text-muted-foreground">
+            {/* A meeting moved to a call back (2026-09-24): its new time first,
+                where the demo's used to be, and the demo it replaced under it.
+                Moved only here — the booking itself, and what attendance and
+                payroll read, still says when the demo was. */}
+            {m.callBack && (
+              <p className="mt-1.5 text-[13px]">
+                <span className="font-bold text-amber-800 dark:text-amber-300">
+                  Call back
+                </span>{" "}
+                <span className="font-semibold">
+                  {format.format(new Date(m.callBack.at))}
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  {zoneLabel}
+                  {theirCallBack && ` · ${theirCallBack} their time`}
+                </span>
+              </p>
+            )}
+            <p
+              className={cn(
+                "text-muted-foreground",
+                m.callBack ? "mt-0.5 text-[12px]" : "mt-1.5 text-[13px]",
+              )}
+            >
+              {m.callBack && "Demo was "}
               <span className="font-semibold text-foreground">
                 {format.format(new Date(m.startAt))}
               </span>{" "}
@@ -955,6 +1033,19 @@ export function MeetingsList({
               )}
             </p>
 
+            {m.callBack && (m.callBack.tries > 0 || m.callBack.notes) && (
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                {m.callBack.tries > 0 && (
+                  <span className="font-semibold">
+                    Tried {m.callBack.tries}{" "}
+                    {m.callBack.tries === 1 ? "time" : "times"} with no answer
+                  </span>
+                )}
+                {m.callBack.tries > 0 && m.callBack.notes && " · "}
+                {m.callBack.notes}
+              </p>
+            )}
+
             {/* A caller reads their prospect's name on a follow-up and asks
                 whether to ring them (2026-09-24). It is the founders' call
                 after the demo, so say so where the eye lands. */}
@@ -970,29 +1061,6 @@ export function MeetingsList({
                 missed it is warm, and the reason is usually something ordinary
                 that a new time fixes. Written as what to say rather than as a
                 status, like the dial card's booking steps. */}
-            {founderCalls?.[m.id] && (
-              <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-[13px]">
-                <span className="font-bold">You are calling them back</span>{" "}
-                <span suppressHydrationWarning>
-                  {new Intl.DateTimeFormat("en-US", {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                    timeZone: tz,
-                  }).format(new Date(founderCalls[m.id].startAt))}
-                </span>
-                .{" "}
-                <a
-                  href={`#call-back-${founderCalls[m.id].id}`}
-                  className="font-semibold text-primary underline-offset-2 hover:underline"
-                >
-                  See your call backs
-                </a>
-              </p>
-            )}
-
             {m.needsRingBack && (
               <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[13px]">
                 <span className="font-bold">They did not turn up.</span> Ring
@@ -1218,7 +1286,13 @@ export function MeetingsList({
                   leadId={m.leadId}
                   rowKey={`meeting:${m.id}`}
                   blocked={m.dncBlock}
-                  note={m.needsRingBack ? "They did not turn up to this one." : undefined}
+                  note={
+                    m.callBack
+                      ? "Your call back, after they missed the demo."
+                      : m.needsRingBack
+                        ? "They did not turn up to this one."
+                        : undefined
+                  }
                   label={m.needsRingBack ? "Ring them back" : "Call them"}
                   lines={lines}
                 />
@@ -1324,6 +1398,55 @@ export function MeetingsList({
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                )}
+                {/* The meeting's outcome as it is rung back (2026-09-24): the
+                    ring-back logger's own four answers, so a no-show reads the
+                    same whoever followed it up. Two of them ask when to ring
+                    next and move the call back there. */}
+                {showWho && m.callBack && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      disabled={busy === m.id}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      <ClipboardCheck className="size-3.5" />
+                      Log the call back
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuLabel>How did it go?</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        onSelect={() => setPrompt({ m, mode: "no_answer" })}
+                      >
+                        {RING_BACK_LABELS.no_answer}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => setPrompt({ m, mode: "spoke" })}
+                      >
+                        {RING_BACK_LABELS.confirmed}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => void closeCallBack(m, "rescheduled")}
+                      >
+                        {RING_BACK_LABELS.rescheduled}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => void closeCallBack(m, "cancelled")}
+                      >
+                        {RING_BACK_LABELS.cancelled}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                {showWho && m.callBack && (
+                  <button
+                    type="button"
+                    disabled={busy === m.id}
+                    onClick={() => setPrompt({ m, mode: "move" })}
+                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    <Clock className="size-3.5" />
+                    Change time
+                  </button>
                 )}
                 {/* Move it, rather than book a second one.
 
@@ -1884,13 +2007,25 @@ export function MeetingsList({
         );
       })}
     </ul>
-    {noShow && (
-      <NoShowDialog
-        meetingId={noShow.meetingId}
-        name={noShow.name}
-        theirTz={noShow.theirTz}
+    {prompt && (
+      <CallBackPrompt
+        // Remounted per meeting and way in, so a half-typed note never
+        // carries over to the next one.
+        key={`${prompt.m.id}-${prompt.mode}`}
+        mode={prompt.mode}
+        meetingId={prompt.m.id}
+        callBackId={prompt.m.callBack?.id}
+        name={prompt.m.company ?? prompt.m.attendeeName ?? "They"}
+        theirTz={prospectZone(prompt.m.leadTz, prompt.m.attendeeTz)}
         readerTz={tz}
-        onClose={() => setNoShow(null)}
+        // The time of day the intervals keep: the demo's for a fresh no-show,
+        // the call back's once there is one.
+        anchorAt={
+          prompt.mode === "no_show"
+            ? prompt.m.startAt
+            : (prompt.m.callBack?.at ?? prompt.m.startAt)
+        }
+        onClose={() => setPrompt(null)}
       />
     )}
     </>

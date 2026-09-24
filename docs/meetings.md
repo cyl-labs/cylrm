@@ -86,69 +86,60 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
     prospect's clock and who booked it; "when did we agree this" is a question
     a day answers.
 
-### No-shows are the founders' now: the pop-up and their own call backs (2026-09-24)
+### No-shows are the founders': the meeting moves to a call back (2026-09-24)
 
-`NoShowDialog` and `FounderCallList` (`components/calls/founder-calls.tsx`),
-`lib/founder-calls.ts`, `/api/founder-calls` and `/api/founder-calls/[id]`,
-table `founder_call` from `2026-09-24-founder-call.sql` (**apply before the
-deploy**: the founders' Meetings badge counts it on every page).
+`CallBackPrompt` (`components/calls/founder-calls.tsx`), the `cb` lateral in
+`joins` and `Meeting.callBack` (`lib/meetings.ts`), `/api/founder-calls` and
+`/api/founder-calls/[id]`, table `founder_call` from
+`2026-09-24-founder-call.sql` and `2026-09-24-founder-call-tries.sql` (both
+**applied before the deploy**: the founders' Meetings badge counts it on every
+page).
 
-- **Asked for in three steps**, and each one ruled something out: "a button for
-  founder callback for meetings — I don't want my callers to call them back",
-  then "don't put it in callback, just set a separate meeting event on the
-  calendar", then "I don't mean reschedule, I don't want to notify them", and
-  finally "for no shows add a pop up asking when to call them back, then a
-  button to say … this is dead … instead of a dedicated call back button,
-  since for all no shows I'll follow up no matter what".
-- **So a founders' call back is neither of the two things that existed.** Not
-  a `call` with outcome `callback`: that is the floor's work order, and lands in
-  the niche owner's queue and morning reminder. Not a `call_meeting`: that is a
-  Cal.com booking, moving one emails the prospect, and attendance and payroll
-  read a row there as a demo. Its own table, read only by founders, sent
-  nowhere.
-- **The pop-up opens the moment a founder saves "No show"** in Log what
-  happened. Three answers:
-  - **A time** (read in the prospect's zone, like every callback box) creates a
-    `founder_call`. Setting it again for the same meeting moves the open one
-    rather than adding a second.
-  - **Dead — take them off my list** logs the ring back as `cancelled` ("Not
-    rebooking") through `POST /api/meetings/[id]/followup`, the same route the
-    ring-back logger uses, so it is recorded the way it always was. It does not
-    relabel the booking call as Lost: that call is what the caller's stats and
-    pay read as a booked demo.
-  - **Decide later** closes it; the no-show stays on the founders' list as a
-    ring back, as before.
-- **A founders' call back takes the ring back off the list** — `needsRingBack`
-  is false once a `founder_call` exists for the meeting, created after it
-  began. The row says "You are calling them back …" and links to the card.
-- **Callers no longer ring no-shows back** (`ringBackFor` in `lib/meetings.ts`).
-  A scoped view — one person's niches — never has a ring back owed: no red
-  note, no "Ring them back", nothing in their badge. A no-show row still on
-  their list says "No show. A founder follows these up" where the call button
-  was. This is a change of policy, not a bug fix: the ring back was the
-  caller's job until this day.
-- **Where the call backs show, founders only**: amber "Call back" chips on the
-  calendar (a third kind of `CalendarEvent`, beside the clay demos and green
-  follow-ups — the calendar only reads eight fields, so no Cal.com fields are
-  faked), a "Your call backs" list above the meetings with Call them, Open
-  lead, Done, Change time and Remove, and due ones in the Meetings badge
-  (`countFounderCallsDue`). Change time only moves the entry; nothing reaches
-  the prospect, which the dialog says because "Move this demo" beside it does
-  email them.
-- Verified in a browser against local data: the pop-up on No show, both
-  answers, Decide later leaving the ring back, Change time, Done, the calendar
-  chip and header count, and a caller's view of both kinds of no-show. The
-  call itself from a card was not placed: there was no live line.
-- **Voicemail after voicemail** (same day, `2026-09-24-founder-call-tries.sql`,
-  applied before the deploy). A card has **No answer, try tomorrow**: one more
-  on `tries`, and the call back moves to the same wall-clock time on *their*
-  tomorrow — computed from their today, so one three days overdue does not
-  land in the past again, and DST-safe because the arithmetic is local. The
-  card says "Tried 3 times with no answer". **Dead** on the card closes it and
-  logs the same "Not rebooking" ring back the pop-up does, with the tries in
-  the note; it asks first, sitting in a row of buttons. Do not log Voicemail or
-  No answer on the lead's dial card for these: those put the lead back in the
-  caller's queue as a retry.
+- **Asked for in steps, each ruling something out**: the founders follow up
+  every no-show themselves ("I don't want my callers to call them back"), not
+  as a callback ("don't put it in callback"), not as a Cal.com reschedule ("I
+  don't want to notify them"), and finally, the model: "when I click no show
+  on a meeting I want a prompt to say when to call them back, and all it does
+  is reschedule the meeting as a callback meeting" — "I want to log MEETING
+  outcomes as I call them back". A first version kept the call backs as a
+  separate list of cards with call-style buttons; that was the wrong shape and
+  is gone.
+- **A call back is the meeting, moved** — in the CRM only. `founder_call`
+  holds the new time; the meeting's row sorts and shows at it ("Call back ·
+  in 23h", "Call back Fri 11:30 AM", "Demo was Thu … no show" underneath), and
+  its calendar chip sits there as a "Call back" (a third `CalendarEvent` kind,
+  linking to the row). **The booking's own `start_at` is never touched**:
+  attendance, the ring-back rule and payroll are all read against it, and the
+  Cal.com sync would put it back anyway.
+- **The prompt** (`CallBackPrompt`), four ways in: straight after "No show" is
+  saved (with Dead and Decide later), after "No answer — try again", after
+  "Spoke to them, rebooking later", and "Change time". **Intervals, Tomorrow
+  picked by default** — Tomorrow, In 2 days, In 3 days, In a week — each at the
+  time of day the meeting was at (the demo's, then the call back's) in the
+  prospect's zone, **or Pick a day** for a date and a time. It shows the
+  answer in their clock and yours before anything is saved. Their day is
+  worked out from their calendar, so an interval never lands a DST hour out.
+- **Meeting outcomes, not call outcomes.** "Log the call back" on the row
+  offers the ring-back logger's own four answers, written to
+  `call_meeting_followup` the way that logger writes them
+  (`PATCH /api/founder-calls/[id]` with `result`): No answer (asks when, one
+  more try, "Tried 2 times with no answer" on the row), Spoke to them (asks
+  when, not a try), Rebooked (closes it; the new time goes in through Move
+  this demo, a real booking), Not rebooking (asks, then closes it — dead).
+  Dead in the no-show prompt logs Not rebooking through the follow-up route.
+  Nothing here touches attendance, so payroll reads the no-show as it was.
+- **Callers never see it** (`hasCallBack`/`ringBackFor` in `lib/meetings.ts`,
+  and `callBack` is nulled for a scoped view). A no-show is not their ring back
+  any more — their row says "No show. A founder follows these up" — and a
+  meeting moved to a call back is not kept on their list.
+- **The Show filter's "Call backs"** is meetings with an open call back; while
+  one is open the meeting is not counted as a demo.
+- **Do not log Voicemail or No answer on the lead's dial card** for these:
+  those outcomes put the lead back in the caller's queue as a retry.
+- Verified in a browser against local data: the prompt's intervals and Pick a
+  day, the move, each of the four outcomes with what they write, Change time,
+  the filter and the calendar chip. The call itself was not placed: no live
+  line.
 
 ### Show: all, demos, follow-ups, call backs (2026-09-24)
 
@@ -164,8 +155,6 @@ both by default".
   every calendar link and the step into Past, or turning the month would
   quietly show everything again. The past filters and the timezone picker
   copy the whole query already.
-- A row still says "You are calling them back" under Demos: that line reads
-  every call back, not only the ones the filter shows.
 
 ### The demo briefing (2026-09-22)
 

@@ -3,14 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  Check,
-  Clock,
-  PhoneForwarded,
-  PhoneMissed,
-  Skull,
-  Trash2,
-} from "lucide-react";
+import { PhoneForwarded } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,28 +16,44 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CallBackButton } from "@/components/calls/call-back-button";
-import { CopyNumber } from "@/components/calls/inbound-list";
-import { MeetingCallButton } from "@/components/calls/meeting-call-button";
-import type { SavedLine } from "@/components/calls/second-line";
-import {
-  callbackZoneLabel,
-  defaultCallbackAt,
-  theirClock,
-} from "@/lib/call-time";
-import { e164 } from "@/lib/phone";
-import type { FounderCall } from "@/lib/founder-calls";
+import { wallClockIn } from "@/lib/call-time";
 import { cn } from "@/lib/utils";
 
 /**
- * A call a founder puts on the Meetings calendar for themselves (2026-09-24).
+ * When to call a no-show back — the one prompt behind every founders' call
+ * back (2026-09-24).
  *
- * Not a callback — those are the floor's work order, and land in a caller's
- * queue — and not a reschedule, which emails the prospect. Founders only, and
- * nothing here is ever sent anywhere. See `lib/founder-calls.ts`.
+ * A no-show's meeting is moved to the time picked here as a **call back**:
+ * the row and its calendar chip sit at the new time, and the founder logs the
+ * meeting's ring back on it when they ring. It is never a Cal.com reschedule,
+ * so the prospect hears nothing. See `founder_call` and `lib/meetings.ts`.
+ *
+ * Four ways in, one form:
+ *
+ * - `no_show` — straight after "No show" is saved. Also offers Dead, and
+ *   Decide later.
+ * - `no_answer` — "No answer, try again" on a call back: the next try.
+ * - `spoke` — "Spoke to them, rebooking later": when to ring next.
+ * - `move` — "Change time", nothing logged.
+ *
+ * **Intervals first, tomorrow picked** — asked for as "let me choose the
+ * intervals, make it tomorrow by default, but let me change it to a specific
+ * day as well". Each interval keeps the time of day the meeting was at (the
+ * demo, or the call back before), in the prospect's zone: a slot they once
+ * agreed to is the best guess at when they pick up. "Pick a day" opens a date
+ * and a time.
  */
 
-/** An instant as the wall clock a `datetime-local` box shows, in `tz`. */
+export type CallBackMode = "no_show" | "no_answer" | "spoke" | "move";
+
+const INTERVALS = [
+  { days: 1, label: "Tomorrow" },
+  { days: 2, label: "In 2 days" },
+  { days: 3, label: "In 3 days" },
+  { days: 7, label: "In a week" },
+] as const;
+
+/** An instant as the wall clock a date or time box shows, in `tz`. */
 function wallClockOf(iso: string, tz: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
@@ -59,162 +68,108 @@ function wallClockOf(iso: string, tz: string): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
 
-/** "Thu, Sep 25, 10:00 AM", on the reader's clock. */
-function when(iso: string, tz: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: tz,
-  }).format(new Date(iso));
+/** Their calendar date, `n` days on. Plain date arithmetic on the day, so no
+ *  hour is ever added across a daylight-saving change. */
+function dayIn(tz: string, n: number): string {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+  const [y, mo, d] = today.split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1, d + n)).toISOString().slice(0, 10);
 }
 
-/**
- * Change a call back already on the calendar: its time, or its notes.
- *
- * Said in the description that nothing reaches the prospect, because "Move
- * this demo" on the Meetings rows does email them, and this must not be
- * mistaken for it.
- */
-function FounderCallDialog({
-  onOpenChange,
-  name,
-  theirTz,
-  readerTz,
-  existing,
-}: {
-  onOpenChange: (open: boolean) => void;
-  name: string;
-  theirTz: string | null;
-  readerTz: string;
-  existing: { id: number; startAt: string; notes: string | null };
-}) {
-  const router = useRouter();
-  const zone = theirTz ?? readerTz;
-  const [at, setAt] = React.useState(() => wallClockOf(existing.startAt, zone));
-  const [notes, setNotes] = React.useState(existing.notes ?? "");
-  const [saving, setSaving] = React.useState(false);
+const TITLES: Record<CallBackMode, (name: string) => string> = {
+  no_show: (name) => `${name} did not turn up`,
+  no_answer: (name) => `No answer from ${name}`,
+  spoke: (name) => `When do you ring ${name} next?`,
+  move: (name) => `Move the call back with ${name}`,
+};
 
-  async function save() {
-    if (saving || !at) return;
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/founder-calls/${existing.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ at, notes }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        toast.error(data.error ?? "Could not save that. Try again.");
-        return;
-      }
-      toast.success(`Call back moved: ${name}`);
-      onOpenChange(false);
-      router.refresh();
-    } catch {
-      toast.error("Could not save that: network error.");
-    } finally {
-      setSaving(false);
-    }
-  }
+const EXPLAINED: Record<CallBackMode, string> = {
+  no_show:
+    "When do you want to call them back? The meeting moves to that time as a call back. Only founders see it, and nothing is sent to them.",
+  no_answer:
+    "When do you want to try again? The call back moves to that time. Nothing is sent to them.",
+  spoke:
+    "You spoke to them but have no new time yet. The call back moves to when you will ring next.",
+  move: "This only moves the call back on your calendar. Nothing is sent to them.",
+};
 
-  return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Your call back: {name}</DialogTitle>
-          <DialogDescription>
-            This only moves it on your calendar. Nothing is sent to them, and
-            your callers will not see it.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="founder-call-at">
-              {callbackZoneLabel(theirTz, readerTz)}
-            </Label>
-            <Input
-              id="founder-call-at"
-              type="datetime-local"
-              value={at}
-              onChange={(e) => setAt(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="founder-call-notes">Notes (optional)</Label>
-            <Textarea
-              id="founder-call-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="What to ring them about"
-              className="min-h-[64px]"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={() => void save()} disabled={saving || !at}>
-            {saving ? "Saving…" : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/**
- * After a founder marks a demo **No show** (2026-09-24): when to call them
- * back, or that they are dead.
- *
- * Asked for in place of a separate call-back button — "for all no shows I'll
- * basically follow up no matter what" — so the decision is asked at the one
- * moment it is always made. Either answer settles the no-show for everybody:
- *
- * - **A time** puts a founders' call back on the calendar (`founder_call`),
- *   which takes the ring back off the Meetings list. Nothing is sent to them.
- * - **Dead** logs the ring back as "Not rebooking" through the same route the
- *   ring-back logger uses, so it is recorded the way it always has been.
- *
- * "Decide later" closes it and leaves the no-show on the founders' list.
- */
-export function NoShowDialog({
+export function CallBackPrompt({
+  mode,
   meetingId,
+  callBackId,
   name,
   theirTz,
   readerTz,
+  anchorAt,
   onClose,
 }: {
+  mode: CallBackMode;
   meetingId: number;
+  /** The open call back, for every mode but `no_show`, which creates it. */
+  callBackId?: number;
   name: string;
   theirTz: string | null;
   readerTz: string;
+  /** Whose time of day the intervals keep: the demo's, or the call back's. */
+  anchorAt: string;
   onClose: () => void;
 }) {
   const router = useRouter();
-  const [at, setAt] = React.useState(() => defaultCallbackAt(theirTz, readerTz));
+  const zone = theirTz ?? readerTz;
+  const timeOfDay = wallClockOf(anchorAt, zone).slice(11, 16);
+  const [choice, setChoice] = React.useState<number | "pick">(1);
+  const [pickDate, setPickDate] = React.useState(() => dayIn(zone, 1));
+  const [pickTime, setPickTime] = React.useState(timeOfDay);
   const [notes, setNotes] = React.useState("");
-  const [saving, setSaving] = React.useState<null | "call" | "dead">(null);
+  const [saving, setSaving] = React.useState<null | "save" | "dead">(null);
 
-  async function callBack() {
+  const wall =
+    choice === "pick" ? `${pickDate}T${pickTime}` : `${dayIn(zone, choice)}T${timeOfDay}`;
+  const at = wallClockIn(wall, zone);
+  const fmt = (tz: string) =>
+    at
+      ? new Intl.DateTimeFormat("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: tz,
+        }).format(at)
+      : "";
+  const theirs = fmt(zone);
+  const yours = fmt(readerTz);
+
+  async function save() {
     if (saving || !at) return;
-    setSaving("call");
+    setSaving("save");
     try {
-      const res = await fetch("/api/founder-calls", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ meetingId, at, notes }),
-      });
+      const res =
+        mode === "no_show"
+          ? await fetch("/api/founder-calls", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ meetingId, at: wall, notes }),
+            })
+          : await fetch(`/api/founder-calls/${callBackId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(
+                mode === "move"
+                  ? { at: wall, ...(notes.trim() ? { notes } : {}) }
+                  : {
+                      result: mode === "no_answer" ? "no_answer" : "confirmed",
+                      at: wall,
+                      notes,
+                    },
+              ),
+            });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
         toast.error(data.error ?? "Could not save that. Try again.");
         return;
       }
-      toast.success(`On your calendar: call back ${name}`);
+      toast.success(`Call back ${name}: ${theirs}${theirTz ? " their time" : ""}`);
       onClose();
       router.refresh();
     } catch {
@@ -251,6 +206,14 @@ export function NoShowDialog({
     }
   }
 
+  const chip = (active: boolean) =>
+    cn(
+      "rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+      active
+        ? "border-primary/40 bg-primary/10 text-primary"
+        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+    );
+
   return (
     <Dialog
       open
@@ -260,294 +223,143 @@ export function NoShowDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{name} did not turn up</DialogTitle>
-          <DialogDescription>
-            When do you want to call them back? It goes on your calendar. Only
-            founders see it, and nothing is sent to them.
-          </DialogDescription>
+          <DialogTitle>{TITLES[mode](name)}</DialogTitle>
+          <DialogDescription>{EXPLAINED[mode]}</DialogDescription>
         </DialogHeader>
+
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="no-show-at">{callbackZoneLabel(theirTz, readerTz)}</Label>
-            <Input
-              id="no-show-at"
-              type="datetime-local"
-              value={at}
-              onChange={(e) => setAt(e.target.value)}
-            />
+          <div role="group" aria-label="When" className="flex flex-wrap gap-1.5">
+            {INTERVALS.map((i) => (
+              <button
+                key={i.days}
+                type="button"
+                aria-pressed={choice === i.days}
+                onClick={() => setChoice(i.days)}
+                className={chip(choice === i.days)}
+              >
+                {i.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-pressed={choice === "pick"}
+              onClick={() => {
+                // Opens on whatever was picked, so switching is a tweak rather
+                // than starting again.
+                if (choice !== "pick") setPickDate(dayIn(zone, choice));
+                setChoice("pick");
+              }}
+              className={chip(choice === "pick")}
+            >
+              Pick a day
+            </button>
           </div>
+
+          {choice === "pick" && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="call-back-day">Day</Label>
+                <Input
+                  id="call-back-day"
+                  type="date"
+                  min={dayIn(zone, 0)}
+                  value={pickDate}
+                  onChange={(e) => setPickDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="call-back-time">
+                  Time ({theirTz ? "their time" : "your clock"})
+                </Label>
+                <Input
+                  id="call-back-time"
+                  type="time"
+                  value={pickTime}
+                  onChange={(e) => setPickTime(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* The answer, in both clocks, before anything is saved. */}
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-[13px]">
+            {at ? (
+              <>
+                <span className="font-semibold">{theirs}</span>
+                {theirTz ? " their time" : " your time"}
+                {theirTz && yours !== theirs && (
+                  <span className="text-muted-foreground"> · {yours} yours</span>
+                )}
+                {!theirTz && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · no timezone known for this number
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-muted-foreground">Pick a day and a time.</span>
+            )}
+          </p>
+
           <div className="space-y-1.5">
-            <Label htmlFor="no-show-notes">Notes (optional)</Label>
+            <Label htmlFor="call-back-notes">
+              {mode === "move" ? "Note on the call back (optional)" : "Notes (optional)"}
+            </Label>
             <Textarea
-              id="no-show-notes"
+              id="call-back-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Anything to remember when you ring"
+              placeholder={
+                mode === "no_answer"
+                  ? "Left a voicemail? Anything to try next time"
+                  : "Anything to remember when you ring"
+              }
               className="min-h-[56px]"
             />
           </div>
-          <Button
-            className="h-11 w-full text-[15px]"
-            onClick={() => void callBack()}
-            disabled={saving !== null || !at}
-          >
-            <PhoneForwarded data-icon="inline-start" />
-            {saving === "call" ? "Saving…" : "Put it on my calendar"}
-          </Button>
         </div>
-        <div className="mt-1 border-t pt-3">
-          <p className="mb-2 text-[12px] text-muted-foreground">
-            Or, if you have tried enough and they are not worth another call:
-          </p>
-          <div className="flex flex-wrap items-center justify-between gap-2">
+
+        {mode === "no_show" ? (
+          <>
             <Button
-              variant="outline"
-              className="border-destructive/40 text-destructive hover:text-destructive"
-              onClick={() => void dead()}
-              disabled={saving !== null}
+              className="h-11 w-full text-[15px]"
+              onClick={() => void save()}
+              disabled={saving !== null || !at}
             >
-              {saving === "dead" ? "Saving…" : "Dead — take them off my list"}
+              <PhoneForwarded data-icon="inline-start" />
+              {saving === "save" ? "Saving…" : "Move it to a call back"}
             </Button>
+            <div className="border-t pt-3">
+              <p className="mb-2 text-[12px] text-muted-foreground">
+                Or, if you have tried enough and they are not worth another call:
+              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button
+                  variant="outline"
+                  className="border-destructive/40 text-destructive hover:text-destructive"
+                  onClick={() => void dead()}
+                  disabled={saving !== null}
+                >
+                  {saving === "dead" ? "Saving…" : "Dead — take them off my list"}
+                </Button>
+                <Button variant="ghost" onClick={onClose} disabled={saving !== null}>
+                  Decide later
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <DialogFooter>
             <Button variant="ghost" onClick={onClose} disabled={saving !== null}>
-              Decide later
+              Cancel
             </Button>
-          </div>
-        </div>
+            <Button onClick={() => void save()} disabled={saving !== null || !at}>
+              {saving === "save" ? "Saving…" : "Move the call back"}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-/**
- * "Your call backs": every open one, above the meetings, with what is needed
- * to make the call and to say it is done.
- */
-export function FounderCallList({
-  calls,
-  tz,
-  zoneLabel,
-  dialFrom,
-  lines,
-}: {
-  calls: FounderCall[];
-  tz: string;
-  zoneLabel: string;
-  /** The founder's own number, which the call goes out from. */
-  dialFrom: string | null;
-  lines: SavedLine[];
-}) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<number | null>(null);
-  const [editing, setEditing] = React.useState<FounderCall | null>(null);
-
-  if (calls.length === 0) return null;
-
-  async function act(c: FounderCall, how: "done" | "remove" | "retry" | "dead") {
-    if (how === "remove" && !window.confirm(`Remove the call back to ${c.name}?`)) {
-      return;
-    }
-    // Asked, because it sits in a row of buttons and cannot be taken back from
-    // here: it closes the call back and records the no-show as not rebooking.
-    if (
-      how === "dead" &&
-      !window.confirm(`Mark ${c.name} as dead? This takes them off your list for good.`)
-    ) {
-      return;
-    }
-    setBusy(c.id);
-    try {
-      const res = await fetch(`/api/founder-calls/${c.id}`, {
-        method: how === "remove" ? "DELETE" : "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body:
-          how === "remove"
-            ? undefined
-            : JSON.stringify(
-                how === "done" ? { done: true } : how === "retry" ? { retry: true } : { dead: true },
-              ),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        startAt?: string;
-        tries?: number;
-      };
-      if (!res.ok) {
-        toast.error(data.error ?? "Could not save that. Try again.");
-        return;
-      }
-      if (how === "retry" && data.startAt) {
-        const their = theirClock(new Date(data.startAt), c.theirTz, tz);
-        toast.success(
-          `Tried ${data.tries ?? c.tries + 1} ${data.tries === 1 ? "time" : "times"}. Next try ${when(data.startAt, tz)}${their ? ` (${their} their time)` : ""}.`,
-        );
-      } else {
-        toast.success(
-          how === "done"
-            ? `Done: ${c.name}`
-            : how === "dead"
-              ? `Dead, off your list: ${c.name}`
-              : `Removed: ${c.name}`,
-        );
-      }
-      router.refresh();
-    } catch {
-      toast.error("Could not save that: network error.");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  return (
-    <section aria-labelledby="founder-calls-heading" className="flex flex-col gap-2">
-      <div>
-        <h2 id="founder-calls-heading" className="text-[15px] font-bold">
-          Your call backs
-        </h2>
-        <p className="text-[12px] text-muted-foreground">
-          Calls the founders are making themselves. Only founders see these,
-          and nothing is sent to the prospect. Times are {zoneLabel} time.
-        </p>
-      </div>
-      <ul className="flex flex-col gap-2">
-        {calls.map((c) => {
-          const their = theirClock(new Date(c.startAt), c.theirTz, tz);
-          const to = c.phone ? (e164(c.phone) ?? c.phone) : null;
-          return (
-            <li
-              key={c.id}
-              // The calendar's chips link here.
-              id={`call-back-${c.id}`}
-              className={cn(
-                "scroll-mt-4 rounded-xl border px-4 py-3",
-                c.due ? "border-amber-500/50 bg-amber-500/5" : "bg-card",
-              )}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-[15px] font-bold">
-                    <PhoneForwarded className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <span className="truncate">{c.name}</span>
-                  </p>
-                  <p className="mt-0.5 text-[13px]">
-                    <span className="font-semibold" suppressHydrationWarning>
-                      {when(c.startAt, tz)}
-                    </span>
-                    {their && (
-                      <span className="text-muted-foreground">
-                        {" · "}
-                        {their} their time
-                      </span>
-                    )}
-                  </p>
-                </div>
-                {c.due && (
-                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em] text-amber-800 dark:text-amber-300">
-                    Due now
-                  </span>
-                )}
-              </div>
-              {c.notes && (
-                <p className="mt-2 whitespace-pre-wrap text-[13px] text-muted-foreground">
-                  {c.notes}
-                </p>
-              )}
-              {/* How many times this has gone unanswered — what tells a
-                  founder it is time to press Dead. */}
-              {c.tries > 0 && (
-                <p className="mt-1.5 text-[12px] font-semibold text-muted-foreground">
-                  Tried {c.tries} {c.tries === 1 ? "time" : "times"} with no answer
-                  {c.lastTriedAt && (
-                    <span className="font-normal" suppressHydrationWarning>
-                      {` · last ${when(c.lastTriedAt, tz)}`}
-                    </span>
-                  )}
-                </p>
-              )}
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <MeetingCallButton
-                  who={c.name}
-                  to={to}
-                  from={dialFrom}
-                  leadId={c.leadId}
-                  rowKey={`founder-call:${c.id}`}
-                  blocked={c.dncBlock}
-                  label="Call them"
-                  lines={lines}
-                />
-                {c.listId !== null && c.leadId !== null && !c.dncBlock && (
-                  <CallBackButton
-                    listId={c.listId}
-                    leadId={c.leadId}
-                    label="Open lead"
-                    className="bg-transparent text-foreground border hover:bg-muted"
-                  />
-                )}
-                {c.phone && <CopyNumber phone={c.phone} blocked={c.dncBlock} />}
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {/* The press after a voicemail: same time tomorrow where they
-                    are, and one more try on the count. */}
-                <button
-                  type="button"
-                  disabled={busy === c.id}
-                  onClick={() => void act(c, "retry")}
-                  className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  <PhoneMissed className="size-3.5" />
-                  No answer, try tomorrow
-                </button>
-                <button
-                  type="button"
-                  disabled={busy === c.id}
-                  onClick={() => void act(c, "done")}
-                  className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  <Check className="size-3.5" />
-                  Done
-                </button>
-                <button
-                  type="button"
-                  disabled={busy === c.id}
-                  onClick={() => setEditing(c)}
-                  className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  <Clock className="size-3.5" />
-                  Change time
-                </button>
-                <button
-                  type="button"
-                  disabled={busy === c.id}
-                  onClick={() => void act(c, "dead")}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-3 py-1.5 text-[13px] font-semibold text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
-                >
-                  <Skull className="size-3.5" />
-                  Dead
-                </button>
-                <button
-                  type="button"
-                  disabled={busy === c.id}
-                  onClick={() => void act(c, "remove")}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-dashed px-3 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-                >
-                  <Trash2 className="size-3.5" />
-                  Remove
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {editing && (
-        <FounderCallDialog
-          onOpenChange={(o) => {
-            if (!o) setEditing(null);
-          }}
-          name={editing.name}
-          theirTz={editing.theirTz}
-          readerTz={tz}
-          existing={{ id: editing.id, startAt: editing.startAt, notes: editing.notes }}
-        />
-      )}
-    </section>
   );
 }

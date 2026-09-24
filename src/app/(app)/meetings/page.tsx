@@ -10,8 +10,6 @@ import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
 import { getStoredBriefs } from "@/lib/meeting-brief";
-import { getFounderCalls } from "@/lib/founder-calls";
-import { FounderCallList } from "@/components/calls/founder-calls";
 import type { CalendarEvent } from "@/components/calls/meetings-calendar";
 import { getSavedLines } from "@/lib/calls";
 import { calConfigured } from "@/lib/cal";
@@ -148,12 +146,12 @@ export default async function MeetingsPage({
         })
       : allMeetings;
   // The kind filter last, so its chips can count what is left after the rest.
+  // A meeting a founder moved to a call back is a call back, not a demo, for
+  // as long as the call back is open: it sits at that time, as that.
+  const kindOf = (m: (typeof filtered)[number]) =>
+    m.callBack ? "call_back" : m.kind;
   const meetings =
-    kind === "all"
-      ? filtered
-      : kind === "call_back"
-        ? []
-        : filtered.filter((m) => m.kind === kind);
+    kind === "all" ? filtered : filtered.filter((m) => kindOf(m) === kind);
   // Read once: it decides both the mergeable lines and whether this tab takes
   // the phone.
   const browserDialler = (await dialMethodOf(me?.id)) === "browser";
@@ -218,33 +216,19 @@ export default async function MeetingsPage({
       ? Object.fromEntries(await getStoredBriefs(meetings.map((m) => m.id)))
       : null;
 
-  // The founders' own call backs (2026-09-24): set from the no-show pop-up,
-  // shown only to founders, and never on the history view.
-  const allFounderCalls =
-    me?.role === "admin" && !past ? await getFounderCalls() : [];
-  const founderCalls =
-    kind === "all" || kind === "call_back" ? allFounderCalls : [];
-  // Every call back, whatever the filter: a demo row shown under "Demos" still
-  // says when a founder is calling it back.
-  const founderCallsByMeeting = Object.fromEntries(
-    allFounderCalls.flatMap((c) =>
-      c.meetingId === null ? [] : [[c.meetingId, { id: c.id, startAt: c.startAt }]],
-    ),
+  // On the calendar a meeting moved to a call back sits at the call back's
+  // time, as a call back — the same place the list now puts it.
+  const calendarEvents: CalendarEvent[] = meetings.map((m) =>
+    m.callBack
+      ? {
+          ...m,
+          kind: "founder_call" as const,
+          startAt: m.callBack.at,
+          endAt: null,
+          startingSoon: m.callBack.soon,
+        }
+      : m,
   );
-  // On the calendar beside the bookings, as their own kind of event.
-  const calendarEvents: CalendarEvent[] = [
-    ...meetings,
-    ...founderCalls.map((c) => ({
-      id: c.id,
-      kind: "founder_call" as const,
-      startAt: c.startAt,
-      endAt: null,
-      status: "accepted",
-      company: c.name,
-      attendeeName: null,
-      startingSoon: c.soon,
-    })),
-  ];
 
   let texting: Texting | null = null;
   if (me && smsEnabled() && (await canSendTexts(me.id, me.role))) {
@@ -376,24 +360,14 @@ export default async function MeetingsPage({
             A founder's own call backs are a kind of their own. */}
         {(() => {
           const showCallBacks = me?.role === "admin" && !past;
+          const count = (k: string) =>
+            filtered.filter((m) => kindOf(m) === k).length;
           const kinds = [
-            {
-              id: "all",
-              label: "All",
-              count: filtered.length + (showCallBacks ? allFounderCalls.length : 0),
-            },
-            {
-              id: "demo",
-              label: "Demos",
-              count: filtered.filter((m) => m.kind === "demo").length,
-            },
-            {
-              id: "follow_up",
-              label: "Follow-ups",
-              count: filtered.filter((m) => m.kind === "follow_up").length,
-            },
+            { id: "all", label: "All", count: filtered.length },
+            { id: "demo", label: "Demos", count: count("demo") },
+            { id: "follow_up", label: "Follow-ups", count: count("follow_up") },
             ...(showCallBacks
-              ? [{ id: "call_back", label: "Call backs", count: allFounderCalls.length }]
+              ? [{ id: "call_back", label: "Call backs", count: count("call_back") }]
               : []),
           ];
           const hrefFor = (k: string) => {
@@ -442,8 +416,7 @@ export default async function MeetingsPage({
         })()}
         {/* A filter that leaves nothing says so, with the way back, rather
             than the list's own "no meetings booked", which would be a lie. */}
-        {kind !== "all" &&
-          (kind === "call_back" ? founderCalls.length === 0 : meetings.length === 0) && (
+        {kind !== "all" && meetings.length === 0 && (
           <p className="rounded-xl border border-dashed px-4 py-8 text-center text-[13px] text-muted-foreground">
             {kind === "call_back"
               ? "No call backs on your calendar."
@@ -522,15 +495,6 @@ export default async function MeetingsPage({
             The grid answers "which day", and every job on this screen — ring
             them, log what happened, draft a contract — is on a row, so
             switching view must not take the work away. */}
-        {founderCalls.length > 0 && (
-          <FounderCallList
-            calls={founderCalls}
-            tz={zone.tz}
-            zoneLabel={zone.label}
-            dialFrom={await callerNumberOf(me?.id)}
-            lines={browserDialler ? await getSavedLines() : []}
-          />
-        )}
         {(kind === "all" || meetings.length > 0) && (
         <MeetingsList
           meetings={meetings}
@@ -555,7 +519,6 @@ export default async function MeetingsPage({
           followUpBookingUrl={process.env.CAL_FOLLOWUP_URL ?? null}
           texting={texting}
           briefs={briefs}
-          founderCalls={me?.role === "admin" ? founderCallsByMeeting : null}
           // Re-sending an invitation needs the Cal.com API, so an account
           // without a key draws no button rather than one that can only fail.
           // Not gated on role: the caller who typed the address wrong is the

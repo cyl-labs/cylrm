@@ -451,10 +451,11 @@ function Chip({
   return (
     // A link into its own row in the list below, not a second place to act
     // from — see the module comment. `#meeting-<id>` needs the list's `<li>`
-    // to carry that same id, which is the only coupling between the two; a
-    // founders' call back links to its card in "Your call backs" the same way.
+    // to carry that same id, which is the only coupling between the two. A
+    // founders' call back is a meeting moved to a new time, so it links to the
+    // same row.
     <Link
-      href={mine ? `#call-back-${m.id}` : `#meeting-${m.id}`}
+      href={`#meeting-${m.id}`}
       title={`${timeOf(m.startAt, tz, true)} · ${
         follow && forCaller
           ? "Founders' call — a founder rings them, nothing for you to do"
