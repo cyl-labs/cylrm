@@ -383,9 +383,18 @@ export default async function MeetingsPage({
                     </span>
                     , {week.voicemail} voicemail, {week.noAnswer} no answer
                     {week.unlogged > 0 && (
-                      <span className="font-semibold text-destructive">
-                        , {week.unlogged} not logged
-                      </span>
+                      <>
+                        ,{" "}
+                        {/* Straight to them. They leave this queue twelve
+                            hours after they start, so the only place left to
+                            find one is the history, filtered. */}
+                        <Link
+                          href={`/meetings?past=1&status=unanswered&kind=demo${keepTz}`}
+                          className="font-semibold text-destructive underline underline-offset-2"
+                        >
+                          {week.unlogged} not logged
+                        </Link>
+                      </>
                     )}
                     .
                   </>

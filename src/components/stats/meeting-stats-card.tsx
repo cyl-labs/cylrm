@@ -36,7 +36,13 @@ export function MeetingStatsCard({
   const t = stats.totals;
   const rate = showRate(t);
 
-  const tiles: { label: string; value: string; sub: string; tone?: string }[] = [
+  const tiles: {
+    label: string;
+    value: string;
+    sub: string;
+    tone?: string;
+    href?: string;
+  }[] = [
     {
       label: "Demos",
       value: String(t.demos),
@@ -60,6 +66,10 @@ export function MeetingStatsCard({
       value: String(t.unlogged),
       sub: t.unlogged > 0 ? "started, nobody said what happened" : "every demo answered",
       tone: t.unlogged > 0 ? "text-destructive" : undefined,
+      // Past meetings, filtered to them: they drop off the Meetings queue
+      // twelve hours after they start, so this is where they are.
+      href:
+        t.unlogged > 0 ? "/meetings?past=1&status=unanswered&kind=demo" : undefined,
     },
   ];
   const after: { label: string; value: number; sub: string }[] = [
@@ -123,20 +133,42 @@ export function MeetingStatsCard({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 px-5 pt-4 sm:grid-cols-3 lg:grid-cols-6">
-            {tiles.map((x) => (
-              <div key={x.label} className="rounded-lg border px-3 py-2.5">
-                <p className="text-xs font-semibold text-muted-foreground">{x.label}</p>
-                <p
-                  className={cn(
-                    "mt-1 text-2xl font-extrabold tabular-nums tracking-[-0.02em]",
-                    x.tone,
-                  )}
+            {tiles.map((x) => {
+              const body = (
+                <>
+                  <p className="text-xs font-semibold text-muted-foreground">{x.label}</p>
+                  <p
+                    className={cn(
+                      "mt-1 text-2xl font-extrabold tabular-nums tracking-[-0.02em]",
+                      x.tone,
+                    )}
+                  >
+                    {x.value}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground/75">
+                    {x.sub}
+                    {x.href && (
+                      <span className="block font-semibold text-destructive underline underline-offset-2">
+                        Show them
+                      </span>
+                    )}
+                  </p>
+                </>
+              );
+              return x.href ? (
+                <Link
+                  key={x.label}
+                  href={x.href}
+                  className="rounded-lg border border-destructive/40 px-3 py-2.5 transition-colors hover:bg-destructive/5"
                 >
-                  {x.value}
-                </p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground/75">{x.sub}</p>
-              </div>
-            ))}
+                  {body}
+                </Link>
+              ) : (
+                <div key={x.label} className="rounded-lg border px-3 py-2.5">
+                  {body}
+                </div>
+              );
+            })}
           </div>
           {founders && (
             <div className="grid grid-cols-2 gap-3 px-5 pt-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -179,7 +211,16 @@ export function MeetingStatsCard({
                           c.key === "unlogged" && d[c.key] > 0 && "font-bold text-destructive",
                         )}
                       >
-                        {d[c.key]}
+                        {c.key === "unlogged" && d[c.key] > 0 ? (
+                          <Link
+                            href="/meetings?past=1&status=unanswered&kind=demo"
+                            className="underline underline-offset-2"
+                          >
+                            {d[c.key]}
+                          </Link>
+                        ) : (
+                          d[c.key]
+                        )}
                       </td>
                     ))}
                   </tr>
