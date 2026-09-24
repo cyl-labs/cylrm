@@ -456,6 +456,45 @@ same document"); Telnyx logged every one as `recv_bye` from the browser.
 it. A tab with a call, a second leg or a call ringing in now outranks every
 other tab, visible or not, until it is idle.
 
+### A dropped line made the call ring you from your own number (2026-09-24)
+
+`isRecovered` and `supersededRef` in `use-telnyx-call.ts`.
+
+- **Reported as** "disconnect during a call and instantly receive a call back
+  from my own number". Telnyx never rang anybody: of 29 inbound calls from one
+  of our own numbers in the fortnight, every one was a colleague ringing a
+  colleague, and none was a number ringing itself. It was the browser.
+- **What happens.** When the websocket drops mid-call and comes back, Telnyx
+  sends `telnyx_rtc.attach` for the call still up on its side. SDK 2.27.9
+  retires the old call object (state `recovering`, no BYE), builds a new one
+  with the same id, **answers it itself**, and `answer()` stamps it
+  `direction = inbound`. Its `remoteCallerNumber` is the original leg's
+  `caller_id_number` — on a call we placed, **our own DID**. The hook read that
+  as an invite: the banner and the ringtone for "your own number", over a
+  screen showing the call ended, while the prospect was still connected and
+  hearing silence. Declining it hung up the real call.
+- **Now** a call carrying `recoveredCallId`, `options.attach` or state
+  `recovering` is never an invite. It is matched as the first line — by id
+  when the old object is still held, and taken back outright when the old one
+  already reported an end — and the old object is retired by identity, since
+  the two share an id.
+- **Verified against the SDK source, not on a live drop.** Forcing one needs a
+  socket to die mid-call on a real line. The console line
+  `[telnyx] call recovered after the line dropped` is how the next one will be
+  seen.
+- **Aaron's cut-offs are a different thing, and are not fixed by this.**
+  Transcribing all 134 of his answered calls under a minute on 23–24 Sep: most
+  short ones are voicemails and after-hours menus he hung up on (`recv_bye`
+  there is the browser's side hanging up), and **5 were one-way audio** — the
+  prospect saying "Hello?… anyone there?" while Aaron, who can hear them, asks
+  "can you hear me?". Sometimes it comes good ("okay, I can hear you now"),
+  sometimes the prospect gives up (`send_bye`). In one, his voice is on the
+  recording and still did not reach the prospect; in another it stops reaching
+  Telnyx at all mid-call. That is his uplink or the media path, not signalling.
+  `keepConnectionAliveOnSocketClose: true` on the client is the SDK's lever for
+  keeping media up through a socket blip instead of rebuilding the call, and is
+  the next thing to try if drops persist — untested, so not switched on.
+
 ### Two tabs made the Call back button strobe (2026-09-22)
 
 Reported as the button "constantly flashing between Connecting… and Call back",

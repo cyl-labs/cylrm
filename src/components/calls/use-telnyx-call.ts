@@ -24,8 +24,16 @@ type TelnyxCall = {
   /** Which way the call is going. Present on an inbound invite, which is how
    *  one is told from the two outbound legs this hook already tracks. */
   direction?: string;
-  /** Who is ringing. `options` is where the SDK puts the invite's caller id. */
-  options?: { remoteCallerNumber?: string; remoteCallerName?: string };
+  /** Who is ringing. `options` is where the SDK puts the invite's caller id.
+   *  `attach` is set on a call rebuilt after the socket dropped mid-call. */
+  options?: {
+    remoteCallerNumber?: string;
+    remoteCallerName?: string;
+    attach?: boolean;
+  };
+  /** The id of the call this one replaces, when the SDK rebuilt a live call
+   *  after its websocket dropped. Empty on every ordinary call. */
+  recoveredCallId?: string;
   answer?: (params?: { remoteElement?: string }) => void;
   hangup: () => void;
   muteAudio: () => void;
@@ -178,6 +186,25 @@ function setEar(audioId: string, volume: number) {
  * still matches after a ref has been cleared, which is exactly when a stray
  * update is most dangerous.
  */
+/**
+ * Is this a call the SDK rebuilt after the line blipped, rather than a new one?
+ *
+ * When the websocket drops mid-call and comes back, Telnyx sends an `attach`
+ * for the call still up on its side. The SDK retires its old call object,
+ * builds a fresh one, answers it itself and marks it **inbound** — with the
+ * caller id copied from the original leg, which on a call we placed is our
+ * own number. Read as an invite, that is "your call dropped, and your own
+ * number is ringing you", while the prospect is in fact still connected and
+ * hearing silence. Reported 2026-09-24 as exactly that.
+ */
+function isRecovered(call: TelnyxCall): boolean {
+  return (
+    Boolean(call.recoveredCallId) ||
+    call.options?.attach === true ||
+    call.state === "recovering"
+  );
+}
+
 function sameCall(
   call: TelnyxCall,
   known: TelnyxCall | null,
@@ -299,6 +326,8 @@ export function useTelnyxCall(
   const retiredRef = React.useRef<{ call: TelnyxCall | null; id: string | null }>(
     { call: null, id: null },
   );
+  // The first call's old object after the SDK rebuilt it (see `isRecovered`).
+  const supersededRef = React.useRef<TelnyxCall | null>(null);
   const bridgeRef = React.useRef<AudioBridge | null>(null);
 
   const [ready, setReady] = React.useState(false);
@@ -568,11 +597,15 @@ export function useTelnyxCall(
           if (n.type !== "callUpdate" || !n.call) return;
           const call = n.call;
           const phase = phaseOf(call.state);
+          const recovered = isRecovered(call);
 
           // A line we have already hung up ourselves. Its remaining updates
           // describe nothing that is still on the phone, so they are dropped
           // before anything can be inferred from them.
-          if (sameCall(call, retiredRef.current.call, retiredRef.current.id)) {
+          if (
+            call === supersededRef.current ||
+            sameCall(call, retiredRef.current.call, retiredRef.current.id)
+          ) {
             console.log("[telnyx] dropped: already retired");
             return;
           }
@@ -599,8 +632,12 @@ export function useTelnyxCall(
           // second call we placed?" and an inbound call is neither — left to
           // fall through, a stranger ringing in would be adopted as the line
           // the caller thought they had dialled.
+          //
+          // A recovered call is the exception: it says inbound, but it is the
+          // call already on the line, and it is matched below instead.
           if (
             call.direction === "inbound" &&
+            !recovered &&
             !sameCall(call, callRef.current, firstIdRef.current)
           ) {
             console.log(
@@ -686,7 +723,8 @@ export function useTelnyxCall(
           // The gap `pendingSecondRef` exists for: the second call's earliest
           // updates can arrive from inside `newCall`, before its return value
           // has been assigned and before it has an id to be recognised by.
-          const isNewSecond = !isFirst && !isSecond && pendingSecondRef.current;
+          const isNewSecond =
+            !recovered && !isFirst && !isSecond && pendingSecondRef.current;
 
           if (isSecond || isNewSecond) {
             if (call.id) secondIdRef.current = call.id;
@@ -711,10 +749,39 @@ export function useTelnyxCall(
             callRef.current === null &&
             pendingFirstRef.current &&
             !pendingSecondRef.current;
+          // A rebuilt call that is not the second line is the first one coming
+          // back. It usually keeps the old call's id and matches `isFirst`, but
+          // not when the retired object already reported a hangup and cleared
+          // the line — the SDK can do either — and then it has to be taken
+          // back here, or the prospect stays connected to a screen that shows
+          // no call.
+          const isRecoveredFirst = recovered && !isFirst;
           // Anything else belongs to no line this hook is holding. Ignoring it
           // is the whole point: an unattributable update must never be able to
           // take over the first line, which is what ends a live call.
-          if (!isFirst && !isNewFirst) return;
+          if (!isFirst && !isNewFirst && !isRecoveredFirst) return;
+
+          // The object a recovery replaced shares the new one's id, so only
+          // identity can tell them apart. Retired here so a late update from it
+          // cannot end the call that took its place.
+          if (recovered && callRef.current && callRef.current !== call) {
+            supersededRef.current = callRef.current;
+          }
+          if (isRecoveredFirst) {
+            console.warn(
+              `[telnyx] call recovered after the line dropped (${call.id}), keeping it on screen`,
+            );
+            if (callRef.current === null) {
+              // The line had been shown as ended. It was not.
+              progressRef.current = {
+                at: Date.now(),
+                rang: true,
+                answered: true,
+                byUs: false,
+              };
+              setEnded(null);
+            }
+          }
 
           callRef.current = call;
           if (call.id) firstIdRef.current = call.id;
