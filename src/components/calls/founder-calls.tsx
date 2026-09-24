@@ -3,7 +3,14 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Clock, PhoneForwarded, Trash2 } from "lucide-react";
+import {
+  Check,
+  Clock,
+  PhoneForwarded,
+  PhoneMissed,
+  Skull,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -335,23 +342,53 @@ export function FounderCallList({
 
   if (calls.length === 0) return null;
 
-  async function act(c: FounderCall, how: "done" | "remove") {
+  async function act(c: FounderCall, how: "done" | "remove" | "retry" | "dead") {
     if (how === "remove" && !window.confirm(`Remove the call back to ${c.name}?`)) {
+      return;
+    }
+    // Asked, because it sits in a row of buttons and cannot be taken back from
+    // here: it closes the call back and records the no-show as not rebooking.
+    if (
+      how === "dead" &&
+      !window.confirm(`Mark ${c.name} as dead? This takes them off your list for good.`)
+    ) {
       return;
     }
     setBusy(c.id);
     try {
       const res = await fetch(`/api/founder-calls/${c.id}`, {
-        method: how === "done" ? "PATCH" : "DELETE",
+        method: how === "remove" ? "DELETE" : "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: how === "done" ? JSON.stringify({ done: true }) : undefined,
+        body:
+          how === "remove"
+            ? undefined
+            : JSON.stringify(
+                how === "done" ? { done: true } : how === "retry" ? { retry: true } : { dead: true },
+              ),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        startAt?: string;
+        tries?: number;
+      };
       if (!res.ok) {
         toast.error(data.error ?? "Could not save that. Try again.");
         return;
       }
-      toast.success(how === "done" ? `Done: ${c.name}` : `Removed: ${c.name}`);
+      if (how === "retry" && data.startAt) {
+        const their = theirClock(new Date(data.startAt), c.theirTz, tz);
+        toast.success(
+          `Tried ${data.tries ?? c.tries + 1} ${data.tries === 1 ? "time" : "times"}. Next try ${when(data.startAt, tz)}${their ? ` (${their} their time)` : ""}.`,
+        );
+      } else {
+        toast.success(
+          how === "done"
+            ? `Done: ${c.name}`
+            : how === "dead"
+              ? `Dead, off your list: ${c.name}`
+              : `Removed: ${c.name}`,
+        );
+      }
       router.refresh();
     } catch {
       toast.error("Could not save that: network error.");
@@ -414,6 +451,18 @@ export function FounderCallList({
                   {c.notes}
                 </p>
               )}
+              {/* How many times this has gone unanswered — what tells a
+                  founder it is time to press Dead. */}
+              {c.tries > 0 && (
+                <p className="mt-1.5 text-[12px] font-semibold text-muted-foreground">
+                  Tried {c.tries} {c.tries === 1 ? "time" : "times"} with no answer
+                  {c.lastTriedAt && (
+                    <span className="font-normal" suppressHydrationWarning>
+                      {` · last ${when(c.lastTriedAt, tz)}`}
+                    </span>
+                  )}
+                </p>
+              )}
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <MeetingCallButton
                   who={c.name}
@@ -434,6 +483,19 @@ export function FounderCallList({
                   />
                 )}
                 {c.phone && <CopyNumber phone={c.phone} blocked={c.dncBlock} />}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {/* The press after a voicemail: same time tomorrow where they
+                    are, and one more try on the count. */}
+                <button
+                  type="button"
+                  disabled={busy === c.id}
+                  onClick={() => void act(c, "retry")}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
+                >
+                  <PhoneMissed className="size-3.5" />
+                  No answer, try tomorrow
+                </button>
                 <button
                   type="button"
                   disabled={busy === c.id}
@@ -451,6 +513,15 @@ export function FounderCallList({
                 >
                   <Clock className="size-3.5" />
                   Change time
+                </button>
+                <button
+                  type="button"
+                  disabled={busy === c.id}
+                  onClick={() => void act(c, "dead")}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-3 py-1.5 text-[13px] font-semibold text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                >
+                  <Skull className="size-3.5" />
+                  Dead
                 </button>
                 <button
                   type="button"

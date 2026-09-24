@@ -39,6 +39,9 @@ export type FounderCall = {
   /** Why the number may not be rung, the same block every calling screen
    *  applies. */
   dncBlock: string | null;
+  /** Tries that went unanswered, and when the last one was. */
+  tries: number;
+  lastTriedAt: string | null;
 };
 
 type Row = Record<string, unknown>;
@@ -47,7 +50,7 @@ type Row = Record<string, unknown>;
 export async function getFounderCalls(): Promise<FounderCall[]> {
   const rows = (await db.execute(sql`
     select fc.id, fc.meeting_id, fc.call_lead_id, fc.name, fc.phone,
-      fc.start_at, fc.notes,
+      fc.start_at, fc.notes, fc.tries, fc.last_tried_at,
       l.call_list_id as list_id, l.dnc_status, l.dnc_checked_at,
       z.tz as lead_tz, m.attendee_tz,
       (fc.start_at <= now()) as due,
@@ -77,6 +80,10 @@ export async function getFounderCalls(): Promise<FounderCall[]> {
         null,
       due: r.due === true,
       soon: r.soon === true,
+      tries: Number(r.tries ?? 0),
+      lastTriedAt: r.last_tried_at
+        ? new Date(r.last_tried_at as string).toISOString()
+        : null,
       dncBlock:
         r.call_lead_id === null || !phone
           ? null

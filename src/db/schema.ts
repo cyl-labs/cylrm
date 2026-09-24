@@ -1757,6 +1757,9 @@ export const founderCall = pgTable(
       .notNull()
       .defaultNow(),
     doneAt: timestamp("done_at", { withTimezone: true }),
+    /** Tries that went unanswered, from "No answer, try tomorrow". */
+    tries: integer("tries").notNull().default(0),
+    lastTriedAt: timestamp("last_tried_at", { withTimezone: true }),
   },
   // Declared here as well as in the migration: `drizzle-kit push` drops any
   // index it cannot see in this file.

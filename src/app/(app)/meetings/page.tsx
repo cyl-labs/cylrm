@@ -66,6 +66,7 @@ export default async function MeetingsPage({
     past?: string;
     caller?: string;
     status?: string;
+    kind?: string;
   }>;
 }) {
   const me = await getCurrentUser();
@@ -78,7 +79,14 @@ export default async function MeetingsPage({
     past: rawPast,
     caller: rawCaller,
     status: rawStatus,
+    kind: rawKind,
   } = await searchParams;
+  // Which meetings to show (2026-09-24): everything by default, or only demos,
+  // only follow-ups, or — for a founder — only their own call backs.
+  const kind =
+    rawKind === "demo" || rawKind === "follow_up" || rawKind === "call_back"
+      ? rawKind
+      : "all";
 
   // The full history instead of the rolling work queue, off its own button
   // rather than a fold on the usual list — asked for 2026-09-23 after a
@@ -128,7 +136,7 @@ export default async function MeetingsPage({
   // `PastMeetingsFilters`. Applied here rather than in `getMeetings` because
   // the whole point is slicing a small, already-fetched history several
   // different ways without a round trip per click.
-  const meetings =
+  const filtered =
     past && (caller !== "all" || status !== "all")
       ? allMeetings.filter((m) => {
           if (caller !== "all" && m.bookedBy !== caller) return false;
@@ -139,6 +147,13 @@ export default async function MeetingsPage({
           return m.attendance === status;
         })
       : allMeetings;
+  // The kind filter last, so its chips can count what is left after the rest.
+  const meetings =
+    kind === "all"
+      ? filtered
+      : kind === "call_back"
+        ? []
+        : filtered.filter((m) => m.kind === kind);
   // Read once: it decides both the mergeable lines and whether this tab takes
   // the phone.
   const browserDialler = (await dialMethodOf(me?.id)) === "browser";
@@ -179,6 +194,10 @@ export default async function MeetingsPage({
   // What to carry across a view switch or a page turn. Written out rather than
   // rebuilt from `searchParams`, since only the zone ever belongs in it.
   const keepTz = isStatsRegion(rawTz) ? `&tz=${rawTz}` : "";
+  // Carried the way the zone is — across the view switch, a page turn of the
+  // calendar and the step into history — or picking "Follow-ups" and turning
+  // the month would quietly show everything again.
+  const keepKind = kind === "all" ? "" : `&kind=${kind}`;
   // The database's clock decided this, not this render's.
   const soon = meetings.filter((m) => m.startingSoon).length;
   const ringBack = meetings.filter((m) => m.needsRingBack).length;
@@ -201,10 +220,14 @@ export default async function MeetingsPage({
 
   // The founders' own call backs (2026-09-24): set from the no-show pop-up,
   // shown only to founders, and never on the history view.
-  const founderCalls =
+  const allFounderCalls =
     me?.role === "admin" && !past ? await getFounderCalls() : [];
+  const founderCalls =
+    kind === "all" || kind === "call_back" ? allFounderCalls : [];
+  // Every call back, whatever the filter: a demo row shown under "Demos" still
+  // says when a founder is calling it back.
   const founderCallsByMeeting = Object.fromEntries(
-    founderCalls.flatMap((c) =>
+    allFounderCalls.flatMap((c) =>
       c.meetingId === null ? [] : [[c.meetingId, { id: c.id, startAt: c.startAt }]],
     ),
   );
@@ -262,7 +285,7 @@ export default async function MeetingsPage({
           {!past && (
             <MeetingsView
               view={view}
-              query={`${keepTz}&span=${span}&on=${anchor}`}
+              query={`${keepTz}${keepKind}&span=${span}&on=${anchor}`}
             />
           )}
           {/* The whole history rather than the rolling queue — every past
@@ -274,8 +297,8 @@ export default async function MeetingsPage({
           <Link
             href={
               past
-                ? `/meetings?view=${view}${keepTz}&span=${span}&on=${anchor}`
-                : `/meetings?past=1${keepTz}`
+                ? `/meetings?view=${view}${keepTz}${keepKind}&span=${span}&on=${anchor}`
+                : `/meetings?past=1${keepTz}${keepKind}`
             }
             aria-current={past ? "page" : undefined}
             className={cn(
@@ -345,6 +368,97 @@ export default async function MeetingsPage({
             />
           </>
         )}
+        {/* Show everything, or one kind (2026-09-24, asked for as "let me
+            filter between follow up meetings and regular ones and have it show
+            both by default"). Links, so the choice is in the address like the
+            zone and the view, and survives a page turn and a reload. Each
+            chip says how many it holds, so an empty filter is not a surprise.
+            A founder's own call backs are a kind of their own. */}
+        {(() => {
+          const showCallBacks = me?.role === "admin" && !past;
+          const kinds = [
+            {
+              id: "all",
+              label: "All",
+              count: filtered.length + (showCallBacks ? allFounderCalls.length : 0),
+            },
+            {
+              id: "demo",
+              label: "Demos",
+              count: filtered.filter((m) => m.kind === "demo").length,
+            },
+            {
+              id: "follow_up",
+              label: "Follow-ups",
+              count: filtered.filter((m) => m.kind === "follow_up").length,
+            },
+            ...(showCallBacks
+              ? [{ id: "call_back", label: "Call backs", count: allFounderCalls.length }]
+              : []),
+          ];
+          const hrefFor = (k: string) => {
+            const q = new URLSearchParams();
+            if (past) {
+              q.set("past", "1");
+              if (caller !== "all") q.set("caller", caller);
+              if (status !== "all") q.set("status", status);
+            } else {
+              q.set("view", view);
+              q.set("span", span);
+              q.set("on", anchor);
+            }
+            if (isStatsRegion(rawTz)) q.set("tz", rawTz);
+            if (k !== "all") q.set("kind", k);
+            return `/meetings?${q.toString()}`;
+          };
+          return (
+            <div
+              role="group"
+              aria-label="Show"
+              className="flex flex-wrap items-center gap-1.5"
+            >
+              <span className="mr-0.5 text-[13px] text-muted-foreground">Show</span>
+              {kinds.map((k) => (
+                <Link
+                  key={k.id}
+                  href={hrefFor(k.id)}
+                  scroll={false}
+                  aria-current={kind === k.id ? "page" : undefined}
+                  className={cn(
+                    "rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+                    kind === k.id
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {k.label}
+                  <span className="ml-1.5 font-normal tabular-nums opacity-80">
+                    {k.count}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          );
+        })()}
+        {/* A filter that leaves nothing says so, with the way back, rather
+            than the list's own "no meetings booked", which would be a lie. */}
+        {kind !== "all" &&
+          (kind === "call_back" ? founderCalls.length === 0 : meetings.length === 0) && (
+          <p className="rounded-xl border border-dashed px-4 py-8 text-center text-[13px] text-muted-foreground">
+            {kind === "call_back"
+              ? "No call backs on your calendar."
+              : kind === "demo"
+                ? "No demos here."
+                : "No follow-ups here."}{" "}
+            <Link
+              href={`/meetings?${past ? "past=1" : `view=${view}&span=${span}&on=${anchor}`}${keepTz}`}
+              scroll={false}
+              className="font-semibold text-primary underline-offset-2 hover:underline"
+            >
+              Show everything
+            </Link>
+          </p>
+        )}
         {meetings.length > 0 && (
           <p className="text-[13px] text-muted-foreground">
             {past ? (
@@ -400,7 +514,7 @@ export default async function MeetingsPage({
             zoneLabel={zone.label}
             today={today}
             now={now}
-            query={keepTz}
+            query={`${keepTz}${keepKind}`}
             forCaller={me?.role !== "admin"}
           />
         )}
@@ -417,6 +531,7 @@ export default async function MeetingsPage({
             lines={browserDialler ? await getSavedLines() : []}
           />
         )}
+        {(kind === "all" || meetings.length > 0) && (
         <MeetingsList
           meetings={meetings}
           // The voice agent's own number among them, so the demo can be merged
@@ -463,6 +578,7 @@ export default async function MeetingsPage({
           }
           past={past}
         />
+        )}
       </div>
     </PageShell>
   );

@@ -139,6 +139,33 @@ deploy**: the founders' Meetings badge counts it on every page).
   answers, Decide later leaving the ring back, Change time, Done, the calendar
   chip and header count, and a caller's view of both kinds of no-show. The
   call itself from a card was not placed: there was no live line.
+- **Voicemail after voicemail** (same day, `2026-09-24-founder-call-tries.sql`,
+  applied before the deploy). A card has **No answer, try tomorrow**: one more
+  on `tries`, and the call back moves to the same wall-clock time on *their*
+  tomorrow — computed from their today, so one three days overdue does not
+  land in the past again, and DST-safe because the arithmetic is local. The
+  card says "Tried 3 times with no answer". **Dead** on the card closes it and
+  logs the same "Not rebooking" ring back the pop-up does, with the tries in
+  the note; it asks first, sitting in a row of buttons. Do not log Voicemail or
+  No answer on the lead's dial card for these: those put the lead back in the
+  caller's queue as a retry.
+
+### Show: all, demos, follow-ups, call backs (2026-09-24)
+
+`?kind=demo|follow_up|call_back` on `/meetings`, absent meaning all. Asked for
+as "let me filter between follow up meetings and regular ones and have it show
+both by default".
+
+- **Chips above the calendar**, each with its count, so a filter that empties
+  the screen is not a surprise; "Call backs" only for founders, outside
+  history. Filtered to nothing, the page says so with a way back instead of
+  the list's "no meetings booked".
+- **Carried like the zone** (`keepKind`): through the List/Calendar switch,
+  every calendar link and the step into Past, or turning the month would
+  quietly show everything again. The past filters and the timezone picker
+  copy the whole query already.
+- A row still says "You are calling them back" under Demos: that line reads
+  every call back, not only the ones the filter shows.
 
 ### The demo briefing (2026-09-22)
 
