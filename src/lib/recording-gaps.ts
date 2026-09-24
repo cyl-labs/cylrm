@@ -71,7 +71,13 @@ export type GapSweep = {
  */
 export async function sweepRecordingGaps(): Promise<GapSweep> {
   const candidates = (await db.execute(sql`
-    select c.id, c.telnyx_session_id
+    select c.id, c.telnyx_session_id,
+      -- A ring-back we logged ourselves: the webhook writes inbound_call the
+      -- moment it rings, so this needs no word from Telnyx. See below.
+      exists (
+        select 1 from inbound_call i
+        where i.call_session_id = c.telnyx_session_id
+      ) as ours_inbound
     from "call" c
     left join call_recording cr on cr.call_session_id = c.telnyx_session_id
     left join call_recording_gap g on g.call_id = c.id
@@ -84,7 +90,11 @@ export async function sweepRecordingGaps(): Promise<GapSweep> {
       -- Past the grace period, so a recording still in flight is not a fault.
       and c.called_at < now() - make_interval(mins => ${GRACE_MINUTES}::int)
       and c.called_at > now() - make_interval(hours => ${LOOKBACK_HOURS}::int)
-  `)) as unknown as { id: number; telnyx_session_id: string }[];
+  `)) as unknown as {
+    id: number;
+    telnyx_session_id: string;
+    ours_inbound: boolean;
+  }[];
 
   if (candidates.length === 0) return { found: 0, notified: false };
 
@@ -104,7 +114,17 @@ export async function sweepRecordingGaps(): Promise<GapSweep> {
   const real: number[] = [];
   const unanswered: number[] = [];
   const inbound: number[] = [];
+  //
+  // Our own `inbound_call` row settles that first (2026-09-25). Telnyx's
+  // detail records are the slower witness: for the Rockin D Roll Offs
+  // ring-back — a demo booked on a 3m19s call the prospect placed — they still
+  // held nothing forty minutes later, the verdict came back unknown, and
+  // unknown is announced. That was the 4:42am "1 call has no recording".
   for (const c of candidates) {
+    if (c.ours_inbound === true) {
+      inbound.push(Number(c.id));
+      continue;
+    }
     let verdict: Awaited<ReturnType<typeof callConnected>> = null;
     try {
       verdict = await callConnected(c.telnyx_session_id);
