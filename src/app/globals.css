@@ -131,7 +131,14 @@
   --primary-foreground: #1f1e1d;
   --secondary: #3a3a37;
   --secondary-foreground: #e8e6dc;
-  --muted: #30302e;
+  /* A step above --card, never equal to it. It was #30302e — the card itself —
+     from the switch to this palette until 2026-09-24, so everything drawn in
+     bg-muted on a card vanished: every progress track (a Call lists card with
+     nothing done looked completely blank), the Spreadsheet's header cells,
+     the tab rail and every hover:bg-muted highlight. Light mode was never
+     affected, its muted sitting a shade off the white card. Same value as
+     --secondary and --accent, the relation the component library assumes. */
+  --muted: #3a3a37;
   --muted-foreground: #b1ada1;
   --accent: #3a3a37;
   --accent-foreground: #faf9f5;
