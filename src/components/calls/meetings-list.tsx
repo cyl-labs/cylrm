@@ -302,6 +302,10 @@ const FOLLOW_UP_OUTCOMES: CallOutcome[] = [
   "lost",
 ];
 
+/** The outcomes a row names as where the sale stands. Anything earlier is
+ *  what the meeting itself already says. */
+const SALE_STAGES = new Set<string>(["following_up", "trial", "won", "lost"]);
+
 export function MeetingsList({
   meetings,
   canDial = false,
@@ -1011,6 +1015,26 @@ export function MeetingsList({
                     {ATTENDANCE_LABEL[m.attendance]}
                   </Badge>
                 )}
+                {/* Where the sale stands, once it is past the demo
+                    (2026-09-25). It read only on the board, so a follow-up
+                    moved to a new time looked as if the Trial logged on the
+                    old one had been lost. Not on a cancelled row, whose
+                    replacement carries it. */}
+                {!cancelled &&
+                  m.leadOutcome &&
+                  SALE_STAGES.has(m.leadOutcome) && (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        (m.leadOutcome === "trial" || m.leadOutcome === "won") &&
+                          "border-success/40 text-success",
+                        m.leadOutcome === "lost" &&
+                          "border-destructive/40 text-destructive",
+                      )}
+                    >
+                      {OUTCOME_LABELS[m.leadOutcome as CallOutcome]}
+                    </Badge>
+                  )}
                 {/* A reply is the one thing on a row that may need answering
                     within the minute, so it is said where the eye lands. */}
                 {repliedLast && (
@@ -1377,8 +1401,11 @@ export function MeetingsList({
                     line is load-bearing, since the sync matches a booking back
                     to its lead by the number in it. A new tab, never a
                     navigation: Cal.com's own flow sends the invite. */}
+                {/* On a follow-up too (2026-09-25): the call after it had no
+                    button, so booking it meant "Move this call", which cancels
+                    the one that happened and strands what was logged on it. */}
                 {closes && followUpBookingUrl && m.leadId !== null &&
-                  hasStarted && m.kind === "demo" && (
+                  hasStarted && (
                   <a
                     href={calBookingHref(
                       followUpBookingUrl,
@@ -1644,7 +1671,10 @@ export function MeetingsList({
                     Hidden once they have turned up: a demo that happened is
                     not moved, it is followed up, and that button is already on
                     the row. A no show keeps it — that is the rebook. */}
-                {rescheduleBase && m.attendance !== "showed_up" && (
+                {/* Likewise a follow-up that has been logged: it happened,
+                    so the next one is booked, not this one moved. */}
+                {rescheduleBase && m.attendance !== "showed_up" &&
+                  !(m.kind === "follow_up" && m.logged) && (
                   <a
                     href={calRescheduleHref(
                       rescheduleBase,

@@ -139,10 +139,23 @@ export async function draftContracts(
   // What is already drafted. Read once rather than relying on the unique index
   // to reject a second press: the index would fire *after* DocuSeal had made a
   // duplicate document, which is the expensive half.
+  //
+  // The business's, not only this booking's (2026-09-25): a moved meeting is a
+  // new booking, and a signed trial on the old one must not be drafted again
+  // on the new. Picked the way the meetings screen picks, so what the row
+  // shows as existing is what this hands back.
   const done = new Map<ContractKind, DraftedContract>();
   const rows = await db.execute(sql`
-    select kind, submission_id, sender_slug, signer_slug
-    from call_contract where meeting_id = ${meetingId}
+    select distinct on (c.kind)
+      c.kind, c.submission_id, c.sender_slug, c.signer_slug
+    from call_contract c
+    join call_meeting cm on cm.id = c.meeting_id
+    where c.meeting_id = ${meetingId}
+      or cm.call_lead_id = (
+        select call_lead_id from call_meeting where id = ${meetingId}
+      )
+    order by c.kind, (c.signed_at is not null) desc,
+      (c.meeting_id = ${meetingId}) desc, c.created_at desc
   `);
   for (const r of rows as unknown as Record<string, unknown>[]) {
     done.set(r.kind as ContractKind, {

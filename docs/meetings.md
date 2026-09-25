@@ -804,6 +804,27 @@ agent demo meeting. sometimes theyre not free right now".
   since this is the first control on the screen that changes anything on
   Cal.com.
 
+### A moved follow-up lost its contract and its Trial (2026-09-25)
+
+A founder signed Paul (First Coast Alarm) to the trial on a follow-up call,
+logged Trial, then pressed **Move this call** to book the next one. Moving is
+a Cal.com reschedule, which cancels the booking and makes a new one, so the
+signed contract stayed on the cancelled row (whose actions are hidden) and the
+new row offered "Prepare contracts" again. Nothing was lost in the data; the
+screen just read everything off one booking.
+
+- **Contracts belong to the business now, not the booking.** Each row shows,
+  per kind, the lead's signed contract first, then its own, then the latest
+  from any of the lead's bookings, cancelled ones included. `draftContracts`
+  reads the same way, so a signed trial cannot be drafted twice.
+  `MeetingContract.meetingId` says which booking a contract lives on, and
+  discarding is addressed there.
+- **The row names where the sale stands**: the lead's latest outcome, when it
+  is following up, trial, won or lost (`leadOutcome`).
+- **A follow-up row can book the call after it** ("Book a follow-up" was on
+  demo rows only), and **"Move this call" hides once the follow-up is logged**.
+  A call that happened is followed by a new booking, never moved.
+
 ### Booking the follow-up (2026-09-19)
 
 **Book a follow-up** on a meeting row opens Cal.com prefilled, so the next call

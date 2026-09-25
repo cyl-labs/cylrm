@@ -260,10 +260,14 @@ export function PrepareContracts({
    * came back. 409 is the signed case and reads as a rule rather than a fault.
    */
   async function discard(kind: ContractKind) {
+    // Addressed to the booking it was drafted on, which can be an earlier one
+    // for this business: the row shows the business's contracts.
+    const owner =
+      drafted.find((c) => c.kind === kind)?.meetingId ?? meeting.id;
     setBusy(true);
     try {
       const res = await fetch(
-        `/api/meetings/${meeting.id}/contracts?kind=${kind}`,
+        `/api/meetings/${owner}/contracts?kind=${kind}`,
         { method: "DELETE" },
       );
       const data = (await res.json().catch(() => ({}))) as { error?: string };

@@ -359,6 +359,9 @@ export type MeetingFollowupResult =
 /** A contract already drafted into DocuSeal for a meeting. Carries the slug
  *  rather than a URL, so moving instances does not orphan the links. */
 export type MeetingContract = {
+  /** The booking it was drafted on, which may be an earlier one for the same
+   *  business. Discarding is addressed to that one. */
+  meetingId: number;
   kind: "trial" | "paid";
   senderSlug: string;
   /** The client's own link. Carried so the screen can open the document as
@@ -514,9 +517,12 @@ export type Meeting = {
    * Empty until `scripts/backfill-recording-numbers.mjs` has run, and empty
    * afterwards for any meeting whose demo was never recorded or never happened.
    */
-  /** On a demo, when the business's next follow-up is booked for, or null
+  /** When the business's next follow-up after this one is booked for, or null
    *  when none is on the calendar (2026-09-25). */
   nextFollowUpAt: string | null;
+  /** The business's latest logged outcome, or null. The row shows it once
+   *  the sale has moved past the demo (following up, trial, won, lost). */
+  leadOutcome: string | null;
   /** Somebody has said what happened: the attendance answer on a demo, a
    *  call logged since it began on a follow-up (2026-09-25). */
   logged: boolean;
@@ -754,10 +760,18 @@ const meetingSelect = sql`
   -- contracts rather than a button that would mint a second copy. Aggregated
   -- here rather than fetched per row: the screen renders every meeting at once
   -- and a query each would be a query per booking.
+  --
+  -- The business's, not only this booking's (2026-09-25). A contract is drafted
+  -- on whichever row was on screen at the time, and moving a meeting on Cal.com
+  -- cancels that booking and makes a new one: Paul's signed trial stayed on the
+  -- cancelled row, whose actions are hidden, and the new row offered to draft a
+  -- second one. One per kind: signed first, then this row's own, then latest.
+  -- draftContracts picks the same way, so the row and the route agree.
   (
     select coalesce(
       json_agg(
         json_build_object(
+          'meetingId', c.meeting_id,
           'kind', c.kind,
           'senderSlug', c.sender_slug,
           'signerSlug', c.signer_slug,
@@ -769,8 +783,25 @@ const meetingSelect = sql`
       ),
       '[]'::json
     )
-    from call_contract c where c.meeting_id = m.id
+    from (
+      select distinct on (c.kind) c.*
+      from call_contract c
+      join call_meeting cm on cm.id = c.meeting_id
+      where c.meeting_id = m.id
+        or (m.call_lead_id is not null and cm.call_lead_id = m.call_lead_id)
+      order by c.kind, (c.signed_at is not null) desc,
+        (c.meeting_id = m.id) desc, c.created_at desc
+    ) c
   ) as contracts,
+  -- Where the sale stands: the business's latest logged outcome, so a row can
+  -- say Trial or Won once somebody has logged it (2026-09-25). It lived only
+  -- on the board, so a follow-up moved to a new time looked as though the
+  -- Trial logged on the old one had gone.
+  (
+    select c.outcome::text from "call" c
+    where c.call_lead_id = m.call_lead_id
+    order by c.called_at desc, c.id desc limit 1
+  ) as lead_outcome,
   (select u.name from app_user u where u.id = bc.user_id) as booked_by,
   -- The booking call itself. Attendance is keyed on it (one answer per
   -- booking, one fee per business), so the row cannot record what happened at
@@ -865,16 +896,18 @@ const meetingSelect = sql`
       )
     )
   ) as follow_up_logged,
-  -- On a demo, the next follow-up already booked for the business
-  -- (2026-09-25), so the row can say so rather than read as one still owed.
-  case when m.kind = 'demo' then (
+  -- The next follow-up already booked for the business (2026-09-25), so the
+  -- row can say so rather than read as one still owed. On a follow-up too, now
+  -- that one can book the call after it.
+  (
     select min(nf.start_at) from call_meeting nf
     where nf.call_lead_id = m.call_lead_id
+      and nf.id <> m.id
       and nf.kind = 'follow_up'
       and nf.status = 'accepted'
       and nf.start_at > m.start_at
       and nf.start_at > now()
-  ) end as next_follow_up_at,
+  ) as next_follow_up_at,
   -- On a follow-up, the demo it follows (2026-09-25). A follow-up is its own
   -- meeting with its own call still ahead of it, and the demo row leaves this
   -- screen once the follow-up is booked, so the call a founder most wants to
@@ -1266,6 +1299,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
       })),
     ),
     nextFollowUpAt: iso(r.next_follow_up_at),
+    leadOutcome: (r.lead_outcome as string | null) ?? null,
     logged:
       r.kind === "follow_up"
         ? r.follow_up_logged === true
