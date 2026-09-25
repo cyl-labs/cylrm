@@ -509,6 +509,14 @@ export type Meeting = {
    * Empty until `scripts/backfill-recording-numbers.mjs` has run, and empty
    * afterwards for any meeting whose demo was never recorded or never happened.
    */
+  /** On a follow-up, the recording of the demo it follows, clustered the
+   *  same way. Empty on a demo, and on a follow-up whose demo was never
+   *  recorded. */
+  earlierDemoRecordings: {
+    recordingId: string;
+    durationMs: number | null;
+    startedAt: string;
+  }[];
   demoRecordings: {
     recordingId: string;
     durationMs: number | null;
@@ -831,6 +839,37 @@ const meetingSelect = sql`
     from call_recording cr
     where ${DEMO_RECORDING_WHERE}
   ) as demo_recordings,
+  -- On a follow-up, the demo it follows (2026-09-25). A follow-up is its own
+  -- meeting with its own call still ahead of it, and the demo row leaves this
+  -- screen once the follow-up is booked, so the call a founder most wants to
+  -- hear again before ringing was reachable only from Past meetings. Found the
+  -- way demo_recordings is: the lead's latest earlier demo, its numbers, from
+  -- half an hour before it until this follow-up's own window opens.
+  case when m.kind = 'follow_up' then (
+    select coalesce(
+      json_agg(
+        json_build_object(
+          'recordingId', cr.recording_id,
+          'durationMs', cr.duration_ms,
+          'startedAt', cr.started_at
+        ) order by cr.started_at asc nulls last, cr.id asc
+      ),
+      '[]'::json
+    )
+    from call_recording cr
+    join lateral (
+      select pd.start_at, pd.attendee_phone from call_meeting pd
+      where pd.call_lead_id = m.call_lead_id
+        and pd.kind = 'demo'
+        and pd.status = 'accepted'
+        and pd.start_at < m.start_at
+      order by pd.start_at desc
+      limit 1
+    ) pd on true
+    where cr.to_number in ('+' || l.phone_key, pd.attendee_phone)
+      and cr.started_at >= pd.start_at - interval '30 minutes'
+      and cr.started_at < m.start_at - interval '30 minutes'
+  ) end as earlier_demo_recordings,
   f.result as followup_result, f.created_at as followup_at,
   f.by_name as followup_by, f.notes as followup_notes,
   -- Whether a founder has answered "did they turn up" on Payroll.
@@ -1171,6 +1210,17 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
               durationMs: number | null;
               startedAt: string;
             }[]
+          | null) ?? []
+      ).map((d) => ({
+        recordingId: d.recordingId,
+        durationMs: d.durationMs === null ? null : Number(d.durationMs),
+        startedAt: d.startedAt,
+      })),
+    ),
+    earlierDemoRecordings: clusterDemoRecordings(
+      (
+        (r.earlier_demo_recordings as
+          | { recordingId: string; durationMs: number | null; startedAt: string }[]
           | null) ?? []
       ).map((d) => ({
         recordingId: d.recordingId,

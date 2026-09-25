@@ -1649,7 +1649,10 @@ export function MeetingsList({
                     recording still just says "Demo call", since counting a
                     demo that was never interrupted would be answering a
                     question nobody asked. */}
-                {m.demoRecordings.map((rec, i) => (
+                {/* On a follow-up, the demo it follows (2026-09-25): that
+                    row has left the screen, and this is the call worth hearing
+                    again before ringing them. Before this row's own call. */}
+                {m.earlierDemoRecordings.map((rec, i) => (
                   <LogRecording
                     key={rec.recordingId}
                     recordingId={rec.recordingId}
@@ -1664,6 +1667,26 @@ export function MeetingsList({
                     label={i === 0 ? "Demo call" : `Demo call ${i + 1}`}
                   />
                 ))}
+                {m.demoRecordings.map((rec, i) => {
+                  // This meeting's own call: the demo on a demo, and on a
+                  // follow-up the follow-up call, which is not a demo.
+                  const name = m.kind === "follow_up" ? "Follow-up call" : "Demo call";
+                  return (
+                    <LogRecording
+                      key={rec.recordingId}
+                      recordingId={rec.recordingId}
+                      recordingMs={rec.durationMs}
+                      startedAt={
+                        rec.startedAt
+                          ? `${format.format(new Date(rec.startedAt))} ${zoneLabel}`
+                          : null
+                      }
+                      company={m.company ?? m.attendeeName ?? name}
+                      callerName="Founders"
+                      label={i === 0 ? name : `${name} ${i + 1}`}
+                    />
+                  );
+                })}
                 {/* Founders only, and not for tidiness: this is a one-tap join
                     into a live client demo. A caller is paid when a booked demo
                     shows up and the demo itself is deliberately none of their
