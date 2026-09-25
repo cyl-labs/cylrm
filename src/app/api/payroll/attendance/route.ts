@@ -81,6 +81,14 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
+      // Founders only (2026-09-25): no caller booked it, so no closer was
+      // handed it through the usual route either.
+      if (me.role !== "admin") {
+        return Response.json(
+          { error: "Only a founder can log a meeting that was not booked from a call." },
+          { status: 403 },
+        );
+      }
       meetingOnly = { id: Number(m.id), leadId: Number(m.call_lead_id) };
     }
     callId = meetingCall;

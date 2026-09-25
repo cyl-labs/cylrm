@@ -1270,9 +1270,10 @@ export function MeetingsList({
                     in the diary, rather than sitting in everybody's reminders
                     until its slot passes. A closer answers once it begins. */}
                 {/* Any meeting linked to a business (2026-09-25). One booked
-                    with no call behind it is answered against the meeting and
-                    pays nobody. */}
+                    with no call behind it is answered against the meeting,
+                    pays nobody, and is a founder's alone to answer. */}
                 {closes && (showWho || hasStarted) && m.leadId !== null &&
+                  (m.bookingCallId !== null || showWho) &&
                   m.kind === "demo" && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
