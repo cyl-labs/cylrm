@@ -237,6 +237,17 @@ export async function recordOutbound(input: {
     )
     on conflict (telnyx_message_id) do nothing
   `);
+  // A text carrying a contract's signing link is that contract being sent
+  // (2026-09-25). Texting the link from the meeting row is how founders send
+  // most of them, and only a copy of the link used to count, so contracts
+  // plainly sent read "not sent" on the row and on Stats.
+  if (input.body.includes("/s/")) {
+    await db.execute(sql`
+      update call_contract
+      set sent_at = coalesce(sent_at, now())
+      where strpos(${input.body}, '/s/' || signer_slug) > 0
+    `);
+  }
 }
 
 const RANK: Record<SmsStatus, number> = {
