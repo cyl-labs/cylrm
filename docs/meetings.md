@@ -824,6 +824,12 @@ screen just read everything off one booking.
 - **A follow-up row can book the call after it** ("Book a follow-up" was on
   demo rows only), and **"Move this call" hides once the follow-up is logged**.
   A call that happened is followed by a new booking, never moved.
+- **"Mark as trial"** appears on any row whose business has a signed trial
+  agreement but whose latest outcome is not trial, won or lost. Found the same
+  evening on 1 Tree Zone Tree Removal: signed before the next call, with the
+  follow-up's logger not yet open and the demo row's gone, so Trial could only
+  be set from the Pipeline. It posts a `trial` call to `/api/calls`, as the
+  follow-up loggers do.
 
 ### Booking the follow-up (2026-09-19)
 

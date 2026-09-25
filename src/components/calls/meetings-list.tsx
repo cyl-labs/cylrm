@@ -1816,6 +1816,26 @@ export function MeetingsList({
                     Meet link
                   </a>
                 )}
+                {/* The trial is signed but the sale still reads as earlier
+                    (2026-09-25). A contract signed between calls had nowhere
+                    to be logged on this screen: a follow-up's logger waits
+                    for its time, and the demo row's goes once a follow-up is
+                    booked. Writes the same call row the loggers do. */}
+                {closes && m.leadId !== null &&
+                  m.contracts.some((c) => c.kind === "trial" && c.signedAt) &&
+                  !["trial", "won", "lost"].includes(m.leadOutcome ?? "") && (
+                  <button
+                    type="button"
+                    disabled={busy === m.id}
+                    onClick={() =>
+                      void logFollowUp(m, "trial", "Signed the trial agreement.")
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    <ClipboardCheck className="size-3.5" />
+                    Mark as trial
+                  </button>
+                )}
                 {/* Both agreements, drafted before the demo starts. Hidden
                     entirely where DocuSeal is not configured, in the same
                     spirit as the push toggle: a dead button on a screen
