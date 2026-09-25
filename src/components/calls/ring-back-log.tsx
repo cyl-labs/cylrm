@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BookDemoFields } from "@/components/calls/book-demo";
 import { useCallLine } from "@/components/calls/call-line";
-import { useLineClaimed } from "@/components/calls/line-presence";
+import { useCallDrawn } from "@/components/calls/line-presence";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import { BookingPostCard } from "@/components/calls/slack-post";
 import { CHANGED_CHANNEL } from "@/components/tab-sync";
@@ -84,7 +84,7 @@ export function RingBackLog({
 }) {
   const router = useRouter();
   const { line, live } = useCallLine();
-  const claimed = useLineClaimed();
+  const callDrawn = useCallDrawn();
   const [owed, setOwed] = React.useState<RingBackToLog[]>([]);
   const [readerTz, setReaderTz] = React.useState<string | null>(null);
   const [hiddenId, setHiddenId] = React.useState<number | null>(null);
@@ -172,7 +172,7 @@ export function RingBackLog({
   if (!current && !toPost) return null;
 
   // Clear of the call bar the layout draws on screens without a dial card.
-  const barShown = live && busy && !line.incoming && !claimed;
+  const barShown = live && busy && !line.incoming && !callDrawn;
 
   return (
     <div

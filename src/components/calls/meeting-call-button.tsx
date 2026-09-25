@@ -10,6 +10,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useCallLine } from "@/components/calls/call-line";
+import { useDrawsCall } from "@/components/calls/line-presence";
 import { PhoneElsewhere } from "@/components/calls/phone-elsewhere";
 import { ConfirmCall } from "@/components/calls/confirm-call";
 import { TonePad } from "@/components/calls/tone-pad";
@@ -112,6 +113,11 @@ export function MeetingCallButton({
     setSecondName(null);
     setPadOpen(false);
   }
+
+  // This row stands in for the layout's call bar only while the call is its
+  // own and it can draw it. Any other call, one answered from the banner
+  // above all, keeps the bar. Before the early returns: it is a hook.
+  useDrawsCall(dialled && live && line.state !== "idle" && !blocked && Boolean(to && from));
 
   // Screened out. The copy button beside this says "Do not call", so adding a
   // second explanation here would be noise.

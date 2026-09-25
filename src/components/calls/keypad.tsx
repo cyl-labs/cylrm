@@ -26,7 +26,12 @@ import {
 import { PHONE_KEYS } from "./tone-pad";
 import { useCallLine } from "./call-line";
 import { useObjectionHints } from "./use-objection-hints";
-import { useClaimLine, useDrawsIncoming, useLineLeader } from "./line-presence";
+import {
+  useClaimLine,
+  useDrawsCall,
+  useDrawsIncoming,
+  useLineLeader,
+} from "./line-presence";
 import { PhoneElsewhere } from "./phone-elsewhere";
 import { IncomingCall } from "./incoming-call";
 import { ObjectionPanel } from "@/components/sop/objection-panel";
@@ -196,6 +201,7 @@ export function Keypad({
   // the layout now, so leaving this screen no longer hangs up on anybody.
   useClaimLine(Boolean(did));
   useDrawsIncoming(Boolean(did));
+  useDrawsCall(Boolean(did));
   const leader = useLineLeader();
   const { line, startLeg, startSecondLeg } = useCallLine();
 

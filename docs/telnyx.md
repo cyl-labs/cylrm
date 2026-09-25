@@ -470,6 +470,24 @@ of ringing, SIP 487 when they gave up, the founder on Meetings. Claiming the
 line and drawing the ring are now separate questions; only the dialler and the
 Keypad set the second. The ongoing-call bar still follows `claimed`.
 
+### An answered call had no hang up, mute or agent on those same screens (2026-09-26)
+
+The same trap one step later, and the sentence above was the bug. The
+ongoing-call bar (timer, mute, hang up, the agent's button and Merge) stood
+down whenever the tab was `claimed`. Meetings and Missed calls draw a call only
+on the row it was dialled from (`MeetingCallButton`, matched on
+`activeRowKey`), and Texts' `RingBackButton` draws none at all. So a call
+answered from the banner on any of the three, or placed from Texts, had nothing
+on screen but a greyed "On a call" on every row: no way to hang up, mute or
+bring the agent in. Found by a founder answering a prospect's ring back on
+Meetings.
+
+Now `useDrawsCall` / `useCallDrawn`: the dialler and the Keypad hold it while
+mounted, a Meetings or Missed calls row holds it only while the call is its
+own, and the bar shows whenever nobody does. **`claimed` now decides nothing
+about what is drawn**; it only feeds the tab election. A new screen that shows
+call controls must hold `useDrawsCall`, and only for the calls it really draws.
+
 ### Clicking another CRM tab hung up the call (2026-09-24)
 
 `ON_CALL` and `useReportCall` in `line-presence.tsx`, reported from

@@ -33,6 +33,7 @@ import { BookDemoFields } from "@/components/calls/book-demo";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
 import {
   useClaimLine,
+  useDrawsCall,
   useDrawsIncoming,
   useLineLeader,
 } from "@/components/calls/line-presence";
@@ -876,6 +877,7 @@ export function Dialler({
   // only who draws it, which is what stops one call being offered twice.
   useClaimLine(canDialFromBrowser);
   useDrawsIncoming(canDialFromBrowser);
+  useDrawsCall(canDialFromBrowser);
   const { line, activeLeadId } = useCallLine();
 
   // A call already up wins over the `?lead=` link: if somebody is mid-call and

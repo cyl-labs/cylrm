@@ -121,6 +121,8 @@ const LineContext = React.createContext<{
   setOnCall: (onCall: boolean) => void;
   ringDrawn: boolean;
   drawRing: () => () => void;
+  callDrawn: boolean;
+  drawCall: () => () => void;
   elsewhere: Elsewhere;
   take: () => void;
 }>({
@@ -131,6 +133,8 @@ const LineContext = React.createContext<{
   setOnCall: () => {},
   ringDrawn: false,
   drawRing: () => () => {},
+  callDrawn: false,
+  drawCall: () => () => {},
   elsewhere: null,
   take: () => {},
 });
@@ -148,6 +152,7 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
   const [onCall, setOnCall] = React.useState(false);
   // Counted, like `holders`, for the same dialler-to-Keypad navigation reason.
   const [ringDrawers, setRingDrawers] = React.useState(0);
+  const [callDrawers, setCallDrawers] = React.useState(0);
   const [yielded, setYielded] = React.useState(false);
   // This tab took the phone on purpose. Wins a tie with an equal tab — two
   // Meetings windows side by side — until another tab takes it: without it the
@@ -163,6 +168,10 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
   const drawRing = React.useCallback(() => {
     setRingDrawers((n) => n + 1);
     return () => setRingDrawers((n) => Math.max(0, n - 1));
+  }, []);
+  const drawCall = React.useCallback(() => {
+    setCallDrawers((n) => n + 1);
+    return () => setCallDrawers((n) => Math.max(0, n - 1));
   }, []);
 
   React.useEffect(() => {
@@ -347,10 +356,23 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
       setOnCall,
       ringDrawn: ringDrawers > 0,
       drawRing,
+      callDrawn: callDrawers > 0,
+      drawCall,
       elsewhere,
       take,
     }),
-    [holders, leader, claim, onCall, ringDrawers, drawRing, elsewhere, take],
+    [
+      holders,
+      leader,
+      claim,
+      onCall,
+      ringDrawers,
+      drawRing,
+      callDrawers,
+      drawCall,
+      elsewhere,
+      take,
+    ],
   );
   return <LineContext.Provider value={value}>{children}</LineContext.Provider>;
 }
@@ -426,4 +448,30 @@ export function useDrawsIncoming(active: boolean): void {
 /** True while a screen in this tab draws its own incoming-call banner. */
 export function useIncomingDrawn(): boolean {
   return React.useContext(LineContext).ringDrawn;
+}
+
+/**
+ * Held by whatever is drawing the call in progress, with its timer, mute and
+ * hang up (2026-09-26): the dialler and the Keypad while mounted, and a
+ * Meetings, Missed calls or Texts row only while the call is that row's own.
+ *
+ * The same trap as `useDrawsIncoming`, one step later. The layout's call bar
+ * stood down whenever the tab was `claimed`, and Meetings, Missed calls and
+ * Texts claim it while drawing only a call dialled from one of their rows. A
+ * call answered from the banner belongs to no row, so on those screens it had
+ * no hang up, no mute and no way to add the agent: every row read a disabled
+ * "On a call". A founder answered a prospect's ring back on Meetings minutes
+ * before their demo and could do nothing but talk.
+ */
+export function useDrawsCall(active: boolean): void {
+  const { drawCall } = React.useContext(LineContext);
+  React.useEffect(() => {
+    if (!active) return;
+    return drawCall();
+  }, [active, drawCall]);
+}
+
+/** True while something on this tab's screen draws the call in progress. */
+export function useCallDrawn(): boolean {
+  return React.useContext(LineContext).callDrawn;
 }
