@@ -679,7 +679,7 @@ export function MeetingsList({
     status: DemoStatus,
     notes: string,
   ) {
-    if (meeting.bookingCallId === null) return;
+    if (meeting.leadId === null) return;
     setBusy(meeting.id);
     try {
       const res = await fetch("/api/payroll/attendance", {
@@ -1269,7 +1269,10 @@ export function MeetingsList({
                     booking that is not real is written off while it is still
                     in the diary, rather than sitting in everybody's reminders
                     until its slot passes. A closer answers once it begins. */}
-                {closes && (showWho || hasStarted) && m.bookingCallId !== null &&
+                {/* Any meeting linked to a business (2026-09-25). One booked
+                    with no call behind it is answered against the meeting and
+                    pays nobody. */}
+                {closes && (showWho || hasStarted) && m.leadId !== null &&
                   m.kind === "demo" && (
                   <DropdownMenu>
                     <DropdownMenuTrigger

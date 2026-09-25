@@ -1087,11 +1087,12 @@ export const callDemoAttendance = pgTable(
   "call_demo_attendance",
   {
     id: serial("id").primaryKey(),
-    /** The `demo_booked` call this answers. Per call rather than per lead: a
+    /** The `demo_booked` call this answers, or null for a meeting booked with
+     *  no call behind it (2026-09-25), which is keyed on `meeting_id` and
+     *  never pays anybody. Per call rather than per lead: a
      *  no-show is rung back and booked again — the SOP allows two — and each
      *  booking is its own question with its own answer. */
     callId: integer("call_id")
-      .notNull()
       .unique()
       .references(() => call.id, { onDelete: "cascade" }),
     /** Denormalised off the call so the one-fee-per-business guard below can
@@ -1165,7 +1166,12 @@ export const callDemoAttendance = pgTable(
     // about money.
     uniqueIndex("call_demo_attendance_one_show_per_lead_idx")
       .on(t.callLeadId)
-      .where(sql`status = 'showed_up'`),
+      .where(sql`status = 'showed_up' and call_id is not null`),
+    // A meeting booked with no call behind it is answered once, against the
+    // meeting (2026-09-25). Its `call_id` is null; see the attendance route.
+    uniqueIndex("call_demo_attendance_meeting_only_idx")
+      .on(t.meetingId)
+      .where(sql`call_id is null`),
     index("call_demo_attendance_unpaid_idx")
       .on(t.payoutId)
       .where(sql`status = 'showed_up' and payout_id is null`),
@@ -1347,7 +1353,6 @@ export const callRecordingGap = pgTable(
   {
     id: serial("id").primaryKey(),
     callId: integer("call_id")
-      .notNull()
       .unique()
       .references(() => call.id, { onDelete: "cascade" }),
     telnyxSessionId: text("telnyx_session_id"),
