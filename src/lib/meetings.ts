@@ -514,6 +514,9 @@ export type Meeting = {
    * Empty until `scripts/backfill-recording-numbers.mjs` has run, and empty
    * afterwards for any meeting whose demo was never recorded or never happened.
    */
+  /** On a demo, when the business's next follow-up is booked for, or null
+   *  when none is on the calendar (2026-09-25). */
+  nextFollowUpAt: string | null;
   /** Somebody has said what happened: the attendance answer on a demo, a
    *  call logged since it began on a follow-up (2026-09-25). */
   logged: boolean;
@@ -862,6 +865,16 @@ const meetingSelect = sql`
       )
     )
   ) as follow_up_logged,
+  -- On a demo, the next follow-up already booked for the business
+  -- (2026-09-25), so the row can say so rather than read as one still owed.
+  case when m.kind = 'demo' then (
+    select min(nf.start_at) from call_meeting nf
+    where nf.call_lead_id = m.call_lead_id
+      and nf.kind = 'follow_up'
+      and nf.status = 'accepted'
+      and nf.start_at > m.start_at
+      and nf.start_at > now()
+  ) end as next_follow_up_at,
   -- On a follow-up, the demo it follows (2026-09-25). A follow-up is its own
   -- meeting with its own call still ahead of it, and the demo row leaves this
   -- screen once the follow-up is booked, so the call a founder most wants to
@@ -1252,6 +1265,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
         startedAt: d.startedAt,
       })),
     ),
+    nextFollowUpAt: iso(r.next_follow_up_at),
     logged:
       r.kind === "follow_up"
         ? r.follow_up_logged === true

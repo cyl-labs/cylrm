@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  CalendarCheck,
   CalendarClock,
   CalendarPlus,
   Check,
@@ -1088,6 +1089,22 @@ export function MeetingsList({
               )}
             </p>
 
+            {/* A follow-up already on the calendar (2026-09-25). Without it a
+                demo row looked like one still to arrange, with "Book a
+                follow-up" sitting there, and it was easy to think it had been
+                forgotten. */}
+            {m.nextFollowUpAt && (
+              <p className="mt-1.5 inline-flex flex-wrap items-center gap-x-1.5 rounded-md bg-success/10 px-2.5 py-1 text-[13px] text-success">
+                <CalendarCheck className="size-3.5 shrink-0" strokeWidth={2.2} />
+                <span className="font-semibold">Follow-up booked:</span>
+                <span>
+                  {format.format(new Date(m.nextFollowUpAt))} {zoneLabel}
+                  {theirTime(m.nextFollowUpAt, m) &&
+                    ` · ${theirTime(m.nextFollowUpAt, m)} their time`}
+                </span>
+              </p>
+            )}
+
             {m.callBack && (m.callBack.tries > 0 || m.callBack.notes) && (
               <p className="mt-1 text-[12px] text-muted-foreground">
                 {m.callBack.tries > 0 && (
@@ -1382,7 +1399,7 @@ export function MeetingsList({
                     className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
                   >
                     <CalendarPlus className="size-3.5 shrink-0" strokeWidth={2.2} />
-                    Book a follow-up
+                    {m.nextFollowUpAt ? "Book another follow-up" : "Book a follow-up"}
                   </a>
                 )}
                 {/* The call after the demo — the mock-up call and whatever
