@@ -740,3 +740,20 @@ export async function sendSms(
     status: body.data.to?.[0]?.status === "sent" ? "sent" : "queued",
   };
 }
+
+/**
+ * Start recording a live call, dual channel like the outbound profile's, so a
+ * transcript can still tell the two sides apart (2026-09-25).
+ *
+ * For calls the prospect places to us, which the outbound voice profile never
+ * records: the webhook calls this when one is answered. The result arrives
+ * through the same `call.recording.saved` webhook as every other recording,
+ * keyed on the same session, so the call row logged on it finds it the usual
+ * way. A refusal changes nothing about the call itself.
+ */
+export async function startRecording(callControlId: string): Promise<void> {
+  await telnyx(`/calls/${encodeURIComponent(callControlId)}/actions/record_start`, {
+    method: "POST",
+    body: JSON.stringify({ format: "mp3", channels: "dual" }),
+  });
+}

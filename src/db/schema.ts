@@ -928,6 +928,11 @@ export const inboundCall = pgTable(
      *  the ones that do not are the likeliest to be forgotten. */
     handledAt: timestamp("handled_at", { withTimezone: true }),
     handledBy: integer("handled_by").references(() => appUser.id),
+    /** When the webhook asked Telnyx to record this call, once answered
+     *  (2026-09-25). Recording lives on the outbound profile, so a call the
+     *  prospect placed was never recorded on its own. The once-only claim:
+     *  Telnyx sends call.answered for more than one leg. */
+    recordingRequestedAt: timestamp("recording_requested_at", { withTimezone: true }),
   },
   (t) => [
     index("inbound_call_user_idx").on(t.userId),

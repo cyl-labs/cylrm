@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { recordingNumbers, verifyTelnyxSignature } from "@/lib/telnyx";
+import {
+  recordingNumbers,
+  startRecording,
+  verifyTelnyxSignature,
+} from "@/lib/telnyx";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { recordInboundText, smsEnabled, updateTextStatus } from "@/lib/sms";
 
@@ -234,11 +238,38 @@ async function recordInbound(
   if (type === "call.answered") {
     // Coalesced, so a second leg's answer cannot move the time the call was
     // actually picked up.
-    await db.execute(sql`
+    //
+    // It also claims the recording (2026-09-25). Recording lives on the
+    // outbound voice profile, so a call the prospect placed was never recorded
+    // and a demo booked on one had nothing to play or brief from. The update
+    // reports whether this is the first answer seen, so Telnyx is asked once
+    // however many legs it reports answered.
+    const claimed = (await db.execute(sql`
       update inbound_call
-      set answered_at = coalesce(answered_at, now())
+      set answered_at = coalesce(answered_at, now()),
+          recording_requested_at = coalesce(recording_requested_at, now())
       where call_session_id = ${sessionId}
-    `);
+        and recording_requested_at is null
+      returning id
+    `)) as unknown as { id: number }[];
+    if (claimed.length === 0) {
+      await db.execute(sql`
+        update inbound_call
+        set answered_at = coalesce(answered_at, now())
+        where call_session_id = ${sessionId}
+      `);
+      return;
+    }
+    const controlId = p.call_control_id ? String(p.call_control_id) : "";
+    if (!controlId) return;
+    try {
+      await startRecording(controlId);
+      console.log("[telnyx] inbound recording started", sessionId);
+    } catch (err) {
+      // Logged, never thrown: a webhook that fails is retried and eventually
+      // disabled by Telnyx, and a missing recording is the lesser loss.
+      console.log("[telnyx] inbound recording refused:", String(err).slice(0, 300));
+    }
     return;
   }
 
