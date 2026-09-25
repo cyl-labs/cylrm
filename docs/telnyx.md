@@ -675,3 +675,20 @@ reached no caller's own connection, but the next one might. Point
   - Verified through the dial card: set the memory, reload, log an outcome —
     the browser sent `telnyxSessionId` and the duration, both of which were
     absent before.
+
+### Calls the prospect places are recorded too (2026-09-25)
+
+Recording lives on the outbound voice profile, so an inbound call answered in
+the browser was never recorded, and a demo booked on a ring-back had no cold
+call to play, transcribe or brief from (Rockin D Roll Offs and Welcome Legacy,
+both booked on the prospect ringing back after a voicemail). On the first
+`call.answered` for an inbound session the webhook now calls
+`startRecording` (`POST /v2/calls/{call_control_id}/actions/record_start`,
+mp3, dual) and claims it with `inbound_call.recording_requested_at`, because
+Telnyx reports more than one leg answered. The recording comes back through
+`call.recording.saved` on the same session, so the call row logged on that
+call finds it the ordinary way. A refusal is logged ("inbound recording
+refused") and changes nothing about the call. **Unconfirmed on a live call at
+the time of writing**: check the log line on the first inbound call after
+this shipped. If it is refused, the likely cause is the leg: try the
+`call.initiated` leg's control id instead of the answering one.
