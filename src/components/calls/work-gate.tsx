@@ -36,10 +36,10 @@ const COPY: Record<
     title: "Ring your missed calls back first",
     why: (n) =>
       n === 1
-        ? "Someone rang you and nobody picked up. They called you, which makes them the warmest lead you will get today, and they go cold in hours."
-        : `${n} people rang you and nobody picked up. They called you, which makes them the warmest leads you will get today, and they go cold in hours.`,
+        ? "Someone rang you before this shift and nobody picked up. They called you, which makes them the warmest lead you will get today, and they go cold in hours."
+        : `${n} people rang you before this shift and nobody picked up. They called you, which makes them the warmest leads you will get today, and they go cold in hours.`,
     clears:
-      "Each one clears when you ring back and tap Mark as rung back. Your lists open again on their own once they are all done.",
+      "Each one clears when you ring back and tap Mark as rung back. Your lists open again on their own once they are all done. A call you miss during a shift never stops that shift, only the next one.",
   },
   callbacks: {
     icon: PhoneForwarded,

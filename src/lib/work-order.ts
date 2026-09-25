@@ -2,7 +2,7 @@ import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { countCallbacksDue } from "@/lib/calls";
-import { countMissedCalls } from "@/lib/inbound";
+import { countMissedCallsBeforeShift } from "@/lib/inbound";
 import { callScope, type CurrentUser } from "@/lib/session";
 
 /** What a caller is required to be working on. */
@@ -35,12 +35,19 @@ export type WorkOrder = {
  * can refuse a number, so switching `DNC_ENFORCE` on would make a screened
  * callback unclearable. Handle that before enforcing DNC.
  *
+ * **Missed calls only block from the next shift** (2026-09-25). One that
+ * rings mid-shift is in the badge and the list straight away but does not take
+ * the queue away: the gate re-checks after every logged outcome, and that
+ * interrupted a caller about to log a booked demo. See
+ * `countMissedCallsBeforeShift` for what a shift is. Callbacks are unchanged.
+ *
  * Admins are never blocked. They are not on the rota, and the founders opening
  * a niche to check something is not somebody skipping their callbacks.
  *
- * Both counts are the ones the sidebar badges already read, not queries of
- * their own — a wall that disagreed with the badge beside it would be read as
- * a bug, and both are `cache()`d so this costs nothing extra per render.
+ * The callbacks count is the one its sidebar badge reads, so the two agree.
+ * The missed count is the badge's own rows narrowed to the ones from before
+ * this shift, so it can be lower than the badge but never counts anything the
+ * Missed calls screen does not show. Both are `cache()`d.
  */
 export const getWorkOrder = cache(async function getWorkOrder(
   me: CurrentUser | null,
@@ -50,7 +57,7 @@ export const getWorkOrder = cache(async function getWorkOrder(
   }
 
   const [missed, callbacks] = await Promise.all([
-    countMissedCalls(me),
+    countMissedCallsBeforeShift(me),
     countCallbacksDue(callScope(me)),
   ]);
 

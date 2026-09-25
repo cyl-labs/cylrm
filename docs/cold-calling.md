@@ -364,11 +364,33 @@ opening a niche to check something is not somebody skipping their callbacks.
   screens rather than a queue, and blocking every way to touch a lead would
   turn a nudge into a cage.
 - It **re-checks on every navigation**, and the dialler calls `router.refresh()`
-  after each logged outcome — so a missed call arriving at 2pm interrupts the
-  queue at the next logged call rather than waiting for tomorrow. That is
-  intended: a prospect who just rang is the best lead of the day. Nothing is
-  lost by it, since the queue is derived server-side and already-called leads
-  do not come back.
+  after each logged outcome. Until 2026-09-25 that meant a missed call
+  arriving at 2pm interrupted the queue at the very next logged call.
+- **A missed call only blocks from the next shift** (2026-09-25,
+  `countMissedCallsBeforeShift` in `lib/inbound.ts`). Harry let a call ring
+  out while he was about to log a demo he had just booked on Cal.com, the
+  gate sent him to Missed calls, and the demo went unlogged (fixed by hand as
+  call 5313). The founders chose "next shift" over "next login" because a
+  login lasts 30 days: Harry had last typed his password eleven days before.
+  - **What a shift is:** nothing records one, so it is read off the calls. A
+    shift starts at a caller's first logged call after a break of
+    `SHIFT_BREAK_HOURS` (3) or more, or now if they have logged nothing for
+    three hours. Measured over the fortnight before: shifts ran 1 to 9.6
+    hours, the usual gap between them was 17 to 23, and the shortest real
+    break inside one day was about five (Mico, Raffy, Alex), so three hours
+    sits under every real break and over any pause mid-shift.
+  - The gate counts the badge's own rows narrowed to those whose **first**
+    ring was before the shift started. A call that came in while the caller
+    was off therefore still blocks at the start of the shift, which is the
+    point of the rule.
+  - **The badge and the gate can now disagree, deliberately.** The badge and
+    the Missed calls screen show every missed call at once, so a ring back can
+    happen straight away; only the wall waits. The gate's copy says "before
+    this shift" so the smaller number reads as intended. The rule below that
+    they are "the same two the sidebar badges read" now holds for callbacks
+    only.
+  - Callbacks are unchanged: a due callback still blocks mid-shift, because
+    its time was agreed with the prospect.
 - **The sidebar order is part of the feature.** Missed calls, Callbacks, Call
   lists — the nav reads top to bottom as the shift does, because that is where
   the rule is learned. A sidebar listing them in a different order to the one

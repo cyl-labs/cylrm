@@ -354,6 +354,77 @@ export const countMissedCalls = cache(async function countMissedCalls(
   return row?.n ?? 0;
 });
 
+/** How long without logging a call before the next one starts a new shift. */
+export const SHIFT_BREAK_HOURS = 3;
+
+/**
+ * When this person's current shift began: their first logged call after a
+ * break of `SHIFT_BREAK_HOURS` or more, or now if they have not logged one
+ * since their last break (they are only now starting).
+ *
+ * Nothing in the app records a shift, and logins last thirty days, so it is
+ * read off the calls themselves. Measured over the fortnight to 2026-09-25:
+ * shifts ran 1 to 9.6 hours, the usual gap between them was 17 to 23 hours,
+ * and the shortest real break between two blocks on one day was about five
+ * (Mico, Raffy, Alex). Three hours sits under every real break and over any
+ * pause inside a shift.
+ *
+ * Two days of calls is plenty to find a break in, and keeps the scan to the
+ * handful of rows `call_user_id_idx` hands back. `now()` is one of the points,
+ * which is what makes "no call for three hours" read as a shift starting now.
+ */
+const shiftStart = (userId: number) => sql`(
+  select max(a.t) from (
+    select x.t, lag(x.t) over (order by x.t) as prev
+    from (
+      select c.called_at as t from call c
+      where c.user_id = ${userId}
+        and c.called_at > now() - interval '2 days'
+        and c.called_at <= now()
+      union all
+      select now()
+    ) x
+  ) a
+  where a.prev is null
+     or a.t - a.prev >= make_interval(hours => ${SHIFT_BREAK_HOURS}::int)
+)`;
+
+/**
+ * The missed calls that hold a caller's lists shut: the ones owed now
+ * (`countMissedCalls`) that rang **before their current shift began**.
+ *
+ * Asked for on 2026-09-25. The gate re-checks after every logged outcome, so a
+ * call ringing mid-shift took the queue away on the next save: Harry let one
+ * ring out while he was about to log a booked demo, and was sent to Missed
+ * calls with the demo unlogged. Now a call that rings during a shift never
+ * interrupts that shift. It is in the badge and the list at once, so it can be
+ * rung back straight away, and it blocks from the start of the next shift if
+ * it has not been. A call that came in while they were off rang before the
+ * shift, so it still blocks at the start of the shift, which is the point.
+ *
+ * The burst's first ring decides, not its last: somebody who started ringing
+ * before the shift began rang before it began.
+ *
+ * Admins never reach here: `getWorkOrder` returns before asking.
+ */
+export const countMissedCallsBeforeShift = cache(
+  async function countMissedCallsBeforeShift(
+    me: CurrentUser | null,
+  ): Promise<number> {
+    if (!me) return 0;
+    const [row] = (await db.execute(sql`
+      select count(*)::int as n
+      from (${ROLLED_UP(me, true, true)}) ic
+      left join call_lead l on l.id = ic.call_lead_id
+      ${leadZone}
+      where ic.rn = 1
+        and not ${CAN_WAIT}
+        and ic.first_at < ${shiftStart(me.id)}
+    `)) as { n: number }[];
+    return row?.n ?? 0;
+  },
+);
+
 /**
  * A ring-back somebody answered and nothing has been logged about yet.
  *
