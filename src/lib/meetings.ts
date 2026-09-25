@@ -1788,8 +1788,8 @@ export async function sendMeetingReminders(
  * it starts.
  *
  * **One alert, five minutes before.** It was a day before as well until
- * 2026-09-19, and that one was dropped at the founders' request: the 8:30pm
- * digest already lists everything in the next three days, so a separate
+ * 2026-09-19, and that one was dropped at the founders' request: the evening
+ * digest (7pm since 2026-09-25) already lists everything in the next three days, so a separate
  * "tomorrow at…" for each meeting said the same thing again, a few hours out
  * of step, and was the one people started ignoring. "I only want the daily
  * alert at 8:30pm … then the alert for when its 30 minutes before the call.

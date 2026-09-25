@@ -104,7 +104,7 @@ export function MeetingsExplainer({
               any hour, since the US demos run through the night here.
               Mute the chat in Telegram to silence them. Before that, a{" "}
               <span className="font-semibold text-foreground">
-                8:30pm Singapore
+                7pm Singapore
               </span>{" "}
               list of every demo in the next three days, in Singapore time. It
               lands just before the US day opens, and it is three days rather

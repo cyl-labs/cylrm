@@ -29,7 +29,7 @@ import { prospectZone, theirClock } from "@/lib/call-time";
  */
 
 /**
- * Eight in the evening, where the founders are.
+ * Seven in the evening, where the founders are.
  *
  * It was 9:30 in the morning for a day, which read well and was the wrong hour
  * for this floor: the demos run between one and six in the morning here, so by
@@ -37,10 +37,11 @@ import { prospectZone, theirClock } from "@/lib/call-time";
  * out. Eight in the evening is the hour before the US day opens — the list
  * arrives while there is still time to act on it.
  */
-const DIGEST_HOUR = 20;
-/** 8:30pm, asked for on 2026-09-19 alongside dropping the day-before alert:
- *  with that gone this is the only thing that says what tomorrow holds. */
-const DIGEST_MINUTE = 30;
+const DIGEST_HOUR = 19;
+/** 7pm since 2026-09-25, at the founders' request. It was 8:30pm from
+ *  2026-09-19, asked for alongside dropping the day-before alert: with that
+ *  gone this is the only thing that says what tomorrow holds. */
+const DIGEST_MINUTE = 0;
 
 /**
  * The clock this whole message runs on: Singapore, because that is where the

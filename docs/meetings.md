@@ -419,7 +419,7 @@ chat, the same night.
 - **The reminders now read `DIGEST_TZ`**, exported from `meeting-digest.ts` and
   the same constant the digest uses. One chat cannot speak two clocks. No cycle:
   the digest imports the notifier and the database, never `meetings.ts`.
-- **Only two alerts now**, at the founders' request: the **8:30pm** digest of
+- **Only two alerts now**, at the founders' request: the **7pm** digest (8:30pm until 2026-09-25) of
   the next three days, and **five minutes before** each demo. The day-before
   per-meeting alert is gone — the digest already lists everything three days
   out, so it said the same thing again a few hours out of step. `TELEGRAM_OFFSETS`
