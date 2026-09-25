@@ -131,7 +131,27 @@ export default async function MeetingsPage({
   );
   const zone = statsZone(region);
 
-  const allMeetings = await getMeetings(callScope(me), zone.tz, { past });
+  // A filter looks at every meeting, not only the upcoming queue (2026-09-25).
+  // "Signed" on the upcoming view came back empty while Next Level Haul Away
+  // sat signed two days back: the queue only holds what is ahead and the
+  // last few days' work, so anything a filter is actually for, a contract, a
+  // no show, who booked it, is mostly in the history. So while one is set, the
+  // history is read too and added under the queue. "Still to come" alone is a
+  // question about the queue and does not need it.
+  const searching =
+    (rawQ ?? "").trim() !== "" ||
+    [rawCaller, rawNiche, rawCloser, rawContract].some((v) => v && v !== "all") ||
+    (rawStatus !== undefined && rawStatus !== "all" && rawStatus !== "upcoming");
+  const queue = await getMeetings(callScope(me), zone.tz, { past });
+  const allMeetings =
+    searching && !past
+      ? [
+          ...queue,
+          ...(await getMeetings(callScope(me), zone.tz, { past: true })).filter(
+            (h) => !queue.some((m) => m.id === h.id),
+          ),
+        ]
+      : queue;
   // The filters (2026-09-25), over the upcoming list and the history alike.
   // Options come off the *unfiltered* rows, so picking "Aaron" does not also
   // narrow the list of callers down to just Aaron. Applied here rather than in
@@ -462,6 +482,11 @@ export default async function MeetingsPage({
           closers={filterClosers}
           founders={isFounder}
         />
+        {searching && !past && (
+          <p className="text-[12px] text-muted-foreground">
+            Filtering every meeting, upcoming and past.
+          </p>
+        )}
         {(() => {
           const showCallBacks = me?.role === "admin" && !past;
           const count = (k: string) =>
