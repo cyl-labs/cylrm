@@ -1178,10 +1178,9 @@ export function MeetingsList({
             {m.needsLogging && (
               <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[13px]">
                 <span className="font-bold">Not logged yet.</span>{" "}
-                Nobody has
-                said what happened at this demo. Use Log what happened below.
-                It decides the caller&apos;s attendance fee, and it stays here
-                until it is answered.
+                {m.kind === "follow_up"
+                  ? "Nobody has said what came of this follow-up. Use Log what happened below. It stays here until it is logged."
+                  : "Nobody has said what happened at this demo. Use Log what happened below. It decides the caller's attendance fee, and it stays here until it is answered."}
               </p>
             )}
 
@@ -1312,6 +1311,44 @@ export function MeetingsList({
                           }
                         >
                           {ATTENDANCE_LABEL[sVal]}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                {/* What came of a follow-up (2026-09-25). It had no logger of
+                    its own, so a follow-up that happened sat unrecorded and was
+                    never counted as not logged. Same outcomes and same call
+                    row as "Log a follow-up" on the demo; logging one is what
+                    marks it done. */}
+                {closes && m.kind === "follow_up" && hasStarted && m.leadId !== null && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      disabled={busy === m.id}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors disabled:opacity-50",
+                        m.logged
+                          ? "border hover:bg-muted"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90",
+                      )}
+                    >
+                      <ClipboardCheck className="size-3.5" />
+                      {m.logged ? "Log another call" : "Log what happened"}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuLabel>How did the follow-up go?</DropdownMenuLabel>
+                      <p className="max-w-60 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
+                        This counts as a call. Following up keeps them going;
+                        trial, won or lost closes it.
+                      </p>
+                      {FOLLOW_UP_OUTCOMES.map((o) => (
+                        <DropdownMenuItem
+                          key={o}
+                          onSelect={() =>
+                            setFollowing({ meetingId: m.id, outcome: o, notes: "" })
+                          }
+                        >
+                          {OUTCOME_LABELS[o]}
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>

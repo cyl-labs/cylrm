@@ -63,12 +63,12 @@ export function MeetingStatsCard({
     {
       label: "Not logged",
       value: String(t.unlogged),
-      sub: t.unlogged > 0 ? "started, nobody said what happened" : "every demo answered",
+      sub: t.unlogged > 0 ? "demos and follow-ups nobody logged" : "every meeting logged",
       tone: t.unlogged > 0 ? "text-destructive" : undefined,
       // Past meetings, filtered to them: they drop off the Meetings queue
       // twelve hours after they start, so this is where they are.
       href:
-        t.unlogged > 0 ? "/meetings?past=1&status=unanswered&kind=demo" : undefined,
+        t.unlogged > 0 ? "/meetings?past=1&status=unanswered" : undefined,
     },
   ];
   const after: { label: string; value: number; sub: string }[] = [
@@ -81,6 +81,24 @@ export function MeetingStatsCard({
       label: "No-show call backs",
       value: t.ringBacks,
       sub: `${t.ringBackSpoke} spoke, ${t.ringBackRebooked} rebooked`,
+    },
+  ];
+
+  const signRate =
+    t.contractsSent === 0 ? null : Math.round((t.contractsSigned / t.contractsSent) * 100);
+  const contractTiles: { label: string; value: string; sub: string; tone?: string }[] = [
+    { label: "Drafted", value: String(t.contractsDrafted), sub: "contracts prepared" },
+    { label: "Sent", value: String(t.contractsSent), sub: "client's link copied to them" },
+    {
+      label: "Signed",
+      value: String(t.contractsSigned),
+      sub: `${t.trialsSigned} trial, ${t.paidSigned} paid`,
+      tone: "text-success",
+    },
+    {
+      label: "Signed of sent",
+      value: signRate === null ? "-" : `${signRate}%`,
+      sub: "how many sent came back signed",
     },
   ];
 
@@ -100,6 +118,9 @@ export function MeetingStatsCard({
           { key: "won", label: "Won" },
           { key: "lost", label: "Lost" },
           { key: "ringBacks", label: "Call backs" },
+          { key: "contractsDrafted", label: "Contracts drafted" },
+          { key: "contractsSent", label: "Sent" },
+          { key: "contractsSigned", label: "Signed" },
         ] as const)
       : []),
   ];
@@ -178,6 +199,34 @@ export function MeetingStatsCard({
             </div>
           )}
 
+          {founders && (
+            <div className="mx-5 mt-4 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
+              <p className="text-sm font-extrabold tracking-[-0.01em]">Contracts</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground/75">
+                Each counted on the day it happened. Sent means the client&apos;s
+                signing link was copied from the meeting, which is the only way
+                one reaches them. Contracts drafted before 25 Sep only count as
+                sent once signed.
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {contractTiles.map((x) => (
+                  <div key={x.label} className="rounded-lg border bg-card px-3 py-2.5">
+                    <p className="text-xs font-semibold text-muted-foreground">{x.label}</p>
+                    <p
+                      className={cn(
+                        "mt-1 text-2xl font-extrabold tabular-nums tracking-[-0.02em]",
+                        x.tone,
+                      )}
+                    >
+                      {x.value}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground/75">{x.sub}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="mx-5 my-4 overflow-x-auto rounded-lg border">
             <table className="w-full text-[13px] tabular-nums">
               <thead>
@@ -209,7 +258,7 @@ export function MeetingStatsCard({
                       >
                         {c.key === "unlogged" && d[c.key] > 0 ? (
                           <Link
-                            href="/meetings?past=1&status=unanswered&kind=demo"
+                            href="/meetings?past=1&status=unanswered"
                             className="underline underline-offset-2"
                           >
                             {d[c.key]}

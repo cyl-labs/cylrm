@@ -38,7 +38,8 @@ import {
   type CalendarSpan,
 } from "@/components/calls/meetings-calendar";
 import { MeetingsView } from "@/components/calls/meetings-view";
-import { PastMeetingsFilters } from "@/components/calls/past-meetings-filters";
+import { MeetingFilters } from "@/components/calls/past-meetings-filters";
+import { nicheOf } from "@/lib/niche";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,10 @@ export default async function MeetingsPage({
     caller?: string;
     status?: string;
     kind?: string;
+    q?: string;
+    niche?: string;
+    closer?: string;
+    contract?: string;
   }>;
 }) {
   const me = await getCurrentUser();
@@ -81,6 +86,10 @@ export default async function MeetingsPage({
     caller: rawCaller,
     status: rawStatus,
     kind: rawKind,
+    q: rawQ,
+    niche: rawNiche,
+    closer: rawCloser,
+    contract: rawContract,
   } = await searchParams;
   // Which meetings to show (2026-09-24): everything by default, or only demos,
   // only follow-ups, or — for a founder — only their own call backs.
@@ -123,34 +132,64 @@ export default async function MeetingsPage({
   const zone = statsZone(region);
 
   const allMeetings = await getMeetings(callScope(me), zone.tz, { past });
-  // Who booked each of them, for the caller picker — off the *unfiltered*
-  // history, so picking "Aaron" does not also narrow the list of callers
-  // down to just Aaron. Admin-only like the name itself is everywhere else on
-  // this screen (`showWho`): a caller's own past is already scoped to their
-  // own list by `callScope`, so there is at most one name in it.
-  const pastCallers =
-    past && me?.role === "admin"
-      ? Array.from(
-          new Set(
-            allMeetings.flatMap((m) => (m.bookedBy ? [m.bookedBy] : [])),
-          ),
-        ).sort((a, b) => a.localeCompare(b))
-      : [];
-  // "What happened" rather than the raw `attendance`/`status` columns — see
-  // `PastMeetingsFilters`. Applied here rather than in `getMeetings` because
-  // the whole point is slicing a small, already-fetched history several
-  // different ways without a round trip per click.
-  const filtered =
-    past && (caller !== "all" || status !== "all")
-      ? allMeetings.filter((m) => {
-          if (caller !== "all" && m.bookedBy !== caller) return false;
-          if (status === "all") return true;
-          if (status === "cancelled") return m.status === "cancelled";
-          if (status === "unanswered")
-            return m.attendance === null && m.status !== "cancelled";
-          return m.attendance === status;
-        })
-      : allMeetings;
+  // The filters (2026-09-25), over the upcoming list and the history alike.
+  // Options come off the *unfiltered* rows, so picking "Aaron" does not also
+  // narrow the list of callers down to just Aaron. Applied here rather than in
+  // `getMeetings`: the list is tens of rows, and slicing it several ways should
+  // not cost a query per click.
+  const isFounder = me?.role === "admin";
+  const q = (rawQ ?? "").trim();
+  const niche = rawNiche ?? "all";
+  const closer = isFounder ? (rawCloser ?? "all") : "all";
+  const contract = isFounder ? (rawContract ?? "all") : "all";
+  const uniq = (xs: string[]) => Array.from(new Set(xs)).sort((a, b) => a.localeCompare(b));
+  const filterCallers = isFounder
+    ? uniq(allMeetings.flatMap((m) => (m.bookedBy ? [m.bookedBy] : [])))
+    : [];
+  const filterNiches = uniq(allMeetings.flatMap((m) => (m.listName ? [nicheOf(m.listName)] : [])));
+  const filterClosers = Array.from(
+    new Map(
+      allMeetings.flatMap((m) =>
+        m.closerUserId !== null && m.closerName
+          ? [[m.closerUserId, { id: m.closerUserId, name: m.closerName }] as const]
+          : [],
+      ),
+    ).values(),
+  );
+  const needle = q.toLowerCase();
+  const filtered = allMeetings.filter((m) => {
+    if (needle) {
+      const hay = [m.company, m.attendeeName, m.attendeeEmail, m.phone]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!hay.includes(needle)) return false;
+    }
+    if (caller !== "all" && isFounder && m.bookedBy !== caller) return false;
+    if (niche !== "all" && (!m.listName || nicheOf(m.listName) !== niche)) return false;
+    if (closer !== "all") {
+      if (closer === "founders" ? m.closerUserId !== null : String(m.closerUserId) !== closer)
+        return false;
+    }
+    if (contract !== "all") {
+      const cs = m.contracts;
+      const ok =
+        contract === "none"
+          ? cs.length === 0
+          : contract === "unsent"
+            ? cs.some((c) => !c.sentAt && !c.signedAt)
+            : contract === "sent"
+              ? cs.some((c) => c.sentAt && !c.signedAt)
+              : cs.some((c) => c.signedAt);
+      if (!ok) return false;
+    }
+    if (status === "all") return true;
+    if (status === "cancelled") return m.status === "cancelled";
+    if (m.status === "cancelled") return false;
+    if (status === "upcoming") return !m.started;
+    if (status === "unanswered") return m.started && !m.logged;
+    return m.attendance === status;
+  });
   // The kind filter last, so its chips can count what is left after the rest.
   // A meeting a founder moved to a call back is a call back, not a demo, for
   // as long as the call back is open: it sits at that time, as that.
@@ -325,13 +364,7 @@ export default async function MeetingsPage({
           {/* Who booked it and what happened — only meaningful once looking
               at history, where the rows are no longer already narrowed down
               to what is owed. */}
-          {past && (
-            <PastMeetingsFilters
-              callers={pastCallers}
-              caller={caller}
-              status={status}
-            />
-          )}
+
           {/* Every demo's brief in one document, for reading a run of them or
               printing. Each row also carries its own brief in a fold since
               2026-09-24. Founders only, matching the route: writing the briefs
@@ -389,7 +422,7 @@ export default async function MeetingsPage({
                             hours after they start, so the only place left to
                             find one is the history, filtered. */}
                         <Link
-                          href={`/meetings?past=1&status=unanswered&kind=demo${keepTz}`}
+                          href={`/meetings?past=1&status=unanswered${keepTz}`}
                           className="font-semibold text-destructive underline underline-offset-2"
                         >
                           {week.unlogged} not logged
@@ -422,6 +455,13 @@ export default async function MeetingsPage({
             zone and the view, and survives a page turn and a reload. Each
             chip says how many it holds, so an empty filter is not a surprise.
             A founder's own call backs are a kind of their own. */}
+        <MeetingFilters
+          values={{ q, caller, status, niche, closer, contract }}
+          callers={filterCallers}
+          niches={filterNiches}
+          closers={filterClosers}
+          founders={isFounder}
+        />
         {(() => {
           const showCallBacks = me?.role === "admin" && !past;
           const count = (k: string) =>

@@ -1456,6 +1456,10 @@ export const callContract = pgTable(
      *  and is deliberately not recorded here, since a chip claiming "signed"
      *  for our own signature would announce a deal that has not happened. */
     signedAt: timestamp("signed_at", { withTimezone: true }),
+    /** The first time the client's signing link was copied from the row
+     *  (2026-09-25), which is the only way a contract leaves the CRM, so it
+     *  is when it was sent. Null on older unsigned contracts: not recorded. */
+    sentAt: timestamp("sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

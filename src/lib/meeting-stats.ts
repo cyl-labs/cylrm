@@ -48,6 +48,14 @@ export type MeetingCounts = {
   ringBacks: number;
   ringBackSpoke: number;
   ringBackRebooked: number;
+  /** Contracts, each on the day it happened (2026-09-25): drafted, sent (the
+   *  client's link first copied), signed by the client. Trial and paid are
+   *  separate agreements and each counts. */
+  contractsDrafted: number;
+  contractsSent: number;
+  contractsSigned: number;
+  trialsSigned: number;
+  paidSigned: number;
 };
 
 export type MeetingDay = MeetingCounts & { day: string };
@@ -70,6 +78,11 @@ const ZERO: MeetingCounts = {
   ringBacks: 0,
   ringBackSpoke: 0,
   ringBackRebooked: 0,
+  contractsDrafted: 0,
+  contractsSent: 0,
+  contractsSigned: 0,
+  trialsSigned: 0,
+  paidSigned: 0,
 };
 
 /**
@@ -129,7 +142,7 @@ export async function getMeetingStats(
   const tz = w.tz ?? STATS_TZ;
   const f = filters(listId, personId);
 
-  const [demoRows, callRows, ringRows] = await Promise.all([
+  const [demoRows, callRows, ringRows, contractRows] = await Promise.all([
     db.execute(sql`
       select (m.start_at at time zone ${tz})::date::text as day,
         -- An answer outranks the calendar's status: a booking cancelled on
@@ -139,8 +152,21 @@ export async function getMeetingStats(
         count(*) filter (where m.kind = 'demo' and att.status = 'showed_up')::int as showed,
         count(*) filter (where m.kind = 'demo' and att.status = 'no_show')::int as no_show,
         count(*) filter (where m.kind = 'demo' and att.status = 'invalid')::int as not_real,
-        count(*) filter (where m.kind = 'demo' and att.status is null
-          and m.status = 'accepted' and m.start_at <= now())::int as unlogged,
+        -- Not logged: a demo with no answer, or a follow-up nothing has been
+        -- logged against since it began (2026-09-25), the Meetings row's rule.
+        count(*) filter (where m.status = 'accepted' and m.start_at <= now() and (
+          (m.kind = 'demo' and att.status is null)
+          or (m.kind = 'follow_up'
+            and not exists (
+              select 1 from "call" fc
+              where fc.call_lead_id = m.call_lead_id
+                and fc.called_at >= m.start_at - interval '30 minutes'
+            )
+            and not exists (
+              select 1 from call_meeting_followup fu
+              where fu.meeting_id = m.id and fu.for_start_at = m.start_at
+            ))
+        ))::int as unlogged,
         count(*) filter (where m.kind = 'demo' and att.status is null
           and m.status = 'accepted' and m.start_at > now())::int as upcoming,
         count(*) filter (where m.kind = 'demo' and att.status is null
@@ -192,6 +218,28 @@ export async function getMeetingStats(
       where ${inWindow(w, sql`fu.created_at`)} ${f}
       group by 1
     `),
+    // Contracts: one row per event, so a contract drafted Monday, sent Monday
+    // and signed Wednesday counts on both days. Filtered by the meeting it was
+    // drafted for, so a caller's bookings show what their demos turned into.
+    db.execute(sql`
+      select day, count(*) filter (where ev = 'drafted')::int as drafted,
+        count(*) filter (where ev = 'sent')::int as sent,
+        count(*) filter (where ev = 'signed')::int as signed,
+        count(*) filter (where ev = 'signed' and kind = 'trial')::int as trials_signed,
+        count(*) filter (where ev = 'signed' and kind = 'paid')::int as paid_signed
+      from (
+        select e.ev, c.kind, (e.at at time zone ${tz})::date::text as day
+        from call_contract c
+        join call_meeting m on m.id = c.meeting_id
+        left join call_lead l on l.id = m.call_lead_id
+        left join "call" bc on bc.id = m.call_id
+        cross join lateral (values
+          ('drafted', c.created_at), ('sent', c.sent_at), ('signed', c.signed_at)
+        ) as e(ev, at)
+        where e.at is not null and ${inWindow(w, sql`e.at`)} ${f}
+      ) x
+      group by day
+    `),
   ]);
 
   const byDay = new Map<string, MeetingDay>();
@@ -227,6 +275,15 @@ export async function getMeetingStats(
     d.ringBacks += Number(r.ring_backs);
     d.ringBackSpoke += Number(r.spoke);
     d.ringBackRebooked += Number(r.rebooked);
+  }
+
+  for (const r of contractRows as Record<string, unknown>[]) {
+    const d = dayOf(r.day);
+    d.contractsDrafted += Number(r.drafted);
+    d.contractsSent += Number(r.sent);
+    d.contractsSigned += Number(r.signed);
+    d.trialsSigned += Number(r.trials_signed);
+    d.paidSigned += Number(r.paid_signed);
   }
 
   const days = [...byDay.values()].sort((a, b) => b.day.localeCompare(a.day));

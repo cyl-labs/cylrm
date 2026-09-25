@@ -371,6 +371,8 @@ export type MeetingContract = {
    *  the DocuSeal webhook — the chip is otherwise identical whether a contract
    *  is untouched or fully executed. */
   signedAt: string | null;
+  /** When the client's link was first copied to send them, or null. */
+  sentAt: string | null;
 };
 
 export type Meeting = {
@@ -509,6 +511,9 @@ export type Meeting = {
    * Empty until `scripts/backfill-recording-numbers.mjs` has run, and empty
    * afterwards for any meeting whose demo was never recorded or never happened.
    */
+  /** Somebody has said what happened: the attendance answer on a demo, a
+   *  call logged since it began on a follow-up (2026-09-25). */
+  logged: boolean;
   /** On a follow-up, the recording of the demo it follows, clustered the
    *  same way. Empty on a demo, and on a follow-up whose demo was never
    *  recorded. */
@@ -752,7 +757,8 @@ const meetingSelect = sql`
           'signerSlug', c.signer_slug,
           'packageId', c.package_id,
           'termId', c.term_id,
-          'signedAt', c.signed_at
+          'signedAt', c.signed_at,
+          'sentAt', c.sent_at
         ) order by c.kind
       ),
       '[]'::json
@@ -839,6 +845,20 @@ const meetingSelect = sql`
     from call_recording cr
     where ${DEMO_RECORDING_WHERE}
   ) as demo_recordings,
+  -- Whether somebody has said what came of it (2026-09-25). A demo is logged
+  -- by its attendance answer (read above); a follow-up has none, so it counts
+  -- as logged once a call is logged on the business from half an hour before
+  -- its start, or a ring-back result is logged against its current time.
+  (
+    m.kind = 'follow_up' and (
+      f.id is not null
+      or exists (
+        select 1 from "call" fc
+        where fc.call_lead_id = m.call_lead_id
+          and fc.called_at >= m.start_at - interval '30 minutes'
+      )
+    )
+  ) as follow_up_logged,
   -- On a follow-up, the demo it follows (2026-09-25). A follow-up is its own
   -- meeting with its own call still ahead of it, and the demo row leaves this
   -- screen once the follow-up is booked, so the call a founder most wants to
@@ -987,14 +1007,25 @@ const ringBackFor = (ownerId?: number) =>
  */
 const UNLOGGED_DAYS = 7;
 const needsLoggingFor = (ownerId?: number) => sql`coalesce(
-  m.kind = 'demo'
-  and m.status = 'accepted'
+  m.status = 'accepted'
   and m.start_at < now() - interval '1 hour'
   and m.start_at > now() - make_interval(days => ${UNLOGGED_DAYS}::int)
-  and not exists (
-    select 1 from call_demo_attendance a
-    where a.call_lead_id = m.call_lead_id and ${answersMeeting("a", "m")}
-  )
+  and case
+    when m.kind = 'follow_up' then
+      -- A follow-up (2026-09-25): logged by a call on the business since it
+      -- began, or a ring-back result against its current time. Reads f from
+      -- latestFollowup.
+      f.id is null
+      and not exists (
+        select 1 from "call" fc
+        where fc.call_lead_id = m.call_lead_id
+          and fc.called_at >= m.start_at - interval '30 minutes'
+      )
+    else not exists (
+      select 1 from call_demo_attendance a
+      where a.call_lead_id = m.call_lead_id and ${answersMeeting("a", "m")}
+    )
+  end
   ${ownerId === undefined ? sql`` : sql`and m.closer_user_id = ${ownerId}`},
   false
 )`;
@@ -1217,6 +1248,10 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
         startedAt: d.startedAt,
       })),
     ),
+    logged:
+      r.kind === "follow_up"
+        ? r.follow_up_logged === true
+        : r.attendance !== null && r.attendance !== undefined,
     earlierDemoRecordings: clusterDemoRecordings(
       (
         (r.earlier_demo_recordings as

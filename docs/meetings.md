@@ -2094,3 +2094,22 @@ and the sidebar badge read the new columns on every page).
   Meetings link to Past meetings filtered to unanswered demos.
 - Clock windows ("last 7 days", all time) stop at now; date windows include
   meetings still ahead, since "how many meetings do I have today" wants them.
+
+### Filters, follow-ups that need logging, contract numbers (2026-09-25)
+
+- **Filters on Meetings, upcoming and history alike** (`MeetingFilters` in
+  `past-meetings-filters.tsx`): search, what happened (adds "Still to come"),
+  booked by, niche, and for founders closer and contract (none / drafted not
+  sent / sent not signed / signed). URL params; applied in the page over the
+  fetched rows. Options come off the unfiltered rows.
+- **A follow-up meeting is logged by a call**, not an attendance answer: any
+  call on the business from 30 minutes before it began, or a ring-back result
+  at its current time (`Meeting.logged`, `needsLoggingFor`, the stats
+  `unlogged`). Follow-up rows now have "Log what happened" with the follow-up
+  outcomes; before this nothing could log one, so none ever counted as not
+  logged (Pro Junk Removal and Safe Movers Maui had happened unrecorded).
+- **Contracts on Stats**: drafted (`created_at`), sent (`sent_at`), signed
+  (`signed_at`), each on its own day. `sent_at` is the first copy of the
+  client's link (`/api/meetings/[id]/contracts/sent`), the only way one leaves
+  the CRM. DocuSeal's `opened_at` was rejected: a founder previewing the
+  client page opens it. Backfilled only for signed contracts.

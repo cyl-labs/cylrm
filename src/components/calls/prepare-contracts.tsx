@@ -247,6 +247,15 @@ export function PrepareContracts({
       await navigator.clipboard.writeText(url);
       setCopied(kind);
       setTimeout(() => setCopied((k) => (k === kind ? null : k)), 1800);
+      // Copying it is sending it: this link has no other way out of the CRM.
+      // Recorded the first time only, for the contract numbers on Stats.
+      if (!drafted.find((c) => c.kind === kind)?.sentAt) {
+        void fetch(`/api/meetings/${meeting.id}/contracts/sent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind }),
+        }).then((r) => r.ok && router.refresh());
+      }
     } catch {
       toast.error("Could not copy. Open the link and copy it from the bar.");
     }
@@ -315,11 +324,20 @@ export function PrepareContracts({
               <Copy className="size-3.5" />
             )}
             {copied === c.kind ? "Link copied" : `${KIND_LABEL[c.kind]} agreement`}
-            {c.signedAt && (
-              <span className="ml-0.5 rounded-[3px] bg-success/20 px-1 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]">
-                signed
-              </span>
-            )}
+            {/* Where it has got to: signed, sent (its link copied), or not
+                sent yet. */}
+            <span
+              className={cn(
+                "ml-0.5 rounded-[3px] px-1 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]",
+                c.signedAt
+                  ? "bg-success/20"
+                  : c.sentAt
+                    ? "bg-primary/15 text-primary"
+                    : "bg-muted text-muted-foreground",
+              )}
+            >
+              {c.signedAt ? "signed" : c.sentAt ? "sent" : "not sent"}
+            </span>
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger
