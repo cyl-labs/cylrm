@@ -247,15 +247,6 @@ export function PrepareContracts({
       await navigator.clipboard.writeText(url);
       setCopied(kind);
       setTimeout(() => setCopied((k) => (k === kind ? null : k)), 1800);
-      // Copying it is sending it: this link has no other way out of the CRM.
-      // Recorded the first time only, for the contract numbers on Stats.
-      if (!drafted.find((c) => c.kind === kind)?.sentAt) {
-        void fetch(`/api/meetings/${meeting.id}/contracts/sent`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind }),
-        }).then((r) => r.ok && router.refresh());
-      }
     } catch {
       toast.error("Could not copy. Open the link and copy it from the bar.");
     }

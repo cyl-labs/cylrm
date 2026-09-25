@@ -241,11 +241,27 @@ export async function recordOutbound(input: {
   // (2026-09-25). Texting the link from the meeting row is how founders send
   // most of them, and only a copy of the link used to count, so contracts
   // plainly sent read "not sent" on the row and on Stats.
+  //
+  // Only a text to *that business* counts: its own thread, its listed number
+  // or a number it booked with. A founder texting a link to their own phone to
+  // check it is not sending it (Safe Movers Maui's trial read "sent" off a test
+  // text to the demo line).
   if (input.body.includes("/s/")) {
     await db.execute(sql`
-      update call_contract
-      set sent_at = coalesce(sent_at, now())
-      where strpos(${input.body}, '/s/' || signer_slug) > 0
+      update call_contract c
+      set sent_at = coalesce(c.sent_at, now())
+      where strpos(${input.body}, '/s/' || c.signer_slug) > 0
+        and (
+          c.call_lead_id = ${input.leadId}
+          or exists (
+            select 1 from call_lead l
+            where l.id = c.call_lead_id and '+' || l.phone_key = ${input.to}
+          )
+          or exists (
+            select 1 from call_meeting m
+            where m.call_lead_id = c.call_lead_id and m.attendee_phone = ${input.to}
+          )
+        )
     `);
   }
 }

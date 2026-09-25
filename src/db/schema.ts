@@ -1461,9 +1461,10 @@ export const callContract = pgTable(
      *  and is deliberately not recorded here, since a chip claiming "signed"
      *  for our own signature would announce a deal that has not happened. */
     signedAt: timestamp("signed_at", { withTimezone: true }),
-    /** The first time the client's signing link was copied from the row
-     *  (2026-09-25), which is the only way a contract leaves the CRM, so it
-     *  is when it was sent. Null on older unsigned contracts: not recorded. */
+    /** When a text carrying this contract's signing link first went to the
+     *  business (its thread, its number, or a number it booked with), or when
+     *  it was signed (2026-09-25). Set by `recordOutbound` in `lib/sms.ts`.
+     *  Copying the link does not count: clicking the chip to look copies it. */
     sentAt: timestamp("sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

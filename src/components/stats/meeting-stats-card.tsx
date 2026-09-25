@@ -88,7 +88,7 @@ export function MeetingStatsCard({
     t.contractsSent === 0 ? null : Math.round((t.contractsSigned / t.contractsSent) * 100);
   const contractTiles: { label: string; value: string; sub: string; tone?: string }[] = [
     { label: "Drafted", value: String(t.contractsDrafted), sub: "contracts prepared" },
-    { label: "Sent", value: String(t.contractsSent), sub: "client's link copied to them" },
+    { label: "Sent", value: String(t.contractsSent), sub: "signing link texted to them" },
     {
       label: "Signed",
       value: String(t.contractsSigned),
@@ -203,10 +203,10 @@ export function MeetingStatsCard({
             <div className="mx-5 mt-4 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
               <p className="text-sm font-extrabold tracking-[-0.01em]">Contracts</p>
               <p className="mt-0.5 text-[11px] text-muted-foreground/75">
-                Each counted on the day it happened. Sent means the client&apos;s
-                signing link was copied from the meeting, which is the only way
-                one reaches them. Contracts drafted before 25 Sep only count as
-                sent once signed.
+                Each counted on the day it happened. Sent means a text with
+                the contract&apos;s signing link went to that business, from
+                its own thread, its number or the number it booked with. A link
+                sent some other way only counts once it is signed.
               </p>
               <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {contractTiles.map((x) => (

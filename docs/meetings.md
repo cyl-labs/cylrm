@@ -2109,7 +2109,11 @@ and the sidebar badge read the new columns on every page).
   outcomes; before this nothing could log one, so none ever counted as not
   logged (Pro Junk Removal and Safe Movers Maui had happened unrecorded).
 - **Contracts on Stats**: drafted (`created_at`), sent (`sent_at`), signed
-  (`signed_at`), each on its own day. `sent_at` is the first copy of the
-  client's link (`/api/meetings/[id]/contracts/sent`), the only way one leaves
-  the CRM. DocuSeal's `opened_at` was rejected: a founder previewing the
-  client page opens it. Backfilled only for signed contracts.
+  (`signed_at`), each on its own day. **`sent_at` is texts only**: the first
+  text carrying the contract's signing link that went to *that business*
+  (its thread, its listed number, or a number it booked with), set in
+  `recordOutbound`. Copying the link counted for a few hours and was dropped:
+  clicking the chip to look at it copies it (Toro Dumpsters). A link texted to
+  anyone else, such as a founder's own phone to check it, does not count
+  (Safe Movers Maui's trial). DocuSeal's `opened_at` was rejected: a founder
+  previewing the client page opens it.
