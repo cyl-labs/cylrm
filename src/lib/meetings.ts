@@ -419,6 +419,9 @@ export type Meeting = {
    * the right number all along.
    */
   phone: string | null;
+  /** The number the prospect gave on the booking form, or null when the
+   *  booking has none (every demo booked before 11 Sep). */
+  attendeePhone: string | null;
   /** The lead's own number, when the booking's differs from it — so the row
    *  can say which one it is about to ring. Null when they are the same. */
   listedPhone: string | null;
@@ -1201,6 +1204,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
       null,
     phone,
     listedPhone: booked && listed && e164(booked) !== e164(listed) ? listed : null,
+    attendeePhone: booked,
     website: (r.website as string | null) ?? null,
     attendance: (r.attendance as Meeting["attendance"]) ?? null,
     attendanceNotes: (r.attendance_notes as string | null) ?? null,

@@ -1641,6 +1641,29 @@ export function MeetingsList({
                     )}
                     target="_blank"
                     rel="noreferrer noopener"
+                    // A booking made before 11 Sep, when the demo became a
+                    // phone call, has no "Best number to call you on", and
+                    // Cal.com asks for one when it is moved. It cannot be
+                    // filled from the link (a reschedule ignores prefill,
+                    // checked on Toro Dumpsters), so the number goes onto the
+                    // clipboard as the page opens, in +1 form so Cal.com picks
+                    // the country from it.
+                    onClick={() => {
+                      // Never onto the clipboard when it is blocked, the rule
+                      // the copy button beside it follows.
+                      if (m.attendeePhone || !m.dialTo || m.dncBlock) return;
+                      const number = m.dialTo;
+                      void navigator.clipboard
+                        .writeText(number)
+                        .then(() =>
+                          toast.success(`Their number is copied: ${number}`, {
+                            description:
+                              "This booking has no phone number on it. Paste it into “Best number to call you on” on Cal.com.",
+                            duration: 12_000,
+                          }),
+                        )
+                        .catch(() => {});
+                    }}
                     title="Opens Cal.com to pick a new time for this booking. It moves this meeting rather than adding another, and Cal.com tells them."
                     className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
                   >
