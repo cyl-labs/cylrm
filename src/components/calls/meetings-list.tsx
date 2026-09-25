@@ -1851,8 +1851,6 @@ export function MeetingsList({
                     // since it takes our only pointer to a real document with
                     // it.
                     canDiscard={showWho}
-                    // A closer sells month to month (2026-09-22).
-                    monthlyOnly={!showWho}
                   />
                 )}
               </div>

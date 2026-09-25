@@ -1518,25 +1518,24 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   holds the wording, the CRM holds the numbers: changing a price is then one
   line rather than somebody opening two documents in an editor and getting one
   of them wrong. Db-free for the reason `payroll-rates.ts` is — the dialog is a
-  client component and has to render amounts. Discounts are integer cents, so
-  250_00 at 15% off is exactly 212_50 rather than 212.49999999999997.
+  client component and has to render amounts. Prices are integer cents, so any
+  arithmetic on one stays exact.
   - **The demo page prices itself from this module** (2026-09-16). It used to
     carry a hand-copied packages table beside the calculator and the two had to
     move together; the table is gone and `PricingCalculator` reads `PACKAGES`
     straight from here, so the price a founder quotes mid-demo and the price on
-    the agreement cannot disagree. The term-discount table beside it was copied
-    by hand too, and **it is gone** (2026-09-22): six- and twelve-month plans
-    came off the price list, so there is no rate for that page to quote. The
-    Price objection on each caller sheet still names a monthly figure by hand
-    and still has to move with `PACKAGES`.
-    - **`TERMS` itself stays**, and so does the term selector on the contract
-      dialog. The decision was that nobody offers a discount on a demo call,
-      not that a term deal cannot be drafted: a founder who agrees a year
-      deliberately still needs section 4's minimum-term clause to exist. The
-      reasoning, and the discounts that would actually break even, are in the
-      commission and pricing note — the short version is that a term only
-      saves the cost of finding the next customer, and 15%/25% gives away more
-      than that is worth.
+    the agreement cannot disagree. The Price objection on each caller sheet
+    still names a monthly figure by hand and still has to move with `PACKAGES`.
+    - **Month to month is the only term** (2026-09-26). The discounted
+      six- and twelve-month plans came off the demo page on 2026-09-22 and
+      were then removed from everything at the founders' request: the term
+      selector on the contract dialog, the "If price is the sticking point"
+      box on the calculator, the closer-only refusal in the contracts route
+      and the SOP wording. Reasons: a term only saves the cost of finding the
+      next customer and the discounts gave away more than that, almost nobody
+      asked for one, and one price is simpler to sell. `TERMS` keeps its
+      single `monthly` entry so the route and `call_contract.term_id` did not
+      change; no contract had ever been drafted on a longer term.
   - Unresolved and flagged rather than quietly changed: both objection sheets
     still answer "how much" with **"as low as $99 a month"** while Ring Rookie is
     $100. It is what the floor has been saying for months, so it is a pricing
@@ -1546,14 +1545,12 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   0.00 per minute" — slightly odd to read, exactly true, and it means Call
   Commander needs no template of its own. A dash would leave a broken sentence
   on a document somebody signs.
-- **A discounted term is a clause, not only a price.** Section 4 of the paid
-  agreement is written around the three exact strings `minimum_term` can hold:
-  "None" leaves it month-to-month on 7 days' notice, and anything else locks
-  the client in and makes the balance of the term fall due on early
-  termination. The contract originally said "month to month… terminate at any
-  time on 7 days' notice" with no minimum-term wording at all, which made the
-  15% and 25% discounts unenforceable — a 12-month Call Commander is $18,000.
-  **If a term is ever added to `TERMS`, that clause has to be read again.**
+- **A term is a clause, not only a price.** Section 4 of the paid agreement
+  reads `minimum_term`: "None", now the only value, leaves it month to month
+  on 7 days' notice. Anything else locks the client in and makes the balance
+  of the term fall due on early termination; a discount without that wording
+  is one nobody can be held to. **If a term is ever added back to `TERMS`,
+  that clause has to be read again.**
 - **Template creation has no API on the open-source build.** `POST
   /templates/pdf`, `/templates/html` and `/templates/docx` all 404 there and
   answer on the hosted service — they are Pro. So the two templates are laid

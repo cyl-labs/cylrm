@@ -125,17 +125,10 @@ export async function POST(
   ) {
     return Response.json({ error: "Invalid date." }, { status: 400 });
   }
+  // Month to month is the only term (2026-09-26), for founders and closers
+  // alike, so `termById` refusing anything else is the whole check.
   if (!packageById(input.packageId) || !termById(input.termId)) {
     return Response.json({ error: "Unknown package." }, { status: 400 });
-  }
-  // A closer sells month to month (2026-09-22): a term deal is priced by a
-  // founder, and a commission on one pays the closer to steer clients into a
-  // discount they never asked for.
-  if (me.role === "closer" && input.termId !== "monthly") {
-    return Response.json(
-      { error: "Closers sell month to month. Ask a founder about a longer term." },
-      { status: 403 },
-    );
   }
   if (input.kinds.length === 0) {
     return Response.json(

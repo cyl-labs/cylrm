@@ -43,13 +43,10 @@ import {
 import {
   PACKAGES,
   TERMS,
-  commitmentCents,
   money,
   monthlyCents,
   packageById,
-  termById,
   type PackageId,
-  type TermId,
 } from "@/lib/packages";
 
 type ContractKind = "trial" | "paid";
@@ -85,7 +82,6 @@ export function PrepareContracts({
   tz,
   signingBase,
   canDiscard = false,
-  monthlyOnly = false,
 }: {
   meeting: Meeting;
   /** The screen's clock, so the effective date is the date where the reader
@@ -101,10 +97,6 @@ export function PrepareContracts({
    *  recoverable and this is the recovery, but it takes the CRM's only pointer
    *  to a document with it, and these prices are a founder's call anyway. */
   canDiscard?: boolean;
-  /** A closer's dialog: month to month is the only commitment offered, since
-   *  a term deal is a founder's to price (2026-09-22). The route refuses any
-   *  other from a closer too. */
-  monthlyOnly?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -127,7 +119,6 @@ export function PrepareContracts({
   const [packageId, setPackageId] = React.useState<PackageId>(
     "phone_professional",
   );
-  const [termId, setTermId] = React.useState<TermId>("monthly");
   /** Which agreements this press should draft. Both is the common case — the
    *  whole point is to walk into a demo with either one ready — but a prospect
    *  going straight to paid needs no trial, and re-opening the dialog to add
@@ -168,7 +159,6 @@ export function PrepareContracts({
     setEffectiveDate(new Intl.DateTimeFormat("en-CA").format(new Date()));
     const already = drafted.find((c) => c.kind === "paid");
     if (already?.packageId) setPackageId(already.packageId as PackageId);
-    if (already?.termId && !monthlyOnly) setTermId(already.termId as TermId);
     // Whatever is still missing, ticked. Opening this on a meeting that
     // already has a trial offers the paid one alone rather than making
     // somebody untick a box to avoid a no-op.
@@ -176,9 +166,10 @@ export function PrepareContracts({
   }
 
   const pkg = packageById(packageId)!;
-  const term = termById(termId)!;
+  // Month to month is the only term there is (2026-09-26), so there is
+  // nothing to choose. See `TERMS`.
+  const term = TERMS[0];
   const monthly = monthlyCents(pkg, term);
-  const commitment = commitmentCents(pkg, term);
   const wantsPaid = kinds.has("paid");
   const chosen = ALL_KINDS.filter((k) => kinds.has(k));
   /** The demo's own day, offered under the date field as the one alternative
@@ -206,7 +197,7 @@ export function PrepareContracts({
           // timezone reason spelled out where that is set.
           signedDate: new Intl.DateTimeFormat("en-CA").format(new Date()),
           packageId,
-          termId,
+          termId: term.id,
           kinds: chosen,
         }),
       });
@@ -539,45 +530,23 @@ export function PrepareContracts({
                 has no blank for. */}
             {wantsPaid && (
               <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="package">Package</Label>
-                    <Select
-                      value={packageId}
-                      onValueChange={(v) => setPackageId(v as PackageId)}
-                    >
-                      <SelectTrigger id="package">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PACKAGES.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="term">Commitment</Label>
-                    <Select
-                      value={termId}
-                      onValueChange={(v) => setTermId(v as TermId)}
-                    >
-                      <SelectTrigger id="term">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TERMS.filter(
-                          (t) => !monthlyOnly || t.id === "monthly",
-                        ).map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="package">Package</Label>
+                  <Select
+                    value={packageId}
+                    onValueChange={(v) => setPackageId(v as PackageId)}
+                  >
+                    <SelectTrigger id="package">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PACKAGES.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* What the paid agreement will actually say, before it says
@@ -591,9 +560,7 @@ export function PrepareContracts({
                       : ` · ${pkg.minutes} minutes, then $${money(pkg.overageCents)}/min`}
                   </p>
                   <p className="mt-0.5 text-muted-foreground">
-                    {commitment === null
-                      ? "Month to month. Either side can end it on 7 days' notice."
-                      : `Minimum term ${term.minimumTerm} · $${money(commitment)} over the term.`}
+                    Month to month. Either side can end it on 7 days&rsquo; notice.
                   </p>
                 </div>
               </>

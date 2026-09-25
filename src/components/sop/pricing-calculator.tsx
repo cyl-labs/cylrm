@@ -10,13 +10,7 @@ import {
   spokenMoney,
   workOut,
 } from "@/lib/demo-calc";
-import {
-  PACKAGES,
-  TERMS,
-  commitmentCents,
-  money,
-  monthlyCents,
-} from "@/lib/packages";
+import { PACKAGES, money } from "@/lib/packages";
 import { cn } from "@/lib/utils";
 
 /**
@@ -249,27 +243,6 @@ export function PricingCalculator() {
             </p>
           )}
 
-          {/* The lever to reach for before the trial. */}
-          <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2.5 text-[13px]">
-            <p className="font-semibold">If price is the sticking point</p>
-            <ul className="mt-1 flex flex-col gap-0.5 text-muted-foreground">
-              {TERMS.filter((t) => t.discountPct > 0).map((t) => {
-                const pick = PACKAGES.find((p) => p.id === cheapest) ?? noOverage;
-                const m = monthlyCents(pick, t);
-                const total = commitmentCents(pick, t);
-                return (
-                  <li key={t.id} className="tabular-nums">
-                    {t.label}: {pick.name} at{" "}
-                    <span className="font-semibold text-foreground">
-                      ${money(m)}
-                    </span>{" "}
-                    a month
-                    {total !== null && <>, ${money(total)} over the term</>}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
         </>
       )}
     </div>

@@ -7,8 +7,9 @@ title: Closing the Demo
 
 **Founders and closers only.** This is the demo call, not the cold call.
 Everything here happens after a caller has booked the meeting and handed it
-over. **Closers sell month to month only**: a term deal is a founder's to
-price, so the contract dialog only offers you month to month. It is restricted
+over. **Every plan is month to month**, whoever closes it: there is no
+discount for paying further ahead, and the contract dialog only drafts month
+to month. This page is restricted
 for one reason: a caller is paid $30 when a booked demo shows up,
 and nothing on this page changes what earns that. If any of it starts leaking
 into the cold call, callers stop booking and start closing, and the way they
@@ -21,9 +22,8 @@ the callers already offer on both objection sheets.
 
 **The calculator below reads its prices from `src/lib/packages.ts`, which is
 what the contracts are actually drafted from**, so the package price you quote
-mid-demo and the price on the agreement cannot disagree. The one table that was
-still copied by hand was the term discounts, and it is gone: there is no term
-discount to quote. The Price objection on each caller sheet still names a
+mid-demo and the price on the agreement cannot disagree. The Price objection
+on each caller sheet still names a
 monthly figure by hand, so that one has to move when the file does.
 
 ## Ring them at the scheduled time, never before
@@ -107,17 +107,11 @@ _(let them answer)_
 
 Still stuck on price after that? Offer the trial.
 
-**There is no term discount to offer, and that is deliberate** (2026-09-22).
-Six- and twelve-month plans are off the price list. The only thing a term
-saves us is the cost of finding the next customer, and the discount gives away
-more than that is worth: a year at 25% off hands over $300 on a Ring Rookie to
-save $240 of demos that never had to be booked. Worse, the people who ask for
-a year are the ones who were going to stay a year anyway, so the discount does
-its least work on exactly the people who take it.
-
-A prepaid year offered unprompted is still worth having. The cash is real and
-the churn question goes away. But it gets priced deliberately, afterwards, not
-read off a table mid-call. Say you'll come back to them on it.
+**There is no discount to offer, and that is deliberate.** Every plan is
+month to month and either side can end it on 7 days' notice. If they ask about
+paying further ahead for a lower price, the answer is that we keep one simple
+price and no lock-in, and that the trial is how they find out whether it is
+worth it.
 
 ## Objection handling | If they say they don't get enough calls to justify it
 

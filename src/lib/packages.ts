@@ -13,9 +13,8 @@
  * one of them wrong.
  */
 
-/** Cents, so a discount is integer arithmetic and no rounding can lose money.
- *  Every rate here divides exactly at 15% and 25%, and the assertion at the
- *  foot of this file keeps it that way if one is ever changed. */
+/** Cents, so any arithmetic on a price is integer and no rounding can lose
+ *  money. */
 export type Package = {
   id: PackageId;
   name: string;
@@ -55,17 +54,22 @@ export const PACKAGES: readonly Package[] = [
   },
 ] as const;
 
-export type TermId = "monthly" | "six" | "twelve";
+export type TermId = "monthly";
 
 /**
- * The commitment, which is a discount and a clause rather than only a price.
+ * The commitment, which is a clause as well as a price.
+ *
+ * Month to month is the only one (2026-09-26). Six- and twelve-month plans at
+ * 15% and 25% off were removed from everything: the discounts gave away more
+ * than a prepaid term saves (see `docs/meetings.md`), nobody but one prospect
+ * had asked for one, and the founders chose one simple price over retuning
+ * them. The type is kept so the contract route and `call_contract.term_id`
+ * need no change, and so a term can come back as data rather than a rewrite.
  *
  * `minimumTerm` is what goes on the contract's MINIMUM TERM line, and Section 4
- * is written around those three exact strings — "None" switches the agreement
- * to month-to-month with the ordinary 7 days' notice, and anything else locks
- * the client in and makes the balance of the term fall due on early
- * termination. If a term is added here, that clause has to be read again: a
- * discount with no matching wording is one nobody can be held to.
+ * reads "None" as month to month with the ordinary 7 days' notice. A term that
+ * is ever added back needs that clause read again: a discount with no
+ * matching wording is one nobody can be held to.
  */
 export type Term = {
   id: TermId;
@@ -83,20 +87,6 @@ export const TERMS: readonly Term[] = [
     discountPct: 0,
     minimumTerm: "None",
   },
-  {
-    id: "six",
-    label: "6 months, 15% off",
-    months: 6,
-    discountPct: 15,
-    minimumTerm: "6 months",
-  },
-  {
-    id: "twelve",
-    label: "12 months, 25% off",
-    months: 12,
-    discountPct: 25,
-    minimumTerm: "12 months",
-  },
 ] as const;
 
 export const packageById = (id: string): Package | undefined =>
@@ -105,8 +95,8 @@ export const packageById = (id: string): Package | undefined =>
 export const termById = (id: string): Term | undefined =>
   TERMS.find((t) => t.id === id);
 
-/** Integer cents throughout: 250_00 at 15% off is exactly 212_50, and doing it
- *  in dollars would land on 212.49999999999997. */
+/** Integer cents throughout, so a discount, if one is ever added back, cannot
+ *  land on 212.49999999999997. */
 export const monthlyCents = (pkg: Package, term: Term): number =>
   Math.round((pkg.monthlyCents * (100 - term.discountPct)) / 100);
 
@@ -145,9 +135,3 @@ export function contractValues(
     minimum_term: term.minimumTerm,
   };
 }
-
-/** What the whole commitment comes to, for the dialog to say out loud before
- *  somebody sends a 12-month agreement. Null for month-to-month, which has no
- *  total to quote. */
-export const commitmentCents = (pkg: Package, term: Term): number | null =>
-  term.months === 0 ? null : monthlyCents(pkg, term) * term.months;
