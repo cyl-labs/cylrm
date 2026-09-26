@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Loader2 } from "lucide-react";
+import { ChevronDown, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,11 +41,23 @@ export function SameBusinessReview() {
   const [ticked, setTicked] = React.useState<string[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [held, setHeld] = React.useState<number | null>(null);
+  // Groups folded shut, by the kept lead's id. Ticking a whole group or
+  // keeping all of it folds it, so the next one comes up without scrolling
+  // past rows already decided (2026-09-26: 46 groups, one tick at a time).
+  const [folded, setFolded] = React.useState<Set<number>>(new Set());
+  const fold = (id: number, shut: boolean) =>
+    setFolded((prev) => {
+      const next = new Set(prev);
+      if (shut) next.add(id);
+      else next.delete(id);
+      return next;
+    });
 
   const load = React.useCallback(async () => {
     setGroups(null);
     setError(null);
     setTicked([]);
+    setFolded(new Set());
     try {
       const res = await fetch("/api/call-leads/same-business");
       const data = await res.json().catch(() => ({}));
@@ -143,8 +155,64 @@ export function SameBusinessReview() {
               />
             </div>
             <ul className="space-y-3">
-              {groups.map((g) => (
+              {groups.map((g) => {
+                const keys = g.candidates.map((c) => String(c.id));
+                const nTicked = keys.filter((k) => ticked.includes(k)).length;
+                const shut = folded.has(g.keep.id!);
+                return (
                 <li key={g.keep.id} className="rounded-lg border p-3">
+                  {/* The group's own controls, so a whole business is one
+                      decision rather than a tick per row. */}
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fold(g.keep.id!, !shut)}
+                      aria-expanded={!shut}
+                      className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px] font-semibold"
+                    >
+                      <ChevronDown
+                        className={`size-4 shrink-0 transition-transform ${shut ? "-rotate-90" : ""}`}
+                      />
+                      <span className="truncate">
+                        {g.keep.company || "a lead with no name"}
+                      </span>
+                      <span className="shrink-0 font-normal text-muted-foreground">
+                        {nTicked === keys.length
+                          ? `all ${keys.length} ticked`
+                          : nTicked > 0
+                            ? `${nTicked} of ${keys.length} ticked`
+                            : shut
+                              ? `keeping all ${keys.length}`
+                              : `${keys.length} to check`}
+                      </span>
+                    </button>
+                    <Button
+                      size="sm"
+                      variant={nTicked === keys.length ? "secondary" : "outline"}
+                      onClick={() => {
+                        if (nTicked === keys.length) {
+                          setTicked(ticked.filter((k) => !keys.includes(k)));
+                          fold(g.keep.id!, false);
+                        } else {
+                          setTicked([...new Set([...ticked, ...keys])]);
+                          fold(g.keep.id!, true);
+                        }
+                      }}
+                    >
+                      {nTicked === keys.length ? "Untick all" : `Tick all ${keys.length}`}
+                    </Button>
+                    {nTicked === 0 && !shut && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => fold(g.keep.id!, true)}
+                      >
+                        Keep all
+                      </Button>
+                    )}
+                  </div>
+                  {!shut && (
+                  <>
                   <p className="text-[12px] text-muted-foreground">
                     Keeping{" "}
                     <span className="font-semibold text-foreground">
@@ -172,13 +240,17 @@ export function SameBusinessReview() {
                     onChange={setTicked}
                     className="mt-1"
                   />
+                  </>
+                  )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </>
         ) : null}
 
-        <DialogFooter className="items-center gap-2 sm:justify-between">
+        {/* Pinned, so saving does not mean scrolling past 46 groups. */}
+        <DialogFooter className="sticky -bottom-4 z-10 items-center gap-2 bg-popover sm:justify-between">
           <p className="text-[13px] text-muted-foreground">
             {ticked.length > 0 &&
               `${ticked.length} ticked, to be held out as copies of the lead kept above them.`}
