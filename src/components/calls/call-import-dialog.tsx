@@ -151,6 +151,7 @@ function SameBusinessPanel({
       list: null,
       owner: null,
       lastOutcome: null,
+      website: r.website,
     },
     looksLike: r.looksLike,
     more: r.more,

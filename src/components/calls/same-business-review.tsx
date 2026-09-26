@@ -19,6 +19,7 @@ import {
   TickAll,
 } from "@/components/calls/same-business-rows";
 import type { SameBusinessGroup } from "@/lib/same-business";
+import { websiteLabel } from "@/lib/website";
 
 /**
  * The same business on several leads already in the CRM, to tick and hold out.
@@ -151,6 +152,7 @@ export function SameBusinessReview() {
                     </span>{" "}
                     · {g.keep.phone}
                     {g.keep.where && ` · ${g.keep.where}`}
+                    {g.keep.website && ` · ${websiteLabel(g.keep.website)}`}
                     {g.keep.list && ` · on ${g.keep.list}`}
                     {g.keep.owner && ` (${g.keep.owner})`} ·{" "}
                     {g.keep.lastOutcome
@@ -163,6 +165,7 @@ export function SameBusinessReview() {
                       key: String(c.id),
                       lead: c,
                       reason: c.reason,
+                      reasonAgainst: g.keep,
                       looksLike: [],
                     }))}
                     ticked={ticked}

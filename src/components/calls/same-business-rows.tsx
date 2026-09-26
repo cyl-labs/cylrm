@@ -3,6 +3,7 @@
 import * as React from "react";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import type { LookalikeLead, MatchReason } from "@/lib/same-business";
+import { websiteLabel } from "@/lib/website";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,23 +15,53 @@ import { cn } from "@/lib/utils";
  * all" is there for the file where every suggestion is plainly right.
  */
 
-export const REASON_LABELS: Record<MatchReason, string> = {
-  name: "same name",
-  prefix: "same name with more words",
-  website: "same website",
-};
-
 export type SameBusinessItem = {
   key: string;
   lead: LookalikeLead;
   looksLike: (LookalikeLead & { reason?: MatchReason })[];
   /** Why this one was suggested, when the reason belongs to the row. */
   reason?: MatchReason;
+  /** The lead that reason is measured against, so the row can name it. */
+  reasonAgainst?: LookalikeLead;
   more?: number;
 };
 
 function describe(lead: LookalikeLead) {
-  return [lead.phone, lead.where].filter(Boolean).join(" · ");
+  return [
+    lead.phone,
+    lead.where,
+    lead.website ? websiteLabel(lead.website) : "no website",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * Why a row was suggested, in words a founder can check against the two rows
+ * in front of them (2026-09-26). It said "same website" with no website on
+ * screen, so there was nothing to judge the guess by.
+ */
+function reasonText(
+  reason: MatchReason,
+  self: LookalikeLead,
+  other: LookalikeLead | undefined,
+): string {
+  const them = other?.company || "the one above";
+  if (reason === "website") {
+    const host = websiteLabel(self.website ?? other?.website ?? "");
+    return `same website as ${them}${host ? ` (${host})` : ""}`;
+  }
+  if (reason === "name") return `exactly the same name as ${them}`;
+  return `nearly the same name as ${them}, one has extra words`;
+}
+
+/** The reason, set apart so it is the first thing read on a row. */
+function Why({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="mt-1 inline-block rounded bg-amber-500/15 px-1.5 py-0.5 text-[12px] font-medium text-amber-800 dark:text-amber-200">
+      Why: {children}
+    </span>
+  );
 }
 
 function history(lead: LookalikeLead) {
@@ -115,11 +146,15 @@ export function SameBusinessList({
                     // A lead already in the CRM says where it is; a row of a
                     // file being imported is not anywhere yet.
                     item.lead.list ? history(item.lead) : null,
-                    item.reason ? REASON_LABELS[item.reason] : null,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
+                {item.reason && (
+                  <Why>
+                    {reasonText(item.reason, item.lead, item.reasonAgainst)}
+                  </Why>
+                )}
                 {item.looksLike.length > 0 && (
                   <span className="mt-1 block space-y-0.5 border-l-2 pl-2 text-[12px] text-muted-foreground">
                     {item.looksLike.map((l, i) => (
@@ -129,7 +164,12 @@ export function SameBusinessList({
                           {l.company || "a lead with no name"}
                         </span>{" "}
                         · {describe(l)} · {history(l)}
-                        {l.reason && ` · ${REASON_LABELS[l.reason]}`}
+                        {l.reason && (
+                          <>
+                            {" "}
+                            <Why>{reasonText(l.reason, item.lead, l)}</Why>
+                          </>
+                        )}
                       </span>
                     ))}
                     {item.more ? (

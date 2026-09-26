@@ -618,6 +618,7 @@ export async function POST(request: Request) {
           list: null,
           owner: null,
           lastOutcome: null,
+          website: entry.row!.website,
         };
 
   // Reported before the empty check below, never as an error: a file whose
@@ -653,6 +654,7 @@ export async function POST(request: Request) {
           company: r.company,
           phone: r.phone,
           where: placeLabel(r.raw),
+          website: r.website,
           looksLike: matches
             .slice(0, LOOKALIKES_SHOWN)
             .map((m) => ({ ...describe(m.entry), reason: m.reason })),

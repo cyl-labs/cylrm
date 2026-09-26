@@ -48,6 +48,9 @@ export type LookalikeLead = {
   list: string | null;
   owner: string | null;
   lastOutcome: CallOutcome | null;
+  /** As the lead or file holds it. Shown so a founder can tell a chain's
+   *  branches from one business listed twice without opening anything. */
+  website: string | null;
 };
 
 /** A row of a file being imported that may be a business already held. */
@@ -57,6 +60,7 @@ export type SameBusinessRow = {
   company: string | null;
   phone: string;
   where: string | null;
+  website: string | null;
   looksLike: (LookalikeLead & { reason: MatchReason })[];
   /** Further matches not listed. */
   more: number;
@@ -78,6 +82,7 @@ export function asLookalike(lead: BusinessLead): LookalikeLead {
     list: lead.listName,
     owner: lead.owner,
     lastOutcome: lead.lastOutcome,
+    website: lead.website,
   };
 }
 
