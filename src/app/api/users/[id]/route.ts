@@ -9,6 +9,7 @@ import {
   LineSetupError,
   TelnyxNotConfiguredError,
   linkTextingCampaign,
+  releaseLine,
   provisionLine,
   unlinkTextingCampaign,
 } from "@/lib/telnyx";
@@ -284,6 +285,19 @@ export async function PATCH(
         { status: 400 },
       );
     }
+    // Switching somebody off takes their number and line off them too
+    // (2026-09-26), the way Replace treats a leaver. Before this the number
+    // stayed on the account, so Team went on naming Rainier as its holder
+    // after he was switched off, and nobody could be given it. Written last
+    // so it wins over a number sent in the same request.
+    if (!values.active && target.active) {
+      Object.assign(values, {
+        telnyxDid: null,
+        telnyxConnectionId: null,
+        telnyxCredentialId: null,
+        telnyxCredentialExpiresAt: null,
+      });
+    }
   }
 
   // One check covers both routes to zero admins: demoting the last one and
@@ -314,6 +328,28 @@ export async function PATCH(
       role: appUser.role,
       active: appUser.active,
     });
+
+  // The reverse of assigning them a number: unpointed, off texting, line
+  // deleted. After the save, and reported rather than refused: the account is
+  // already off and the number already free, so a Telnyx failure only leaves
+  // the tidy-up. See `releaseLine`.
+  if (values.active === false && target.active && target.telnyxConnectionId) {
+    try {
+      await releaseLine({
+        userId: target.id,
+        did: target.telnyxDid,
+        connectionId: target.telnyxConnectionId,
+        credentialId: target.telnyxCredentialId,
+        texting: target.textAccess,
+      });
+    } catch (err) {
+      if (!(err instanceof TelnyxNotConfiguredError)) {
+        console.error("[team] locking the line failed", err);
+        telnyxWarning =
+          "Switched off and their number freed, but Telnyx did not confirm their phone line was removed. Check it on Telnyx.";
+      }
+    }
+  }
 
   // The session carries a copy of the name and role so the sidebar and the
   // call routes do not query for them. Editing yourself has to refresh it, or

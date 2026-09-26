@@ -710,3 +710,24 @@ refused") and changes nothing about the call. **Unconfirmed on a live call at
 the time of writing**: check the log line on the first inbound call after
 this shipped. If it is refused, the likely cause is the leg: try the
 `call.initiated` leg's control id instead of the answering one.
+
+### Switching somebody off gives their line back (2026-09-26)
+
+`releaseLine` in `lib/telnyx.ts`, called from `PATCH /api/users/[id]` when
+`active` goes false. The reverse of `provisionLine`: the account loses
+`telnyx_did`, `telnyx_connection_id` and its credential (the same four fields
+Replace clears on a leaver); on Telnyx the number is unpointed from their line,
+taken off the texting campaign if they had texting, and their credential and
+`cylrm-<username>` connection are deleted. If the connection will not delete,
+its password is replaced instead so the login their browser held stops working.
+
+- **Only a number still pointing at their own line is unpointed.** Rainier's,
+  the case that prompted this, had been re-pointed by hand to a
+  `portal-conference-bridge` connection, and whatever uses it now keeps it.
+- Before this, switching somebody off left all of it in place, so Team went on
+  naming Rainier as the number's holder and nobody could be given it.
+- Failures are reported on the response (`warning`), never refused: the
+  account is already off and the number already free in the CRM.
+- Tested against a stand-in Telnyx (`TELNYX_API_BASE`) for both cases. Whether
+  Telnyx accepts `connection_id: null` on a number was not tried on a real
+  one; that step is non-fatal and reported if it fails.

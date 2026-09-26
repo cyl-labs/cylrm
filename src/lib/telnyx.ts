@@ -525,6 +525,70 @@ export async function handOverLine(input: {
 }
 
 /**
+ * Undo `provisionLine` for somebody switched off (2026-09-26).
+ *
+ * Assigning a number builds them a line, points the number at it and (with
+ * texting) links it to the campaign. This takes those back: the number is
+ * unpointed, off the campaign, and the line is deleted along with the
+ * credential their browser was handed every day. Switching Rainier off left
+ * all of it in place, so Team went on naming him as the number's holder.
+ *
+ * The number is only unpointed when it still points at *their* line. One
+ * re-pointed somewhere else by hand (Rainier's answered a conference bridge)
+ * belongs to whatever uses it now, and is left alone.
+ *
+ * If Telnyx will not delete the line, its password is replaced instead, so
+ * whatever else fails the old login stops working.
+ */
+export async function releaseLine(input: {
+  userId: number;
+  did: string | null;
+  connectionId: string;
+  credentialId: string | null;
+  texting: boolean;
+}): Promise<void> {
+  let unpointFailed: unknown = null;
+  if (input.did) {
+    const found = (
+      await telnyxExact(`/phone_numbers?filter[phone_number]=${encodeURIComponent(input.did)}`)
+    ).data as Record<string, unknown>[] | undefined;
+    const number = found?.find((n) => n.phone_number === input.did);
+    if (number && String(number.connection_id ?? "") === input.connectionId) {
+      // Not fatal: the line below still has to go, or have its password
+      // changed, whatever Telnyx says about the number. Reported at the end.
+      unpointFailed = await telnyxExact(`/phone_numbers/${number.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ connection_id: null }),
+      }).then(
+        () => null,
+        (err: unknown) => err,
+      );
+    }
+    if (input.texting) {
+      // Best effort, as when texting is switched off on Team.
+      await unlinkTextingCampaign(input.did).catch(() => {});
+    }
+  }
+  if (input.credentialId) {
+    await telnyxExact(`/telephony_credentials/${input.credentialId}`, {
+      method: "DELETE",
+    }).catch(() => {});
+  }
+  try {
+    await telnyxExact(`/credential_connections/${input.connectionId}`, {
+      method: "DELETE",
+    });
+  } catch {
+    await telnyxExact(`/credential_connections/${input.connectionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ password: crypto.randomUUID().replace(/-/g, "") }),
+    });
+  }
+  tokenCache.delete(input.userId);
+  if (unpointFailed) throw unpointFailed;
+}
+
+/**
  * Is a webhook really from Telnyx?
  *
  * Ed25519 over `${timestamp}|${rawBody}`, against the account public key. The
