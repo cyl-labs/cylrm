@@ -53,6 +53,16 @@ export default async function PayrollPage() {
   ]);
 
   const owedTotal = rows.reduce((sum, r) => sum + r.totalCents, 0);
+  // The two halves of that total, the way the two buttons pay them.
+  const owedPickups = rows.reduce(
+    (sum, r) => sum + r.pickupBonusCents + r.bankedBonusCents,
+    0,
+  );
+  const owedMeetings = rows.reduce((sum, r) => sum + r.meetingCommissionCents, 0);
+  const owedMeetingCount = rows.reduce((sum, r) => sum + r.meetings, 0);
+  const pickupPeople = rows.filter(
+    (r) => r.pickupBonusCents + r.bankedBonusCents > 0,
+  ).length;
   const unanswered = demos.filter((d) => d.status === null).length;
   const weeks = byWeek(history);
 
@@ -134,12 +144,45 @@ export default async function PayrollPage() {
                 Since each person&rsquo;s last payout.
               </p>
             </div>
-            <p className="ml-auto text-right text-sm font-extrabold tabular-nums">
-              {formatMoney(owedTotal)}
-              <span className="ml-1.5 text-[11px] font-medium text-muted-foreground">
-                total
-              </span>
-            </p>
+            {/* How the total splits, since the two halves are paid by
+                separate buttons on separate days. Pickups include bonus a
+                reset banked, exactly as "Pay pickups" does. */}
+            <dl className="ml-auto flex flex-wrap items-end gap-x-6 gap-y-2 text-right">
+              {[
+                {
+                  label: "Pickups",
+                  cents: owedPickups,
+                  sub: `${pickupPeople} ${pickupPeople === 1 ? "person" : "people"}`,
+                },
+                {
+                  label: "Meetings",
+                  cents: owedMeetings,
+                  sub: `${owedMeetingCount} ${owedMeetingCount === 1 ? "meeting" : "meetings"}`,
+                },
+              ].map((s) => (
+                <div key={s.label}>
+                  <dt className="text-[11px] font-medium text-muted-foreground">
+                    {s.label}
+                  </dt>
+                  <dd className="text-sm font-bold tabular-nums">
+                    {formatMoney(s.cents)}
+                    <span className="ml-1.5 text-[11px] font-medium text-muted-foreground">
+                      {s.sub}
+                      {owedTotal > 0 &&
+                        ` · ${Math.round((s.cents / owedTotal) * 100)}%`}
+                    </span>
+                  </dd>
+                </div>
+              ))}
+              <div className="border-l border-border/60 pl-6">
+                <dt className="text-[11px] font-medium text-muted-foreground">
+                  Total
+                </dt>
+                <dd className="text-sm font-extrabold tabular-nums">
+                  {formatMoney(owedTotal)}
+                </dd>
+              </div>
+            </dl>
           </div>
           <PayrollTable rows={rowsWithLabels} />
         </div>
