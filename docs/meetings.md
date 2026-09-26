@@ -1675,10 +1675,17 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
   `Gmail account` OAuth2 credential (`JIWet4sNdSpj3tDs`) that fourteen other
   live workflows already send with, so there is no new account, no new service
   on the droplet and no new thing to keep alive.
-- **A draft, never a send.** The contract sits in Gmail with the PDF attached
-  until a person presses send, which is the same rule `send_email: false`
-  encodes on the drafting side: nothing reaches a client because a machine
-  decided it should.
+- **Sent automatically since 2026-09-26, with hello@cyllabs.com on BCC.** It
+  was a draft ("nothing reaches a client because a machine decided it should"),
+  and in practice the drafts sat unsent: nothing said they were there, and
+  Paul, Rebecca and Adrian James's copies were still in Drafts days later. The
+  founders chose sending, with the BCC as their "somebody signed" notification.
+  The Gmail node is now "Send it to the client" (`appendAttribution: false`, or
+  n8n adds its own footer). Its text signs off as Mark, with no company name,
+  at the founders' request. Edited in n8n's SQLite (`workflow_entity` and the
+  published `workflow_history` row, then `pm2 restart n8n`), since 2.x runs the
+  published version and a CLI import can deactivate it. Tested end to end with
+  hello@cyllabs.com as the pretend client.
 - **The template filter is a safety control, not tidiness.** Our two templates
   live in DocuSeal account 1 — *the maid agency's*, 63 templates and 90
   submissions — and a webhook is registered per account, so without the
