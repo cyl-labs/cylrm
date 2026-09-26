@@ -96,7 +96,10 @@ type ImportResult = {
 
 const NEW_LIST = "__new__";
 const NO_OWNER = "__none__";
-const MAX_SPLIT = 10;
+/** The server's ceiling, restated for the picker. 40 since 2026-09-26: the
+ *  founders wanted lists of about 150, and a 1,800-lead scrape at 10 lists
+ *  left each at 180. */
+const MAX_SPLIT = 40;
 
 /** Sizes of each part when `total` rows are dealt `split` ways. Dealing round
  *  robin makes them equal to within one row, which is what this reproduces —
@@ -752,7 +755,7 @@ export function CallImportDialog({
                             >
                               <SelectTrigger
                                 id={`split-${domId}`}
-                                className="w-24"
+                                className="w-auto min-w-24"
                               >
                                 <SelectValue />
                               </SelectTrigger>
@@ -763,6 +766,12 @@ export function CallImportDialog({
                                 ).map((n) => (
                                   <SelectItem key={n} value={String(n)}>
                                     {n === 1 ? "1 list" : `${n} lists`}
+                                    {/* The size, since that is what people
+                                        pick by: "about 150 each". */}
+                                    <span className="text-muted-foreground">
+                                      {" "}
+                                      &middot; {Math.ceil(toImport(s) / n)} each
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>

@@ -39,7 +39,7 @@ import { dealParts, evenShares } from "@/lib/split-deal";
 
 /** As many ways as the importer allows, and for the same reason: well above
  *  the size of the floor, low enough that a typo cannot make forty lists. */
-const MAX_PARTS = 10;
+const MAX_PARTS = 40;
 
 type Part = { name: string; assignedUserId: number | null; leads: number | null };
 

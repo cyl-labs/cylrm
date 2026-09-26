@@ -24,9 +24,10 @@ import {
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 500;
 
-/** How many ways one file may be split. Well above the size of the floor;
- *  it exists so a typo cannot ask for four hundred lists. */
-const MAX_SPLIT = 10;
+/** How many ways one file may be split. Only there so a typo cannot ask for
+ *  four hundred lists. 40 since 2026-09-26: the founders split scrapes into
+ *  lists of about 150, and 10 left a 1,800-lead file at 180 a list. */
+const MAX_SPLIT = 40;
 
 /** Lists named in the "already in the CRM" line on the review screen. Enough
  *  to recognise the niche you imported last month, not a full report. */

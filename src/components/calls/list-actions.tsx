@@ -27,7 +27,7 @@ import { evenShares } from "@/lib/split-deal";
 import { cn } from "@/lib/utils";
 
 /** The server's ceiling, restated for the picker. */
-const MAX_PARTS = 10;
+const MAX_PARTS = 40;
 
 /** Half the slider handle's width in px (`size-5`). The slider keeps a handle's
  *  centre this far inside each end, so the coloured shares are laid out on the
@@ -315,7 +315,7 @@ export function ListActions({
                   (_, i) => i + 2,
                 ).map((n) => (
                   <option key={n} value={n}>
-                    {n} lists
+                    {n} lists &middot; {Math.ceil(leads / n)} each
                   </option>
                 ))}
               </select>
