@@ -91,18 +91,22 @@ function PaymentMethod({ value }: { value: string }) {
  * the fees on a Wednesday therefore threw away that week's progress toward the
  * next fifty, which does not carry over.
  */
-type Covers = "pickups" | "meetings";
+type Covers = "pickups" | "meetings" | "all";
+
+/** Whether a press pays that half. "all" pays both, as the route's `payment`. */
+const paysPickups = (c: Covers) => c !== "meetings";
+const paysMeetings = (c: Covers) => c !== "pickups";
 
 const COVER_LABEL: Record<Covers, string> = {
   pickups: "pickup bonus",
   meetings: "meeting fees",
+  all: "pickups and meetings",
 };
 
 /** What a press is actually worth. Never `totalCents`, which is both halves. */
 const amountFor = (r: PayrollRowView, covers: Covers) =>
-  covers === "meetings"
-    ? r.meetingCommissionCents
-    : r.pickupBonusCents + r.bankedBonusCents;
+  (paysMeetings(covers) ? r.meetingCommissionCents : 0) +
+  (paysPickups(covers) ? r.pickupBonusCents + r.bankedBonusCents : 0);
 
 export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
   const router = useRouter();
@@ -212,7 +216,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
   // Only a pickup payment discards them. Paying the meeting fees leaves the
   // counter alone, so there is nothing to warn about.
   const stranded =
-    confirming?.covers === "pickups"
+    confirming && paysPickups(confirming.covers)
       ? pickupsTowardNext(confirming.row.pickups)
       : 0;
 
@@ -335,6 +339,19 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                     >
                       Pay pickups
                     </Button>
+                    {/* Both in one payout, for a payday that settles
+                        everything. Only when both halves are owed: with one
+                        it would be the other button under a second name. */}
+                    <Button
+                      size="sm"
+                      disabled={
+                        r.meetings === 0 ||
+                        (r.pickups === 0 && r.bankedBonusCents === 0)
+                      }
+                      onClick={() => setConfirming({ row: r, covers: "all" })}
+                    >
+                      Pay both
+                    </Button>
                   </div>
                 </td>
               </tr>
@@ -441,7 +458,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                   as a payment that came up short rather than as one that was
                   never part of this. */}
               <dl className="rounded-lg border bg-muted/40 px-3 py-2.5">
-                {confirming.covers === "pickups" ? (
+                {paysPickups(confirming.covers) && (
                   <>
                     <div className="flex justify-between gap-4 py-0.5">
                       <dt className="text-muted-foreground">
@@ -466,7 +483,8 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                       </div>
                     )}
                   </>
-                ) : (
+                )}
+                {paysMeetings(confirming.covers) && (
                   <>
                     <div className="flex justify-between gap-4 py-0.5">
                       <dt className="text-muted-foreground">
@@ -585,16 +603,17 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                 </p>
               )}
               <p className="text-[12px] text-muted-foreground">
-                {confirming.covers === "meetings" ? (
+                {paysMeetings(confirming.covers) && (
                   <>
                     The {confirming.row.meetings}{" "}
                     {confirming.row.meetings === 1 ? "meeting" : "meetings"}{" "}
                     will be locked to this payout and can no longer be
-                    re-marked. Their pickup count is not touched.
+                    re-marked.{" "}
                   </>
-                ) : (
-                  <>Their pickup count restarts from now.</>
                 )}
+                {paysPickups(confirming.covers)
+                  ? "Their pickup count restarts from now."
+                  : "Their pickup count is not touched."}
               </p>
             </div>
           )}
