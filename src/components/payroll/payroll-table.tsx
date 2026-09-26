@@ -32,6 +32,15 @@ export type PayrollRowView = {
   name: string;
   active: boolean;
   periodLabel: string;
+  /** The showed-up meetings `meetings` counts, named so the payout
+   *  confirmation can say which businesses it is paying for. */
+  meetingList: {
+    leadId: number;
+    company: string;
+    listName: string;
+    bookedLabel: string;
+    markedLabel: string;
+  }[];
   pickups: number;
   pickupBonusCents: number;
   /** Bonus a reset banked and nobody has handed over yet. Shown beside the
@@ -455,14 +464,35 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                     )}
                   </>
                 ) : (
-                  <div className="flex justify-between gap-4 py-0.5">
-                    <dt className="text-muted-foreground">
-                      Meetings &middot; {confirming.row.meetings} showed up
-                    </dt>
-                    <dd className="font-semibold tabular-nums">
-                      {formatMoney(confirming.row.meetingCommissionCents)}
-                    </dd>
-                  </div>
+                  <>
+                    <div className="flex justify-between gap-4 py-0.5">
+                      <dt className="text-muted-foreground">
+                        Meetings &middot; {confirming.row.meetings} showed up
+                      </dt>
+                      <dd className="font-semibold tabular-nums">
+                        {formatMoney(confirming.row.meetingCommissionCents)}
+                      </dd>
+                    </div>
+                    {/* Which ones, so nobody sends money for a business they
+                        cannot name. Each earns the same fee, so the amount
+                        stays on the line above rather than repeating here. */}
+                    {confirming.row.meetingList.length > 0 && (
+                      <ul className="mt-1 mb-0.5 max-h-48 space-y-1 overflow-y-auto">
+                        {confirming.row.meetingList.map((m) => (
+                          <li
+                            key={m.leadId}
+                            className="rounded-md bg-card px-2.5 py-1.5"
+                          >
+                            <p className="truncate font-semibold">{m.company}</p>
+                            <p className="truncate text-[12px] text-muted-foreground">
+                              Booked {m.bookedLabel} &middot; marked showed up{" "}
+                              {m.markedLabel} &middot; {m.listName}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 )}
                 <div className="mt-1.5 flex justify-between gap-4 border-t pt-1.5">
                   <dt className="font-bold">Total</dt>

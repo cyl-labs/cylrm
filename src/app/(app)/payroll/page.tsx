@@ -13,6 +13,7 @@ import {
   getDemosToConfirm,
   getPayoutHistory,
   getPayroll,
+  getUnpaidMeetings,
 } from "@/lib/payroll";
 import { getPayrollReminderSetting } from "@/lib/payroll-reminder";
 import { PayrollTable } from "@/components/payroll/payroll-table";
@@ -43,11 +44,12 @@ export default async function PayrollPage() {
   // list in another file.
   if (me?.role !== "admin") redirect("/calls");
 
-  const [rows, demos, history, reminder] = await Promise.all([
+  const [rows, demos, history, reminder, unpaidMeetings] = await Promise.all([
     getPayroll(),
     getDemosToConfirm(),
     getPayoutHistory(),
     getPayrollReminderSetting(),
+    getUnpaidMeetings(),
   ]);
 
   const owedTotal = rows.reduce((sum, r) => sum + r.totalCents, 0);
@@ -80,6 +82,16 @@ export default async function PayrollPage() {
       }
       return r.lastPaidAt ? `Since ${formatPayDay(r.lastPaidAt)}` : "Never paid";
     })(),
+    // Which meetings "Pay meetings" is paying for, named in its confirmation.
+    meetingList: unpaidMeetings
+      .filter((m) => m.userId === r.userId)
+      .map((m) => ({
+        leadId: m.leadId,
+        company: m.company,
+        listName: m.listName,
+        bookedLabel: formatPayDay(m.bookedAt),
+        markedLabel: formatPayDay(m.markedAt),
+      })),
   }));
   const demosWithLabels = demos.map((d) => ({
     ...d,

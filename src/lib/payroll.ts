@@ -321,6 +321,53 @@ const NO_SHOW_CORRECTION_DAYS = 14;
  * Ordered oldest first. This is a worklist, and the meeting that happened three
  * weeks ago is the one at risk of never being asked about.
  */
+export type UnpaidMeeting = {
+  userId: number;
+  leadId: number;
+  company: string;
+  listName: string;
+  /** When the demo was booked, i.e. the call that booked it. */
+  bookedAt: string;
+  /** When it was marked showed up. */
+  markedAt: string;
+};
+
+/**
+ * The meetings behind each person's meeting count, so "Pay meetings" can say
+ * which ones it is paying for (2026-09-26). It said "1 showed up" and nothing
+ * else, and a founder about to send money wants to know which business.
+ *
+ * The same predicate as `getPayrollRows`' count and as the rows the payout
+ * route locks: a showed-up attendance on this person's booking call that no
+ * payout has claimed yet. If those three drift apart the list names meetings
+ * the button does not pay, or pays ones it never named.
+ */
+export async function getUnpaidMeetings(): Promise<UnpaidMeeting[]> {
+  const rows = (await db.execute(sql`
+    select ac.user_id, l.id as lead_id, l.company, l.name as lead_name,
+      cl.name as list_name, ac.called_at, a.marked_at
+    from call_demo_attendance a
+    join "call" ac on ac.id = a.call_id
+    join call_lead l on l.id = ac.call_lead_id
+    join call_list cl on cl.id = l.call_list_id
+    where a.status = 'showed_up'
+      and a.payout_id is null
+    order by ac.called_at asc
+  `)) as Row[];
+
+  return rows.map((r) => ({
+    userId: n(r.user_id),
+    leadId: n(r.lead_id),
+    company:
+      (r.company as string | null) ||
+      (r.lead_name as string | null) ||
+      "Unnamed business",
+    listName: String(r.list_name),
+    bookedAt: new Date(r.called_at as string).toISOString(),
+    markedAt: new Date(r.marked_at as string).toISOString(),
+  }));
+}
+
 export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
   const rows = (await db.execute(sql`
     select c.id as call_id, c.called_at, c.notes,
