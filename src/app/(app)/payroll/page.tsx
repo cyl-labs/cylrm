@@ -91,6 +91,9 @@ export default async function PayrollPage() {
         listName: m.listName,
         bookedLabel: formatPayDay(m.bookedAt),
         markedLabel: formatPayDay(m.markedAt),
+        contact: m.contact,
+        meetingNotes: m.meetingNotes,
+        bookingNotes: m.bookingNotes,
       })),
   }));
   const demosWithLabels = demos.map((d) => ({

@@ -330,6 +330,13 @@ export type UnpaidMeeting = {
   bookedAt: string;
   /** When it was marked showed up. */
   markedAt: string;
+  /** Who we spoke to: the contact taken at booking, else the name on the
+   *  Cal.com booking. */
+  contact: string | null;
+  /** Written on the meeting itself, on Meetings. */
+  meetingNotes: string | null;
+  /** The caller's notes from the call that booked it. */
+  bookingNotes: string | null;
 };
 
 /**
@@ -345,11 +352,23 @@ export type UnpaidMeeting = {
 export async function getUnpaidMeetings(): Promise<UnpaidMeeting[]> {
   const rows = (await db.execute(sql`
     select ac.user_id, l.id as lead_id, l.company, l.name as lead_name,
-      cl.name as list_name, ac.called_at, a.marked_at
+      cl.name as list_name, ac.called_at, a.marked_at,
+      ac.notes as booking_notes, a.notes as meeting_notes,
+      m.attendee_name
     from call_demo_attendance a
     join "call" ac on ac.id = a.call_id
     join call_lead l on l.id = ac.call_lead_id
     join call_list cl on cl.id = l.call_list_id
+    -- The booking's own name, for a lead whose contact was never filled in.
+    -- The meeting this answer was given for when it says, else the lead's
+    -- latest.
+    left join lateral (
+      select cm.attendee_name from call_meeting cm
+      where cm.id = a.meeting_id
+         or (a.meeting_id is null and cm.call_lead_id = l.id)
+      order by (cm.id = a.meeting_id) desc nulls last, cm.start_at desc
+      limit 1
+    ) m on true
     where a.status = 'showed_up'
       and a.payout_id is null
     order by ac.called_at asc
@@ -365,7 +384,18 @@ export async function getUnpaidMeetings(): Promise<UnpaidMeeting[]> {
     listName: String(r.list_name),
     bookedAt: new Date(r.called_at as string).toISOString(),
     markedAt: new Date(r.marked_at as string).toISOString(),
+    contact:
+      text(r.lead_name) && text(r.lead_name) !== text(r.company)
+        ? text(r.lead_name)
+        : text(r.attendee_name),
+    meetingNotes: text(r.meeting_notes),
+    bookingNotes: text(r.booking_notes),
   }));
+}
+
+/** Trimmed text, or null when there is nothing in it. */
+function text(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
 export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {

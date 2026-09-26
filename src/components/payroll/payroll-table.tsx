@@ -40,6 +40,9 @@ export type PayrollRowView = {
     listName: string;
     bookedLabel: string;
     markedLabel: string;
+    contact: string | null;
+    meetingNotes: string | null;
+    bookingNotes: string | null;
   }[];
   pickups: number;
   pickupBonusCents: number;
@@ -429,7 +432,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
             </DialogTitle>
           </DialogHeader>
           {confirming && (
-            <div className="space-y-3 text-[13px]">
+            <div className="min-w-0 space-y-3 text-[13px]">
               <p className="text-muted-foreground">
                 This records a payment you have already made. It does not send
                 any money.
@@ -476,18 +479,43 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                     {/* Which ones, so nobody sends money for a business they
                         cannot name. Each earns the same fee, so the amount
                         stays on the line above rather than repeating here. */}
+                    {/* Wrapped, never truncated: a `truncate` line refuses to
+                        shrink, and inside the dialog's grid it pushed the whole
+                        box wider than its own border. */}
                     {confirming.row.meetingList.length > 0 && (
-                      <ul className="mt-1 mb-0.5 max-h-48 space-y-1 overflow-y-auto">
+                      <ul className="mt-1 mb-0.5 max-h-72 min-w-0 space-y-1.5 overflow-y-auto">
                         {confirming.row.meetingList.map((m) => (
                           <li
                             key={m.leadId}
-                            className="rounded-md bg-card px-2.5 py-1.5"
+                            className="min-w-0 break-words rounded-md bg-card px-2.5 py-2"
                           >
-                            <p className="truncate font-semibold">{m.company}</p>
-                            <p className="truncate text-[12px] text-muted-foreground">
+                            <p className="font-semibold">
+                              {m.company}
+                              {m.contact && (
+                                <span className="font-normal text-muted-foreground">
+                                  {" "}
+                                  &middot; {m.contact}
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-[12px] text-muted-foreground">
                               Booked {m.bookedLabel} &middot; marked showed up{" "}
                               {m.markedLabel} &middot; {m.listName}
                             </p>
+                            {m.meetingNotes && (
+                              <p className="mt-1.5 line-clamp-4 whitespace-pre-wrap text-[12px]">
+                                <span className="font-semibold">Meeting notes: </span>
+                                {m.meetingNotes}
+                              </p>
+                            )}
+                            {m.bookingNotes && (
+                              <p className="mt-1.5 line-clamp-4 whitespace-pre-wrap text-[12px]">
+                                <span className="font-semibold">
+                                  From the booking call:{" "}
+                                </span>
+                                {m.bookingNotes}
+                              </p>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -545,7 +573,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
               {/* Where to send it, next to how much — this is the moment
                   somebody is about to open their banking app. */}
               {confirming.row.paymentMethod ? (
-                <p className="text-[12px]">
+                <p className="break-words text-[12px]">
                   <span className="text-muted-foreground">Pay via </span>
                   <span className="font-semibold">
                     <PaymentMethod value={confirming.row.paymentMethod} />
