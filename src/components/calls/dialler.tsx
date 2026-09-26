@@ -47,6 +47,7 @@ import {
   type SavedLine,
 } from "@/components/calls/second-line";
 import { TonePad } from "@/components/calls/tone-pad";
+import { DirectLine } from "@/components/calls/direct-line";
 import { BookingPostCard } from "@/components/calls/slack-post";
 import { ObjectionPanel } from "@/components/sop/objection-panel";
 import { ScriptDrawer } from "@/components/sop/script-drawer";
@@ -283,7 +284,11 @@ function DialControls({
         )}
         <Button
           className="mt-2 h-12 w-full text-[15px]"
-          variant={failure?.logAs === "bad_number" ? "outline" : "default"}
+          variant={
+            failure?.logAs === "bad_number" || lead.directDialTo
+              ? "outline"
+              : "default"
+          }
           onClick={() => {
             // Whose call this is, so returning to the dialler mid-call opens on
             // them rather than on whoever is top of the queue.
@@ -292,7 +297,13 @@ function DialControls({
           }}
         >
           <PhoneCall data-icon="inline-start" />
-          {failure ? "Try again" : "Call"}
+          {/* With the owner's own number saved, that is the call to make, so
+              this one says which line it rings. */}
+          {failure
+            ? "Try again"
+            : lead.directDialTo
+              ? "Call the business line"
+              : "Call"}
         </Button>
       </>
     );
@@ -1283,6 +1294,15 @@ export function Dialler({
           line={line}
           enabled={canDialFromBrowser}
           lines={lines}
+        />
+        {/* The owner's own number, when a gatekeeper handed it over. Keyed on
+            the lead rather than the call, so what was saved here survives
+            the call it started. */}
+        <DirectLine
+          key={`direct-${current.id}`}
+          lead={current}
+          line={line}
+          enabled={canDialFromBrowser}
         />
         <CopyNumber
           key={`number-${current.id}`}

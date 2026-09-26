@@ -415,7 +415,8 @@ export async function leadForNumber(phone: string): Promise<LeadMatch | null> {
   const keys = phoneKeyCandidates(phone);
   if (keys.length === 0) return null;
   return leadWhere(
-    sql`l.phone_key in (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})`,
+    sql`(l.phone_key in (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})
+      or l.direct_phone_key in (${sql.join(keys.map((k) => sql`${k}`), sql`, `)}))`,
     phone,
   );
 }

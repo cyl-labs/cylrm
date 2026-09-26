@@ -483,10 +483,29 @@ export const callLead = pgTable(
      *  evidence, and the only place the US service's four separate flags
      *  survive after they collapse into one status. */
     dncDetail: jsonb("dnc_detail").$type<Record<string, unknown>>(),
+    /**
+     * The decision maker's own line, when a gatekeeper hands it over
+     * (2026-09-26). The dial card offers it first and the main line beside
+     * it. Before this the only way to ring it was the Keypad, which logs
+     * nothing on a lead: Akshansh was given Just Dump It's partner's cell,
+     * talked to him for seven minutes, and the lead still read "Gatekeeper".
+     * `phone` stays the listed number, which is what dedupe and the lists
+     * are keyed on.
+     */
+    directPhone: text("direct_phone"),
+    /** Digits only, like `phone_key`, so a call from it finds this lead. */
+    directPhoneKey: text("direct_phone_key"),
+    /** Whose line it is, as the caller wrote it: "Ryan, partner". */
+    directName: text("direct_name"),
   },
   (t) => [
     uniqueIndex("call_lead_list_phone_idx").on(t.callListId, t.phoneKey),
     index("call_lead_dnc_checked_at_idx").on(t.dncCheckedAt),
+    // Inbound calls and texts look a number up by this. Partial, since
+    // nearly every lead has none.
+    index("call_lead_direct_phone_key_idx")
+      .on(t.directPhoneKey)
+      .where(sql`direct_phone_key is not null`),
   ],
 );
 

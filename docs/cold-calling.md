@@ -1099,3 +1099,31 @@ inbound handled.
 - `@/lib/calls` imports the Postgres client, so a **client** component must only take types from it. Labels, the category list and `categoryOf` live in `src/components/calls/outcome.ts` for that reason — importing a value from `@/lib/calls` into the grid pulled the driver into the browser bundle and broke the build.
 - Aggregates in `getCallLists` count `l.id`, not `*`: a list whose leads are all cross-list duplicates joins to nothing, and `count(*)` scores the LEFT JOIN's phantom NULL row as an uncalled lead — that read "-1 of 0 worked" before it was fixed.
 - Each lead carries the company's `website`, surfaced as a link on the spreadsheet (its own editable column, with the open-in-a-tab icon stopping the click before it reaches the cell) and as a button under the number on the dial card. The data was always there — the importer keeps every raw CSV column, and `website` was in `source_fields` on 599 of 679 leads — so `2026-08-13-call-lead-website.sql` promotes it to a column and backfills it. Parsing lives in `src/lib/website.ts`, off the database because both callers are client components: a bare domain gets `https://` prepended rather than being dropped, and anything that will not parse as http(s) returns null so no button is offered. That last part is not tidiness — the value came off a scraped page, and `javascript:` in an href runs on click. `source_url` / `provenance_url` are deliberately not aliases: they point at the directory listing the scraper used, not the company.
+
+### The owner's own number (2026-09-26)
+
+`call_lead.direct_phone` / `direct_phone_key` / `direct_name`, the
+`DirectLine` component on the dial card, `directPhone` on
+`PATCH /api/call-leads/[id]`. Migration `2026-09-26-lead-direct-line.sql`,
+**applied before the code** since every calling screen selects the columns.
+
+- **Why.** A gatekeeper handing over the owner's cell had nowhere to go. The
+  dial card only rings `phone`, so the only way to ring the new number was the
+  Keypad, and the Keypad logs nothing on a lead (by the founders' rule, it is
+  for numbers outside the CRM). On 2026-09-25 Akshansh was given Just Dump
+  It's partner Ryan Dumont's cell, talked to him for 7m13s from the Keypad, and
+  the business still read "Gatekeeper" with nowhere to write notes or book.
+- **On the card** a link reads "Got the owner's own number?" (named from the
+  caller's side; "ring a different number" was found unclear) and opens a form
+  with a sentence saying what it does. Saving dials it on the lead. Once saved,
+  the card leads with "Call Ryan directly" and the usual button becomes "Call
+  the business line", outlined. Change and Remove sit under it.
+- **`phone` stays the listed number.** Dedupe, the lists and `phone_key` all run
+  on it, so the direct line is a second field rather than a replacement.
+- **Calls and texts from the direct line find the lead**: the Telnyx webhook,
+  the incoming-call banner (`/api/inbound-lead`), `lib/sms.ts` and
+  `leadForNumber` all match `direct_phone_key` as well as `phone_key`.
+- A number typed without a country code is read in the list's market, or the
+  listed number's when the list has none.
+- Not yet used by the Meetings row's dial button, which rings the number given
+  at booking.

@@ -409,7 +409,9 @@ export async function recordInboundText(
   const keys = phoneKeyCandidates(from);
   const leadByPhone =
     keys.length > 0
-      ? sql`(select id from call_lead where phone_key in ${inList(keys)}
+      ? sql`(select id from call_lead
+             where phone_key in ${inList(keys)}
+                or direct_phone_key in ${inList(keys)}
              order by duplicate_of_lead_id nulls first, id limit 1)`
       : sql`null::int`;
 

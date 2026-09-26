@@ -62,6 +62,7 @@ export async function PATCH(
       id: callLead.id,
       callListId: callLead.callListId,
       region: callList.region,
+      phone: callLead.phone,
     })
     .from(callLead)
     .innerJoin(callList, eq(callList.id, callLead.callListId))
@@ -157,6 +158,44 @@ export async function PATCH(
     values.phoneKey = key;
   }
 
+  // The decision maker's own line. Empty clears it, and its name with it.
+  // Checked like the main number, since it is dialled the same way.
+  if ("directPhone" in body) {
+    const raw = typeof body.directPhone === "string" ? body.directPhone.trim() : "";
+    if (raw === "") {
+      values.directPhone = null;
+      values.directPhoneKey = null;
+      values.directName = null;
+    } else {
+      // Read in the list's market, or failing that the listed number's: the
+      // owner's cell a gatekeeper reads out is nearly always local to it.
+      const main = classifyPhone(lead.phone, lead.region);
+      const region =
+        lead.region ?? (main === "us" || main === "gb" ? main : main === "sg" ? "sg" : null);
+      const kind = classifyPhone(raw, region);
+      if (kind !== "sg" && kind !== "sg_tollfree" && kind !== "us" && kind !== "gb") {
+        return Response.json(
+          {
+            error:
+              kind === "missing"
+                ? "Type the number they gave you."
+                : "That number cannot be dialled: Singapore, UK and US numbers only. A UK or US number needs its country code.",
+          },
+          { status: 400 },
+        );
+      }
+      values.directPhone = e164(raw) ?? e164(raw, region) ?? raw;
+      values.directPhoneKey = phoneKey(raw, region);
+    }
+  }
+  if ("directName" in body && values.directPhone !== null) {
+    const name = clean(body.directName);
+    if (name === undefined) {
+      return Response.json({ error: "directName must be text." }, { status: 400 });
+    }
+    values.directName = name;
+  }
+
   if (Object.keys(values).length === 0) {
     return Response.json({ error: "Nothing to change." }, { status: 400 });
   }
@@ -173,6 +212,8 @@ export async function PATCH(
       title: callLead.title,
       email: callLead.email,
       website: callLead.website,
+      directPhone: callLead.directPhone,
+      directName: callLead.directName,
     });
 
   return Response.json(row);

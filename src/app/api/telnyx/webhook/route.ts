@@ -220,11 +220,17 @@ async function recordInbound(
               // "($1, $2)", which Postgres reads as a row rather than an array,
               // so the whole insert failed. It did, for every inbound call from
               // 2026-09-04 to 2026-09-15, and Missed calls stayed empty.
+              // The direct line too: a decision maker whose own cell we
+              // were given rings back from it.
               sql`(select id from call_lead
                    where phone_key in (${sql.join(
                      keys.map((k) => sql`${k}`),
                      sql`, `,
                    )})
+                      or direct_phone_key in (${sql.join(
+                        keys.map((k) => sql`${k}`),
+                        sql`, `,
+                      )})
                    order by duplicate_of_lead_id nulls first, id limit 1)`
             : sql`null`
         },

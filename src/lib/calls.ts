@@ -771,6 +771,18 @@ export type QueueLead = {
    *  desk phone is the same call. Always null for Singapore — see lib/dnc.ts. */
   dncBlock: string | null;
   /**
+   * The decision maker's own line, when somebody handed it over, as stored.
+   * Rung from the dial card on this lead, so the notes, outcome and
+   * recording land here rather than on a Keypad call nobody can see.
+   */
+  directPhone: string | null;
+  /** Whose line that is, as the caller wrote it. */
+  directName: string | null;
+  /** `directPhone` in E.164, or null when it cannot be dialled from here. */
+  directDialTo: string | null;
+  /** The caller ID for `directPhone`'s country. */
+  directDialFrom: string | null;
+  /**
    * The IANA zone the lead is in, from their area code.
    *
    * Null when it cannot be known — a toll-free number belongs to no place, and
@@ -814,6 +826,7 @@ const leadColumns = sql`
   case when l.phone_key ~ '^1[0-9]{10}$'
     then nullif(l.source_fields->>'state', '') end as state,
   l.dnc_status, l.dnc_checked_at,
+  l.direct_phone, l.direct_name,
   lc.outcome as last_outcome, lc.called_at as last_called_at,
   lc.callback_at, lc.notes as last_notes, lc.by_name as last_called_by,
   lc.voicemail_at,
@@ -867,6 +880,12 @@ function toLead(r: Row, dids: DidMap): QueueLead {
       },
       dialCountry(String(r.phone)),
     ),
+    directPhone: (r.direct_phone as string | null) ?? null,
+    directName: (r.direct_name as string | null) ?? null,
+    directDialTo: r.direct_phone ? e164(String(r.direct_phone)) : null,
+    directDialFrom: r.direct_phone
+      ? didFor(dialCountry(String(r.direct_phone)), dids)
+      : null,
     tz: (r.tz as string | null) ?? null,
     hoursToday: Array.isArray(r.hours_today)
       ? (r.hours_today as OpenRange[])
