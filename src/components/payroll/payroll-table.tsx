@@ -178,7 +178,9 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
             bankedCents?: number;
           } | null;
           if (!res.ok) {
-            failed.push(person.name);
+            // With the server's reason: "Could not reset: Gigi." on its own
+            // gave nobody anything to act on.
+            failed.push(data?.error ? `${person.name} (${data.error})` : person.name);
             continue;
           }
           done += 1;

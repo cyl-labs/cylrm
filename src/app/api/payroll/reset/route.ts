@@ -78,8 +78,15 @@ export async function POST(request: Request) {
       const [person] = (await tx.execute(sql`
         select u.id, u.name, u.role, u.created_at,
           (
+            -- The counter's boundary: the last row that settled or banked
+            -- pickups, exactly as lib/payroll.ts and the payouts route read
+            -- it. A meetings-only payout is not one. This read the last row
+            -- of any kind until 2026-09-26, so after paying somebody's
+            -- meetings it counted their pickups from that day, found none,
+            -- and refused to reset a counter the screen showed at 12 (Gigi).
             select paid_at from payout
             where payout.user_id = u.id
+              and payout.kind in ('payment', 'reset', 'pickups')
             order by paid_at desc
             limit 1
           ) as last_paid_at
