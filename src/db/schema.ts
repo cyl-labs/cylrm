@@ -1256,6 +1256,14 @@ export const callMeeting = pgTable(
      *  way to happen here: there is no zone left to guess. */
     startAt: timestamp("start_at", { withTimezone: true }).notNull(),
     endAt: timestamp("end_at", { withTimezone: true }),
+    /**
+     * The time Cal.com has for the booking, when that is not `start_at`
+     * (2026-09-28). A founder can move a meeting quietly, on our calendar
+     * only, and then `start_at` is our time and this is Cal.com's. The sync
+     * compares against this, so it overwrites our time only when Cal.com's
+     * own changes, which means a real reschedule always wins.
+     */
+    calStartAt: timestamp("cal_start_at", { withTimezone: true }),
     /** Mirrored from Cal.com: `accepted` | `cancelled` | `pending` |
      *  `rejected`. Cancellations arrive on their own, which is the whole
      *  reason this is polled rather than filled in once. */

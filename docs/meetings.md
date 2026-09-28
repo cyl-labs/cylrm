@@ -2167,3 +2167,31 @@ to one meeting.
   the booking call's row** (`m.call_id`, written as that call ends, after its
   recording began), and the logged tests ignore that call by id. Checked on
   prod: 195 meeting-recording matches, none of them the booking call.
+
+## Moving a meeting quietly, and fewer buttons on the card (2026-09-28)
+
+"is there a option to just move meetings without sending a new calcom or
+having to mark as no show", then "rn theres so many buttons".
+
+- **More, then Move quietly** (`MoveQuietly`, `PATCH /api/meetings/[id]/time`)
+  rewrites `call_meeting.start_at` (and `end_at` by the same amount) and tells
+  Cal.com nothing. Rewriting the time itself, rather than keeping a second
+  time beside it, is what makes every reminder, the badge, the calendar, the
+  recording window and "did they turn up" follow without a change of their
+  own. Founders, and a closer on a meeting handed to them.
+- **`cal_start_at` is Cal.com's time** (`2026-09-28-meeting-quiet-move.sql`,
+  additive, applied before the code). The sync keeps our `start_at` while
+  Cal.com's time is unchanged and takes Cal.com's the moment it moves, so a
+  real reschedule always wins over a quiet one.
+- **Cal.com's own reminder email still goes out for the old time**, which is
+  the one thing this cannot stop. The dialog says so, and a moved row carries
+  "Moved quietly. Cal.com still has …".
+- Payroll is untouched: the attendance fee is keyed on the booking call.
+- A meeting already on a founders' call back is moved with "Change the call
+  back time" in the same menu, not this.
+- **The card's buttons**: the next step (log what happened, the ring-back and
+  call-back loggers, Mark as trial), Call them, Text them, Book a follow-up and
+  the contracts stay on the row. Open lead, copy number, copy form link, wrong
+  email, both kinds of move and the Meet link are in **More**. "Wrong email?"
+  stays out on the row when the booking's address disagrees with the lead's,
+  since that one is a warning. Recordings sit on their own line underneath.

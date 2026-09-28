@@ -176,9 +176,9 @@ export function MeetingsExplainer({
           <h3 className="font-bold">If they cannot make the time</h3>
           <p className="mt-1 text-muted-foreground">
             <span className="font-semibold text-foreground">
-              Move this demo
+              More, then Move on Cal.com
             </span>{" "}
-            on the row opens Cal.com on that booking, already set to{" "}
+            opens Cal.com on that booking, already set to{" "}
             <span className="font-semibold text-foreground">
               their time zone
             </span>
@@ -194,6 +194,15 @@ export function MeetingsExplainer({
             the reminders follow the new time. The new time appears on this
             screen within five minutes, or straight away if you press Refresh.
             Use it whether they told you beforehand or did not turn up at all.
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            Whoever takes the meeting can instead use{" "}
+            <span className="font-semibold text-foreground">
+              More, then Move quietly
+            </span>
+            : it moves the meeting here only and sends them nothing, so tell
+            them the new time yourself. Cal.com keeps the old time and still
+            sends its reminder for it.
           </p>
           <p className="mt-1 text-muted-foreground">
             <span className="font-semibold text-foreground">

@@ -301,13 +301,14 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
     const written = (await db.execute(sql`
       insert into call_meeting (
         cal_booking_uid, cal_booking_id, call_lead_id, call_id, matched_by,
-        start_at, end_at, status, title,
+        start_at, end_at, cal_start_at, status, title,
         attendee_name, attendee_email, attendee_phone, attendee_tz,
         meeting_url, kind, synced_at
       ) values (
         ${booking.uid}, ${booking.id}, ${lead?.id ?? null},
         ${lead?.callId ?? null}, ${matchedBy},
-        ${booking.startAt}, ${booking.endAt}, ${booking.status}, ${booking.title},
+        ${booking.startAt}, ${booking.endAt}, ${booking.startAt},
+        ${booking.status}, ${booking.title},
         ${booking.attendeeName}, ${booking.attendeeEmail}, ${booking.attendeePhone},
         ${booking.attendeeTz}, ${booking.meetingUrl},
         ${followUp && booking.eventTypeSlug === followUp ? "follow_up" : "demo"},
@@ -322,8 +323,21 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         call_lead_id = coalesce(excluded.call_lead_id, call_meeting.call_lead_id),
         call_id = coalesce(excluded.call_id, call_meeting.call_id),
         matched_by = coalesce(excluded.matched_by, call_meeting.matched_by),
-        start_at = excluded.start_at,
-        end_at = excluded.end_at,
+        -- Our time survives the sync unless Cal.com's own time changed: a
+        -- quiet move (/api/meetings/[id]/time) sets start_at and leaves
+        -- cal_start_at alone, and a real reschedule on Cal.com moves
+        -- cal_start_at, which is what lets it win.
+        start_at = case
+          when call_meeting.cal_start_at = excluded.cal_start_at
+            then call_meeting.start_at
+          else excluded.start_at
+        end,
+        end_at = case
+          when call_meeting.cal_start_at = excluded.cal_start_at
+            then call_meeting.end_at
+          else excluded.end_at
+        end,
+        cal_start_at = excluded.cal_start_at,
         status = excluded.status,
         title = excluded.title,
         attendee_name = excluded.attendee_name,
@@ -385,6 +399,10 @@ export type Meeting = {
    *  booking rather than take a second one. */
   calBookingUid: string;
   startAt: string;
+  /** Cal.com's time for it, when a founder moved it quietly and ours now
+   *  differs (2026-09-28). Null when the two agree. Cal.com's own reminder
+   *  email still goes out for this time, which is why the row names it. */
+  calStartAt: string | null;
   endAt: string | null;
   status: string;
   title: string | null;
@@ -731,7 +749,7 @@ const DEMO_RECORDING_WHERE = sql`
 `;
 
 const meetingSelect = sql`
-  m.id, m.cal_booking_uid, m.start_at, m.end_at, m.status, m.title,
+  m.id, m.cal_booking_uid, m.start_at, m.end_at, m.cal_start_at, m.status, m.title,
   -- The caller's own name typed into the booking form in place of the
   -- prospect's (2026-09-24: Alex booked Jason's Jacksonville Junk Removal as
   -- "Alex"). Cal.com cannot rename an attendee and the sync rewrites this
@@ -1246,6 +1264,10 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     id: n(r.id),
     calBookingUid: String(r.cal_booking_uid),
     startAt: iso(r.start_at)!,
+    calStartAt:
+      r.cal_start_at && iso(r.cal_start_at) !== iso(r.start_at)
+        ? iso(r.cal_start_at)
+        : null,
     endAt: iso(r.end_at),
     status: String(r.status),
     title: (r.title as string | null) ?? null,

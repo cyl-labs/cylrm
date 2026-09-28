@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarCheck,
   CalendarClock,
   CalendarPlus,
-  Check,
   CalendarX2,
   ChevronRight,
   ClipboardCheck,
@@ -19,6 +19,8 @@ import {
   Handshake,
   Mail,
   MessageSquare,
+  MoreHorizontal,
+  PhoneCall,
   PhoneForwarded,
   PhoneOutgoing,
   ShieldAlert,
@@ -39,6 +41,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -49,8 +52,8 @@ import { useClaimLine } from "@/components/calls/line-presence";
 import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
-import { CallBackButton } from "@/components/calls/call-back-button";
 import { MeetingCallButton } from "@/components/calls/meeting-call-button";
+import { MoveQuietly } from "@/components/calls/move-quietly";
 import type { SavedLine } from "@/components/calls/second-line";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
 import { MeetingBriefFold } from "@/components/calls/meeting-brief-fold";
@@ -253,82 +256,6 @@ const FORM_URL = "https://forms.gle/P2K4aMFL4vUJhCWr7";
 function appendLink(body: string, url: string): string {
   const trimmed = body.trimEnd();
   return trimmed ? `${trimmed}\n${url}` : url;
-}
-
-function CopyFormLink() {
-  const [copied, setCopied] = React.useState(false);
-  return (
-    <button
-      type="button"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(FORM_URL);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1600);
-        } catch {
-          toast.error("Could not copy: select the link and copy it.");
-        }
-      }}
-      className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
-    >
-      {copied ? (
-        <Check className="size-3.5" strokeWidth={2.6} />
-      ) : (
-        <FileText className="size-3.5" strokeWidth={2.2} />
-      )}
-      {copied ? "Copied" : "Copy form link"}
-    </button>
-  );
-}
-
-function CopyNumber({
-  phone,
-  blocked,
-}: {
-  phone: string;
-  blocked?: string | null;
-}) {
-  const [copied, setCopied] = React.useState(false);
-  // Screening blocks the clipboard, not only a dial button — see dialler.tsx.
-  if (blocked) {
-    return (
-      <span
-        className="flex items-center gap-1.5 rounded-md border border-dashed px-3 py-1.5 text-[13px] font-bold text-muted-foreground"
-        title={blocked}
-      >
-        <ShieldAlert className="size-3.5 shrink-0" strokeWidth={2.2} />
-        Do not call
-      </span>
-    );
-  }
-  return (
-    <button
-      type="button"
-      aria-label={`Copy ${phone}`}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(dialableNumber(phone));
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1600);
-        } catch {
-          toast.error("Could not copy: select the number and copy it.");
-        }
-      }}
-      className={cn(
-        "flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-bold tabular-nums transition-colors",
-        copied
-          ? "bg-success text-primary-foreground"
-          : "bg-primary/10 text-primary hover:bg-primary/15",
-      )}
-    >
-      {copied ? (
-        <Check className="size-3.5" strokeWidth={2.6} />
-      ) : (
-        <Copy className="size-3.5" strokeWidth={2.2} />
-      )}
-      {copied ? "Copied" : phone}
-    </button>
-  );
 }
 
 /**
@@ -594,6 +521,8 @@ export function MeetingsList({
   // The "when do you call them back?" prompt, and which way in: after a
   // no-show, after a call back went unanswered or rebooking was put off, or
   // to move one. See `CallBackPrompt`.
+  // The meeting being moved in the CRM only, see `MoveQuietly`.
+  const [movingQuietly, setMovingQuietly] = React.useState<Meeting | null>(null);
   const [prompt, setPrompt] = React.useState<{
     m: Meeting;
     mode: CallBackMode;
@@ -812,7 +741,7 @@ export function MeetingsList({
       }
       toast.success(
         result === "rescheduled"
-          ? `Rebooked: ${who}. Put the new time in with Move this demo.`
+          ? `Rebooked: ${who}. Put the new time in from More, then Move.`
           : `Not rebooking: ${who} is off your list.`,
       );
       router.refresh();
@@ -1191,6 +1120,15 @@ export function MeetingsList({
                 </>
               )}
             </p>
+            {/* Moved in the CRM only (2026-09-28). Cal.com still has the old
+                time and sends its reminder for it, so the row says so. */}
+            {m.calStartAt && (
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                Moved quietly. Cal.com still has{" "}
+                {format.format(new Date(m.calStartAt))} {zoneLabel}, so its
+                reminder email goes out for that time.
+              </p>
+            )}
 
             {/* A follow-up already on the calendar (2026-09-25). Without it a
                 demo row looked like one still to arrange, with "Book a
@@ -1414,7 +1352,7 @@ export function MeetingsList({
                           saying: this answer is what the caller is paid on. */}
                       <p className="max-w-60 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
                         {hasStarted
-                          ? "Showed up means they picked up and stayed on while the agent was brought in. Ringing out or voicemail is a no show. Picked up but could not talk now? Move this demo to a new time instead."
+                          ? "Showed up means they picked up and stayed on while the agent was brought in. Ringing out or voicemail is a no show. Picked up but could not talk now? Move it to a new time from More instead."
                           : "This has not started yet. Answer now only to write off a booking that is not real. Moving the meeting to a new time clears the answer."}
                       </p>
                       {(
@@ -1580,20 +1518,6 @@ export function MeetingsList({
                   lines={lines}
                 />
                 )}
-                {/* Still offered when the browser cannot dial — a founder on a
-                    handset needs the number in their hand. */}
-                {m.listId !== null && m.leadId !== null && !m.dncBlock && (
-                  <CallBackButton
-                    listId={m.listId}
-                    leadId={m.leadId}
-                    label="Open lead"
-                    className="bg-transparent text-foreground border hover:bg-muted"
-                  />
-                )}
-                {m.phone && (
-                  <CopyNumber phone={m.phone} blocked={m.dncBlock} />
-                )}
-                <CopyFormLink />
                 {/* For after a call nobody picked up. Opens a box under the
                     row with the words already in it; nothing is sent until
                     Send is pressed there. */}
@@ -1623,7 +1547,9 @@ export function MeetingsList({
                     Shown on every live booking, not only the mismatched ones:
                     a wrong address the CRM also holds looks perfectly fine
                     here, which is the Safe Movers case. */}
-                {canInvite && !cancelled && (
+                {/* Out on the row only when the two addresses disagree, which
+                    is the case worth shouting about; otherwise it is in More. */}
+                {canInvite && emailMismatch && (
                   <button
                     type="button"
                     disabled={busy === m.id}
@@ -1720,83 +1646,206 @@ export function MeetingsList({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-                {showWho && m.callBack && (
+                {/* Everything used now and then, in one menu (2026-09-28):
+                    "theres so many buttons". The row keeps what is done on
+                    most visits: log what happened, call, text, contracts. */}
+                {(() => {
+                  const canMove =
+                    m.attendance !== "showed_up" &&
+                    !(m.kind === "follow_up" && m.logged);
+                  const reschedule =
+                    rescheduleBase && canMove
+                      ? calRescheduleHref(rescheduleBase, m.calBookingUid, theirZone)
+                      : null;
+                  // Moving quietly is for a meeting still ahead or unanswered.
+                  // One already on a founders' call back moves with Change
+                  // time instead, which moves the call back.
+                  const quiet = closes && canMove && !m.callBack;
+                  return (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        disabled={busy === m.id}
+                        className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
+                      >
+                        <MoreHorizontal className="size-3.5" />
+                        More
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="min-w-56">
+                        {(quiet || (showWho && m.callBack) || reschedule) && (
+                          <DropdownMenuLabel>Move it</DropdownMenuLabel>
+                        )}
+                        {quiet && (
+                          <DropdownMenuItem onSelect={() => setMovingQuietly(m)}>
+                            <Clock className="size-3.5" />
+                            <span className="flex flex-col">
+                              Move quietly
+                              <span className="text-[11px] text-muted-foreground">
+                                In the CRM only. Nothing is sent.
+                              </span>
+                            </span>
+                          </DropdownMenuItem>
+                        )}
+                        {showWho && m.callBack && (
+                          <DropdownMenuItem onSelect={() => setPrompt({ m, mode: "move" })}>
+                            <Clock className="size-3.5" />
+                            Change the call back time
+                          </DropdownMenuItem>
+                        )}
+                        {reschedule && (
+                          <DropdownMenuItem asChild>
+                            <a
+                              href={reschedule}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              // A booking made before 11 Sep has no "Best number
+                              // to call you on", and Cal.com asks for one when it
+                              // is moved; a reschedule ignores prefill, so the
+                              // number goes onto the clipboard as the page opens.
+                              // Never when it is blocked.
+                              onClick={() => {
+                                if (m.attendeePhone || !m.dialTo || m.dncBlock) return;
+                                const number = m.dialTo;
+                                void navigator.clipboard
+                                  .writeText(number)
+                                  .then(() =>
+                                    toast.success(`Their number is copied: ${number}`, {
+                                      description:
+                                        "This booking has no phone number on it. Paste it into “Best number to call you on” on Cal.com.",
+                                      duration: 12_000,
+                                    }),
+                                  )
+                                  .catch(() => {});
+                              }}
+                            >
+                              <CalendarClock className="size-3.5" />
+                              <span className="flex flex-col">
+                                Move on Cal.com
+                                <span className="text-[11px] text-muted-foreground">
+                                  Cal.com emails them the new time.
+                                </span>
+                              </span>
+                            </a>
+                          </DropdownMenuItem>
+                        )}
+                        {(quiet || (showWho && m.callBack) || reschedule) && (
+                          <DropdownMenuSeparator />
+                        )}
+                        {m.listId !== null && m.leadId !== null && !m.dncBlock && (
+                          <DropdownMenuItem asChild>
+                            <Link href={`/calls/${m.listId}?view=all&open=0&lead=${m.leadId}`}>
+                              <PhoneCall className="size-3.5" />
+                              Open lead
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        {m.phone &&
+                          (m.dncBlock ? (
+                            <DropdownMenuItem disabled title={m.dncBlock}>
+                              <ShieldAlert className="size-3.5" />
+                              Do not call
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                const number = dialableNumber(m.phone!);
+                                void navigator.clipboard
+                                  .writeText(number)
+                                  .then(() => toast.success(`Copied ${number}`))
+                                  .catch(() =>
+                                    toast.error("Could not copy: select the number and copy it."),
+                                  );
+                              }}
+                            >
+                              <Copy className="size-3.5" />
+                              Copy {m.phone}
+                            </DropdownMenuItem>
+                          ))}
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            void navigator.clipboard
+                              .writeText(FORM_URL)
+                              .then(() => toast.success("Form link copied"))
+                              .catch(() =>
+                                toast.error("Could not copy: select the link and copy it."),
+                              );
+                          }}
+                        >
+                          <FileText className="size-3.5" />
+                          Copy form link
+                        </DropdownMenuItem>
+                        {canInvite && !emailMismatch && (
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              setInviting({ meetingId: m.id, email: "" })
+                            }
+                          >
+                            <Mail className="size-3.5" />
+                            Wrong email? Re-send the invite
+                          </DropdownMenuItem>
+                        )}
+                        {/* Founders only: a one-tap join into a live client
+                            demo, which is no caller's business. */}
+                        {showWho && m.meetingUrl && (
+                          <DropdownMenuItem asChild>
+                            <a href={m.meetingUrl} target="_blank" rel="noreferrer noopener">
+                              <Video className="size-3.5" />
+                              Meet link
+                            </a>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  );
+                })()}
+                {/* The trial is signed but the sale still reads as earlier
+                    (2026-09-25). A contract signed between calls had nowhere
+                    to be logged on this screen: a follow-up's logger waits
+                    for its time, and the demo row's goes once a follow-up is
+                    booked. Writes the same call row the loggers do. */}
+                {closes && m.leadId !== null &&
+                  m.contracts.some((c) => c.kind === "trial" && c.signedAt) &&
+                  !["trial", "won", "lost"].includes(m.leadOutcome ?? "") && (
                   <button
                     type="button"
                     disabled={busy === m.id}
-                    onClick={() => setPrompt({ m, mode: "move" })}
-                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
+                    onClick={() =>
+                      void logFollowUp(m, "trial", "Signed the trial agreement.")
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                   >
-                    <Clock className="size-3.5" />
-                    Change time
+                    <ClipboardCheck className="size-3.5" />
+                    Mark as trial
                   </button>
                 )}
-                {/* Move it, rather than book a second one.
-
-                    Asked for on 2026-09-19 — "sometimes they're not free right
-                    now" — and it was missing for everybody, not only the
-                    founder who noticed. The ring-back logger a few buttons
-                    along has offered "Rebooked — new time agreed" since the
-                    chase call was replaced, with nothing on this screen able to
-                    do the rebooking: the new time had to be agreed on the phone
-                    and then typed into Cal.com from memory, on another tab.
-
-                    Deliberately not a second booking. `rescheduleUid` moves
-                    this one, so the prospect gets Cal.com's own "your meeting
-                    has moved" mail, the reminders re-arm off the new
-                    `start_at`, and the diary keeps one row for one meeting.
-                    "Book a follow-up" above is the other thing and says so.
-
-                    Hidden once they have turned up: a demo that happened is
-                    not moved, it is followed up, and that button is already on
-                    the row. A no show keeps it — that is the rebook. */}
-                {/* Likewise a follow-up that has been logged: it happened,
-                    so the next one is booked, not this one moved. */}
-                {rescheduleBase && m.attendance !== "showed_up" &&
-                  !(m.kind === "follow_up" && m.logged) && (
-                  <a
-                    href={calRescheduleHref(
-                      rescheduleBase,
-                      m.calBookingUid,
-                      // Their clock. A founder reading this in Singapore would
-                      // otherwise be offered a Florida prospect's slots at
-                      // four in the morning — and off `attendeeTz` alone that
-                      // is exactly what happened anyway, since a booking made
-                      // by a caller carries the caller's zone.
-                      theirZone,
-                    )}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    // A booking made before 11 Sep, when the demo became a
-                    // phone call, has no "Best number to call you on", and
-                    // Cal.com asks for one when it is moved. It cannot be
-                    // filled from the link (a reschedule ignores prefill,
-                    // checked on Toro Dumpsters), so the number goes onto the
-                    // clipboard as the page opens, in +1 form so Cal.com picks
-                    // the country from it.
-                    onClick={() => {
-                      // Never onto the clipboard when it is blocked, the rule
-                      // the copy button beside it follows.
-                      if (m.attendeePhone || !m.dialTo || m.dncBlock) return;
-                      const number = m.dialTo;
-                      void navigator.clipboard
-                        .writeText(number)
-                        .then(() =>
-                          toast.success(`Their number is copied: ${number}`, {
-                            description:
-                              "This booking has no phone number on it. Paste it into “Best number to call you on” on Cal.com.",
-                            duration: 12_000,
-                          }),
-                        )
-                        .catch(() => {});
-                    }}
-                    title="Opens Cal.com to pick a new time for this booking. It moves this meeting rather than adding another, and Cal.com tells them."
-                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
-                  >
-                    <CalendarClock className="size-3.5 shrink-0" strokeWidth={2.2} />
-                    Move this {m.kind === "follow_up" ? "call" : "demo"}
-                  </a>
+                {/* Both agreements, drafted before the demo starts. Hidden
+                    entirely where DocuSeal is not configured, in the same
+                    spirit as the push toggle: a dead button on a screen
+                    somebody works from is worse than no button. */}
+                {signingBase && closes && (
+                  <PrepareContracts
+                    meeting={m}
+                    tz={tz}
+                    signingBase={signingBase}
+                    // Same flag the "who booked it" line runs on: an admin.
+                    // Drafting is open to a founder and to the closer a
+                    // meeting was handed to; undoing a draft is founders only,
+                    // since it takes our only pointer to a real document with
+                    // it.
+                    canDiscard={showWho}
+                  />
                 )}
+              </div>
+            )}
+
+            {/* The recordings on a line of their own, under the actions
+                rather than mixed in with them (2026-09-28). */}
+            {(m.recordingId && keep(m.recordingMs)) ||
+            earlierDemo.length > 0 ||
+            ownRecordings.length > 0 ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-[12px] font-semibold text-muted-foreground">
+                  Recordings
+                </span>
                 {/* The same sheet the call log opens: audio, and a transcript
                     whose turns seek it. Made on request in there, not here. */}
                 {/* "Cold call", not "Listen back": this is the call that won
@@ -1877,63 +1926,8 @@ export function MeetingsList({
                     />
                   );
                 })}
-                {/* Founders only, and not for tidiness: this is a one-tap join
-                    into a live client demo. A caller is paid when a booked demo
-                    shows up and the demo itself is deliberately none of their
-                    business — the same reason `procedure-closing-the-demo` is
-                    withheld from them. The failure to avoid is not a caller
-                    reading something they should not; it is one wandering into
-                    a founder's call while a prospect is on the line. */}
-                {showWho && m.meetingUrl && (
-                  <a
-                    href={m.meetingUrl}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
-                  >
-                    <Video className="size-3.5" />
-                    Meet link
-                  </a>
-                )}
-                {/* The trial is signed but the sale still reads as earlier
-                    (2026-09-25). A contract signed between calls had nowhere
-                    to be logged on this screen: a follow-up's logger waits
-                    for its time, and the demo row's goes once a follow-up is
-                    booked. Writes the same call row the loggers do. */}
-                {closes && m.leadId !== null &&
-                  m.contracts.some((c) => c.kind === "trial" && c.signedAt) &&
-                  !["trial", "won", "lost"].includes(m.leadOutcome ?? "") && (
-                  <button
-                    type="button"
-                    disabled={busy === m.id}
-                    onClick={() =>
-                      void logFollowUp(m, "trial", "Signed the trial agreement.")
-                    }
-                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    <ClipboardCheck className="size-3.5" />
-                    Mark as trial
-                  </button>
-                )}
-                {/* Both agreements, drafted before the demo starts. Hidden
-                    entirely where DocuSeal is not configured, in the same
-                    spirit as the push toggle: a dead button on a screen
-                    somebody works from is worse than no button. */}
-                {signingBase && closes && (
-                  <PrepareContracts
-                    meeting={m}
-                    tz={tz}
-                    signingBase={signingBase}
-                    // Same flag the "who booked it" line runs on: an admin.
-                    // Drafting is open to a founder and to the closer a
-                    // meeting was handed to; undoing a draft is founders only,
-                    // since it takes our only pointer to a real document with
-                    // it.
-                    canDiscard={showWho}
-                  />
-                )}
               </div>
-            )}
+            ) : null}
 
             {/* What the demo turned up, before the answer is saved. Deliberately
                 the same box, in the same place, with the same two buttons as the
@@ -2379,6 +2373,18 @@ export function MeetingsList({
             : (prompt.m.callBack?.at ?? prompt.m.startAt)
         }
         onClose={() => setPrompt(null)}
+      />
+    )}
+    {movingQuietly && (
+      <MoveQuietly
+        key={movingQuietly.id}
+        meetingId={movingQuietly.id}
+        name={movingQuietly.company ?? movingQuietly.attendeeName ?? "this meeting"}
+        theirTz={prospectZone(movingQuietly.leadTz, movingQuietly.attendeeTz)}
+        readerTz={tz}
+        startAt={movingQuietly.startAt}
+        calStartAt={movingQuietly.calStartAt}
+        onClose={() => setMovingQuietly(null)}
       />
     )}
     </>
