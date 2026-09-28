@@ -145,6 +145,10 @@ export function PricingCalculator() {
                 <tr className="border-b">
                   <th className="px-2 py-1.5 text-left font-bold">Package</th>
                   <th className="px-2 py-1.5 text-left font-bold">Included</th>
+                  {/* What a minute past the allowance costs, on every row
+                      rather than only the one this volume overruns: it is the
+                      question a prospect asks next ("and if we go over?"). */}
+                  <th className="px-2 py-1.5 text-left font-bold">Extra minutes</th>
                   {/* The included minutes mean nothing to a prospect; the
                       number of calls they cover is the thing they can check
                       against their own week. */}
@@ -186,6 +190,11 @@ export function PricingCalculator() {
                       </td>
                       <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
                         {pkg.minutes === null ? "unlimited" : `${pkg.minutes} min`}
+                      </td>
+                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
+                        {pkg.minutes === null
+                          ? "none, unlimited"
+                          : `$${money(pkg.overageCents)}/min`}
                       </td>
                       <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
                         {pkg.minutes === null ? (
