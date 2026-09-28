@@ -1132,6 +1132,13 @@ const startingSoon = (tz: string) => sql`
     select 1 from call_demo_attendance a
     where a.call_lead_id = m.call_lead_id and ${answersMeeting("a", "m")}
   )
+  -- Nor one taken off Meetings (2026-09-29). Its own subquery rather than
+  -- the f join, since the badge count runs this without the joins.
+  and not exists (
+    select 1 from call_meeting_followup fu
+    where fu.meeting_id = m.id and fu.for_start_at = m.start_at
+      and fu.result = 'cancelled'
+  )
   -- The cast on the parameter is load-bearing. A bare placeholder makes
   -- adding to a date ambiguous -- "operator is not unique: date + unknown"
   -- -- because Postgres cannot tell an integer's worth of days from an
@@ -1209,13 +1216,15 @@ const stillAhead = sql`(
     m.start_at > now()
     -- Unless a founder already answered it early (2026-09-25): a booking
     -- written off as not real drops to the finished rows straight away.
-    and (
-      m.kind = 'follow_up'
-      or not exists (
+    and case
+      -- A follow-up written off as not real, or taken off with the rest of a
+      -- business (2026-09-29), drops the same way.
+      when m.kind = 'follow_up' then f.result is distinct from 'cancelled'
+      else not exists (
         select 1 from call_demo_attendance a
         where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
       )
-    )
+    end
   )
   or (
     m.status = 'accepted'
@@ -1448,7 +1457,16 @@ export async function getMeetings(
               -- work again, at the call back's time.
               or (${hasCallBack(ownerId)})
             )
-            and (m.status = 'accepted' or m.start_at > now())`
+            and (m.status = 'accepted' or m.start_at > now())
+            -- A follow-up written off, or any meeting still ahead on a business
+            -- taken off (2026-09-29: "delete people who are wasting our
+            -- time"), leaves at once rather than sorting lower. A demo already
+            -- held stays until "did they turn up" is answered, since the
+            -- caller is paid on that. All of it is still under Past meetings.
+            and not (
+              f.result is not distinct from 'cancelled'
+              and (m.kind = 'follow_up' or m.start_at > now())
+            )`
     }
       ${ownedBy(ownerId)}
     order by ${

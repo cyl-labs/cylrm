@@ -2195,3 +2195,21 @@ having to mark as no show", then "rn theres so many buttons".
   email, both kinds of move and the Meet link are in **More**. "Wrong email?"
   stays out on the row when the booking's address disagrees with the lead's,
   since that one is a warning. Recordings sit on their own line underneath.
+
+## Not a real booking on a follow-up, and Remove from Meetings (2026-09-29)
+
+"why cant i mark him as not a real booking?" (a follow-up, which has no
+attendance question) and "just add a option to delete people who are wasting
+our time". `POST /api/meetings/[id]/drop`. Nothing is deleted and nothing is
+sent to the prospect.
+
+- **Not a real booking** (the follow-up's logger, and More before it starts)
+  writes a `cancelled` row in `call_meeting_followup` against its current time.
+- **Remove from Meetings** (More, every card) logs the sale as **lost** through
+  `/api/calls`, writes that cancelled row on every meeting of the business
+  (which clears a no-show's ring back) and closes any open founders' call back.
+  It never answers "did they turn up": a demo already held stays until that is
+  answered, because the caller is paid on it.
+- A cancelled row takes a follow-up, or any meeting still ahead, off the list
+  at once, out of the badge (`startingSoon`) and out of the reminders and
+  digests (`notAnsweredYet`). All of it stays under Past meetings.

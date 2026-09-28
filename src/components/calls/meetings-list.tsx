@@ -24,6 +24,7 @@ import {
   PhoneForwarded,
   PhoneOutgoing,
   ShieldAlert,
+  UserX,
   Video,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -630,6 +631,55 @@ export function MeetingsList({
       router.refresh();
     } catch {
       toast.error("Could not log that. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Write off a follow-up as not a real booking, or take a whole business off
+   * Meetings (2026-09-29: "delete people who are wasting our time"). Nothing
+   * is deleted and nothing is sent: follow-ups are closed with a cancelled
+   * ring-back row, and "everything" also logs the sale as lost through
+   * `/api/calls`, which is what stops a demo row asking to be followed up.
+   */
+  async function drop(meeting: Meeting, everything: boolean) {
+    const who = meeting.company ?? meeting.attendeeName ?? "this meeting";
+    const ask = everything
+      ? `Take ${who} off Meetings? This marks the sale as lost and closes every follow-up booked for them. Nothing is sent to them, and their calls and recordings are kept.`
+      : `Mark this follow-up with ${who} as not a real booking? It comes off your list. Nothing is sent to them.`;
+    if (!window.confirm(ask)) return;
+    setBusy(meeting.id);
+    try {
+      if (everything && meeting.leadId !== null && meeting.leadOutcome !== "lost") {
+        const lost = await fetch("/api/calls", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            callLeadId: meeting.leadId,
+            outcome: "lost",
+            notes: "Taken off Meetings: not worth following up.",
+          }),
+        });
+        if (!lost.ok) throw new Error(String(lost.status));
+      }
+      const res = await fetch(`/api/meetings/${meeting.id}/drop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ everything }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not take that off. Try again.");
+        return;
+      }
+      toast.success(
+        everything ? `${who} is off Meetings, marked as lost` : `Not a real booking: ${who}`,
+        { description: "Still under Past meetings if you need it." },
+      );
+      router.refresh();
+    } catch {
+      toast.error("Could not take that off. Try again.");
     } finally {
       setBusy(null);
     }
@@ -1409,6 +1459,10 @@ export function MeetingsList({
                           {OUTCOME_LABELS[o]}
                         </DropdownMenuItem>
                       ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => void drop(m, false)}>
+                        Not a real booking
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
@@ -1796,6 +1850,31 @@ export function MeetingsList({
                               Meet link
                             </a>
                           </DropdownMenuItem>
+                        )}
+                        {closes && (
+                          <>
+                            <DropdownMenuSeparator />
+                            {m.kind === "follow_up" && !hasStarted && (
+                              <DropdownMenuItem onSelect={() => void drop(m, false)}>
+                                <CalendarX2 className="size-3.5" />
+                                Not a real booking
+                              </DropdownMenuItem>
+                            )}
+                            {m.leadId !== null && (
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={() => void drop(m, true)}
+                              >
+                                <UserX className="size-3.5" />
+                                <span className="flex flex-col">
+                                  Remove from Meetings
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Wasting our time. Marks the sale lost.
+                                  </span>
+                                </span>
+                              </DropdownMenuItem>
+                            )}
+                          </>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>

@@ -38,10 +38,16 @@ export const answersMeeting = (a: string, m: string) => sql.raw(answers(a, m));
  * `m` has not been answered ahead of time. For the reminders and digests,
  * which only look at meetings still to come — so the only answer that can
  * apply is an early one, and a booking a founder wrote off as not real should
- * stop announcing itself (2026-09-25).
+ * stop announcing itself (2026-09-25). A follow-up written off the same way
+ * (a cancelled row against its current time, 2026-09-29) stops too.
  */
 export const notAnsweredYet = (m: string) =>
   sql.raw(`not exists (
     select 1 from call_demo_attendance a
     where a.call_lead_id = ${m}.call_lead_id and ${answers("a", m)}
+  )
+  and not exists (
+    select 1 from call_meeting_followup fu
+    where fu.meeting_id = ${m}.id and fu.for_start_at = ${m}.start_at
+      and fu.result = 'cancelled'
   )`);
