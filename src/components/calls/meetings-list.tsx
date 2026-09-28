@@ -810,7 +810,7 @@ export function MeetingsList({
         />
         Hide calls under a minute (voicemails and dropped calls)
         <span className="tabular-nums">
-          {hideShort ? `, ${shortCount} hidden` : `, ${shortCount} showing`}
+          {hideShort ? `(${shortCount} hidden)` : `(${shortCount} showing)`}
         </span>
       </label>
     )}
@@ -1657,10 +1657,14 @@ export function MeetingsList({
                     rescheduleBase && canMove
                       ? calRescheduleHref(rescheduleBase, m.calBookingUid, theirZone)
                       : null;
-                  // Moving quietly is for a meeting still ahead or unanswered.
-                  // One already on a founders' call back moves with Change
-                  // time instead, which moves the call back.
-                  const quiet = closes && canMove && !m.callBack;
+                  // Moving quietly tells nobody anything, so it is offered on a
+                  // follow-up even once a call is logged on it (2026-09-28: a
+                  // one-minute call had hidden it on 1 Tree Zone). Not on a
+                  // demo they turned up to: that happened, and moving it would
+                  // ask "did they turn up" again. One on a founders' call back
+                  // moves with Change the call back time instead.
+                  const quiet =
+                    closes && m.attendance !== "showed_up" && !m.callBack;
                   return (
                     <DropdownMenu>
                       <DropdownMenuTrigger
