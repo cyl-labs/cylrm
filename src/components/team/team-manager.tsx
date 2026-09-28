@@ -5,6 +5,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ChevronDown,
   Handshake,
   KeyRound,
   Pencil,
@@ -152,6 +153,49 @@ function LeadTotal({
         <span className="block">rings {Math.round(perDay)} new a day</span>
       ) : null}
     </p>
+  );
+}
+
+/**
+ * A caller's lists, the first few open and the rest behind a button
+ * (2026-09-28). Somebody holding a dozen lists made their row a screen and a
+ * half tall, and every other person sat below it. The lists arrive sorted by
+ * most left to call, so the ones kept open are the ones they are working
+ * through; the button says how many new leads are folded away, so closing it
+ * never hides that a caller has plenty. Folding a single list saves nothing,
+ * so a fold only appears when it hides two or more.
+ */
+const LISTS_SHOWN = 3;
+
+function ListFold({
+  lists,
+  render,
+}: {
+  lists: TeamList[];
+  render: (l: TeamList) => React.ReactNode;
+}) {
+  const [open, setOpen] = React.useState(false);
+  if (lists.length <= LISTS_SHOWN + 1) return <>{lists.map(render)}</>;
+  const hidden = lists.slice(LISTS_SHOWN);
+  const hiddenNew = hidden.reduce((n, l) => n + l.uncalled, 0);
+  return (
+    <>
+      {(open ? lists : lists.slice(0, LISTS_SHOWN)).map(render)}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex items-center gap-1 self-start rounded-md px-1 py-0.5 text-[12px] font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+      >
+        <ChevronDown
+          aria-hidden
+          className={cn("size-3.5 transition-transform", open && "rotate-180")}
+        />
+        {open
+          ? `Show only the first ${LISTS_SHOWN}`
+          : `Show ${hidden.length} more lists (${hiddenNew.toLocaleString("en-US")} never rung)`}
+      </button>
+    </>
   );
 }
 
@@ -595,7 +639,7 @@ export function TeamManager({
                       >
                       {listsOf(m.id).length > 0 ? (
                         <div className="flex min-w-52 max-w-72 flex-col gap-1.5">
-                          {listsOf(m.id).map((l) => {
+                          <ListFold lists={listsOf(m.id)} render={(l) => {
                             const pct = Math.round(l.fraction * 100);
                             return (
                               <MovableList
@@ -655,7 +699,7 @@ export function TeamManager({
                               </Link>
                               </MovableList>
                             );
-                          })}
+                          }} />
                           {/* The total, under the lists it adds up. Asked for
                               after somebody handed a caller two lists and read
                               the warning as unchanged: the per-list numbers
