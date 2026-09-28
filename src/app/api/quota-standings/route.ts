@@ -17,7 +17,10 @@ import { getQuotaStandings } from "@/lib/quota-digest";
  * split in two to prevent, and a route that skipped the check would undo that
  * split without touching the screen.
  */
-export async function GET() {
+/** How far back the week picker on the Scoreboard reaches. */
+const MAX_WEEKS_BACK = 12;
+
+export async function GET(request: Request) {
   const me = await getCurrentUser();
   if (!me) return Response.json({ error: "Unauthorized" }, { status: 401 });
   if (me.role !== "admin") {
@@ -27,5 +30,11 @@ export async function GET() {
     );
   }
 
-  return Response.json(await getQuotaStandings());
+  // `?back=1` is last week. Clamped rather than refused: a bad number in the
+  // address should show a real week, not an error.
+  const raw = Number(new URL(request.url).searchParams.get("back") ?? 0);
+  const back = Number.isInteger(raw)
+    ? Math.min(Math.max(raw, 0), MAX_WEEKS_BACK)
+    : 0;
+  return Response.json(await getQuotaStandings(back));
 }

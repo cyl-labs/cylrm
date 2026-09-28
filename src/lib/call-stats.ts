@@ -122,7 +122,10 @@ export async function quotaWeekStart(now = new Date()): Promise<{
   // Step back a day at a time from today in Eastern until the weekday matches
   // and the hour has passed. Eight tries covers the case where today *is*
   // payday but the hour has not come round yet, which belongs to last week.
-  const today = todayInStatsTz(STATS_TZ);
+  // Today as of `now`, not as of the clock: stepping back to an earlier week
+  // (`quotaWeekBack`) hands in an instant inside that week, and reading the
+  // real today here would return this week every time.
+  const today = now.toLocaleDateString("en-CA", { timeZone: STATS_TZ });
   for (let back = 0; back <= 7; back += 1) {
     const d = new Date(`${today}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() - back);
@@ -139,6 +142,30 @@ export async function quotaWeekStart(now = new Date()): Promise<{
   // rather than counting nothing.
   const weekStart = payWeekStart();
   return { at: new Date(`${weekStart}T00:00:00Z`), weekStart };
+}
+
+/**
+ * The quota week `back` weeks before this one: 0 is this week, 1 last week.
+ * `end` is when it finished, null for the week still running.
+ *
+ * Found by stepping back one week start at a time rather than subtracting
+ * seven days, since a week that spans a daylight-saving change is 167 or 169
+ * hours long. Past weeks are cut on today's payday setting: if payday moves,
+ * the old weeks are re-cut with it, which is what a founder comparing them
+ * would expect to see.
+ */
+export async function quotaWeekBack(back: number): Promise<{
+  at: Date;
+  end: Date | null;
+  weekStart: string;
+}> {
+  let week = await quotaWeekStart();
+  let end: Date | null = null;
+  for (let i = 0; i < back; i += 1) {
+    end = week.at;
+    week = await quotaWeekStart(new Date(week.at.getTime() - 1));
+  }
+  return { ...week, end };
 }
 
 export type WeekProgress = {

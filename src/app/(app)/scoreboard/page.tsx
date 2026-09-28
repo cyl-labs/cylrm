@@ -17,6 +17,9 @@ import { TimezonePicker } from "@/components/calls/timezone-picker";
 import { screenRegion } from "@/lib/screen-zone";
 import { statsRegionOf } from "@/lib/users";
 import { cn } from "@/lib/utils";
+import { getQuotaSchedule } from "@/lib/quota-digest";
+import { QuotaStandings } from "@/components/calls/quota-standings";
+import { ReminderScheduleCard } from "@/components/calls/reminder-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -235,13 +238,17 @@ export default async function ScoreboardPage({
   const zone = statsZone(region);
 
   const today = todayInStatsTz(zone.tz);
-  const [all, team] = await Promise.all([
+  // The quota card is founders only, as it was on Stats: the route behind it
+  // refuses anybody else, so a caller is never shown a card that cannot load.
+  const founder = me?.role === "admin";
+  const [all, team, quotaSchedule] = await Promise.all([
     getPersonStats(
       custom
         ? { kind: "between", from: custom.from, to: custom.to, tz: zone.tz }
         : windowFor(range, day, zone.tz),
     ),
     listTeam(),
+    founder ? getQuotaSchedule() : Promise.resolve(null),
   ]);
 
   // Founders are not on the board. They are not doing this job, their history
@@ -441,6 +448,34 @@ export default async function ScoreboardPage({
               </table>
           </div>
         </div>
+        )}
+
+        {/* Moved here from Stats on 2026-09-28, with a week picker so last
+            week can be read as well as this one. Its own week, the pay week,
+            whatever range is picked at the top; the card says so. */}
+        {founder && (
+          <div id="quota" className="scroll-mt-4 overflow-hidden rounded-xl border bg-card">
+            <QuotaStandings />
+            {/* When to be told about all this. On the card it reports on, for
+                the reason the payday reminder sits at the foot of Payroll. */}
+            {quotaSchedule && (
+              <div className="border-t">
+                <ReminderScheduleCard
+                  which="quota"
+                  initial={quotaSchedule}
+                  carries="with who is under the quota"
+                  caveat={
+                    <>
+                      At Friday 5pm Singapore it is Friday 5am in New York, so
+                      the US floor has not worked that day yet. Move it to
+                      Saturday morning for the finished week.
+                    </>
+                  }
+                  offNote="Switched off, so nothing will tell you who missed. The standings above are still here on the Scoreboard."
+                />
+              </div>
+            )}
+          </div>
         )}
       </div>
     </PageShell>

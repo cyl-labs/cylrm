@@ -88,3 +88,27 @@ first week with "(new)".
 - The push body tags only `startedThisWeek`, and only with "(new)": it is
   truncated near a hundred characters and already caps at `NAMES_IN_BODY`, so
   six characters have to earn their place.
+
+## The standings moved to the Scoreboard, with past weeks (2026-09-28)
+
+The "This week against quota" card and its Friday reminder setting left Stats
+for the foot of the Scoreboard (`#quota`), founders only as before, and gained
+a week picker: this week, last week, and up to twelve back.
+
+- **Why.** Stats' range dropdown never applied to the card, so the only week
+  anybody could read was the one still running, and "did they hit it last
+  week" had no answer on any screen. The founders asked for it on the
+  Scoreboard, which is where the floor's numbers are read.
+- **`quotaWeekBack(n)`** in `call-stats.ts` steps back one week start at a
+  time rather than subtracting seven days, because a week across a DST change
+  is not 168 hours. It needed `quotaWeekStart(now)` to actually read `now`: it
+  took the argument and ignored it, reading today off the clock.
+- **Past weeks are cut on today's payday setting.** Move payday and the old
+  weeks move with it.
+- **A finished week's roster adds anybody who rang in it**, switched off or
+  without lists since, and drops anybody who joined after it ended. The current
+  week keeps the digest's roster exactly, since the Friday push reads it.
+  The "days on the team" notes are as of the week's end.
+- **It loads by itself** now rather than behind a button: since 2026-09-22 it
+  is one grouped count, not a query per caller.
+- The Friday push opens `/scoreboard#quota`.

@@ -11,7 +11,6 @@ import {
   todayInStatsTz,
   monthInStatsTz,
   monthOf,
-  quotaWeekStart,
   isStatsMonth,
   isNonOutcomeLogFilter,
   statsZone,
@@ -20,14 +19,7 @@ import {
   type LogFilterValue,
   type PersonStat,
 } from "@/lib/call-stats";
-import { DEFAULT_STATS_REGION, STATS_TZ } from "@/lib/stats-zones";
-// The same standings the Friday notification sends, so the screen and the
-// push cannot disagree about who is behind. Fetched by the card when a founder
-// asks for them, never with the page — see `QuotaStandings`.
-import { getQuotaSchedule } from "@/lib/quota-digest";
-import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
-import { QuotaStandings } from "@/components/calls/quota-standings";
-import { ReminderScheduleCard } from "@/components/calls/reminder-schedule";
+import { DEFAULT_STATS_REGION } from "@/lib/stats-zones";
 import { CallCalendar } from "@/components/calls/call-calendar";
 import { ListStatsRows } from "@/components/calls/list-stats-rows";
 import { TimezonePicker } from "@/components/calls/timezone-picker";
@@ -241,7 +233,7 @@ export default async function CallStatsPage({
     (l) => l.total - l.uncalled > 0 || l.id === listId,
   );
 
-  const [totals, outcomes, lists, monthDays, people, log, weekStarted, quotaSchedule, meetingStats] =
+  const [totals, outcomes, lists, monthDays, people, log, meetingStats] =
     await Promise.all([
     getCallTotals(w, listId, personId, await hoursAckOf(me?.id)),
     getOutcomeCounts(w, listId, personId),
@@ -254,30 +246,10 @@ export default async function CallStatsPage({
     // row saying what the tiles above it already say.
     mine ? Promise.resolve<PersonStat[]>([]) : getPersonStats(w, listId, personId),
     getCallLog(w, listId, personId, outcome),
-    // When the quota week reset, for the line above the standings card. Only
-    // the instant, which is one cheap read of `app_setting` — the standings
-    // themselves are a button, since working them out was six of the seven
-    // seconds this page used to take.
-    mine ? Promise.resolve(null) : quotaWeekStart(),
-    // When the digest goes out, so the card can offer to move it. Founders
-    // only, like the standings it sits under.
-    mine ? Promise.resolve(null) : getQuotaSchedule(),
     // Who booked the demo, for `personId` — their own bookings on a caller's
     // screen. See `getMeetingStats`.
     getMeetingStats(w, listId, personId),
   ]);
-
-  // When the quota week reset, worded the way the strip under the header words
-  // it — Eastern, because that is the clock the week is cut in, not the
-  // reader's, which would name an hour the reset does not happen at.
-  const quotaSince = weekStarted
-    ? new Intl.DateTimeFormat("en-US", {
-        timeZone: STATS_TZ,
-        weekday: "short",
-        hour: "numeric",
-        timeZoneName: "short",
-      }).format(weekStarted.at)
-    : "";
 
   // Every row in the screen's own zone, and never the reader's browser zone,
   // which would render one string on the server and another on hydration.
@@ -668,16 +640,8 @@ export default async function CallStatsPage({
           </div>
         )}
 
-        {/* The floor against the quota, and the in-app answer to the Friday
-            notification: a push that is missed or dismissed leaves nothing
-            behind, so the same standings have to be readable on a screen.
-            Founders only — a caller seeing everyone else's numbers is what
-            this page is split in two to prevent.
-
-            The card is always here for a founder now; the numbers inside it
-            are fetched when asked for. It used to render only when there were
-            standings to show, which meant working them out first — and that
-            was six of the seven seconds this page took. */}
+        {/* "This week against quota" moved to the Scoreboard on
+            2026-09-28, with a week picker. */}
         {/* The meetings in the same window (2026-09-25): what happened at
             each demo and what came after. Here rather than on Meetings, which
             is a queue; that screen links here. */}
@@ -694,47 +658,6 @@ export default async function CallStatsPage({
             })}#meetings`
           }
         />
-
-        {!mine && (
-          <div className={CARD}>
-            <div className="border-b border-border/60 px-5 py-3.5">
-              <p className="text-sm font-extrabold tracking-[-0.01em]">
-                This week against quota
-              </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground/75">
-                Calls against {WEEKLY_CALL_QUOTA} since the week reset on{" "}
-                {quotaSince}, worst first. This is the pay week and does not
-                follow the dates above. It is the same count the Friday
-                notification sends. Anyone under a month on the team shows how
-                long they have been here; no note means they have had the
-                whole week.
-              </p>
-            </div>
-            <QuotaStandings />
-            {/* When to be told about all this. It sits on the card it reports
-                on rather than in a settings screen, for the reason the payday
-                reminder sits at the foot of Payroll: the moment you wonder
-                when you get told is the moment you are looking at the thing
-                being told about. */}
-            {quotaSchedule && (
-              <div className="border-t border-border/60">
-                <ReminderScheduleCard
-                  which="quota"
-                  initial={quotaSchedule}
-                  carries="with who is under the quota"
-                  caveat={
-                    <>
-                      At Friday 5pm Singapore it is Friday 5am in New York, so
-                      the US floor has not worked that day yet. Move it to
-                      Saturday morning for the finished week.
-                    </>
-                  }
-                  offNote="Switched off, so nothing will tell you who missed. The standings above are still here whenever you open Stats."
-                />
-              </div>
-            )}
-          </div>
-        )}
 
         <div className={CARD}>
           <div className="border-b border-border/60 px-5 py-3.5">

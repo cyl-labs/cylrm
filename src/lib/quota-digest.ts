@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appSetting } from "@/db/schema";
 import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
-import { quotaWeekStart } from "@/lib/call-stats";
+import { quotaWeekBack } from "@/lib/call-stats";
 import { STATS_TZ, statsZone } from "@/lib/stats-zones";
 import { pushConfigured, pushToUser } from "@/lib/push";
 
@@ -154,8 +154,10 @@ export type QuotaStanding = {
  * somebody change how much work is owed by changing a filter. The card says
  * so, or the numbers look broken when the range changes and this does not.
  */
-export async function getQuotaStandings(): Promise<{
+export async function getQuotaStandings(back = 0): Promise<{
   weekStart: string;
+  /** When that week ended, or null for the week still running. */
+  until: string | null;
   /** The instant the week began, so a screen can name the reset rather than
    *  guessing at it. The card said "since Monday" for a day after the week
    *  moved to payday on 2026-09-18, which is a label disagreeing with its own
@@ -165,7 +167,10 @@ export async function getQuotaStandings(): Promise<{
 }> {
   // The same week the caller's own bar counts: from the last payday, not from
   // a Monday. Two definitions would put two numbers in front of one person.
-  const { at: weekStartedAt, weekStart } = await quotaWeekStart();
+  // `back` picks an earlier week for the card on the Scoreboard; the digest
+  // always asks for this one.
+  const { at: weekStartedAt, end, weekStart } = await quotaWeekBack(back);
+  const endIso = end?.toISOString() ?? null;
 
   // **Only callers who could actually have rung somebody**, which takes two
   // conditions and not one. A niche to work, and a way to dial it: a number of
@@ -185,18 +190,35 @@ export async function getQuotaStandings(): Promise<{
   // people working hardest the day this was built had been added within the
   // week, one of them a third of the way to quota already. So it excludes only
   // the pairing of both: new *and* never once dialled.
+  //
+  // A finished week adds anybody who rang during it, switched off or not
+  // since: somebody who left last Tuesday still made last week's calls, and
+  // leaving them out would make the week look emptier than it was. Nobody
+  // who joined after it ended can be in it.
+  const current = sql`
+    u.active
+    and (u.telnyx_did is not null or u.dial_method = 'handset')
+    and exists (
+      select 1 from call_list cl where cl.assigned_user_id = u.id
+    )
+    and not (
+      (u.created_at at time zone ${STATS_TZ})::date >= ${weekStart}::date
+      and not exists (select 1 from call c where c.user_id = u.id)
+    )`;
   const callers = (await db.execute(sql`
     select u.id, u.name, u.created_at
     from app_user u
-    where u.role in ('caller', 'closer') and u.active
-      and (u.telnyx_did is not null or u.dial_method = 'handset')
-      and exists (
-        select 1 from call_list cl where cl.assigned_user_id = u.id
-      )
-      and not (
-        (u.created_at at time zone ${STATS_TZ})::date >= ${weekStart}::date
-        and not exists (select 1 from call c where c.user_id = u.id)
-      )
+    where u.role in ('caller', 'closer')
+      and ${
+        endIso === null
+          ? current
+          : sql`u.created_at < ${endIso}::timestamptz and ((${current}) or exists (
+              select 1 from call c
+              where c.user_id = u.id
+                and c.called_at >= ${weekStartedAt.toISOString()}::timestamptz
+                and c.called_at < ${endIso}::timestamptz
+            ))`
+      }
     order by u.name
   `)) as Row[];
 
@@ -226,6 +248,7 @@ export async function getQuotaStandings(): Promise<{
     from call c
     join call_lead l on l.id = c.call_lead_id
     where c.called_at >= ${weekStartedAt.toISOString()}::timestamptz
+      ${endIso === null ? sql`` : sql`and c.called_at < ${endIso}::timestamptz`}
       and c.user_id is not null
     group by c.user_id
   `)) as Row[];
@@ -238,7 +261,9 @@ export async function getQuotaStandings(): Promise<{
   // Whole days, floored, off the instant rather than the calendar: "joined
   // yesterday evening" is one day on the team, not two, whichever side of
   // midnight the two timestamps fall.
-  const nowMs = Date.now();
+  // For a finished week, "now" is the moment it ended: the notes under each
+  // name describe that person as they were that week.
+  const nowMs = end ? end.getTime() : Date.now();
   // The instant the week began, not its date: `weekStart` is that day in
   // Eastern, and reading it as UTC midnight would put this up to a day out —
   // the week actually starts at the payday hour on it (Friday 9 PM EDT).
@@ -265,7 +290,12 @@ export async function getQuotaStandings(): Promise<{
   }
   // Worst first: the top of this list is the only part anybody needs to act on.
   standings.sort((a, b) => a.calls - b.calls);
-  return { weekStart, since: weekStartedAt.toISOString(), standings };
+  return {
+    weekStart,
+    since: weekStartedAt.toISOString(),
+    until: endIso,
+    standings,
+  };
 }
 
 export async function sendQuotaDigest(
@@ -364,10 +394,10 @@ export async function sendQuotaDigest(
       (await pushToUser(id, {
         title,
         body,
-        // Stats rather than the Scoreboard: it opens on the last seven days
-        // and carries the By-person table, where the Scoreboard opens on today
-        // and would answer a question about the week with one shift's numbers.
-        url: "/call-stats",
+        // Straight to the standings card, which moved from Stats to the
+        // Scoreboard on 2026-09-28 and opens on this week, the week this
+        // notification counted.
+        url: "/scoreboard#quota",
         // Its own tag, so a quota digest never replaces an unread meeting
         // reminder — those are the expensive ones to lose.
         tag: "cylrm-quota",
