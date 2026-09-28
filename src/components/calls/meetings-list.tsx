@@ -185,6 +185,52 @@ function useNow(intervalMs = 30_000) {
   );
 }
 
+/**
+ * Hide recordings under a minute on the meeting rows (2026-09-28): voicemails,
+ * rings nobody answered and calls that dropped straight away, which sat on a
+ * row as "Follow-up call 3 0:18" beside the one conversation worth hearing.
+ * On by default, remembered per browser, and switched off in one tap for the
+ * day somebody needs to prove a voicemail was left.
+ */
+const SHORT_CALL_MS = 60_000;
+const HIDE_SHORT_KEY = "cylrm-hide-short-calls";
+const HIDE_SHORT_EVENT = "cylrm-hide-short-calls";
+
+function readHideShort(): boolean {
+  try {
+    return localStorage.getItem(HIDE_SHORT_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function useHideShortCalls(): [boolean, (v: boolean) => void] {
+  const hide = React.useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener("storage", onChange);
+      window.addEventListener(HIDE_SHORT_EVENT, onChange);
+      return () => {
+        window.removeEventListener("storage", onChange);
+        window.removeEventListener(HIDE_SHORT_EVENT, onChange);
+      };
+    },
+    readHideShort,
+    // The default on the server, so the HTML matches a browser that never
+    // changed it.
+    () => true,
+  );
+  const set = React.useCallback((v: boolean) => {
+    try {
+      localStorage.setItem(HIDE_SHORT_KEY, v ? "1" : "0");
+    } catch {}
+    window.dispatchEvent(new Event(HIDE_SHORT_EVENT));
+  }, []);
+  return [hide, set];
+}
+
+/** A recording with no length is kept: not knowing is not the same as short. */
+const isShort = (ms: number | null) => ms !== null && ms < SHORT_CALL_MS;
+
 function when(iso: string, now: number | null) {
   const mins = Math.round((new Date(iso).getTime() - (now ?? Date.now())) / 60000);
   if (mins <= 0) {
@@ -393,6 +439,17 @@ export function MeetingsList({
   // the button for saying what happened was still absent — the screen said
   // the demo was under way and offered no way to record it.
   const now = useNow();
+  const [hideShort, setHideShort] = useHideShortCalls();
+  // How many a row would lose, for the switch's label. Counted over every
+  // recording a row can show, so the number matches what disappears.
+  const shortCount = meetings.reduce(
+    (n, m) =>
+      n +
+      (m.recordingId && isShort(m.recordingMs) ? 1 : 0) +
+      m.earlierDemoRecordings.filter((r) => isShort(r.durationMs)).length +
+      m.demoRecordings.filter((r) => isShort(r.durationMs)).length,
+    0,
+  );
   const [busy, setBusy] = React.useState<number | null>(null);
   /**
    * A text being written. Under the row rather than in a dialog, for the reason
@@ -812,8 +869,30 @@ export function MeetingsList({
 
   return (
     <>
+    {/* Only when there is something to hide, so the switch never sits over a
+        list it cannot change. */}
+    {shortCount > 0 && (
+      <label className="flex w-fit cursor-pointer items-center gap-2 text-[13px] text-muted-foreground">
+        <input
+          type="checkbox"
+          className="size-4 accent-primary"
+          checked={hideShort}
+          onChange={(e) => setHideShort(e.target.checked)}
+        />
+        Hide calls under a minute (voicemails and dropped calls)
+        <span className="tabular-nums">
+          {hideShort ? `, ${shortCount} hidden` : `, ${shortCount} showing`}
+        </span>
+      </label>
+    )}
     <ul className="flex flex-col gap-2">
       {meetings.map((m) => {
+        // The recordings this row shows, short ones dropped when the switch
+        // above says so, and numbered after dropping so the labels still
+        // count 1, 2, 3.
+        const keep = (ms: number | null) => !hideShort || !isShort(ms);
+        const earlierDemo = m.earlierDemoRecordings.filter((r) => keep(r.durationMs));
+        const ownRecordings = m.demoRecordings.filter((r) => keep(r.durationMs));
         const cancelled = m.status === "cancelled";
         // The server's answer until the clock above has ticked once, then the
         // live one. `m.started` was worked out when the page rendered, which
@@ -1727,7 +1806,7 @@ export function MeetingsList({
                     recorded, because two unlabelled play buttons on one row
                     would leave a founder guessing which call they were about
                     to hear. */}
-                {m.recordingId && (
+                {m.recordingId && keep(m.recordingMs) && (
                   <LogRecording
                     recordingId={m.recordingId}
                     recordingMs={m.recordingMs}
@@ -1763,7 +1842,7 @@ export function MeetingsList({
                 {/* On a follow-up, the demo it follows (2026-09-25): that
                     row has left the screen, and this is the call worth hearing
                     again before ringing them. Before this row's own call. */}
-                {m.earlierDemoRecordings.map((rec, i) => (
+                {earlierDemo.map((rec, i) => (
                   <LogRecording
                     key={rec.recordingId}
                     recordingId={rec.recordingId}
@@ -1778,7 +1857,7 @@ export function MeetingsList({
                     label={i === 0 ? "Demo call" : `Demo call ${i + 1}`}
                   />
                 ))}
-                {m.demoRecordings.map((rec, i) => {
+                {ownRecordings.map((rec, i) => {
                   // This meeting's own call: the demo on a demo, and on a
                   // follow-up the follow-up call, which is not a demo.
                   const name = m.kind === "follow_up" ? "Follow-up call" : "Demo call";
