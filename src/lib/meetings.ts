@@ -679,15 +679,25 @@ const NO_SHOW_RING_DAYS = 7;
  * on offering the 25-second voicemail from the slot itself. "Make the demo
  * call the longest conversation from when I call them from meetings."
  *
- * So the window runs from half an hour before the slot — Telnyx starts
- * recording as the call connects, which measured 79 seconds early on one live
- * demo — until **the next booking for the same lead**, or now if there is not
- * one. That upper bound is load-bearing rather than tidy: a no-show is
+ * So the window runs from twelve hours before the slot until twelve hours
+ * before **the next booking for the same lead**, or now if there is not one:
+ * any call on the day of a meeting is that meeting's call.
+ *
+ * It opened half an hour before the slot (Telnyx starts recording as the call
+ * connects, which measured 79 seconds early on one live demo) until
+ * 2026-09-28, when a founder rang Grabbin Ya Junk an hour before a follow-up
+ * and talked for three minutes: the call belonged to no meeting, so the row
+ * showed nothing for it. Prospects take the call early when they are free,
+ * and the founders ring early to catch them ("if i wanna call them early i
+ * will"). Twelve hours, on every rule that
+ * asks "was this the meeting's call": the recordings here, the follow-up's
+ * "logged" test (and its copy in `meeting-stats.ts`), and who may play a demo
+ * recording (`recordings.ts`). That upper bound is load-bearing rather than tidy: a no-show is
  * routinely rebooked from its own row ("put a new time in while you have
  * them"), and without it the old meeting would show the new meeting's call.
  *
- * The cold call that won the booking is always earlier than the lower bound,
- * so it can never be mistaken for the demo.
+ * The cold call that won the booking is kept out by name: the window never
+ * opens before that call's row, which is written as it ends.
  *
  * Longest rather than earliest, unchanged: a slot can hold a failed first
  * attempt of a few seconds, and the conversation is the one worth hearing.
@@ -701,10 +711,16 @@ const NO_SHOW_RING_DAYS = 7;
  */
 const DEMO_RECORDING_WHERE = sql`
   cr.to_number in ('+' || l.phone_key, m.attendee_phone)
-  and cr.started_at >= m.start_at - interval '30 minutes'
+  -- Never before the call that booked it (its row is written as the call
+  -- ends, after the recording started), or a demo booked the same day
+  -- would offer the cold call as the demo.
+  and cr.started_at >= greatest(
+    m.start_at - interval '12 hours',
+    coalesce((select bk.called_at from "call" bk where bk.id = m.call_id), '-infinity')
+  )
   and cr.started_at < coalesce(
     (
-      select min(m2.start_at) from call_meeting m2
+      select min(m2.start_at) - interval '12 hours' from call_meeting m2
       where m2.call_lead_id = m.call_lead_id
         and m2.id <> m.id
         and m2.status = 'accepted'
@@ -884,7 +900,7 @@ const meetingSelect = sql`
   ) as demo_recordings,
   -- Whether somebody has said what came of it (2026-09-25). A demo is logged
   -- by its attendance answer (read above); a follow-up has none, so it counts
-  -- as logged once a call is logged on the business from half an hour before
+  -- as logged once a call is logged on the business from twelve hours before
   -- its start, or a ring-back result is logged against its current time.
   (
     m.kind = 'follow_up' and (
@@ -892,7 +908,8 @@ const meetingSelect = sql`
       or exists (
         select 1 from "call" fc
         where fc.call_lead_id = m.call_lead_id
-          and fc.called_at >= m.start_at - interval '30 minutes'
+          and fc.called_at >= m.start_at - interval '12 hours'
+          and fc.id is distinct from m.call_id
       )
     )
   ) as follow_up_logged,
@@ -913,7 +930,7 @@ const meetingSelect = sql`
   -- screen once the follow-up is booked, so the call a founder most wants to
   -- hear again before ringing was reachable only from Past meetings. Found the
   -- way demo_recordings is: the lead's latest earlier demo, its numbers, from
-  -- half an hour before it until this follow-up's own window opens.
+  -- twelve hours before it until this follow-up's own window opens.
   case when m.kind = 'follow_up' then (
     select coalesce(
       json_agg(
@@ -927,7 +944,7 @@ const meetingSelect = sql`
     )
     from call_recording cr
     join lateral (
-      select pd.start_at, pd.attendee_phone from call_meeting pd
+      select pd.start_at, pd.attendee_phone, pd.call_id from call_meeting pd
       where pd.call_lead_id = m.call_lead_id
         and pd.kind = 'demo'
         and pd.status = 'accepted'
@@ -936,8 +953,11 @@ const meetingSelect = sql`
       limit 1
     ) pd on true
     where cr.to_number in ('+' || l.phone_key, pd.attendee_phone)
-      and cr.started_at >= pd.start_at - interval '30 minutes'
-      and cr.started_at < m.start_at - interval '30 minutes'
+      and cr.started_at >= greatest(
+        pd.start_at - interval '12 hours',
+        coalesce((select bk.called_at from "call" bk where bk.id = pd.call_id), '-infinity')
+      )
+      and cr.started_at < m.start_at - interval '12 hours'
   ) end as earlier_demo_recordings,
   f.result as followup_result, f.created_at as followup_at,
   f.by_name as followup_by, f.notes as followup_notes,
@@ -1068,7 +1088,8 @@ const needsLoggingFor = (ownerId?: number) => sql`coalesce(
       and not exists (
         select 1 from "call" fc
         where fc.call_lead_id = m.call_lead_id
-          and fc.called_at >= m.start_at - interval '30 minutes'
+          and fc.called_at >= m.start_at - interval '12 hours'
+          and fc.id is distinct from m.call_id
       )
     else not exists (
       select 1 from call_demo_attendance a

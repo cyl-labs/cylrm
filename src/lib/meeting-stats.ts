@@ -160,7 +160,8 @@ export async function getMeetingStats(
             and not exists (
               select 1 from "call" fc
               where fc.call_lead_id = m.call_lead_id
-                and fc.called_at >= m.start_at - interval '30 minutes'
+                and fc.called_at >= m.start_at - interval '12 hours'
+                and fc.id is distinct from m.call_id
             )
             and not exists (
               select 1 from call_meeting_followup fu

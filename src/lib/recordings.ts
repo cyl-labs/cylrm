@@ -41,7 +41,7 @@ export const recordingVisibleTo = (userId: number | undefined): SQL =>
         -- takes it and writes no call row, so neither branch above can reach
         -- it: the row offered callers a "Demo call" button whose audio and
         -- transcript both 404'd. Matched the way the row finds it -- the
-        -- lead's number or the booking's, from half an hour before the slot.
+        -- lead's number or the booking's, from twelve hours before the slot.
         or exists (
           select 1
           from call_meeting m
@@ -49,7 +49,10 @@ export const recordingVisibleTo = (userId: number | undefined): SQL =>
           left join call_list cl on cl.id = l.call_list_id
           where (cl.assigned_user_id = ${userId} or m.closer_user_id = ${userId})
             and r.to_number in ('+' || l.phone_key, m.attendee_phone)
-            and r.started_at >= m.start_at - interval '30 minutes'
+            and r.started_at >= greatest(
+              m.start_at - interval '12 hours',
+              coalesce((select bk.called_at from "call" bk where bk.id = m.call_id), '-infinity')
+            )
         )
       )`;
 

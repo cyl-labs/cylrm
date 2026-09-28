@@ -2148,3 +2148,22 @@ and the sidebar badge read the new columns on every page).
   anyone else, such as a founder's own phone to check it, does not count
   (Safe Movers Maui's trial). DocuSeal's `opened_at` was rejected: a founder
   previewing the client page opens it.
+
+## A meeting's call can be made up to 12 hours early (2026-09-28)
+
+Every "was this the meeting's call" rule opened half an hour before the slot:
+the demo and follow-up recordings (`DEMO_RECORDING_WHERE`, the follow-up's
+`earlier_demo_recordings`), the follow-up "logged" test (`follow_up_logged`,
+`needsLoggingFor`, `meeting-stats.ts`) and who may play a demo recording
+(`recordings.ts`). A founder rang Grabbin Ya Junk an hour before a follow-up
+and talked for three minutes, and the row showed nothing: "if i wanna call them
+early i will". All of them now open **12 hours** before the slot, and an
+earlier meeting's window closes 12 hours before the next one, so a call belongs
+to one meeting.
+
+- The half hour also did a second job: it kept the cold call that booked the
+  meeting out of the demo's recordings. With 12 hours a same-day booking would
+  have offered the cold call as the demo, so the window **never opens before
+  the booking call's row** (`m.call_id`, written as that call ends, after its
+  recording began), and the logged tests ignore that call by id. Checked on
+  prod: 195 meeting-recording matches, none of them the booking call.
