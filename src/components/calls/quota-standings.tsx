@@ -95,10 +95,10 @@ export function QuotaStandings() {
                   : `Since the week reset on ${resetAt.format(new Date(week.since))}.`}{" "}
               </>
             ) : null}
-            The pay week, worst first, and the same count the Friday
-            notification sends. It does not follow the dates at the top.
-            Anyone under a month on the team shows how long they had been here;
-            no note means they had the whole week.
+            Every active caller, worst first, including anyone who made no
+            calls. This is the pay week and does not follow the dates at the
+            top. A red note says what is stopping somebody calling; anyone
+            under a month on the team shows how long they had been here.
           </p>
         </div>
         <Select value={String(back)} onValueChange={(v) => setBack(Number(v))}>
@@ -131,8 +131,8 @@ export function QuotaStandings() {
           <span className="font-semibold">Nobody to count for this week.</span>{" "}
           <span className="text-muted-foreground">
             {back === 0
-              ? "A caller shows up here once they have a call list and a number to dial from. Set both on the Team screen."
-              : "Nobody on the floor made a call that week. Pick a later week."}
+              ? "There are no active callers. Add one on the Team screen."
+              : "Nobody active now was on the team that week. Pick a later week."}
           </span>
         </p>
       ) : (
@@ -142,7 +142,9 @@ export function QuotaStandings() {
             // What to say about how new they are, and nothing at all once they
             // have been here a month: a tag on every row is noise, and its
             // absence has to mean something, which the note above says.
-            const age = s.startedThisWeek
+            const age = s.setup
+              ? s.setup
+              : s.startedThisWeek
               ? `New · ${s.daysOfWeek} of 7 days`
               : s.daysOnTeam <= 30
                 ? `${s.daysOnTeam} days on the team`
@@ -158,7 +160,12 @@ export function QuotaStandings() {
                     {s.name}
                   </span>
                   {age && (
-                    <span className="truncate text-[10px] text-muted-foreground">
+                    <span
+                      className={cn(
+                        "truncate text-[10px]",
+                        s.setup ? "font-semibold text-destructive" : "text-muted-foreground",
+                      )}
+                    >
                       {age}
                     </span>
                   )}

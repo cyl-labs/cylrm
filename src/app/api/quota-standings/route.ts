@@ -36,5 +36,5 @@ export async function GET(request: Request) {
   const back = Number.isInteger(raw)
     ? Math.min(Math.max(raw, 0), MAX_WEEKS_BACK)
     : 0;
-  return Response.json(await getQuotaStandings(back));
+  return Response.json(await getQuotaStandings(back, { everyone: true }));
 }

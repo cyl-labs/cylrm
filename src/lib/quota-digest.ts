@@ -135,6 +135,8 @@ export type QuotaStanding = {
   /** Days of the week they have been here for, when that is fewer than all of
    *  it. Null once they have been here a full week. */
   daysOfWeek: number | null;
+  /** What stops them calling at all, for the week still running. */
+  setup: string | null;
 };
 
 /**
@@ -154,7 +156,10 @@ export type QuotaStanding = {
  * somebody change how much work is owed by changing a filter. The card says
  * so, or the numbers look broken when the range changes and this does not.
  */
-export async function getQuotaStandings(back = 0): Promise<{
+export async function getQuotaStandings(
+  back = 0,
+  { everyone = false }: { everyone?: boolean } = {},
+): Promise<{
   weekStart: string;
   /** When that week ended, or null for the week still running. */
   until: string | null;
@@ -191,34 +196,32 @@ export async function getQuotaStandings(back = 0): Promise<{
   // week, one of them a third of the way to quota already. So it excludes only
   // the pairing of both: new *and* never once dialled.
   //
-  // A finished week adds anybody who rang during it, switched off or not
-  // since: somebody who left last Tuesday still made last week's calls, and
-  // leaving them out would make the week look emptier than it was. Nobody
-  // who joined after it ended can be in it.
-  const current = sql`
-    u.active
-    and (u.telnyx_did is not null or u.dial_method = 'handset')
-    and exists (
-      select 1 from call_list cl where cl.assigned_user_id = u.id
-    )
-    and not (
-      (u.created_at at time zone ${STATS_TZ})::date >= ${weekStart}::date
-      and not exists (select 1 from call c where c.user_id = u.id)
-    )`;
+  // **The card on the Scoreboard asks for `everyone`** (2026-09-28): every
+  // active caller and closer who had joined by the end of the week, including
+  // the ones who could not have rung. The founders wanted to see who did not
+  // call at all, and a zero is only readable next to its reason, so those rows
+  // carry `setup` saying what is missing. The push keeps the narrow roster
+  // above, where a name is a person to chase. Switched-off people are left out
+  // of both, even for a week they worked: the founders asked for that.
+  const roster = everyone
+    ? sql`u.created_at < ${endIso ?? new Date().toISOString()}::timestamptz`
+    : sql`
+      (u.telnyx_did is not null or u.dial_method = 'handset')
+      and exists (
+        select 1 from call_list cl where cl.assigned_user_id = u.id
+      )
+      and not (
+        (u.created_at at time zone ${STATS_TZ})::date >= ${weekStart}::date
+        and not exists (select 1 from call c where c.user_id = u.id)
+      )`;
   const callers = (await db.execute(sql`
-    select u.id, u.name, u.created_at
+    select u.id, u.name, u.created_at,
+      (u.telnyx_did is not null or u.dial_method = 'handset') as can_dial,
+      exists (
+        select 1 from call_list cl where cl.assigned_user_id = u.id
+      ) as has_lists
     from app_user u
-    where u.role in ('caller', 'closer')
-      and ${
-        endIso === null
-          ? current
-          : sql`u.created_at < ${endIso}::timestamptz and ((${current}) or exists (
-              select 1 from call c
-              where c.user_id = u.id
-                and c.called_at >= ${weekStartedAt.toISOString()}::timestamptz
-                and c.called_at < ${endIso}::timestamptz
-            ))`
-      }
+    where u.role in ('caller', 'closer') and u.active and ${roster}
     order by u.name
   `)) as Row[];
 
@@ -286,6 +289,17 @@ export async function getQuotaStandings(back = 0): Promise<{
       daysOnTeam,
       startedThisWeek: joinedMs > weekStartMs,
       daysOfWeek: daysOfWeek < 7 ? daysOfWeek : null,
+      // Today's setup, so only said about the week still running: a caller
+      // given lists yesterday may well have had none last week, or the
+      // other way round.
+      setup:
+        endIso !== null
+          ? null
+          : !c.has_lists
+            ? "No call lists"
+            : !c.can_dial
+              ? "No number to dial from"
+              : null,
     });
   }
   // Worst first: the top of this list is the only part anybody needs to act on.

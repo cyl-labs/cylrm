@@ -105,10 +105,15 @@ a week picker: this week, last week, and up to twelve back.
   took the argument and ignored it, reading today off the clock.
 - **Past weeks are cut on today's payday setting.** Move payday and the old
   weeks move with it.
-- **A finished week's roster adds anybody who rang in it**, switched off or
-  without lists since, and drops anybody who joined after it ended. The current
-  week keeps the digest's roster exactly, since the Friday push reads it.
-  The "days on the team" notes are as of the week's end.
+- **The card lists every active caller and closer**, zero calls included
+  (`everyone` on `getQuotaStandings`), and nobody switched off, even for a week
+  they worked: both at the founders' request the same day. A zero this week
+  carries a red note when the person cannot call at all ("No call lists", "No
+  number to dial from"); past weeks carry no such note, since it is today's
+  setup. Anybody who joined after a week ended is not in it. **The Friday push
+  keeps its narrow roster** (a niche, a way to dial, not new-and-never-dialled),
+  since there a name is somebody to chase. The "days on the team" notes are as
+  of the week's end.
 - **It loads by itself** now rather than behind a button: since 2026-09-22 it
   is one grouped count, not a query per caller.
 - The Friday push opens `/scoreboard#quota`.
