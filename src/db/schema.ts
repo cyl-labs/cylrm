@@ -1250,7 +1250,7 @@ export const callMeeting = pgTable(
     /** `phone` | `email`, or null when nothing matched. Kept because a match
      *  rate quietly falling to zero is otherwise indistinguishable from a
      *  fortnight with no bookings in it. */
-    matchedBy: text("matched_by").$type<"phone" | "email">(),
+    matchedBy: text("matched_by").$type<"phone" | "email" | "manual">(),
     /** A true instant from the API, never a wall clock somebody typed. The
      *  `datetime-local` trap that put every callback eight hours out has no
      *  way to happen here: there is no zone left to guess. */

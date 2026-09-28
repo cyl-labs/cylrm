@@ -320,9 +320,18 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         -- free-text note, so a prospect or a caller editing that note on the
         -- Cal.com page would otherwise unlink a meeting that was correctly
         -- attached days ago.
-        call_lead_id = coalesce(excluded.call_lead_id, call_meeting.call_lead_id),
-        call_id = coalesce(excluded.call_id, call_meeting.call_id),
-        matched_by = coalesce(excluded.matched_by, call_meeting.matched_by),
+        -- A match corrected by hand (matched_by 'manual', 2026-09-29) is
+        -- never re-matched: the booking still carries whatever wrong number
+        -- sent it to the wrong business, and every tick would move it back.
+        call_lead_id = case when call_meeting.matched_by = 'manual'
+          then call_meeting.call_lead_id
+          else coalesce(excluded.call_lead_id, call_meeting.call_lead_id) end,
+        call_id = case when call_meeting.matched_by = 'manual'
+          then call_meeting.call_id
+          else coalesce(excluded.call_id, call_meeting.call_id) end,
+        matched_by = case when call_meeting.matched_by = 'manual'
+          then 'manual'
+          else coalesce(excluded.matched_by, call_meeting.matched_by) end,
         -- Our time survives the sync unless Cal.com's own time changed: a
         -- quiet move (/api/meetings/[id]/time) sets start_at and leaves
         -- cal_start_at alone, and a real reschedule on Cal.com moves
@@ -344,7 +353,9 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         attendee_email = excluded.attendee_email,
         -- coalesce: a payload without the field must not blank a number the
         -- prospect gave, the same rule the recording numbers follow.
-        attendee_phone = coalesce(excluded.attendee_phone, call_meeting.attendee_phone),
+        attendee_phone = case when call_meeting.matched_by = 'manual'
+          then call_meeting.attendee_phone
+          else coalesce(excluded.attendee_phone, call_meeting.attendee_phone) end,
         attendee_tz = excluded.attendee_tz,
         meeting_url = excluded.meeting_url,
         kind = excluded.kind,

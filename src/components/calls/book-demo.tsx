@@ -86,6 +86,16 @@ export function BookDemoFields({
       <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
         Booking the demo
       </p>
+      {/* Which business the button books, named (2026-09-29). Akshansh booked
+          OH Junk It twice and both landed on U-Haul Neighborhood Dealer, the
+          next lead on his list, with U-Haul's number on the booking: the link
+          is built from the lead this form is on, and nothing on it said
+          which one that was. */}
+      <p className="text-[13px]">
+        For{" "}
+        <span className="font-bold">{lead.company ?? lead.phone}</span>
+        <span className="text-muted-foreground"> · {lead.phone}</span>
+      </p>
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-email`}>Their email</Label>
         <Input
@@ -119,7 +129,7 @@ export function BookDemoFields({
           className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border bg-background text-sm font-bold transition-colors hover:bg-muted"
         >
           <CalendarPlus className="size-4 shrink-0" strokeWidth={2.2} />
-          Book it on Cal.com
+          Book {lead.company ?? "it"} on Cal.com
           <ExternalLink
             className="size-3.5 shrink-0 text-muted-foreground"
             strokeWidth={2.2}
