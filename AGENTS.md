@@ -313,6 +313,23 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
   `call_lead_phone_key_idx` and `call_lead_email_lower_idx`
   (`2026-09-29-lookup-indexes.sql`, built `CONCURRENTLY` on prod, declared in
   `schema.ts` so a push keeps them).
+- **Hardening pass, 2026-09-29.** (1) **Login is throttled** (`lib/login-throttle.ts`,
+  in memory, checked before the scrypt hash): 10 misses per username or 30 per
+  address in ten minutes gives `/login?error=wait`; a correct sign-in clears
+  both. (2) **Editing or undoing a call needs `canEditLead`** (`lib/lead-access.ts`):
+  PATCH/DELETE `/api/calls` and PATCH `/api/call-leads/[id]` refuse a lead that
+  is not on the caller's own list and that they never called. **Logging a new
+  call (POST) is deliberately open**, since a ring-back lands on any niche.
+  (3) An inbound text with a missing field, a failed inbound recording start
+  (now retried once) and a failed recording-number fetch log at `console.error`;
+  the recordings cron fills blank numbers for the last six hours. (4) The
+  Texts screen asks `/api/texts/fingerprint` every 10s and renders only on a
+  change. (5) The meeting sync skips a booking whose values did not change.
+  (6) `pm2-logrotate` is installed on the droplet (10M, keep 5, compressed).
+  (7) Cron routes compare the secret in constant time (`lib/bearer.ts`).
+  **Not done on purpose: a timestamp-age check on Telnyx webhooks.** Retries
+  carry the original timestamp (see `verifyTelnyxSignature`), so a tolerance
+  would drop a retried recording for good; replay is absorbed by unique ids.
 - **Nothing that renders with a page may cost a query per person** (2026-09-22).
   Stats' quota card asked `getWeekProgress` for each caller in turn, and that
   answers through `getCallTotals` — eleven figures, of which it read one. It
