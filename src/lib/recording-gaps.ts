@@ -252,7 +252,7 @@ export async function fillMissingNumbers(): Promise<{ filled: number; tried: num
   const rows = (await db.execute(sql`
     select recording_id from call_recording
     where to_number is null and from_number is null
-      and coalesce(started_at, created_at) > now() - interval '6 hours'
+      and coalesce(started_at, received_at) > now() - interval '6 hours'
     order by id desc
     limit 5
   `)) as { recording_id: string }[];
