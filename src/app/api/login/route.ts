@@ -2,6 +2,12 @@ import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/session";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { findByUsername, touchLastSeen } from "@/lib/users";
+import {
+  clearFailures,
+  clientAddress,
+  isThrottled,
+  recordFailure,
+} from "@/lib/login-throttle";
 
 /**
  * What an unknown username is checked against.
@@ -40,6 +46,15 @@ export async function POST(request: Request) {
     return fail();
   }
 
+  // Before any hashing, so a flood of guesses stops costing CPU.
+  const address = clientAddress(request);
+  if (isThrottled(address, username)) {
+    return new Response(null, {
+      status: 303,
+      headers: { Location: "/login?error=wait" },
+    });
+  }
+
   const user = await findByUsername(username);
   // A hash is always verified, even with no such user, so the response time
   // does not say whether the name exists.
@@ -47,7 +62,11 @@ export async function POST(request: Request) {
     password,
     user?.passwordHash ?? (await unmatchableHash()),
   );
-  if (!user || !ok || !user.active) return fail();
+  if (!user || !ok || !user.active) {
+    recordFailure(address, username);
+    return fail();
+  }
+  clearFailures(address, username);
 
   const session = await getSession();
   session.loggedIn = true;

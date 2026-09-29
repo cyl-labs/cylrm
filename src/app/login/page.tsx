@@ -53,7 +53,9 @@ export default async function LoginPage({
             {/* One message for both cases on purpose — see the login route. */}
             {error && (
               <p className="text-sm text-destructive">
-                Wrong username or password.
+                {error === "wait"
+                  ? "Too many tries. Wait a few minutes and try again."
+                  : "Wrong username or password."}
               </p>
             )}
             <Button type="submit">Sign in</Button>
