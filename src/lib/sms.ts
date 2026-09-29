@@ -383,7 +383,19 @@ export async function recordInboundText(
       : undefined
     )?.phone_number ?? "",
   );
-  if (!id || !from || !to) return { stored: false, notified: 0 };
+  if (!id || !from || !to) {
+    // Loud, not silent: the webhook answers 200 either way, so Telnyx never
+    // retries, and a change in its payload shape would otherwise lose every
+    // customer reply with nothing in the log to say so. Keys only, no numbers
+    // or message text.
+    console.error(
+      "[sms] inbound text dropped, missing",
+      [!id && "id", !from && "from", !to && "to"].filter(Boolean).join("+"),
+      "payload keys:",
+      Object.keys(p).join(","),
+    );
+    return { stored: false, notified: 0 };
+  }
 
   const text = typeof p.text === "string" ? p.text.trim() : "";
   // Kept, not counted. Until 2026-09-16 this read `p.media.length` and threw

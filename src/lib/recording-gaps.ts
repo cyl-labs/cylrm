@@ -23,7 +23,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { notificationsConfigured, notifyRecordingGap } from "@/lib/notify";
-import { callConnected } from "@/lib/telnyx";
+import { callConnected, recordingNumbers } from "@/lib/telnyx";
 
 /**
  * How long after a call ends before a missing recording counts as missing.
@@ -235,4 +235,42 @@ export async function sweepRecordingGaps(): Promise<GapSweep> {
   `);
 
   return { found: total, notified: true };
+}
+
+/**
+ * Fill in the numbers on recent recordings whose webhook could not fetch them.
+ *
+ * The recording webhook asks Telnyx who a recording was with and, on a hiccup,
+ * stores nothing and moves on (it must not fail, or Telnyx disables it). Until
+ * this, those rows stayed blank until somebody ran
+ * `scripts/backfill-recording-numbers.mjs` by hand, and a blank row is a call
+ * Meetings and the Spreadsheet cannot find. Only the last six hours and a
+ * handful a tick: a recording Telnyx really has no numbers for must not be
+ * asked about for ever.
+ */
+export async function fillMissingNumbers(): Promise<{ filled: number; tried: number }> {
+  const rows = (await db.execute(sql`
+    select recording_id from call_recording
+    where to_number is null and from_number is null
+      and coalesce(started_at, created_at) > now() - interval '6 hours'
+    order by id desc
+    limit 5
+  `)) as { recording_id: string }[];
+  let filled = 0;
+  for (const r of rows) {
+    try {
+      const found = await recordingNumbers(r.recording_id);
+      if (!found.to && !found.from) continue;
+      await db.execute(sql`
+        update call_recording
+        set to_number = coalesce(to_number, ${found.to}),
+            from_number = coalesce(from_number, ${found.from})
+        where recording_id = ${r.recording_id}
+      `);
+      filled += 1;
+    } catch (err) {
+      console.error("[recordings] number fill failed:", String(err).slice(0, 200));
+    }
+  }
+  return { filled, tried: rows.length };
 }

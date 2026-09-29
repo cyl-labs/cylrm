@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sweepRecordingGaps } from "@/lib/recording-gaps";
+import { fillMissingNumbers, sweepRecordingGaps } from "@/lib/recording-gaps";
 
 /**
  * Calls that connected and never got a recording.
@@ -25,5 +25,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const result = await sweepRecordingGaps();
-  return NextResponse.json({ ok: true, job: "recordings", ...result });
+  // Its own failure must not stop the gap alert above from being reported.
+  const numbers = await fillMissingNumbers().catch(() => null);
+  return NextResponse.json({ ok: true, job: "recordings", ...result, numbers });
 }

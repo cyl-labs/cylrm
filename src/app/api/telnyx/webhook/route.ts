@@ -157,7 +157,9 @@ export async function POST(request: Request) {
       toNumber = found.to;
       fromNumber = found.from;
     } catch (err) {
-      console.log("[telnyx] could not fetch recording numbers:", String(err).slice(0, 200));
+      // Not fatal (the sweep in the recordings job fills these in shortly),
+      // but an error rather than a log line, so a Telnyx outage shows up.
+      console.error("[telnyx] could not fetch recording numbers:", String(err).slice(0, 200));
     }
   }
 
@@ -268,13 +270,27 @@ async function recordInbound(
     }
     const controlId = p.call_control_id ? String(p.call_control_id) : "";
     if (!controlId) return;
-    try {
-      await startRecording(controlId);
-      console.log("[telnyx] inbound recording started", sessionId);
-    } catch (err) {
-      // Logged, never thrown: a webhook that fails is retried and eventually
-      // disabled by Telnyx, and a missing recording is the lesser loss.
-      console.log("[telnyx] inbound recording refused:", String(err).slice(0, 300));
+    // One quick retry: a transient Telnyx hiccup here loses the whole call's
+    // recording for good, since the row above is already claimed and no later
+    // event tries again. Short enough to stay inside the webhook's time.
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        await startRecording(controlId);
+        console.log("[telnyx] inbound recording started", sessionId);
+        break;
+      } catch (err) {
+        // Logged, never thrown: a webhook that fails is retried and eventually
+        // disabled by Telnyx, and a missing recording is the lesser loss.
+        if (attempt === 2) {
+          console.error(
+            "[telnyx] inbound recording NOT started after retry:",
+            sessionId,
+            String(err).slice(0, 300),
+          );
+        } else {
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
     }
     return;
   }
