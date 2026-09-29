@@ -1928,3 +1928,21 @@ export const subscription = pgTable("subscription", {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * A one-off top-up of a usage-billed service, typed in when it is paid.
+ *
+ * ElevenLabs sells pay-as-you-go credits on top of the plan and its API does
+ * not report them, so the only record is what somebody enters here. Counted on
+ * Spend in whichever window the paid date falls in.
+ */
+export const recharge = pgTable("recharge", {
+  id: serial("id").primaryKey(),
+  service: text("service").notNull().default("ElevenLabs"),
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("usd").$type<"usd" | "sgd">(),
+  paidOn: date("paid_on").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

@@ -7,6 +7,11 @@ import {
 } from "@/components/calls/subscriptions-card";
 import { getSubscriptions, monthlyCents } from "@/lib/subscriptions";
 import { getElevenLabs } from "@/lib/elevenlabs";
+import { getRecharges } from "@/lib/recharges";
+import {
+  RechargesCard,
+  type RechargeRow,
+} from "@/components/calls/recharges-card";
 import {
   SPEND_DAYS,
   SPEND_WINDOWS,
@@ -179,9 +184,10 @@ export default async function SpendPage({
     countShowedUpDemos(days),
     usdToSgd(),
   ]);
-  const [subs, eleven] = await Promise.all([
+  const [subs, eleven, top] = await Promise.all([
     getSubscriptions(days, fx?.rate ?? null),
     getElevenLabs(),
+    getRecharges(days, fx?.rate ?? null),
   ]);
 
   // Asked for Singapore dollars and the rate would not come: stay in USD
@@ -233,9 +239,11 @@ export default async function SpendPage({
   // per-demo numbers stay the cost of the calling floor.
   // ElevenLabs is read live rather than typed in: the plan's monthly price
   // prorated like a subscription, plus any overage so far this period.
-  const elevenTotal = eleven
-    ? (eleven.monthlyUsd * 12 * days) / 365 + eleven.overageUsd
-    : 0;
+  // Recharges are what somebody logged by hand, since the API reports none.
+  const elevenTotal =
+    (eleven
+      ? (eleven.monthlyUsd * 12 * days) / 365 + eleven.overageUsd
+      : 0) + top.total;
   const everything = allIn + subs.total + elevenTotal;
   const share = (n: number) =>
     everything > 0 ? Math.round((n / everything) * 100) : 0;
@@ -256,6 +264,11 @@ export default async function SpendPage({
     };
   });
 
+  const rechargeRows: RechargeRow[] = top.rows.slice(0, 12).map((r) => ({
+    id: r.id,
+    paidOn: r.paidOn,
+    amount: `${r.currency === "sgd" ? "S$" : "$"}${(r.amountCents / 100).toFixed(2)}`,
+  }));
   const busiest = Math.max(...spend.daily.map((d) => d.cost), 0.01);
   const lineTotal = spend.lines.reduce((a, l) => a + l.cost, 0);
 
@@ -365,7 +378,7 @@ export default async function SpendPage({
               <div className={BUCKET.phones} style={{ width: `${share(spend.total)}%` }} />
               <div className={BUCKET.pay} style={{ width: `${share(floorPay)}%` }} />
               <div className={BUCKET.subs} style={{ width: `${share(subs.total)}%` }} />
-              {eleven && (
+              {(eleven || top.total > 0) && (
                 <div className={BUCKET.eleven} style={{ width: `${share(elevenTotal)}%` }} />
               )}
             </div>
@@ -375,15 +388,15 @@ export default async function SpendPage({
               { label: "Phones", note: "Telnyx usage", value: spend.total, dot: BUCKET.phones },
               { label: "Floor pay", note: "pickup bonuses and demo fees", value: floorPay, dot: BUCKET.pay },
               { label: "Subscriptions", note: "Claude, the Discord and the rest", value: subs.total, dot: BUCKET.subs },
-              ...(eleven
+              ...(eleven || top.total > 0
                 ? [
                     {
                       label: "ElevenLabs",
-                      note: `${eleven.tier} plan, ${Math.round(
-                        (eleven.used / Math.max(eleven.limit, 1)) * 100,
-                      )}% of this month's credits used${
-                        eleven.canExceed ? "" : " (capped, no overage)"
-                      }`,
+                      note: eleven
+                        ? `${eleven.tier} plan${
+                            top.total > 0 ? ` plus ${money(top.total)} recharged` : ""
+                          }`
+                        : `${money(top.total)} recharged`,
                       value: elevenTotal,
                       dot: BUCKET.eleven,
                     },
@@ -423,7 +436,7 @@ export default async function SpendPage({
               (eleven.resetsAt.getTime() - Date.now()) / 86_400_000
                 ? ", before the plan renews, so expect a recharge"
                 : ", after the plan renews, so no recharge needed"}
-              . Recharges are not shown: ElevenLabs does not report them.
+              . Recharges only count once you log them below.
             </p>
           )}
           {subs.unconverted > 0 && (
@@ -617,6 +630,19 @@ export default async function SpendPage({
             </p>
           </div>
           <SubscriptionsCard rows={subRows} />
+        </div>
+
+        <div className={`${CARD} px-4 py-4 sm:px-5`}>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+              ElevenLabs recharges
+            </p>
+            <p className="text-[12px] text-muted-foreground">
+              Top-ups on top of the plan. ElevenLabs does not report these, so
+              add each one when you pay it.
+            </p>
+          </div>
+          <RechargesCard rows={rechargeRows} today={new Date().toISOString().slice(0, 10)} />
         </div>
 
         {/* One series, so one colour and no legend — the heading names it.
