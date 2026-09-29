@@ -48,6 +48,14 @@ export const REMOTE_AUDIO_ID = "cylrm-remote-audio";
 const SESSION_MEMORY_MS = 2 * 60 * 60_000;
 
 /**
+ * How long after hanging up we tell the server "still logging this call".
+ * The deploy waits for it, so it is capped: somebody who hangs up and walks
+ * away must not hold a deploy for ever. Beats are every 15s and the server
+ * trusts one for 45s (`PRESENCE_TTL_SECONDS`).
+ */
+const WRAP_UP_MAX_MS = 3 * 60_000;
+
+/**
  * Where that memory is kept so a reload does not take it.
  *
  * It was a ref and nothing else until 2026-09-20, which meant the one thing
@@ -395,6 +403,34 @@ export function CallLineProvider({
       setActiveRowKey(null);
     }
   }, [busy]);
+
+  // Tell the server while an outcome is owed, so a deploy does not restart the
+  // app under somebody typing notes: the save would fail. Owed means a dial
+  // whose outcome `forgetLead` has not yet cleared and the line is idle. The
+  // cleanup says "done" the moment that stops being true, so the deploy can go
+  // straight after Confirm rather than after the timeout.
+  const owesOutcome = enabled && leader && !busy && lastLeadId !== null;
+  React.useEffect(() => {
+    if (!owesOutcome) return;
+    const started = Date.now();
+    const send = (wrapUp: boolean) =>
+      fetch("/api/presence", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ onCall: false, wrapUp }),
+        keepalive: true,
+      }).catch(() => {});
+    const beat = () => {
+      if (Date.now() - started <= WRAP_UP_MAX_MS) send(true);
+    };
+    beat();
+    const t = setInterval(beat, 15_000);
+    return () => {
+      clearInterval(t);
+      send(false);
+    };
+  }, [owesOutcome]);
+
   React.useEffect(() => {
     if (!two) flushRef.current(secondLeg);
   }, [two]);

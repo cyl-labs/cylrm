@@ -21,8 +21,14 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     onCall?: unknown;
     ended?: unknown;
+    wrapUp?: unknown;
   };
-  await recordPresence(me.id, body.onCall === true, body.ended === true);
+  await recordPresence(
+    me.id,
+    body.onCall === true,
+    body.ended === true,
+    typeof body.wrapUp === "boolean" ? body.wrapUp : undefined,
+  );
   return Response.json({ ok: true });
 }
 

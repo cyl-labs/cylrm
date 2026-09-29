@@ -670,6 +670,12 @@ export const appUser = pgTable("app_user", {
    * has gone stale. See `recordPresence`.
    */
   onCallAt: timestamp("on_call_at", { withTimezone: true }),
+  /**
+   * The last heartbeat that said "I have hung up but not saved the outcome".
+   * The deploy guard treats a fresh one as busy, because a restart in that
+   * window fails the save. Never shown as "on a call": nobody is talking.
+   */
+  wrapUpAt: timestamp("wrap_up_at", { withTimezone: true }),
 }, (t) => [index("app_user_presence_at_idx").on(t.presenceAt)]);
 
 export const call = pgTable(

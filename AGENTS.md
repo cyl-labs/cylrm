@@ -246,6 +246,17 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
   - Both checks **fail open**: an unreachable psql restarts anyway, on the
     grounds that a droplet whose database cannot be reached has a worse problem
     than a restart.
+  - **The guard also waits for a caller who has hung up and not yet saved the
+    outcome** (2026-09-29, `app_user.wrap_up_at`). Before it, `on_call_since`
+    cleared the instant a call ended, but the outcome is typed and confirmed
+    afterwards, so a restart in that window failed the save. `CallLineProvider`
+    beats `wrapUp: true` every 15s while a dial's outcome is owed (`lastLeadId`
+    set, line idle) and sends `wrapUp: false` the moment it is saved, so a deploy
+    goes straight after Confirm. Capped at 3 minutes (`WRAP_UP_MAX_MS`) so a
+    caller who walks away cannot hold a deploy. It is never shown as "on a
+    call" on Team. **Apply `2026-09-29-wrap-up-at.sql` before deploying a
+    database that lacks it: the guard fails open, so a missing column means no
+    guard at all.** Applied to prod 2026-09-29.
   - **The guard watches calls, not the browser phone, and those are not the
     same thing** (2026-09-16). `restart_when_clear` reads `app_user.on_call_since`
     with a 45-second `on_call_at` heartbeat (`presence_at` until 2026-09-23 —

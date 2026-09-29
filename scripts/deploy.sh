@@ -53,7 +53,7 @@ fi
 # /api/presence, so no shell script needs a credential. Freshness window must
 # match PRESENCE_TTL_SECONDS in src/lib/users.ts.
 say "Checking whether anyone is on a call"
-LIVE="$(ssh "$HOST" "docker exec cylrm-db psql -U cylrm cylrm -tAc \"select string_agg(name || ' (' || extract(epoch from (now() - on_call_since))::int || 's)', ', ') from app_user where on_call_since is not null and on_call_at > now() - interval '45 seconds'\"" 2>/dev/null || true)"
+LIVE="$(ssh "$HOST" "docker exec cylrm-db psql -U cylrm cylrm -tAc \"select string_agg(name || case when on_call_since is not null and on_call_at > now() - interval '45 seconds' then ' (' || extract(epoch from (now() - on_call_since))::int || 's)' else ' (logging an outcome)' end, ', ') from app_user where (on_call_since is not null and on_call_at > now() - interval '45 seconds') or wrap_up_at > now() - interval '45 seconds'\"" 2>/dev/null || true)"
 if [[ -n "${LIVE//[[:space:]]/}" ]]; then
   echo "on a call right now — $LIVE"
   echo "Building and shipping anyway; the restart waits for a clear moment."
@@ -126,6 +126,11 @@ ssh "$HOST" "cd $REMOTE && node --env-file=.env scripts/seed-area-codes.mjs"
 # no long quiet moment — only the seconds between one call and the next — and
 # this waits for one of those rather than asking a person to find it by hand.
 #
+# "Busy" is a call in progress OR a caller who has hung up and not yet saved the
+# outcome (`wrap_up_at`, 2026-09-29): a restart in that window fails the save.
+# Needs `2026-09-29-wrap-up-at.sql` applied first — the check fails open, so on
+# a database without the column it would restart into anybody's wrap-up.
+#
 # Exit 9 means somebody is on a call and nothing was touched. The check fails
 # open, exactly as the one above does: if psql cannot be reached the app is in
 # worse trouble than a restart.
@@ -133,7 +138,7 @@ restart_when_clear() {
   ssh "$HOST" FORCE="${FORCE_DEPLOY:-}" bash -s <<'REMOTE'
 set -uo pipefail
 if [ "${FORCE:-}" != "1" ]; then
-  live="$(docker exec cylrm-db psql -U cylrm cylrm -tAc "select coalesce(string_agg(name || ' (' || extract(epoch from (now() - on_call_since))::int || 's)', ', '), '') from app_user where on_call_since is not null and on_call_at > now() - interval '45 seconds'" 2>/dev/null || echo "")"
+  live="$(docker exec cylrm-db psql -U cylrm cylrm -tAc "select coalesce(string_agg(name || case when on_call_since is not null and on_call_at > now() - interval '45 seconds' then ' (' || extract(epoch from (now() - on_call_since))::int || 's)' else ' (logging an outcome)' end, ', '), '') from app_user where (on_call_since is not null and on_call_at > now() - interval '45 seconds') or wrap_up_at > now() - interval '45 seconds'" 2>/dev/null || echo "")"
   if [ -n "${live//[[:space:]]/}" ]; then
     echo "BUSY $live"
     exit 9

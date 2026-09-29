@@ -455,10 +455,20 @@ export async function recordPresence(
   userId: number,
   onCall: boolean,
   ended = false,
+  wrapUp?: boolean,
 ) {
   await db.execute(sql`
     update app_user
     set presence_at = now(),
+        ${
+          // True while they owe an outcome, false the moment it is saved,
+          // untouched otherwise so an ordinary idle beat cannot clear it.
+          wrapUp === true
+            ? sql`wrap_up_at = now(),`
+            : wrapUp === false
+              ? sql`wrap_up_at = null,`
+              : sql``
+        }
         ${
           onCall
             ? // Left alone when already set, so the timer counts from when the
