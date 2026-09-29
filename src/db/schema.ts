@@ -506,6 +506,11 @@ export const callLead = pgTable(
     index("call_lead_direct_phone_key_idx")
       .on(t.directPhoneKey)
       .where(sql`direct_phone_key is not null`),
+    // Lookups by number alone (an inbound call or text, the meetings match)
+    // and by email: the unique index above leads with the list and cannot
+    // serve either. See 2026-09-29-lookup-indexes.sql.
+    index("call_lead_phone_key_idx").on(t.phoneKey),
+    index("call_lead_email_lower_idx").on(sql`lower(${t.email})`),
   ],
 );
 
@@ -717,6 +722,11 @@ export const call = pgTable(
     // callbacks count took a second on every page. Column order matches that
     // subquery's filter and sort. See 2026-09-14-call-lead-latest-idx.sql.
     index("call_lead_latest_idx").on(t.callLeadId, t.calledAt.desc(), t.id.desc()),
+    // Every stats window and the recording-gap sweep filter on when a call
+    // happened, and the quota bar counts one person's calls since the week
+    // began. See 2026-09-29-lookup-indexes.sql.
+    index("call_called_at_idx").on(t.calledAt.desc()),
+    index("call_user_called_at_idx").on(t.userId, t.calledAt.desc()),
   ],
 );
 

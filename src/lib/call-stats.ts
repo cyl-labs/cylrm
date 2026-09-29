@@ -196,12 +196,18 @@ export type WeekProgress = {
 export const getWeekProgress = cache(
   async (userId: number): Promise<WeekProgress> => {
     const { at, weekStart } = await quotaWeekStart();
-    const totals = await getCallTotals(
-      { kind: "since", at: at.toISOString() },
-      undefined,
-      userId,
-    );
-    return { calls: totals.calls, weekStart, since: at.toISOString() };
+    // A plain count, not `getCallTotals`: this runs on every page for every
+    // caller and reads one figure, and that query works out eleven, including
+    // each lead's timezone. It must keep matching `getCallTotals(...).calls`,
+    // the `call_lead` join included (a call always has a lead, so it cannot
+    // move the count).
+    const [row] = (await db.execute(sql`
+      select count(*) as n
+      from "call" c
+      join call_lead l on l.id = c.call_lead_id
+      where c.user_id = ${userId} and c.called_at >= ${at.toISOString()}::timestamptz
+    `)) as { n: string | number }[];
+    return { calls: Number(row?.n ?? 0), weekStart, since: at.toISOString() };
   },
 );
 

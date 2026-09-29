@@ -68,36 +68,41 @@ export default async function AppLayout({
     );
   }
 
+  // Asked together, since they are independent reads (see `PageShell`).
+  //
   // Callers cannot open Replies, so an unread count would light a badge on
-  // the drawer that leads nowhere they are allowed to go.
-  const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
-  // The reader's own, not the floor's — the same change the missed-calls badge
-  // got, and for the same reason: a founder's badge that counts everybody is
-  // never zero and so never says "something new for me". `callScope` widens an
-  // admin to everything, which is right for the screen and wrong for a badge.
-  const callbacks =
-    me?.role === "admin"
-      ? // Their own promised follow-ups, wherever the lead sits. A founder owns
-        // barely any lists, and after a demo the callback they agreed lands on
-        // the caller's niche — so "lists I own" would show them nothing.
-        await countCallbacksDue(undefined, me.id)
-      : await countCallbacksDue(callScope(me));
-  // Scoped by the number that was rung, not by niche ownership: an inbound
-  // call is addressed to a person.
-  const missed = await countMissedCalls(me);
-  const meetings = await countMeetingsWaitingFor(me);
-  // Zero, without touching the table, while texting is switched off.
-  const unreadTexts = await countUnreadTexts(me);
-  const keypad = await canUseKeypad(me?.id, me?.role);
-
-  // Whether this person can be rung back at all: they need a number of their
-  // own, and they need to be dialling in the browser rather than from a
-  // handset. Without both there is nothing for a prospect to reach.
-  const [row] = (await db.execute(
-    sql`select telnyx_did from app_user where id = ${me?.id ?? -1}`,
-  )) as { telnyx_did: string | null }[];
-  const reachable =
-    Boolean(row?.telnyx_did?.trim()) && (await dialMethodOf(me?.id)) === "browser";
+  // the drawer that leads nowhere they are allowed to go. The callbacks badge
+  // is the reader's own, not the floor's — the same change the missed-calls
+  // badge got, and for the same reason: a founder's badge that counts
+  // everybody is never zero and so never says "something new for me".
+  // `callScope` widens an admin to everything, which is right for the screen
+  // and wrong for a badge. So a founder gets their own promised follow-ups,
+  // wherever the lead sits: they own barely any lists, and after a demo the
+  // callback they agreed lands on the caller's niche, so "lists I own" would
+  // show them nothing. Missed calls are scoped by the number that was rung,
+  // not by niche ownership: an inbound call is addressed to a person. Unread
+  // texts are zero, without touching the table, while texting is switched off.
+  //
+  // Whether this person can be rung back at all needs a number of their own
+  // and dialling in the browser rather than from a handset. Without both there
+  // is nothing for a prospect to reach.
+  const [unread, callbacks, missed, meetings, unreadTexts, keypad, rows, method] =
+    await Promise.all([
+      me?.role === "admin" ? countUnreadReplies() : 0,
+      me?.role === "admin"
+        ? countCallbacksDue(undefined, me.id)
+        : countCallbacksDue(callScope(me)),
+      countMissedCalls(me),
+      countMeetingsWaitingFor(me),
+      countUnreadTexts(me),
+      canUseKeypad(me?.id, me?.role),
+      db.execute(
+        sql`select telnyx_did from app_user where id = ${me?.id ?? -1}`,
+      ) as Promise<{ telnyx_did: string | null }[]>,
+      dialMethodOf(me?.id),
+    ]);
+  const [row] = rows;
+  const reachable = Boolean(row?.telnyx_did?.trim()) && method === "browser";
 
   return (
     <AppThemeProvider>

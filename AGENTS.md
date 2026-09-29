@@ -302,6 +302,17 @@ DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docus
   when you count how many times it runs. `getCallLists` keeps its own copy of
   the lateral and needs the same fence. **If a calling screen goes slow, check
   this and `call_lead_latest_idx` before anything else.**
+- **The header's badge counts are asked together, and the quota bar is a plain
+  count** (2026-09-29). `PageShell` and the layout awaited about nine reads one
+  after another on every page; they run under `Promise.all` now, and a founder's
+  callbacks badge is the same own-callbacks count in the drawer as in the
+  sidebar (the drawer used to count everybody's). `getWeekProgress` no longer
+  runs `getCallTotals` for the one figure it shows: it counts `call` joined to
+  `call_lead`, and **has to keep matching `getCallTotals(...).calls`**. New
+  indexes `call_called_at_idx`, `call_user_called_at_idx`,
+  `call_lead_phone_key_idx` and `call_lead_email_lower_idx`
+  (`2026-09-29-lookup-indexes.sql`, built `CONCURRENTLY` on prod, declared in
+  `schema.ts` so a push keeps them).
 - **Nothing that renders with a page may cost a query per person** (2026-09-22).
   Stats' quota card asked `getWeekProgress` for each caller in turn, and that
   answers through `getCallTotals` — eleven figures, of which it read one. It

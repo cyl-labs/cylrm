@@ -22,27 +22,37 @@ export async function PageShell({
   children: React.ReactNode;
 }) {
   const me = await getCurrentUser();
-  // Callers cannot open Replies, so an unread count would light a badge on
-  // the drawer that leads nowhere they are allowed to go.
-  const unread = me?.role === "admin" ? await countUnreadReplies() : 0;
-  const callbacks = await countCallbacksDue(callScope(me));
-  // Scoped by the number that was rung, not by niche ownership: an inbound
-  // call is addressed to a person.
-  const missed = await countMissedCalls(me);
-  const meetings = await countMeetingsWaitingFor(me);
-  const unreadTexts = await countUnreadTexts(me);
-  // Callers only: the founders set the quota rather than owing it, the same
-  // reason they are off the Scoreboard and off the payroll confirm list. A
-  // caller can only ever be on a Call CRM screen, so there is no workspace to
-  // check as well as the role.
-  const week =
-    me && isFloor(me.role) ? await getWeekProgress(me.id) : null;
+  // Asked together: they are independent reads, and awaiting them one after
+  // another was nine round trips before the page could start drawing.
+  //
+  // Callers cannot open Replies, so an unread count would light a badge on the
+  // drawer that leads nowhere they are allowed to go. Callbacks are the
+  // reader's own for a founder, as in the sidebar (see the layout), so the
+  // drawer and the sidebar agree and the two calls share one cached answer.
+  // Missed calls are scoped by the number that was rung, not by niche
+  // ownership: an inbound call is addressed to a person. The quota is for
+  // callers only: the founders set it rather than owing it, the same reason
+  // they are off the Scoreboard and off the payroll confirm list. A caller can
+  // only ever be on a Call CRM screen, so there is no workspace to check as
+  // well as the role.
+  const [unread, callbacks, missed, meetings, unreadTexts, week, keypad] =
+    await Promise.all([
+      me?.role === "admin" ? countUnreadReplies() : 0,
+      me?.role === "admin"
+        ? countCallbacksDue(undefined, me.id)
+        : countCallbacksDue(callScope(me)),
+      countMissedCalls(me),
+      countMeetingsWaitingFor(me),
+      countUnreadTexts(me),
+      me && isFloor(me.role) ? getWeekProgress(me.id) : null,
+      canUseKeypad(me?.id, me?.role),
+    ]);
   return (
     <div className="flex h-svh flex-col">
       <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 gap-y-2 border-b bg-card px-4 py-2.5 sm:px-7">
         <MobileNav
         role={me?.role}
-        keypad={await canUseKeypad(me?.id, me?.role)}
+        keypad={keypad}
         texting={smsEnabled()}
         unreadReplies={unread}
         callbacksDue={callbacks}
