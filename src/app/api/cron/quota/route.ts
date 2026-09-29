@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendQuotaDigest } from "@/lib/quota-digest";
+import { hasCronAuth } from "@/lib/bearer";
 
 /**
  * The Friday quota digest.
@@ -19,7 +20,7 @@ import { sendQuotaDigest } from "@/lib/quota-digest";
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!hasCronAuth(auth)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const result = await sendQuotaDigest();

@@ -5,6 +5,7 @@ import {
   syncMeetings,
 } from "@/lib/meetings";
 import { sendMeetingDigest } from "@/lib/meeting-digest";
+import { hasCronAuth } from "@/lib/bearer";
 
 /**
  * Pull the booked meetings off Cal.com.
@@ -17,7 +18,7 @@ import { sendMeetingDigest } from "@/lib/meeting-digest";
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!hasCronAuth(auth)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const result = await syncMeetings();

@@ -182,7 +182,7 @@ export async function POST(
     for (const [to, leadIds] of moves) {
       await tx.execute(sql`
         update call_lead set call_list_id = ${to}
-        where id = any(${sql.raw(`array[${leadIds.join(",")}]::int[]`)})
+        where id in (${sql.join(leadIds.map((id) => sql`${id}`), sql`, `)})
       `);
     }
 

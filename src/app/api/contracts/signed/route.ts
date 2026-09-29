@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { markContractSigned } from "@/lib/contracts";
+import { hasCronAuth } from "@/lib/bearer";
 
 /**
  * "The client signed it" — called by n8n, not by a browser.
@@ -21,7 +22,7 @@ import { markContractSigned } from "@/lib/contracts";
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!hasCronAuth(auth)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

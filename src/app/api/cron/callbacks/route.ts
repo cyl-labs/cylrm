@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendCallbackReminders } from "@/lib/callback-reminders";
+import { hasCronAuth } from "@/lib/bearer";
 
 /**
  * The daily callbacks digest.
@@ -11,7 +12,7 @@ import { sendCallbackReminders } from "@/lib/callback-reminders";
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!hasCronAuth(auth)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const result = await sendCallbackReminders();

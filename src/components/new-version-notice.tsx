@@ -35,6 +35,9 @@ export function NewVersionNotice() {
     if (MINE === "dev") return;
     let stopped = false;
     const check = async () => {
+      // Nobody is looking at a hidden tab, and asking wakes a throttled one;
+      // the visibility handler below asks the moment it is shown again.
+      if (document.visibilityState !== "visible") return;
       try {
         const res = await fetch("/api/version", { cache: "no-store" });
         if (!res.ok) return;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendMeetingTelegrams } from "@/lib/meetings";
+import { hasCronAuth } from "@/lib/bearer";
 
 /**
  * The five-minute warning, on its own minute-by-minute tick.
@@ -21,7 +22,7 @@ import { sendMeetingTelegrams } from "@/lib/meetings";
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!hasCronAuth(auth)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const telegram = await sendMeetingTelegrams();

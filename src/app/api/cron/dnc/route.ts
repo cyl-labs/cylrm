@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { DNC_VALID_DAYS, dncEnforced } from "@/lib/dnc";
+import { hasCronAuth } from "@/lib/bearer";
 
 /**
  * Re-screen US leads against the locally held Do Not Call register.
@@ -23,7 +24,7 @@ import { DNC_VALID_DAYS, dncEnforced } from "@/lib/dnc";
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!hasCronAuth(auth)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

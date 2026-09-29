@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { runPollerTick } from "@/lib/poller";
+import { hasCronAuth } from "@/lib/bearer";
 
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!hasCronAuth(auth)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const result = await runPollerTick();

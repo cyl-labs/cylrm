@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fillMissingNumbers, sweepRecordingGaps } from "@/lib/recording-gaps";
+import { hasCronAuth } from "@/lib/bearer";
 
 /**
  * Calls that connected and never got a recording.
@@ -21,7 +22,7 @@ import { fillMissingNumbers, sweepRecordingGaps } from "@/lib/recording-gaps";
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!hasCronAuth(auth)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const result = await sweepRecordingGaps();
