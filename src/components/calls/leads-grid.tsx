@@ -19,6 +19,7 @@ import {
   Table2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { beginNavigation } from "@/components/navigation-progress";
 // The Spreadsheet's own row shape (a lead plus its recording count), under the
 // name this file has always used for its rows.
 import type { CallCategory, CallOutcome, SheetRow as SheetLead } from "@/lib/calls";
@@ -484,7 +485,7 @@ function HeaderMenu({
 export function LeadsGrid({
   leads,
   lists,
-  initialTab = "all",
+  initialTab,
   truncated = false,
   meName = null,
   showDealStages = true,
@@ -504,10 +505,10 @@ export function LeadsGrid({
   showDealStages?: boolean;
   /** Every niche. `called` decides whether its tab is out on the strip or
    *  folded away under "Not called yet". */
-  lists: { id: number; name: string; called: boolean }[];
-  /** Which sheet tab to open on — set by `?list=` so the Spreadsheet button
-   *  on a call list lands on that list rather than on everything. */
-  initialTab?: number | "all";
+  lists: { id: number; name: string; called: boolean; count: number }[];
+  /** The list this page loaded — from `?list=`, so the Spreadsheet button on a
+   *  call list lands on that list. Only this list's leads are in `leads`. */
+  initialTab: number;
   /** More leads exist than the sheet loads — said out loud rather than
    *  showing part of a list as if it were all of it. */
   truncated?: boolean;
@@ -516,14 +517,61 @@ export function LeadsGrid({
   meName?: string | null;
 }) {
   const router = useRouter();
-  const [tab, setTab] = React.useState<number | "all">(initialTab);
+  // The list this page was loaded for. A tab click goes to the server for
+  // another list (`openList`), so this is the address, not local state.
+  const tab = initialTab;
   // The folder starts open when the sheet was opened on a niche inside it —
   // arriving at a tab hidden in a closed folder looks like the tab has gone.
   const [showUntouched, setShowUntouched] = React.useState(
-    initialTab !== "all" && lists.some((l) => l.id === initialTab && !l.called),
+    lists.some((l) => l.id === initialTab && !l.called),
   );
   const [category, setCategory] = React.useState<CallCategory | "all">("all");
   const [search, setSearch] = React.useState("");
+  /** What the server found for the text in the box, across every list. Two
+   *  letters or more; shorter text just filters the list on screen. */
+  const [found, setFound] = React.useState<{
+    /** The text these results answer, so a stale answer is never mistaken for
+     *  the current one. */
+    q: string;
+    leads: SheetLead[];
+    capped: boolean;
+    limit: number;
+    failed?: boolean;
+  } | null>(null);
+  const searchText = search.trim();
+  const acrossLists = searchText.length >= 2;
+  const searching = acrossLists && (found === null || found.q !== searchText);
+
+  React.useEffect(() => {
+    if (!acrossLists) return;
+    const ctl = new AbortController();
+    // Debounced: a fetch per keystroke would ask the server about "a", "ac",
+    // "acm" of a name being typed.
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/call-sheet/search?q=${encodeURIComponent(searchText)}`,
+          { signal: ctl.signal, cache: "no-store" },
+        );
+        if (!res.ok) throw new Error(String(res.status));
+        const body = await res.json();
+        setFound({ q: searchText, ...body });
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        setFound({ q: searchText, leads: [], capped: false, limit: 0, failed: true });
+        toast.error("Could not search every list. Showing this list only.");
+      }
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      ctl.abort();
+    };
+  }, [acrossLists, searchText]);
+
+  /** Whether the rows on screen are search results rather than one list. Kept
+   *  through the moment a longer query is in flight, so the grid does not
+   *  flash back to the list between keystrokes. */
+  const showingFound = acrossLists && found !== null && !found.failed;
   const [sort, setSort] = React.useState<{
     key: ColKey;
     dir: "asc" | "desc";
@@ -574,35 +622,35 @@ export function LeadsGrid({
 
   const rows = React.useMemo(
     () =>
-      leads.map((base) => {
+      (showingFound ? found.leads : leads).map((base) => {
         const fields = fieldEdits[base.id];
         const withFields = fields ? { ...base, ...fields } : base;
         const call = callEdits[base.id];
         return call ? { ...withFields, ...call } : withFields;
       }),
-    [leads, callEdits, fieldEdits],
+    [leads, found, showingFound, callEdits, fieldEdits],
   );
 
-  const inTab = React.useMemo(
-    () => (tab === "all" ? rows : rows.filter((l) => l.listId === tab)),
-    [rows, tab],
-  );
+  // Search results already span lists; otherwise the page holds one list.
+  const inTab = rows;
 
   /* One list's tab drops the List column: every row on it says the same
      thing, and on a phone it is 160px in front of the company name. */
   const cols = React.useMemo(
-    () => (tab === "all" ? COLS : COLS.filter((c) => c.key !== "listName")),
-    [tab],
+    () => (showingFound ? COLS : COLS.filter((c) => c.key !== "listName")),
+    [showingFound],
   );
 
   const matching = React.useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = searchText.toLowerCase();
     return inTab.filter((l) => {
       if (category !== "all" && categoryOf(l) !== category) return false;
-      if (q === "") return true;
+      // Search results were matched on the server, on more than the columns
+      // show (the website, the list's name), so they are not filtered again.
+      if (q === "" || showingFound) return true;
       return cols.some((c) => cellText(l, c.key, tz).toLowerCase().includes(q));
     });
-  }, [inTab, cols, category, search, tz]);
+  }, [inTab, cols, category, searchText, showingFound, tz]);
 
   /**
    * Column sort, or null for the order the server sent — most recently called
@@ -923,15 +971,27 @@ export function LeadsGrid({
     router.refresh();
   }
 
-  const asTab = (l: { id: number; name: string }) => ({
-    key: l.id as number | "all",
+  const asTab = (l: { id: number; name: string; count: number }) => ({
+    key: l.id,
     label: l.name,
-    count: rows.filter((r) => r.listId === l.id).length,
+    count: l.count,
   });
-  const tabs = [
-    { key: "all" as number | "all", label: "All leads", count: rows.length },
-    ...lists.filter((l) => l.called).map(asTab),
-  ];
+  const tabs = lists.filter((l) => l.called).map(asTab);
+
+  /** Go to another list. The page loads one list at a time, so this is a
+   *  navigation; it also drops any search, which would otherwise keep showing
+   *  results from every list. */
+  function openList(id: number) {
+    if (id === tab && !acrossLists) return;
+    setSearch("");
+    setFound(null);
+    setSel({ r: 0, c: 0 });
+    if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+    if (id === tab) return;
+    const href = `/call-sheet?list=${id}`;
+    beginNavigation(href);
+    router.push(href);
+  }
   const untouched = lists.filter((l) => !l.called).map(asTab);
 
   return (
@@ -942,9 +1002,12 @@ export function LeadsGrid({
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
+            // Too short to search every list: forget the last answer, so it
+            // cannot flash up under the next two letters.
+            if (e.target.value.trim().length < 2) setFound(null);
             setSel({ r: 0, c: sel.c });
           }}
-          placeholder="Search this sheet…"
+          placeholder="Search every list: business, name, phone, email…"
           className="h-8 w-full text-[13px] sm:w-64"
         />
         <Button
@@ -954,7 +1017,9 @@ export function LeadsGrid({
             downloadCsv(
               filtered,
               cols,
-              tabs.find((t) => t.key === tab)?.label ?? "call-leads",
+              showingFound
+                ? `search-${searchText}`
+                : (lists.find((l) => l.id === tab)?.name ?? "call-leads"),
               tz,
             )
           }
@@ -963,11 +1028,15 @@ export function LeadsGrid({
           Export CSV
         </Button>
         <span className="ml-auto text-[13px] tabular-nums text-muted-foreground">
+          {searching && "Searching every list… "}
           {filtered.length.toLocaleString()} rows
+          {showingFound && " across every list"}
           {/* The category filter lives on its column header now, which is out
               of the way — so the count says when one is on. */}
           {category !== "all" && ` · ${CATEGORY_LABELS[category]}`}
-          {truncated && " (first 5,000)"}
+          {showingFound && found.capped
+            ? ` (first ${found.limit}, type more to narrow it)`
+            : !showingFound && truncated && " (first 5,000)"}
         </span>
       </div>
 
@@ -1162,26 +1231,21 @@ export function LeadsGrid({
                   ) : c.key === "listName" ? (
                     <HeaderMenu
                       label="List"
-                      active={tab !== "all"}
-                      value={lists.find((l) => l.id === tab)?.name ?? null}
-                      options={[
-                        { key: "all", label: "All leads", count: rows.length },
-                        ...lists.map((l) => ({
-                          key: String(l.id),
-                          label: l.name,
-                          count: rows.filter((r) => r.listId === l.id).length,
-                        })),
-                      ]}
+                      active={false}
+                      value={null}
+                      options={lists.map((l) => ({
+                        key: String(l.id),
+                        label: l.name,
+                        count: l.count,
+                      }))}
                       onPick={(k) => {
-                        const next = k === "all" ? "all" : Number(k);
-                        setTab(next);
+                        const next = Number(k);
                         // If it lives in the folded set, open the folder too:
                         // a tab strip with nothing highlighted looks broken.
                         if (lists.some((l) => l.id === next && !l.called)) {
                           setShowUntouched(true);
                         }
-                        setSel({ r: 0, c: 0 });
-                        if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+                        openList(next);
                       }}
                     />
                   ) : (
@@ -1389,18 +1453,15 @@ export function LeadsGrid({
       </div>
 
       {/* Sheet tabs — one per call list, the way a workbook holds a sheet per
-          table. Filtering happens in the browser, so switching is instant. */}
+          table. Each loads its own list from the server; the search box above
+          looks across all of them. */}
       <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-t bg-card px-2 py-1.5">
         {tabs.map((t) => (
           <button
             key={String(t.key)}
             ref={t.key === tab ? activeTabRef : undefined}
             type="button"
-            onClick={() => {
-              setTab(t.key);
-              setSel({ r: 0, c: 0 });
-              if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
-            }}
+            onClick={() => openList(t.key)}
             className={cn(
               "flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-2.5 py-1 text-[13px] transition-colors",
               t.key === tab
@@ -1446,11 +1507,7 @@ export function LeadsGrid({
               key={String(t.key)}
               ref={t.key === tab ? activeTabRef : undefined}
               type="button"
-              onClick={() => {
-                setTab(t.key);
-                setSel({ r: 0, c: 0 });
-                if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
-              }}
+              onClick={() => openList(t.key)}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-2.5 py-1 text-[13px] transition-colors",
                 t.key === tab

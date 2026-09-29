@@ -925,7 +925,39 @@ export type SheetRow = SheetLead & {
   recordings: number;
 };
 
-export async function getSheetLeads(ownerId?: number): Promise<SheetRow[]> {
+/** How many rows a Spreadsheet search returns before it asks for a narrower one. */
+export const SHEET_SEARCH_LIMIT = 300;
+
+/**
+ * Which leads a Spreadsheet search finds (2026-09-29): the business, the
+ * contact, the title, the email, the website, the list's name, the latest
+ * call's notes, and a phone number typed in any format (three digits or more).
+ * `%` and `_` in what was typed are literal, not wildcards.
+ */
+function sheetSearch(q: string): SQL {
+  const pattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+  const digits = q.replace(/\D/g, "");
+  return sql`and (
+    l.company ilike ${pattern} or l.name ilike ${pattern}
+    or l.title ilike ${pattern} or l.email ilike ${pattern}
+    or l.website ilike ${pattern} or l.direct_name ilike ${pattern}
+    or cl.name ilike ${pattern} or lc.notes ilike ${pattern}
+    ${digits.length >= 3 ? sql`or l.phone_key like ${`%${digits}%`}` : sql``}
+  )`;
+}
+
+/**
+ * The Spreadsheet's rows. **One list at a time, or a search across all of
+ * them, never everything** (2026-09-29): with 9,900 leads the "everything"
+ * version was cut off at 5,000 for founders, and the cut fell on the leads
+ * nobody had rung. A caller's own lists are small, so `ownerId` scoping
+ * still applies to both.
+ */
+export async function getSheetLeads(
+  ownerId?: number,
+  opts: { listId?: number; search?: string; limit?: number } = {},
+): Promise<SheetRow[]> {
+  const search = opts.search?.trim() ?? "";
   const rows = (await db.execute(sql`
     select ${leadColumns}, cl.id as list_id, cl.name as list_name
     from call_lead l
@@ -934,11 +966,13 @@ export async function getSheetLeads(ownerId?: number): Promise<SheetRow[]> {
     ${leadZone}
     where l.duplicate_of_lead_id is null
       ${ownedBy(ownerId)}
+      ${opts.listId ? sql`and l.call_list_id = ${opts.listId}` : sql``}
+      ${search ? sheetSearch(search) : sql``}
     order by lc.called_at desc nulls last,
       cl.name asc,
       coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) asc,
       l.id asc
-    limit ${CALL_SHEET_LIMIT}
+    limit ${opts.limit ?? CALL_SHEET_LIMIT}
   `)) as Row[];
 
   const [dids, recordings] = await Promise.all([
