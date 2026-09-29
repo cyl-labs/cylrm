@@ -709,6 +709,11 @@ export const call = pgTable(
      *  duration: a no-answer has one of these and no recording at all, and
      *  no-answers are most of the volume. */
     durationSeconds: integer("duration_seconds"),
+    /** Set on a call that did not connect, for a lead that already has a demo,
+     *  trial or booked meeting behind it: the lead stays out of the dial queue
+     *  instead of coming back as a cold retry. Only ever true on the lead's
+     *  latest call to matter, since the queue reads the latest call. */
+    keepOutOfQueue: boolean("keep_out_of_queue").notNull().default(false),
   },
   // Both of these must be declared here, not only in the migration that made
   // them: `drizzle-kit push` drops any index it cannot see in this file, so

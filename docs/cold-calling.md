@@ -404,6 +404,41 @@ opening a niche to check something is not somebody skipping their callbacks.
   not a way round anything. The tab you are on is never struck through, which
   is the case that link lands in.
 
+### A no answer must not hide a demo (2026-09-30)
+
+Pro Junk Removal had its demo on 19 Sep and a follow-up booked. On 25 Sep a
+no answer was logged on the lead by hand. The queue reads only a lead's
+**latest** call, so that no answer replaced `demo_booked`, the lead stopped
+being terminal and came back after the 3-day retry wait. On 29 Sep a caller
+rang it as a cold retry (the card said nothing else), opened the pitch from the
+top and logged a second Demo booked: a second meeting, a second pickup and a
+second attendance fee waiting to happen. Read the transcript before assuming a
+caller was careless; the screen gave them nothing to go on.
+
+- **`call.keep_out_of_queue`** (`2026-09-30-call-keep-out-of-queue.sql`, apply
+  before deploying: every logged call now inserts it). True keeps the lead out
+  of the queue. `latestCall` exposes it as `lc.held`; `queueWhere` and the
+  `getCallLists` counts (`to_retry`, `retry_later`, `tried_out`) leave a held
+  lead out, and the Closed tab counts it. **`getCallLists` restates the latest
+  call, so a change to this rule is made in both.**
+- **The default is decided on the server** (`keepsOutOfQueue` in
+  `api/calls/route.ts`): a no answer, voicemail or gatekeeper on a lead that
+  has a demo, follow-up, trial or won call, or any non-cancelled meeting
+  (`leadHasPipeline`) is held unless the request says `keepOutOfQueue: false`.
+  It lives there rather than in the dial card so the Spreadsheet, the Pipeline
+  and Missed calls are covered without each growing a question. PATCH
+  (correcting a call) excludes the call being overwritten from that history, so
+  a mis-tapped Demo booked corrected to No answer is not held for its own sake.
+- **The dial card asks** only in that case, after No answer, Voicemail or
+  Gatekeeper is picked: "Keep it out of the queue" (preselected) or "Put it back
+  in the queue".
+- **Either way the lead is never shown as a new one.** `QueueLead.pipeline`
+  (`leadColumns`, from every call and booking, not the latest call) drives a
+  blue notice on the dial card and a line on its "Up next" row: "Not a new lead:
+  already in talks", with the last and next meeting dates and what to do.
+- **Not done: a call already logged is not re-flagged.** Leads that were
+  released before this shipped are still in the queue, now marked.
+
 ### The same business under another number
 
 Rules in `src/lib/business-match.mjs` (plain ESM, like `handout.mjs`, so a

@@ -4,7 +4,7 @@ import { call, callLead } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
 import { canEditLead } from "@/lib/lead-access";
 import { parseCallbackAt } from "@/lib/call-time";
-import { zoneForLead } from "@/lib/calls";
+import { leadHasPipeline, zoneForLead } from "@/lib/calls";
 import { readerZone } from "@/lib/users";
 
 const OUTCOMES = [
@@ -24,6 +24,30 @@ type Outcome = (typeof OUTCOMES)[number];
 
 const isOutcome = (v: unknown): v is Outcome =>
   typeof v === "string" && (OUTCOMES as readonly string[]).includes(v);
+
+/**
+ * Whether a call that did not connect keeps its lead out of the dial queue.
+ *
+ * The queue reads a lead's latest call, so a no answer logged on a business
+ * that already had its demo put it back in front of a caller as a cold retry
+ * (Pro Junk Removal, 2026-09-29: a second demo, a second pickup, and a caller
+ * who opened as if they had never spoken). On a lead with a demo, trial or
+ * booking behind it the default is therefore to keep it out, and a person has
+ * to say otherwise (`keepOutOfQueue: false`, the dial card's choice) to put it
+ * back. The default lives here rather than in the dial card so the Spreadsheet,
+ * the Pipeline and the Missed calls row are covered without each growing the
+ * question.
+ */
+async function keepsOutOfQueue(
+  leadId: number,
+  outcome: Outcome,
+  chosen: unknown,
+  exceptCallId: number | null = null,
+) {
+  if (!["no_answer", "voicemail", "gatekeeper"].includes(outcome)) return false;
+  if (!(await leadHasPipeline(leadId, exceptCallId))) return false;
+  return chosen !== false;
+}
 
 export async function POST(request: Request) {
   // `getCurrentUser`, not the cookie's `loggedIn` flag: that flag is written at
@@ -45,6 +69,7 @@ export async function POST(request: Request) {
     contactName?: unknown;
     telnyxSessionId?: unknown;
     durationSeconds?: unknown;
+    keepOutOfQueue?: unknown;
   } | null;
 
   if (!body) {
@@ -177,6 +202,11 @@ export async function POST(request: Request) {
       outcome: body.outcome,
       notes,
       callbackAt,
+      keepOutOfQueue: await keepsOutOfQueue(
+        leadId,
+        body.outcome,
+        body.keepOutOfQueue,
+      ),
     })
     .returning({ id: call.id, calledAt: call.calledAt });
 
@@ -259,6 +289,7 @@ export async function PATCH(request: Request) {
     contactEmail?: unknown;
     contactName?: unknown;
     notes?: unknown;
+    keepOutOfQueue?: unknown;
   } | null;
 
   if (!body) {
@@ -354,7 +385,16 @@ export async function PATCH(request: Request) {
   // does not make the call yours. The dial was theirs and stays theirs.
   await db
     .update(call)
-    .set({ outcome: body.outcome, callbackAt })
+    .set({
+      outcome: body.outcome,
+      callbackAt,
+      keepOutOfQueue: await keepsOutOfQueue(
+        leadId,
+        body.outcome,
+        body.keepOutOfQueue,
+        existing.id,
+      ),
+    })
     .where(eq(call.id, existing.id));
 
   return Response.json({ id: existing.id, outcome: body.outcome });

@@ -195,7 +195,7 @@ const SPOKE_TO = sql`('gatekeeper','callback','not_interested','demo_booked','tr
 const latestCall = sql`
   left join lateral (
     select c.outcome, c.called_at, c.callback_at, c.notes, c.telnyx_session_id,
-      c.user_id,
+      c.user_id, c.keep_out_of_queue as held,
       -- Who made it. Joined here rather than on the outer query so it stays
       -- the *latest* call's caller, not every caller this lead has had.
       (select u.name from app_user u where u.id = c.user_id) as by_name,
@@ -596,6 +596,7 @@ export async function getCallLists(
       count(l.id) filter (where lc.outcome is null) as uncalled,
       count(l.id) filter (
         where lc.outcome in ${notReached}
+          and not lc.held
           and not ${TRIED_OUT}
           and ${RETRY_READY}
       ) as to_retry,
@@ -604,10 +605,11 @@ export async function getCallLists(
       -- list from reading as Finished.
       count(l.id) filter (
         where lc.outcome in ${notReached}
+          and not lc.held
           and not ${TRIED_OUT}
           and not ${RETRY_READY}
       ) as retry_later,
-      count(l.id) filter (where ${TRIED_OUT}) as tried_out,
+      count(l.id) filter (where ${TRIED_OUT} and not lc.held) as tried_out,
       count(l.id) filter (
         where lc.outcome in ('not_interested','bad_number','lost')
       ) as ruled_out,
@@ -636,6 +638,7 @@ export async function getCallLists(
     -- TRIED_OUT and RETRY_READY read.
     left join lateral (
       select c.outcome, c.called_at, c.callback_at, c.user_id,
+        c.keep_out_of_queue as held,
         coalesce(t.unanswered, 0) as unanswered,
         coalesce(t.not_reached, 0) as not_reached
       from call c
@@ -705,6 +708,18 @@ export async function getCallLists(
   }));
 }
 
+export type LeadPipeline = {
+  /** When a demo, follow-up or trial was last agreed on a call. */
+  calledAt: string | null;
+  /** The next booked meeting on the calendar, if there is one. */
+  nextMeetingAt: string | null;
+  /** The latest meeting that has already started. */
+  lastMeetingAt: string | null;
+  /** The last call was a no answer that a caller chose to keep out of the
+   *  queue. False means it is back in the queue on purpose. */
+  held: boolean;
+};
+
 export type QueueLead = {
   id: number;
   phone: string;
@@ -733,6 +748,12 @@ export type QueueLead = {
   city: string | null;
   state: string | null;
   attempts: number;
+  /**
+   * A demo, trial or booked meeting this business already has, or null for an
+   * ordinary lead. The card warns on it and the queue row is marked, so a lead
+   * that comes back round after a no answer is never mistaken for a fresh one.
+   */
+  pipeline: LeadPipeline | null;
   /**
    * When a message was last left on this number, or null if never.
    *
@@ -832,6 +853,21 @@ const leadColumns = sql`
   lc.voicemail_at,
   lr.recording_id, lr.duration_ms as recording_ms,
   (select count(*) from call c where c.call_lead_id = l.id) as attempts,
+  -- What this business already has behind it, for the warning on the card and
+  -- the queue row. Read across every call and booking rather than off the
+  -- latest call, because the latest call is usually the no answer that
+  -- followed the demo: exactly the fact that put Pro Junk Removal back in the
+  -- queue looking like a cold retry.
+  (select max(c5.called_at) from call c5
+    where c5.call_lead_id = l.id
+      and c5.outcome in ('demo_booked','following_up','trial','won')) as pipeline_call_at,
+  (select min(m.start_at) from call_meeting m
+    where m.call_lead_id = l.id and m.status <> 'cancelled'
+      and m.start_at > now()) as next_meeting_at,
+  (select max(m.start_at) from call_meeting m
+    where m.call_lead_id = l.id and m.status <> 'cancelled'
+      and m.start_at <= now()) as last_meeting_at,
+  lc.held as held,
   z.tz,
   -- Today in their zone, so the card can say "open until 4:30". A known week
   -- with no zone gives nothing: without a clock there is no "today".
@@ -842,6 +878,42 @@ const leadColumns = sql`
     )
   end as hours_today
 `;
+
+function toPipeline(r: Row): LeadPipeline | null {
+  const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
+  const calledAt = iso(r.pipeline_call_at);
+  const nextMeetingAt = iso(r.next_meeting_at);
+  const lastMeetingAt = iso(r.last_meeting_at);
+  if (!calledAt && !nextMeetingAt && !lastMeetingAt) return null;
+  return { calledAt, nextMeetingAt, lastMeetingAt, held: r.held === true };
+}
+
+/**
+ * Whether a business already has a demo, follow-up, trial or live booking
+ * behind it. Decides the default for a call that did not connect: on such a
+ * lead it stays out of the dial queue unless somebody says otherwise.
+ */
+export async function leadHasPipeline(
+  leadId: number,
+  /** A call about to be overwritten by a correction, which is not history. */
+  exceptCallId: number | null = null,
+): Promise<boolean> {
+  const [row] = (await db.execute(sql`
+    select (
+      exists (
+        select 1 from call c
+        where c.call_lead_id = ${leadId}
+          and c.id is distinct from ${exceptCallId}
+          and c.outcome in ('demo_booked','following_up','trial','won')
+      )
+      or exists (
+        select 1 from call_meeting m
+        where m.call_lead_id = ${leadId} and m.status <> 'cancelled'
+      )
+    ) as has
+  `)) as Row[];
+  return row?.has === true;
+}
 
 function toLead(r: Row, dids: DidMap): QueueLead {
   return {
@@ -855,6 +927,7 @@ function toLead(r: Row, dids: DidMap): QueueLead {
     city: (r.city as string | null) ?? null,
     state: (r.state as string | null) ?? null,
     attempts: n(r.attempts),
+    pipeline: toPipeline(r),
     voicemailAt: r.voicemail_at
       ? new Date(r.voicemail_at as string).toISOString()
       : null,
@@ -1273,6 +1346,9 @@ function queueWhere(
         or (
           lc.outcome not in ${TERMINAL}
           and lc.outcome <> 'callback'
+          -- A no answer logged on a lead that already has a demo behind it,
+          -- with "keep it out of the queue" chosen (2026-09-30).
+          and not lc.held
           -- Nobody answered in MAX_UNANSWERED_TRIES tries: given up on. Still
           -- under the All tab, and counted as done on the progress bar.
           and not ${TRIED_OUT}
@@ -1286,7 +1362,7 @@ function queueWhere(
     : filter === "callbacks"
       ? sql`and lc.outcome = 'callback' ${whose}`
       : filter === "closed"
-        ? sql`and lc.outcome in ${TERMINAL}`
+        ? sql`and (lc.outcome in ${TERMINAL} or lc.held)`
         : sql``;
 }
 

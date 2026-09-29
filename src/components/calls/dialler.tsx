@@ -535,6 +535,53 @@ function relative(iso: string | null) {
  * Mounted with `key={lead.id}` so each new number starts clean — see the call
  * site. Everything it owns is scoped to the lead in front of you.
  */
+/** "Sep 19", in the caller's own zone. A fixed locale and zone, never left to
+ *  the browser: the server renders this too, and a mismatch throws the tree
+ *  away on hydration. */
+function dayLabel(iso: string, tz: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: tz,
+  });
+}
+
+/**
+ * The warning for a business that already has a demo, trial or meeting behind
+ * it. A lead like this comes round the queue behind a no answer looking exactly
+ * like a cold retry, and the caller then opens the pitch from the top on
+ * somebody who has already sat through it (Pro Junk Removal, 2026-09-29).
+ * Written as what to do, since a caller mid-queue has to act, not read.
+ */
+function PipelineNotice({
+  pipeline,
+  tz,
+}: {
+  pipeline: NonNullable<QueueLead["pipeline"]>;
+  tz: string;
+}) {
+  const facts = [
+    pipeline.lastMeetingAt &&
+      `Last meeting: ${dayLabel(pipeline.lastMeetingAt, tz)}`,
+    pipeline.nextMeetingAt &&
+      `Next meeting: ${dayLabel(pipeline.nextMeetingAt, tz)}`,
+    !pipeline.lastMeetingAt &&
+      !pipeline.nextMeetingAt &&
+      pipeline.calledAt &&
+      `A demo was agreed on ${dayLabel(pipeline.calledAt, tz)}`,
+  ].filter(Boolean);
+  return (
+    <p className="mt-2 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-[13px] text-sky-900 dark:border-sky-700/60 dark:bg-sky-950/40 dark:text-sky-200">
+      <span className="font-semibold">
+        Not a new lead: this business is already in talks with us.
+      </span>{" "}
+      {facts.length > 0 && <>{facts.join(". ")}. </>}
+      Do not open with the cold pitch. If they pick up, ask how the demo went
+      and what is already booked.
+    </p>
+  );
+}
+
 function CallForm({
   lead,
   readerTz,
@@ -593,6 +640,13 @@ function CallForm({
   // later.
   const [picked, setPicked] = React.useState<CallOutcome | null>(null);
   const [saving, setSaving] = React.useState(false);
+  // Only asked when a call that did not connect lands on a business that
+  // already has a demo behind it. False keeps it out of the queue, which is the
+  // safe answer and the one the server assumes when nobody says.
+  const [backInQueue, setBackInQueue] = React.useState(false);
+  const asksWhere =
+    lead.pipeline !== null &&
+    (picked === "no_answer" || picked === "voicemail" || picked === "gatekeeper");
 
   async function save() {
     // Asked for once per save rather than per render: it is a ref read, and
@@ -610,6 +664,7 @@ function CallForm({
           outcome,
           notes,
           callbackAt: outcome === "callback" ? callbackAt : undefined,
+          keepOutOfQueue: asksWhere ? !backInQueue : undefined,
           contactEmail: outcome === "demo_booked" ? email : undefined,
           contactName: outcome === "demo_booked" ? contact : undefined,
           // The session id is what the recording joins on; the duration is
@@ -694,6 +749,44 @@ function CallForm({
             onChange={(e) => setCallbackAt(e.target.value)}
           />
         </div>
+      )}
+
+      {asksWhere && (
+        <fieldset className="mt-3 space-y-2 rounded-lg border px-3 py-2.5">
+          <p className="text-[12px] font-bold text-foreground">
+            This business already has a demo. Where should it go now?
+          </p>
+          {[
+            {
+              back: false,
+              title: "Keep it out of the queue",
+              body: "Callers will not be given it again. Pick this when a meeting is booked or a founder is handling it.",
+            },
+            {
+              back: true,
+              title: "Put it back in the queue",
+              body: "Callers will be given it again, marked as already in talks, not as a new lead.",
+            },
+          ].map((o) => (
+            <label
+              key={o.title}
+              className="flex cursor-pointer items-start gap-2.5 text-[13px]"
+            >
+              <input
+                type="radio"
+                name={`where-${lead.id}`}
+                className="mt-1"
+                checked={backInQueue === o.back}
+                disabled={saving}
+                onChange={() => setBackInQueue(o.back)}
+              />
+              <span>
+                <span className="block font-semibold">{o.title}</span>
+                <span className="block text-muted-foreground">{o.body}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
       )}
 
       <div className="mt-4 grid grid-cols-2 gap-4">
@@ -1269,6 +1362,10 @@ export function Dialler({
             — so the fact the caller needs is not in the latest call at all.
             Worded as the instruction rather than the fact: a caller mid-queue
             reads a date and has to work out what to do with it. */}
+        {current.pipeline && (
+          <PipelineNotice pipeline={current.pipeline} tz={readerTz} />
+        )}
+
         {current.voicemailAt && (
           <p
             suppressHydrationWarning
@@ -1446,6 +1543,11 @@ export function Dialler({
                     {placeShort(l) && (
                       <span className="truncate text-[11px] font-medium text-muted-foreground">
                         {placeShort(l)}
+                      </span>
+                    )}
+                    {l.pipeline && (
+                      <span className="truncate text-[11px] font-semibold text-sky-700 dark:text-sky-300">
+                        Already in talks: not a new lead
                       </span>
                     )}
                   </span>
