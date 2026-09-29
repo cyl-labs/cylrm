@@ -13,6 +13,7 @@ import { InboundListener } from "@/components/calls/inbound-listener";
 import { RingBackLog } from "@/components/calls/ring-back-log";
 import { CallLineProvider } from "@/components/calls/call-line";
 import { TabSync } from "@/components/tab-sync";
+import { NewVersionNotice } from "@/components/new-version-notice";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { Suspense } from "react";
 import { CalBookingProvider } from "@/components/calls/book-demo";
@@ -165,6 +166,8 @@ export default async function AppLayout({
       {/* A change saved in one CRM tab refreshes the others — the badges and
           lists are server-rendered and otherwise wait for a reload. */}
       <TabSync />
+      {/* Offers a reload once a deploy has left this tab on old code. */}
+      <NewVersionNotice />
       {/* A bar, a "Loading…" label and a dimmed page while a filter or a
           screen is on its way. Suspense because it reads the search params. */}
       <Suspense fallback={null}>

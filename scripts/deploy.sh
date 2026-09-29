@@ -62,6 +62,10 @@ else
 fi
 
 say "Building locally"
+# Stamped into the browser's code and the server's alike (see next.config.ts and
+# NewVersionNotice), so an open tab can tell the server has moved on.
+export CYLRM_BUILD_ID="$(date -u +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
+echo "build $CYLRM_BUILD_ID"
 npm run build
 
 # node_modules is not shipped, so the droplet installs its own. Only reinstall
