@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { callLead, callList } from "@/db/schema";
 import { classifyPhone, e164, phoneKey } from "@/lib/calls";
 import { getCurrentUser } from "@/lib/session";
+import { canEditLead } from "@/lib/lead-access";
 import { websiteHref } from "@/lib/website";
 
 /** The lead's own fields — the ones a scrape can get wrong. Everything else on
@@ -44,6 +45,9 @@ export async function PATCH(
   const leadId = Number(id);
   if (!Number.isInteger(leadId)) {
     return Response.json({ error: "Invalid lead." }, { status: 400 });
+  }
+  if (!(await canEditLead(me, leadId))) {
+    return Response.json({ error: "Lead not found." }, { status: 404 });
   }
 
   const body = (await request.json().catch(() => null)) as Record<

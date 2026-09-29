@@ -2,6 +2,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { call, callLead } from "@/db/schema";
 import { getCurrentUser } from "@/lib/session";
+import { canEditLead } from "@/lib/lead-access";
 import { parseCallbackAt } from "@/lib/call-time";
 import { zoneForLead } from "@/lib/calls";
 import { readerZone } from "@/lib/users";
@@ -268,6 +269,13 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "Invalid lead." }, { status: 400 });
   }
 
+  // The same answer as a lead that does not exist, as a list a caller may not
+  // open gets: nothing here says whether the id is real.
+  if (!(await canEditLead(me, leadId))) {
+    return Response.json({ error: "Lead not found." }, { status: 404 });
+  }
+
+
   // Notes typed into the Spreadsheet's Notes cell. That column is the latest
   // call's notes, so an edit rewrites them in place: not an outcome change and
   // not a new attempt, the same reasoning as the rest of this route. It was not
@@ -375,6 +383,13 @@ export async function DELETE(request: Request) {
   if (!Number.isInteger(leadId)) {
     return Response.json({ error: "Invalid lead." }, { status: 400 });
   }
+
+  // The same answer as a lead that does not exist, as a list a caller may not
+  // open gets: nothing here says whether the id is real.
+  if (!(await canEditLead(me, leadId))) {
+    return Response.json({ error: "Lead not found." }, { status: 404 });
+  }
+
 
   const existing = await latestCallFor(leadId);
   if (!existing) {
