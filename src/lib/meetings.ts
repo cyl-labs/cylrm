@@ -360,6 +360,30 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         meeting_url = excluded.meeting_url,
         kind = excluded.kind,
         synced_at = now()
+      -- Only when something would change (2026-09-29). This runs for every
+      -- booking on the account every five minutes, and rewriting an identical
+      -- row each time made a dead tuple per meeting per tick (nothing reads
+      -- synced_at). Mirrors the assignments above: a hand-corrected match
+      -- and a value the payload left blank never count as a change.
+      where call_meeting.cal_booking_id is distinct from excluded.cal_booking_id
+        or call_meeting.cal_start_at is distinct from excluded.cal_start_at
+        or call_meeting.status is distinct from excluded.status
+        or call_meeting.title is distinct from excluded.title
+        or call_meeting.attendee_name is distinct from excluded.attendee_name
+        or call_meeting.attendee_email is distinct from excluded.attendee_email
+        or call_meeting.attendee_tz is distinct from excluded.attendee_tz
+        or call_meeting.meeting_url is distinct from excluded.meeting_url
+        or call_meeting.kind is distinct from excluded.kind
+        or (call_meeting.matched_by is distinct from 'manual' and (
+          (excluded.call_lead_id is not null
+            and excluded.call_lead_id is distinct from call_meeting.call_lead_id)
+          or (excluded.call_id is not null
+            and excluded.call_id is distinct from call_meeting.call_id)
+          or (excluded.matched_by is not null
+            and excluded.matched_by is distinct from call_meeting.matched_by)
+          or (excluded.attendee_phone is not null
+            and excluded.attendee_phone is distinct from call_meeting.attendee_phone)
+        ))
       -- Postgres sets xmax to the locking transaction on an updated row and
       -- leaves it 0 on a freshly inserted one, which is the only way an
       -- upsert can say which of the two it just did.
