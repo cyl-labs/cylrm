@@ -115,3 +115,69 @@ export async function getElevenLabs(force = false): Promise<ElevenLabs | null> {
     return cached?.value ?? null;
   }
 }
+
+/** $2 buys 10,000 credits. */
+const USD_PER_CREDIT = 2 / 10_000;
+/**
+ * Tax on a top-up. Observed on the September invoices: $5.00 of credit was
+ * charged as $5.45, 9% (Singapore GST). It is an estimate for a top-up we did
+ * not see the invoice of, and the row can be edited if an invoice differs.
+ */
+const TOP_UP_TAX = 1.09;
+
+/**
+ * Log any top-up since the last look. Run by the worker every five minutes.
+ *
+ * Returns what it did so the cron response says. A rise in the credit limit
+ * inside the same billing period and plan is a top-up; a new period or plan
+ * moves the limit by itself, so those only re-baseline.
+ */
+export async function syncTopUps(): Promise<{ action: string; usd?: number }> {
+  const key = process.env.ELEVENLABS_API_KEY?.trim();
+  if (!key) return { action: "unconfigured" };
+  const { db } = await import("@/db");
+  const { elevenlabsWatch, recharge } = await import("@/db/schema");
+  const { eq } = await import("drizzle-orm");
+
+  const res = await fetch("https://api.elevenlabs.io/v1/user/subscription", {
+    headers: { "xi-api-key": key },
+    signal: AbortSignal.timeout(8_000),
+    cache: "no-store",
+  });
+  if (!res.ok) return { action: `api ${res.status}` };
+  const d = (await res.json()) as {
+    tier?: string;
+    character_limit?: number;
+    next_character_count_reset_unix?: number;
+    currency?: string;
+  };
+  if (!d.character_limit || !d.next_character_count_reset_unix || !d.tier) {
+    return { action: "unreadable" };
+  }
+  const now = {
+    creditLimit: d.character_limit,
+    resetUnix: d.next_character_count_reset_unix,
+    tier: d.tier,
+    seenAt: new Date(),
+  };
+
+  const [last] = await db.select().from(elevenlabsWatch).where(eq(elevenlabsWatch.id, 1));
+  if (!last) {
+    await db.insert(elevenlabsWatch).values({ id: 1, ...now });
+    return { action: "baseline" };
+  }
+  const samePeriod = last.resetUnix === now.resetUnix && last.tier === now.tier;
+  const rise = now.creditLimit - last.creditLimit;
+  if (samePeriod && rise > 0 && d.currency === "usd") {
+    const usd = Math.round(rise * USD_PER_CREDIT * TOP_UP_TAX * 100) / 100;
+    // Both writes together: a logged top-up with a stale baseline would be
+    // counted again on the next tick.
+    await db.transaction(async (tx) => {
+      await tx.insert(recharge).values({ amountCents: Math.round(usd * 100), currency: "usd" });
+      await tx.update(elevenlabsWatch).set(now).where(eq(elevenlabsWatch.id, 1));
+    });
+    return { action: "top-up logged", usd };
+  }
+  await db.update(elevenlabsWatch).set(now).where(eq(elevenlabsWatch.id, 1));
+  return { action: samePeriod ? "no change" : "re-baselined" };
+}

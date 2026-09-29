@@ -1946,3 +1946,20 @@ export const recharge = pgTable("recharge", {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * The last ElevenLabs credit limit the watcher saw (one row, id 1).
+ *
+ * A pay-as-you-go top-up raises `character_limit` by the credits bought, and
+ * that is the only trace the API leaves of one (invoices are not exposed). The
+ * cron compares each reading with this row: a rise inside the same billing
+ * period and plan is a top-up, and is logged in `recharge`. A new period or a
+ * new tier re-baselines instead, since either changes the limit on its own.
+ */
+export const elevenlabsWatch = pgTable("elevenlabs_watch", {
+  id: integer("id").primaryKey(),
+  creditLimit: integer("credit_limit").notNull(),
+  resetUnix: bigint("reset_unix", { mode: "number" }).notNull(),
+  tier: text("tier").notNull(),
+  seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+});

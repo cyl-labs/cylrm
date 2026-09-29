@@ -64,6 +64,9 @@ async function run() {
   // still be running. Telnyx dropped 34 answered calls on 2026-09-21 and
   // nothing noticed for three days, because nothing was looking.
   await tick("recordings");
+  // ElevenLabs shows no invoices, but a top-up raises the credit limit, so
+  // one read a tick is enough to log it.
+  await tick("elevenlabs");
 }
 
 /**
