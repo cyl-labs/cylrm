@@ -432,10 +432,16 @@ caller was careless; the screen gave them nothing to go on.
 - **The dial card asks** only in that case, after No answer, Voicemail or
   Gatekeeper is picked: "Keep it out of the queue" (preselected) or "Put it back
   in the queue".
-- **Either way the lead is never shown as a new one.** `QueueLead.pipeline`
+- **Either way the caller is told it is an old booking.** `QueueLead.pipeline`
   (`leadColumns`, from every call and booking, not the latest call) drives a
-  blue notice on the dial card and a line on its "Up next" row: "Not a new lead:
-  already in talks", with the last and next meeting dates and what to do.
+  blue notice on the dial card: "We already booked this business. This is an old
+  booking, not a cold call", the booking date, what to say (follow up on the
+  booking, do not pitch from the start) and a **"Listen to the earlier calls"**
+  button that reuses `LeadRecordings` (every recording on the number, playable
+  with its transcript) so the briefing is one tap away. The "Up next" row says
+  "Old booking: follow up, not a cold call". **Wording matters (founders,
+  2026-09-30):** "not a new lead" was rejected as negative; keep it about the
+  old booking and the follow-up.
 - **Not done: a call already logged is not re-flagged.** Leads that were
   released before this shipped are still in the queue, now marked.
 

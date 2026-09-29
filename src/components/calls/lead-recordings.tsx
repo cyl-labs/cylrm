@@ -55,14 +55,20 @@ export function LeadRecordings({
   title,
   tz,
   zoneLabel,
+  label = "Listen back",
+  triggerClassName,
 }: {
   leadId: number;
-  count: number;
+  /** Shown beside the label when known. The dial card does not have one. */
+  count?: number;
   title: string;
   /** The sheet's clock, so these times read the same as the column beside
    *  them. */
   tz: string;
   zoneLabel: string;
+  /** The trigger's words, for a screen where "Listen back" alone is not clear. */
+  label?: string;
+  triggerClassName?: string;
 }) {
   const [items, setItems] = React.useState<LeadRecording[] | null>(null);
   const [failed, setFailed] = React.useState(false);
@@ -89,10 +95,17 @@ export function LeadRecordings({
           if (open && items === null) void load();
         }}
       >
-        <DropdownMenuTrigger className="flex items-center gap-1 rounded px-1 font-semibold text-primary hover:bg-primary/10">
+        <DropdownMenuTrigger
+          className={
+            triggerClassName ??
+            "flex items-center gap-1 rounded px-1 font-semibold text-primary hover:bg-primary/10"
+          }
+        >
           <CirclePlay className="size-3.5 shrink-0" strokeWidth={2} />
-          Listen back
-          <span className="tabular-nums text-muted-foreground">{count}</span>
+          {label}
+          {count !== undefined && (
+            <span className="tabular-nums text-muted-foreground">{count}</span>
+          )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-72">
           <DropdownMenuLabel className="text-[12px]">

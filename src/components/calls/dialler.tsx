@@ -64,6 +64,7 @@ import { CALLING_HOURS_LABEL } from "@/lib/call-hours";
 import { placeLabel, placeShort } from "@/lib/place";
 import { websiteHref, websiteLabel } from "@/lib/website";
 import { LocalTime } from "@/components/calls/local-time";
+import { LeadRecordings } from "@/components/calls/lead-recordings";
 import {
   callbackZoneLabel,
   defaultCallbackAt,
@@ -547,38 +548,53 @@ function dayLabel(iso: string, tz: string) {
 }
 
 /**
- * The warning for a business that already has a demo, trial or meeting behind
- * it. A lead like this comes round the queue behind a no answer looking exactly
- * like a cold retry, and the caller then opens the pitch from the top on
- * somebody who has already sat through it (Pro Junk Removal, 2026-09-29).
- * Written as what to do, since a caller mid-queue has to act, not read.
+ * The notice for a business we already booked, however long ago and whatever
+ * became of it. A lead like this comes round the queue behind a no answer
+ * looking exactly like a cold retry, and the caller then opens the pitch from
+ * the top on somebody who has already sat through it (Pro Junk Removal,
+ * 2026-09-29). Written as what to do, since a caller mid-queue has to act, not
+ * read, and it carries the earlier recordings so the briefing is one tap away.
  */
 function PipelineNotice({
+  lead,
   pipeline,
   tz,
 }: {
+  lead: QueueLead;
   pipeline: NonNullable<QueueLead["pipeline"]>;
   tz: string;
 }) {
-  const facts = [
-    pipeline.lastMeetingAt &&
-      `Last meeting: ${dayLabel(pipeline.lastMeetingAt, tz)}`,
-    pipeline.nextMeetingAt &&
-      `Next meeting: ${dayLabel(pipeline.nextMeetingAt, tz)}`,
-    !pipeline.lastMeetingAt &&
-      !pipeline.nextMeetingAt &&
-      pipeline.calledAt &&
-      `A demo was agreed on ${dayLabel(pipeline.calledAt, tz)}`,
-  ].filter(Boolean);
+  const zoneName =
+    new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" })
+      .formatToParts(new Date())
+      .find((p) => p.type === "timeZoneName")?.value ?? tz;
+  const where = pipeline.nextMeetingAt
+    ? `They have a booking coming up on ${dayLabel(pipeline.nextMeetingAt, tz)}.`
+    : pipeline.lastMeetingAt
+      ? `Their booking was on ${dayLabel(pipeline.lastMeetingAt, tz)}. This call is a follow-up on that booking.`
+      : pipeline.calledAt
+        ? `A demo was agreed with them on ${dayLabel(pipeline.calledAt, tz)}.`
+        : null;
   return (
-    <p className="mt-2 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-[13px] text-sky-900 dark:border-sky-700/60 dark:bg-sky-950/40 dark:text-sky-200">
-      <span className="font-semibold">
-        Not a new lead: this business is already in talks with us.
-      </span>{" "}
-      {facts.length > 0 && <>{facts.join(". ")}. </>}
-      Do not open with the cold pitch. If they pick up, ask how the demo went
-      and what is already booked.
-    </p>
+    <div className="mt-2 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2.5 text-[13px] text-sky-900 dark:border-sky-700/60 dark:bg-sky-950/40 dark:text-sky-200">
+      <p className="font-semibold">
+        We already booked this business. This is an old booking, not a cold
+        call.
+      </p>
+      <p className="mt-1">
+        {where} Do not pitch from the start. Say you are following up on their
+        booking, and listen to the earlier calls first so you know what was
+        said.
+      </p>
+      <LeadRecordings
+        leadId={lead.id}
+        title={lead.company ?? lead.name ?? lead.phone}
+        tz={tz}
+        zoneLabel={zoneName}
+        label="Listen to the earlier calls"
+        triggerClassName="mt-2 inline-flex items-center gap-1.5 rounded-md border border-sky-400 bg-white px-2.5 py-1.5 text-[13px] font-semibold text-sky-900 hover:bg-sky-100 dark:border-sky-600 dark:bg-transparent dark:text-sky-100 dark:hover:bg-sky-900/40"
+      />
+    </div>
   );
 }
 
@@ -754,7 +770,7 @@ function CallForm({
       {asksWhere && (
         <fieldset className="mt-3 space-y-2 rounded-lg border px-3 py-2.5">
           <p className="text-[12px] font-bold text-foreground">
-            This business already has a demo. Where should it go now?
+            We already booked this business. Where should it go now?
           </p>
           {[
             {
@@ -765,7 +781,7 @@ function CallForm({
             {
               back: true,
               title: "Put it back in the queue",
-              body: "Callers will be given it again, marked as already in talks, not as a new lead.",
+              body: "Callers will be given it again, marked as an old booking to follow up, not a cold call.",
             },
           ].map((o) => (
             <label
@@ -1363,7 +1379,11 @@ export function Dialler({
             Worded as the instruction rather than the fact: a caller mid-queue
             reads a date and has to work out what to do with it. */}
         {current.pipeline && (
-          <PipelineNotice pipeline={current.pipeline} tz={readerTz} />
+          <PipelineNotice
+            lead={current}
+            pipeline={current.pipeline}
+            tz={readerTz}
+          />
         )}
 
         {current.voicemailAt && (
@@ -1547,7 +1567,7 @@ export function Dialler({
                     )}
                     {l.pipeline && (
                       <span className="truncate text-[11px] font-semibold text-sky-700 dark:text-sky-300">
-                        Already in talks: not a new lead
+                        Old booking: follow up, not a cold call
                       </span>
                     )}
                   </span>
