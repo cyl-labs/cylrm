@@ -113,8 +113,12 @@ export function NavLinks({
         {badge && badge.n > 0 && (
           <span
             className={cn(
-              "ml-auto min-w-5 rounded-full px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums",
-              "group-data-[collapsed=true]/sidebar:absolute group-data-[collapsed=true]/sidebar:right-1 group-data-[collapsed=true]/sidebar:top-1 group-data-[collapsed=true]/sidebar:size-2 group-data-[collapsed=true]/sidebar:min-w-0 group-data-[collapsed=true]/sidebar:p-0 group-data-[collapsed=true]/sidebar:text-[0px]",
+              // A fixed 20px height and no inherited line height (2026-09-29): the badge
+              // took its height from the link's text, so a single digit came out
+              // 20px wide and 24px tall, an oval. Now a circle for one digit and
+              // a pill of the same height for two or "99+", on every link.
+              "ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold leading-none tabular-nums",
+              "group-data-[collapsed=true]/sidebar:absolute group-data-[collapsed=true]/sidebar:right-1 group-data-[collapsed=true]/sidebar:top-1 group-data-[collapsed=true]/sidebar:size-2 group-data-[collapsed=true]/sidebar:h-2 group-data-[collapsed=true]/sidebar:min-w-0 group-data-[collapsed=true]/sidebar:p-0 group-data-[collapsed=true]/sidebar:text-[0px]",
               badge.red ? "bg-destructive text-white" : "bg-primary text-primary-foreground",
             )}
           >
