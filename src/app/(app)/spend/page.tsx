@@ -6,6 +6,7 @@ import {
   type SubscriptionRow,
 } from "@/components/calls/subscriptions-card";
 import { getSubscriptions, monthlyCents } from "@/lib/subscriptions";
+import { getElevenLabs } from "@/lib/elevenlabs";
 import {
   SPEND_DAYS,
   SPEND_WINDOWS,
@@ -100,6 +101,18 @@ function Chip({
   );
 }
 
+/**
+ * One hue per bucket in the "Everything" split, chosen to stay apart in both
+ * themes. They were the clay accent at four opacities, which is brown on the
+ * dark page and made the segments hard to tell apart.
+ */
+const BUCKET = {
+  phones: "bg-sky-500 dark:bg-sky-400",
+  pay: "bg-emerald-500 dark:bg-emerald-400",
+  subs: "bg-violet-500 dark:bg-violet-400",
+  eleven: "bg-amber-500 dark:bg-amber-400",
+};
+
 const CARD =
   "rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]";
 
@@ -166,7 +179,10 @@ export default async function SpendPage({
     countShowedUpDemos(days),
     usdToSgd(),
   ]);
-  const subs = await getSubscriptions(days, fx?.rate ?? null);
+  const [subs, eleven] = await Promise.all([
+    getSubscriptions(days, fx?.rate ?? null),
+    getElevenLabs(),
+  ]);
 
   // Asked for Singapore dollars and the rate would not come: stay in USD
   // rather than inventing one, and say so below.
@@ -215,7 +231,12 @@ export default async function SpendPage({
   // Everything the business pays over the window, in three buckets. The
   // subscriptions are in this figure only: the per-call, per-pickup and
   // per-demo numbers stay the cost of the calling floor.
-  const everything = allIn + subs.total;
+  // ElevenLabs is read live rather than typed in: the plan's monthly price
+  // prorated like a subscription, plus any overage so far this period.
+  const elevenTotal = eleven
+    ? (eleven.monthlyUsd * 12 * days) / 365 + eleven.overageUsd
+    : 0;
+  const everything = allIn + subs.total + elevenTotal;
   const share = (n: number) =>
     everything > 0 ? Math.round((n / everything) * 100) : 0;
   const subRows: SubscriptionRow[] = subs.rows.map((s) => {
@@ -341,16 +362,33 @@ export default async function SpendPage({
           </p>
           {everything > 0 && (
             <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-muted">
-              <div className="bg-primary" style={{ width: `${share(spend.total)}%` }} />
-              <div className="bg-primary/60" style={{ width: `${share(floorPay)}%` }} />
-              <div className="bg-primary/30" style={{ width: `${share(subs.total)}%` }} />
+              <div className={BUCKET.phones} style={{ width: `${share(spend.total)}%` }} />
+              <div className={BUCKET.pay} style={{ width: `${share(floorPay)}%` }} />
+              <div className={BUCKET.subs} style={{ width: `${share(subs.total)}%` }} />
+              {eleven && (
+                <div className={BUCKET.eleven} style={{ width: `${share(elevenTotal)}%` }} />
+              )}
             </div>
           )}
-          <dl className="mt-3 grid grid-cols-1 gap-2 text-[13px] sm:grid-cols-3">
+          <dl className="mt-3 grid grid-cols-1 gap-2 text-[13px] sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: "Phones", note: "Telnyx usage", value: spend.total, dot: "bg-primary" },
-              { label: "Floor pay", note: "pickup bonuses and demo fees", value: floorPay, dot: "bg-primary/60" },
-              { label: "Subscriptions", note: "Claude, the Discord and the rest", value: subs.total, dot: "bg-primary/30" },
+              { label: "Phones", note: "Telnyx usage", value: spend.total, dot: BUCKET.phones },
+              { label: "Floor pay", note: "pickup bonuses and demo fees", value: floorPay, dot: BUCKET.pay },
+              { label: "Subscriptions", note: "Claude, the Discord and the rest", value: subs.total, dot: BUCKET.subs },
+              ...(eleven
+                ? [
+                    {
+                      label: "ElevenLabs",
+                      note: `${eleven.tier} plan, ${Math.round(
+                        (eleven.used / Math.max(eleven.limit, 1)) * 100,
+                      )}% of this month's credits used${
+                        eleven.canExceed ? "" : " (capped, no overage)"
+                      }`,
+                      value: elevenTotal,
+                      dot: BUCKET.eleven,
+                    },
+                  ]
+                : []),
             ].map((b) => (
               <div key={b.label} className="flex items-start gap-2">
                 <span className={`mt-1.5 size-2 shrink-0 rounded-full ${b.dot}`} />
@@ -367,6 +405,27 @@ export default async function SpendPage({
               </div>
             ))}
           </dl>
+          {eleven && eleven.daysLeft !== null && eleven.resetsAt && (
+            <p
+              className={cn(
+                "mt-2 text-[12px]",
+                eleven.daysLeft <
+                  (eleven.resetsAt.getTime() - Date.now()) / 86_400_000
+                  ? "font-semibold text-warning"
+                  : "text-muted-foreground",
+              )}
+            >
+              ElevenLabs credits: {eleven.used.toLocaleString()} of{" "}
+              {eleven.limit.toLocaleString()} used. At the last week&rsquo;s pace
+              of {Math.round(eleven.burnPerDay ?? 0).toLocaleString()} a day they
+              run out in about {Math.max(Math.round(eleven.daysLeft), 0)} days
+              {eleven.daysLeft <
+              (eleven.resetsAt.getTime() - Date.now()) / 86_400_000
+                ? ", before the plan renews, so expect a recharge"
+                : ", after the plan renews, so no recharge needed"}
+              . Recharges are not shown: ElevenLabs does not report them.
+            </p>
+          )}
           {subs.unconverted > 0 && (
             <p className="mt-2 text-[12px] text-warning">
               {subs.unconverted} subscription

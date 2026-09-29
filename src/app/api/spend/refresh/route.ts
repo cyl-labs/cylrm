@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/session";
+import { getElevenLabs } from "@/lib/elevenlabs";
 import { SPEND_DAYS, getSpend, isSpendDays } from "@/lib/telnyx-usage";
 
 /**
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
   const asked = new URL(request.url).searchParams.get("days");
   const days = isSpendDays(asked) ? Number(asked) : SPEND_DAYS;
   const spend = await getSpend(days as 7 | 30 | 90, true);
+  await getElevenLabs(true);
   if (spend.skipped === "unconfigured") {
     return Response.json({ skipped: "unconfigured" });
   }
