@@ -246,11 +246,35 @@ export function TextsApp({
   // Nothing else redraws this screen when a text lands, and a conversation
   // somebody is in the middle of has to show the reply without a reload.
   // Paused while the tab is hidden, so a forgotten tab costs nothing.
+  //
+  // Asks a tiny endpoint whether anything changed and renders the page only
+  // when it did (2026-09-29). It used to refresh the whole page every ten
+  // seconds, per open tab, which is a full server render of the screen and the
+  // layout's counts several hundred times an hour for nothing.
   React.useEffect(() => {
-    const t = setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
-    }, 10_000);
-    return () => clearInterval(t);
+    let last: string | null = null;
+    let stopped = false;
+    const check = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch("/api/texts/fingerprint", { cache: "no-store" });
+        if (!res.ok || stopped) return;
+        const { fingerprint } = (await res.json()) as { fingerprint?: string };
+        if (typeof fingerprint !== "string") return;
+        // The first answer only sets the baseline: the page on screen was
+        // rendered a moment before it.
+        if (last !== null && fingerprint !== last) router.refresh();
+        last = fingerprint;
+      } catch {
+        // Offline or restarting: try again next time.
+      }
+    };
+    void check();
+    const t = setInterval(check, 10_000);
+    return () => {
+      stopped = true;
+      clearInterval(t);
+    };
   }, [router]);
 
   const selectedKey = thread?.conversation.key ?? null;

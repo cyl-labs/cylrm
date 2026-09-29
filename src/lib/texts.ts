@@ -556,6 +556,27 @@ export async function markConversationRead(
  * both ask while rendering one page. Zero while texting is off, so the badge
  * query never reaches a table that may not exist.
  */
+/**
+ * A cheap fingerprint of every text this person can see (2026-09-29): it
+ * changes when a message arrives, is read, or moves through sent, delivered or
+ * failed, and not otherwise.
+ *
+ * The Texts screen asked for a full server render every ten seconds to notice
+ * those changes, per open tab, all day. This is one small aggregate, so the tab
+ * asks this instead and renders only when the answer differs. `hashtext` of the
+ * status is summed so a status change moves it without reading every row back.
+ */
+export async function textsFingerprint(me: CurrentUser | null): Promise<string> {
+  const [row] = (await db.execute(sql`
+    select count(*) as n, coalesce(max(s.id), 0) as last_id,
+      count(s.read_at) as reads,
+      coalesce(sum(hashtext(s.status)), 0) as statuses
+    from call_sms s
+    where ${scope(me)}
+  `)) as Row[];
+  return `${row?.n}:${row?.last_id}:${row?.reads}:${row?.statuses}`;
+}
+
 export const countUnreadTexts = cache(async function countUnreadTexts(
   me: CurrentUser | null,
 ): Promise<number> {
