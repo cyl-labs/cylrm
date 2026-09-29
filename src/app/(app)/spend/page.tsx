@@ -2,6 +2,11 @@ import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { RefreshSpend } from "@/components/calls/refresh-spend";
 import {
+  SubscriptionsCard,
+  type SubscriptionRow,
+} from "@/components/calls/subscriptions-card";
+import { getSubscriptions, monthlyCents } from "@/lib/subscriptions";
+import {
   SPEND_DAYS,
   SPEND_WINDOWS,
   getSpend,
@@ -153,12 +158,15 @@ export default async function SpendPage({
     return query ? `/spend?${query}` : "/spend";
   };
 
+  // The rate is fetched whichever currency is showing: a bill entered in
+  // Singapore dollars has to be turned into USD to be added to the rest.
   const [spend, totals, showedUp, fx] = await Promise.all([
     getSpend(days),
     getCallTotals({ kind: "rolling", days }),
     countShowedUpDemos(days),
-    inSgd ? usdToSgd() : Promise.resolve(null),
+    usdToSgd(),
   ]);
+  const subs = await getSubscriptions(days, fx?.rate ?? null);
 
   // Asked for Singapore dollars and the rate would not come: stay in USD
   // rather than inventing one, and say so below.
@@ -203,6 +211,29 @@ export default async function SpendPage({
   const allInPerCall = totals.calls > 0 ? allIn / totals.calls : 0;
   const allInPerPickup = totals.pickups > 0 ? allIn / totals.pickups : 0;
   const allInPerDemo = demoCount > 0 ? allIn / demoCount : 0;
+
+  // Everything the business pays over the window, in three buckets. The
+  // subscriptions are in this figure only: the per-call, per-pickup and
+  // per-demo numbers stay the cost of the calling floor.
+  const everything = allIn + subs.total;
+  const share = (n: number) =>
+    everything > 0 ? Math.round((n / everything) * 100) : 0;
+  const subRows: SubscriptionRow[] = subs.rows.map((s) => {
+    const cur = s.currency === "sgd" ? "S$" : "$";
+    const amt = (s.amountCents / 100).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const usdMonthly =
+      monthlyCents(s) / 100 / (s.currency === "sgd" ? (fx?.rate ?? NaN) : 1);
+    return {
+      id: s.id,
+      name: s.name,
+      active: s.active,
+      entered: `${cur}${amt} ${s.period === "year" ? "a year" : "a month"}`,
+      monthly: Number.isFinite(usdMonthly) ? money(usdMonthly) : "-",
+    };
+  });
 
   const busiest = Math.max(...spend.daily.map((d) => d.cost), 0.01);
   const lineTotal = spend.lines.reduce((a, l) => a + l.cost, 0);
@@ -289,6 +320,61 @@ export default async function SpendPage({
             </span>
           </p>
         )}
+
+        {/* The overall feel: everything the business pays, in one figure,
+            split three ways. Above the tiles because it is the question the
+            tiles are read against. */}
+        <div className={`${CARD} px-4 py-4 sm:px-5`}>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+              Everything, {days} days
+            </p>
+            <p className="text-[12px] text-muted-foreground">
+              Phones, the floor&rsquo;s pay and our subscriptions together
+            </p>
+          </div>
+          <p className="mt-2 text-3xl font-extrabold tabular-nums tracking-[-0.02em]">
+            {money(everything)}
+          </p>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">
+            about {money((everything * 30) / days)} a month at this rate
+          </p>
+          {everything > 0 && (
+            <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-muted">
+              <div className="bg-primary" style={{ width: `${share(spend.total)}%` }} />
+              <div className="bg-primary/60" style={{ width: `${share(floorPay)}%` }} />
+              <div className="bg-primary/30" style={{ width: `${share(subs.total)}%` }} />
+            </div>
+          )}
+          <dl className="mt-3 grid grid-cols-1 gap-2 text-[13px] sm:grid-cols-3">
+            {[
+              { label: "Phones", note: "Telnyx usage", value: spend.total, dot: "bg-primary" },
+              { label: "Floor pay", note: "pickup bonuses and demo fees", value: floorPay, dot: "bg-primary/60" },
+              { label: "Subscriptions", note: "Claude, the Discord and the rest", value: subs.total, dot: "bg-primary/30" },
+            ].map((b) => (
+              <div key={b.label} className="flex items-start gap-2">
+                <span className={`mt-1.5 size-2 shrink-0 rounded-full ${b.dot}`} />
+                <div>
+                  <dt className="font-semibold">
+                    {b.label}{" "}
+                    <span className="tabular-nums">{money(b.value)}</span>
+                    <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                      {share(b.value)}%
+                    </span>
+                  </dt>
+                  <dd className="text-[11px] text-muted-foreground">{b.note}</dd>
+                </div>
+              </div>
+            ))}
+          </dl>
+          {subs.unconverted > 0 && (
+            <p className="mt-2 text-[12px] text-warning">
+              {subs.unconverted} subscription
+              {subs.unconverted === 1 ? "" : "s"} in Singapore dollars left out:
+              the exchange rate could not be fetched.
+            </p>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <div className={`${CARD} px-4 py-3`}>
@@ -457,6 +543,21 @@ export default async function SpendPage({
             window, so what is owed there will not match this. Nothing here
             counts the founders&rsquo; own time.
           </p>
+        </div>
+
+        {/* Fixed bills typed in by hand: nothing to read them from. They
+            feed the overall figure at the top and nothing else. */}
+        <div className={`${CARD} px-4 py-4 sm:px-5`}>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+              Subscriptions
+            </p>
+            <p className="text-[12px] text-muted-foreground">
+              Recurring bills that are not the phones. Counted at their
+              monthly rate, not what was actually charged on the day.
+            </p>
+          </div>
+          <SubscriptionsCard rows={subRows} />
         </div>
 
         {/* One series, so one colour and no legend — the heading names it.

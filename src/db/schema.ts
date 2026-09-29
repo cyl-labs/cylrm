@@ -1906,3 +1906,25 @@ export const usAreaCode = pgTable("us_area_code", {
    *  deciding what the local time is. */
   tz: text("tz").notNull(),
 });
+
+/**
+ * A fixed bill the business pays, typed in by a founder (Claude, the Discord,
+ * whatever else renews on a card). Shown on Spend and added to its overall
+ * total only: it never enters the per-call, per-pickup or per-demo figures,
+ * which are the cost of running the calling floor.
+ *
+ * `amountCents` is in `currency`, whatever the bill is actually charged in,
+ * and converted at read time. A stopped subscription is switched off rather
+ * than deleted so the list still says what used to be paid.
+ */
+export const subscription = pgTable("subscription", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("usd").$type<"usd" | "sgd">(),
+  period: text("period").notNull().default("month").$type<"month" | "year">(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
