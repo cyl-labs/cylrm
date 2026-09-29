@@ -1587,6 +1587,20 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
     the wrong month — "08/09/2026" is 8 September to us and 9 August to them.
     Left alone deliberately: it is wording on a document somebody signs, not a
     bug to quietly flip.
+- **Templates replaced 2026-09-29: trial is 73, paid is 75** (`trial-agreement-v2`,
+  `paid-agreement-v2`, both in the Cyl Labs folder on `sign.cyllabs.com`; the old
+  ones, 70 and 71, are kept, so rolling back is two env values and a restart).
+  Rewritten in "we" and "you", one page (trial) and two (paid). **The trial is
+  75 minutes** for calls the client misses, USD 1 up front, with no day limit;
+  after 75 minutes we *may* switch it off, and extra minutes at USD 1 each only
+  if the client asks to keep going. All date boxes use the `D MMM YYYY` format
+  ("29 Sept 2026"), which cannot be misread as DD/MM or MM/DD. The paid PDF
+  must not print the sender's name: `cyllabs_name` is filled from
+  `DOCUSEAL_SENDER_NAME` and a printed copy would sit under it. The trial
+  wording lives in the PDF, not the CRM. The call scripts still say "30-day
+  trial", left as is on purpose (2026-09-29); the contract has no 30-day limit.
+  A checked list of every box name is in the two templates; verify with
+  `GET /api/templates/{id}` after any rebuild.
 - **Fields are addressed by name, and an unnamed field cannot be filled.** The
   editor shows "Text Field 1" for a field with no name, which reads exactly
   like a name and is not one — the API returns `name: ''` for it. Every blank
