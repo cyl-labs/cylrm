@@ -13,6 +13,7 @@ import {
   Search,
   SquarePen,
   User,
+  X,
 } from "lucide-react";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
 import { Badge } from "@/components/ui/badge";
@@ -242,6 +243,8 @@ export function TextsApp({
   const [query, setQuery] = React.useState("");
   const [composing, setComposing] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
+  /** Conversations whose new text was dismissed, by the time of that text. */
+  const [dismissed, setDismissed] = React.useState<Record<string, string>>({});
 
   // Nothing else redraws this screen when a text lands, and a conversation
   // somebody is in the middle of has to show the reply without a reload.
@@ -304,12 +307,44 @@ export function TextsApp({
   // their own when a new text arrives. A search looks through them too: a
   // thread you put away is still one you may need to find.
   const live = shown.filter((c) => !c.archived);
+  // A new text from somebody you have not been texting jumps to the top
+  // (2026-09-29). It used to sit under "Everyone else" or "Booked a demo", and
+  // whoever was answering had to scroll to find it. The x says "it's nothing":
+  // it marks the conversation read and it goes back where it belongs. Keyed by
+  // the time of the last text it was dismissed at, so a newer text from the
+  // same number brings it straight back up.
+  const isFresh = (c: Conversation) =>
+    c.unread > 0 &&
+    !c.replied &&
+    c.key !== selectedKey &&
+    dismissed[c.key] !== (c.last?.at ?? "");
+  const fresh = live.filter(isFresh);
+  async function dismiss(c: Conversation) {
+    const at = c.last?.at ?? "";
+    setDismissed((d) => ({ ...d, [c.key]: at }));
+    try {
+      const res = await fetch("/api/texts/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: c.key }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      router.refresh();
+    } catch {
+      setDismissed((d) => {
+        const next = { ...d };
+        delete next[c.key];
+        return next;
+      });
+      toast.error("Could not dismiss that text. Try again.");
+    }
+  }
   const archived = shown.filter((c) => c.archived);
   const archivedTotal = conversations.filter((c) => c.archived).length;
   const openArchive = showArchived || (q !== "" && archived.length > 0);
   const replied = live.filter((c) => c.demo === null && c.replied);
-  const booked = live.filter((c) => c.demo !== null);
-  const rest = live.filter((c) => c.demo === null && !c.replied);
+  const booked = live.filter((c) => c.demo !== null && !isFresh(c));
+  const rest = live.filter((c) => c.demo === null && !c.replied && !isFresh(c));
   const row = (c: Conversation) => (
     <ConversationRow
       key={c.key}
@@ -317,6 +352,16 @@ export function TextsApp({
       selected={c.key === selectedKey}
       showWho={isAdmin}
       tz={tz}
+    />
+  );
+  const freshRow = (c: Conversation) => (
+    <ConversationRow
+      key={c.key}
+      c={c}
+      selected={false}
+      showWho={isAdmin}
+      tz={tz}
+      onDismiss={() => void dismiss(c)}
     />
   );
 
@@ -389,10 +434,20 @@ export function TextsApp({
                 ? "Only archived conversations match. They're below."
                 : "You've archived every conversation. A new text brings one back here."}
             </p>
-          ) : booked.length === 0 && replied.length === 0 ? (
+          ) : booked.length === 0 && replied.length === 0 && fresh.length === 0 ? (
             <ul>{rest.map(row)}</ul>
           ) : (
             <>
+              {fresh.length > 0 && (
+                <section aria-labelledby="texts-new">
+                  <SectionHeading
+                    id="texts-new"
+                    title="New texts"
+                    note="Not someone you've been texting. Press the x if it's nothing and it goes back to its usual place."
+                  />
+                  <ul>{fresh.map(freshRow)}</ul>
+                </section>
+              )}
               {replied.length > 0 && (
                 <section aria-labelledby="texts-replied">
                   <SectionHeading
@@ -526,21 +581,25 @@ function ConversationRow({
   selected,
   showWho,
   tz,
+  onDismiss,
 }: {
   c: Conversation;
   selected: boolean;
   showWho: boolean;
   tz: string;
+  /** Set on a row in "New texts": adds the x that says it is nothing. */
+  onDismiss?: () => void;
 }) {
   const unread = c.unread > 0 && !selected;
   return (
-    <li>
+    <li className="relative">
       <Link
         href={conversationHref(c.their, c.ours)}
         scroll={false}
         aria-current={selected ? "true" : undefined}
         className={cn(
           "flex items-center gap-2 pl-1.5 pr-3 transition-colors",
+          onDismiss && "pr-10",
           selected ? "bg-[var(--imsg-sent)] text-white" : "hover:bg-muted/60",
         )}
       >
@@ -604,6 +663,19 @@ function ConversationRow({
           )}
         </div>
       </Link>
+      {/* Beside the link, not inside it: a button in a link is two controls
+          answering one click. */}
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss: it's nothing"
+          title="It's nothing. Mark it read and put it back."
+          className="absolute right-2 top-2.5 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <X className="size-4" strokeWidth={2} />
+        </button>
+      )}
     </li>
   );
 }

@@ -1405,6 +1405,13 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
   A booked business stays under Booked even once replied to, so no row is in
   two sections. The query orders demo, then replied, before the 200 limit, so
   neither can be pushed off the list.
+- **"New texts" sits above everything** (2026-09-29, `isFresh` in
+  `texts-app.tsx`): an unread conversation the reader has not replied in, from
+  either "Booked a demo" or "Everyone else", so a new text is not found by
+  scrolling. Its x is "it's nothing": it POSTs `/api/texts/read` (marks it read,
+  clears the badge) and the row drops back to its usual section. Held hidden by
+  the time of the last text it was dismissed at (`dismissed`), so a newer text
+  from the same number brings it back up.
 - **A conversation can be linked to a business by hand** (2026-09-24,
   `linkConversation`, `POST /api/texts/link`, "Link to a business" in the
   thread's details). Owners text from their own mobile, which matches no lead.
