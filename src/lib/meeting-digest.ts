@@ -116,19 +116,24 @@ const clock = (at: Date, tz: string) =>
     minute: "2-digit",
   }).format(at);
 
-/**
- * "Fri 9:00 PM" — the weekday always, never "today" or "tonight".
- *
- * This is sent at eight in the evening and most of what it lists happens after
- * midnight, so a relative word would be wrong as often as right: a demo at one
- * in the morning is tonight's shift and tomorrow's date.
- */
-function at(start: Date, tz: string): string {
+/** "9:00 PM", or "1:00 AM Thu" once it is past midnight of the night's own
+ *  date. The block title already names the night, so a weekday on every line
+ *  only cut a shift in two: 9, 10 and 11pm under one day, then the small hours
+ *  under the next (2026-09-30, "is it even necessary to show Monday 9, 10, 11
+ *  and then it just cuts off?"). */
+function timeInNight(start: Date, tz: string, nightDate: string): string {
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(start);
+  if (date === nightDate) return clock(start, tz);
   const weekday = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     weekday: "short",
   }).format(start);
-  return `${weekday} ${clock(start, tz)}`;
+  return `${clock(start, tz)} ${weekday}`;
 }
 
 export async function sendMeetingDigest(
@@ -176,8 +181,9 @@ export async function sendMeetingDigest(
   // Each day is 24 hours from now, not a calendar day: the demos run from one
   // to six in the morning here, so a calendar split would file tonight's 1am
   // demo under tomorrow. The title still carries the date the day starts on.
-  const DAYS = ["TODAY", "TOMORROW", "DAY AFTER"];
-  const buckets: string[][] = DAYS.map(() => []);
+  const nights = [0, 1, 2].map((i) => new Date(now.getTime() + i * DAY_MS));
+  const nightDates = nights.map((d) => localClock(tz, d).date);
+  const buckets: string[][] = nights.map(() => []);
 
   for (const m of meetings) {
     const start = new Date(m.start_at as string);
@@ -197,23 +203,28 @@ export async function sendMeetingDigest(
     const theirs = their === null ? "" : ` (${their} their time)`;
     const who = (m.who as string | null) ?? "A meeting";
     const by = m.booked_by ? ` · booked by ${m.booked_by as string}` : "";
-    const day = Math.min(
-      DAYS.length - 1,
+    const night = Math.min(
+      nights.length - 1,
       Math.floor((start.getTime() - now.getTime()) / DAY_MS),
     );
-    buckets[day].push(`• ${at(start, tz)}: ${who}${theirs}${by}`);
+    buckets[night].push(
+      `• ${timeInNight(start, tz, nightDates[night])}: ${who}${theirs}${by}`,
+    );
   }
 
-  const sections = DAYS.map((name, i) => {
-    const begins = new Intl.DateTimeFormat("en-US", {
+  const sections = nights.map((begins, i) => {
+    const long = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
-      weekday: "short",
+      weekday: "long",
+    }).format(begins);
+    const date = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
       day: "numeric",
       month: "short",
-    }).format(new Date(now.getTime() + i * DAY_MS));
+    }).format(begins);
     const n = buckets[i].length;
     return {
-      title: `${name} · from ${begins}${n > 0 ? ` · ${n} demo${n === 1 ? "" : "s"}` : ""}`,
+      title: `${i === 0 ? "TONIGHT" : `${long.toUpperCase()} NIGHT`} (${date})${n > 0 ? ` · ${n} demo${n === 1 ? "" : "s"}` : ""}`,
       lines: buckets[i],
     };
   });
@@ -224,7 +235,7 @@ export async function sendMeetingDigest(
   const heading =
     meetings.length === 0
       ? "No demos in the next 3 days"
-      : `${meetings.length} demo${meetings.length === 1 ? "" : "s"} in the next 3 days · your time (${HOME_LABEL})\nEach day below is 24 hours from when this was sent.`;
+      : `${meetings.length} demo${meetings.length === 1 ? "" : "s"} in the next 3 days · your time (${HOME_LABEL})\nEach night runs 24 hours from when this was sent, so demos after midnight stay with the evening before.`;
 
   try {
     await notifyMeetingDigest(heading, sections);
