@@ -1960,6 +1960,16 @@ missing table is that job throwing every five minutes.
   read as the prospect's time. The per-meeting Telegram reminders still format
   in `foundersZone`, since they are read beside the screens.
 
+- **Split into TODAY / TOMORROW / DAY AFTER blocks (2026-09-30)**, asked for as
+  "tabs" because three days of demos ran together. Real tabs would be inline
+  buttons, and the bot only sends: switching a tab needs a webhook receiving the
+  taps (and `setWebhook` on the shared bot), so it was left as blocks. **Each
+  block is 24 hours from the send, not a calendar day** (`DAY_MS` buckets in
+  `meeting-digest.ts`): demos run 1 to 6am Singapore, so a calendar split files
+  tonight's 1am demo under tomorrow. Each title carries the date it starts on
+  and its count; an empty day says "Nothing booked". `notifyMeetingDigest` now
+  takes sections.
+
 ### Browser push reminders
 
 A meeting reminder has to reach somebody who has not opened the CRM yet today.

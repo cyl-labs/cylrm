@@ -172,7 +172,14 @@ export async function sendMeetingDigest(
   `)) as Row[];
   if (claimed.length === 0) return { skipped: "already-sent" };
 
-  const lines = meetings.map((m) => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  // Each day is 24 hours from now, not a calendar day: the demos run from one
+  // to six in the morning here, so a calendar split would file tonight's 1am
+  // demo under tomorrow. The title still carries the date the day starts on.
+  const DAYS = ["TODAY", "TOMORROW", "DAY AFTER"];
+  const buckets: string[][] = DAYS.map(() => []);
+
+  for (const m of meetings) {
     const start = new Date(m.start_at as string);
     // Where the business is first, the zone the booking form was open in
     // second — and their weekday with it when their date is not ours. This
@@ -190,7 +197,25 @@ export async function sendMeetingDigest(
     const theirs = their === null ? "" : ` (${their} their time)`;
     const who = (m.who as string | null) ?? "A meeting";
     const by = m.booked_by ? ` · booked by ${m.booked_by as string}` : "";
-    return `• ${at(start, tz)}: ${who}${theirs}${by}`;
+    const day = Math.min(
+      DAYS.length - 1,
+      Math.floor((start.getTime() - now.getTime()) / DAY_MS),
+    );
+    buckets[day].push(`• ${at(start, tz)}: ${who}${theirs}${by}`);
+  }
+
+  const sections = DAYS.map((name, i) => {
+    const begins = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    }).format(new Date(now.getTime() + i * DAY_MS));
+    const n = buckets[i].length;
+    return {
+      title: `${name} · from ${begins}${n > 0 ? ` · ${n} demo${n === 1 ? "" : "s"}` : ""}`,
+      lines: buckets[i],
+    };
   });
 
   // The clock is named once: these arrive in the small hours here, and a bare
@@ -199,10 +224,10 @@ export async function sendMeetingDigest(
   const heading =
     meetings.length === 0
       ? "No demos in the next 3 days"
-      : `${meetings.length} demo${meetings.length === 1 ? "" : "s"} in the next 3 days · your time (${HOME_LABEL})`;
+      : `${meetings.length} demo${meetings.length === 1 ? "" : "s"} in the next 3 days · your time (${HOME_LABEL})\nEach day below is 24 hours from when this was sent.`;
 
   try {
-    await notifyMeetingDigest(heading, lines);
+    await notifyMeetingDigest(heading, sections);
   } catch (err) {
     // Reported, never thrown: this runs on the meetings tick, and a Telegram
     // hiccup must not fail a job that also syncs Cal.com.

@@ -97,16 +97,23 @@ export async function notifyMeeting(m: MeetingNotification): Promise<void> {
  */
 export async function notifyMeetingDigest(
   heading: string,
-  lines: string[],
+  sections: { title: string; lines: string[] }[],
 ): Promise<void> {
   const base = process.env.PUBLIC_APP_URL ?? "";
-  // A blank line between demos, and after the heading (2026-09-22, asked for
-  // on the floor). Each line carries a time, a business, the prospect's own
-  // clock and who booked it, so five of them stacked with no gap read as one
-  // paragraph — Telegram wraps a long line on a phone, and the wrapped half
-  // looked like the next meeting.
-  const out = [`📋 ${heading}`, ...lines.flatMap((line) => ["", line])];
-  if (base) out.push("", `${base}/meetings`);
+  // One block per day, split by a rule and a blank line (2026-09-30, asked for
+  // as "tabs": Telegram cannot switch a tab without the bot listening for
+  // taps, so the days are stacked and each is labelled instead). A blank line
+  // between demos and after the heading as well (2026-09-22): each line
+  // carries a time, a business, the prospect's own clock and who booked it, so
+  // five with no gap read as one paragraph, and Telegram wraps a long line on
+  // a phone so the wrapped half looked like the next meeting.
+  const out = [`📋 ${heading}`];
+  for (const section of sections) {
+    out.push("", "━━━━━━━━━━━━━━", section.title);
+    if (section.lines.length === 0) out.push("", "Nothing booked");
+    for (const line of section.lines) out.push("", line);
+  }
+  if (base) out.push("", "━━━━━━━━━━━━━━", `${base}/meetings`);
   await send(out.join("\n"));
 }
 
