@@ -56,6 +56,16 @@ export function MeetingStatsCard({
     },
     { label: "No show", value: String(t.noShow), sub: "didn't pick up, or voicemail" },
     {
+      label: "Not real",
+      value: String(t.notReal),
+      sub: t.notReal > 0 ? "marked not a real booking" : "no fake bookings",
+      tone: t.notReal > 0 ? "text-destructive" : undefined,
+      // Past meetings, filtered to them. A booking marked not real leaves the
+      // Meetings queue at once and its call back is closed, so this is where
+      // to read which ones, and whose they were.
+      href: t.notReal > 0 ? "/meetings?past=1&status=invalid" : undefined,
+    },
+    {
       label: "Show rate",
       value: rate === null ? "-" : `${Math.round(rate * 100)}%`,
       sub: "showed up, of those answered",
@@ -149,7 +159,7 @@ export function MeetingStatsCard({
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 px-5 pt-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 px-5 pt-4 sm:grid-cols-3 lg:grid-cols-6">
             {tiles.map((x) => {
               const body = (
                 <>
@@ -256,9 +266,9 @@ export function MeetingStatsCard({
                           c.key === "unlogged" && d[c.key] > 0 && "font-bold text-destructive",
                         )}
                       >
-                        {c.key === "unlogged" && d[c.key] > 0 ? (
+                        {(c.key === "unlogged" || c.key === "notReal") && d[c.key] > 0 ? (
                           <Link
-                            href="/meetings?past=1&status=unanswered"
+                            href={`/meetings?past=1&status=${c.key === "unlogged" ? "unanswered" : "invalid"}`}
                             className="underline underline-offset-2"
                           >
                             {d[c.key]}

@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
 import type { DemoStatus } from "@/lib/payroll";
@@ -169,6 +169,7 @@ export async function POST(request: Request) {
         (select start_at from call_meeting where id = ${meetingOnly.id})
       where not exists (select 1 from up)
     `);
+    if (status === "invalid") await closeCallBack(sql`${meetingOnly.id}`);
     return Response.json({ ok: true });
   }
   if (callId === null) {
@@ -292,5 +293,32 @@ export async function POST(request: Request) {
     );
   }
 
+    // Not a real booking: nobody should still be asked to ring them back.
+  if (status === "invalid") {
+    await closeCallBack(
+      pin
+        ? sql`${pin.id}`
+        : sql`(select id from call_meeting where call_id = ${callId})`,
+    );
+  }
+
   return Response.json({ ok: true });
+}
+
+/**
+ * Close any open founders' call back on the meeting(s) named, because the
+ * booking has just been marked not real (2026-10-02).
+ *
+ * Marking it invalid wrote the answer and nothing else, so a call back a
+ * founder had set for the same meeting stayed open, and the Meetings list shows
+ * any meeting with one: JUNKX REMOVAL stayed on the list, "in 39m", under a
+ * "Not a real booking" tag. The row stays under Past meetings with the
+ * "Not a real booking" filter, which is where a closed one belongs. Done
+ * rather than deleted: `done_at` is how every other path closes a call back.
+ */
+async function closeCallBack(meetingIds: SQL) {
+  await db.execute(sql`
+    update founder_call set done_at = now()
+    where done_at is null and meeting_id in (${meetingIds})
+  `);
 }
