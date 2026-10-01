@@ -11,6 +11,13 @@ set -euo pipefail
 
 HOST="root@178.128.28.158"
 REMOTE="/root/crm"
+# New files land here first, beside the live folder, and are only copied over
+# it at the moment the app restarts (2026-10-02). Shipping straight into
+# $REMOTE meant the files were new and the running app old for the whole wait
+# for a quiet moment, up to half an hour: pages the app had not loaded yet
+# read the new build's pieces, and a screen could fail with "This page
+# couldn't load" with nothing wrong with the code.
+STAGE="/root/crm-stage"
 URL="https://crm.cyllabs.com/login"
 DRY_RUN=""
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN="--dry-run"
@@ -81,16 +88,26 @@ fi
                          || echo "unchanged — skipping npm install"
 
 say "Shipping files${DRY_RUN:+ (dry run)}"
+# To the staging folder, never the live one: nothing the running app reads
+# changes until the restart. The first time, the staging folder is seeded from
+# the live one on the droplet (a local copy) so the upload below is a delta and
+# not the whole build over the wire. It borrows the live node_modules and .env
+# through symlinks, which the excludes below keep rsync from touching, so the
+# seed scripts can run from it.
+#
 # The excludes MUST stay anchored (/node_modules, not node_modules): Turbopack
 # writes external-package stubs into .next/node_modules/, and an unanchored
 # exclude strips them, breaking every route that imports imapflow, mailparser,
 # or nodemailer with "Failed to load external module".
+if [[ -z "$DRY_RUN" ]]; then
+  ssh "$HOST" "mkdir -p $STAGE && { [ -e $STAGE/package.json ] || rsync -a --exclude /node_modules --exclude '.env*' $REMOTE/ $STAGE/; } && ln -sfn $REMOTE/node_modules $STAGE/node_modules && ln -sfn $REMOTE/.env $STAGE/.env"
+fi
 rsync -az --delete $DRY_RUN \
   --exclude /node_modules \
   --exclude .git \
   --exclude ".env*" \
   --exclude .claude \
-  ./ "$HOST:$REMOTE/"
+  ./ "$HOST:$STAGE/"
 
 if [[ -n "$DRY_RUN" ]]; then
   say "Dry run complete — nothing was changed on the droplet"
@@ -99,6 +116,9 @@ fi
 
 if [[ -n "$NEED_INSTALL" ]]; then
   say "Installing dependencies on the droplet (slow on 1 vCPU)"
+  # The dependency list goes to the live folder now, since node_modules lives
+  # there; everything else waits for the restart.
+  scp -q package.json package-lock.json "$HOST:$REMOTE/"
   ssh "$HOST" "cd $REMOTE && npm ci --omit=dev"
 fi
 
@@ -107,14 +127,14 @@ fi
 # Idempotent, and it runs before the restart so the app never serves a page
 # from content the files have already moved past.
 say "Publishing SOP content"
-ssh "$HOST" "cd $REMOTE && node --env-file=.env scripts/seed-sop.mjs"
+ssh "$HOST" "cd $STAGE && node --env-file=.env scripts/seed-sop.mjs"
 
 # Reference data, same idea: data/us-area-codes.json is the source of truth and
 # `us_area_code` is its index. It has to be in the database rather than in code
 # because the dialler queue filters on "is it business hours where this lead
 # is" inside a query that carries a LIMIT.
 say "Publishing area codes"
-ssh "$HOST" "cd $REMOTE && node --env-file=.env scripts/seed-area-codes.mjs"
+ssh "$HOST" "cd $STAGE && node --env-file=.env scripts/seed-area-codes.mjs"
 
 # The check has to be in the same breath as the restart.
 #
@@ -139,7 +159,7 @@ ssh "$HOST" "cd $REMOTE && node --env-file=.env scripts/seed-area-codes.mjs"
 # open, exactly as the one above does: if psql cannot be reached the app is in
 # worse trouble than a restart.
 restart_when_clear() {
-  ssh "$HOST" FORCE="${FORCE_DEPLOY:-}" bash -s <<'REMOTE'
+  ssh "$HOST" FORCE="${FORCE_DEPLOY:-}" STAGE_DIR="$STAGE" LIVE_DIR="$REMOTE" bash -s <<'REMOTE'
 set -uo pipefail
 if [ "${FORCE:-}" != "1" ]; then
   live="$(docker exec cylrm-db psql -U cylrm cylrm -tAc "select coalesce(string_agg(name || case when on_call_since is not null and on_call_at > now() - interval '45 seconds' then ' (' || extract(epoch from (now() - on_call_since))::int || 's)' else ' (logging an outcome)' end, ', '), '') from app_user where (on_call_since is not null and on_call_at > now() - interval '45 seconds') or wrap_up_at > now() - interval '45 seconds'" 2>/dev/null || echo "")"
@@ -148,6 +168,11 @@ if [ "${FORCE:-}" != "1" ]; then
     exit 9
   fi
 fi
+# Only now, with the line clear and the restart a breath away, do the new
+# files replace the running app's. A local copy: seconds, not minutes.
+rsync -a --delete \
+  --exclude /node_modules --exclude ".env*" --exclude .claude --exclude .git \
+  "$STAGE_DIR/" "$LIVE_DIR/" || { echo "COPY FAILED"; exit 1; }
 pm2 restart crm crm-worker
 REMOTE
 }
@@ -179,15 +204,15 @@ while true; do
   fi
   if [[ "$CODE" != "9" ]]; then
     echo "$OUT"
-    echo "ERROR: could not restart. The new files are on the droplet and the"
-    echo "app is still running the old build — re-run once this is sorted."
+    echo "ERROR: could not restart. The new files are staged on the droplet; if"
+    echo "the copy over the live folder had started, check pm2 and re-run."
     exit 1
   fi
 
   if (( SECONDS >= DEADLINE )); then
     echo "ERROR: still on a call after ${WAIT_SECONDS}s — ${OUT#BUSY }"
-    echo "Did not restart. The new files ARE on the droplet but the app is"
-    echo "still running the old build, so re-run this to finish."
+    echo "Did not restart. The new files are staged on the droplet but the live"
+    echo "app and its files are untouched, so nothing is half-done. Re-run to finish."
     echo "Longer wait: RESTART_WAIT_SECONDS=1800 ./scripts/deploy.sh"
     echo "To restart regardless: FORCE_DEPLOY=1 ./scripts/deploy.sh"
     exit 1
