@@ -1180,9 +1180,12 @@ export function MeetingsList({
                 time and sends its reminder for it, so the row says so. */}
             {m.calStartAt && (
               <p className="mt-0.5 text-[12px] text-muted-foreground">
-                Moved quietly. Cal.com still has{" "}
-                {format.format(new Date(m.calStartAt))} {zoneLabel}, so its
-                reminder email goes out for that time.
+                Moved quietly from{" "}
+                <span className="font-semibold text-foreground">
+                  {format.format(new Date(m.calStartAt))} {zoneLabel}
+                </span>
+                . Cal.com still has that time, so its reminder email goes out
+                for it. This meeting also stays under Past meetings.
               </p>
             )}
 

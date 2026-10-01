@@ -1627,7 +1627,15 @@ export async function getMeetings(
     ${joins}
     where ${
       opts.past
-        ? sql`m.start_at <= now()`
+        ? // Everything that has started, and also anything moved to a new time
+          // in the CRM (2026-10-02): a meeting moved quietly to December is
+          // still the meeting that was held in October, and it used to leave
+          // history the moment its time went into the future, so it turned up
+          // only as a "new" upcoming meeting. Moved is exactly what the
+          // card's "Moved quietly. Cal.com still has ..." line tests: the
+          // time we hold differs from Cal.com's.
+          sql`(m.start_at <= now()
+            or (m.cal_start_at is not null and m.start_at <> m.cal_start_at))`
         : sql`(
               m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS})
               -- A missed demo outstays the twelve hours: it is the one call
