@@ -190,13 +190,14 @@ function useNow(intervalMs = 30_000) {
 }
 
 /**
- * Hide recordings under a minute on the meeting rows (2026-09-28): voicemails,
+ * Hide recordings under 30 seconds on the meeting rows (2026-09-28, a minute
+ * until 2026-10-01, when a 45 second demo call was being hidden): voicemails,
  * rings nobody answered and calls that dropped straight away, which sat on a
  * row as "Follow-up call 3 0:18" beside the one conversation worth hearing.
  * On by default, remembered per browser, and switched off in one tap for the
  * day somebody needs to prove a voicemail was left.
  */
-const SHORT_CALL_MS = 60_000;
+const SHORT_CALL_MS = 30_000;
 const HIDE_SHORT_KEY = "cylrm-hide-short-calls";
 const HIDE_SHORT_EVENT = "cylrm-hide-short-calls";
 
@@ -858,7 +859,7 @@ export function MeetingsList({
           checked={hideShort}
           onChange={(e) => setHideShort(e.target.checked)}
         />
-        Hide calls under a minute (voicemails and dropped calls)
+        Hide calls under 30 seconds (voicemails and dropped calls)
         <span className="tabular-nums">
           {hideShort ? `(${shortCount} hidden)` : `(${shortCount} showing)`}
         </span>
