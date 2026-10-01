@@ -12,9 +12,16 @@ realistic call from start to finish: the details only that business has, plus
 a curveball where the script has one. It should take 5 to 7 minutes.
 
 Use the general template for any new client. The two worked examples (First
-Coast Alarm and Next Level Haul Away) show what a filled-in script looks like.
-After every demo, do the two parts at the bottom: go through each service's
-questions, then sort out call forwarding.
+Coast Alarm and Next Level Haul Away) are in tabs under it and show what a
+filled-in script looks like. After every demo, do the two parts at the bottom:
+go through each service's questions, then sort out call forwarding.
+
+> **Verifying the call flows is mandatory.** A client's receptionist is never
+> handed over, and never forwarded live, until you have run its call flows
+> yourself: this script end to end, and the question flow of each service they
+> offer, not just the most common job. The demo going well proves one flow.
+> Do not skip it because the owner is happy, or because the same agent worked
+> for the last client.
 
 ## Say this before you dial the agent in
 
@@ -93,7 +100,7 @@ Pick one: change an answer ("actually, make it next week"), ask about something 
 
 > **You say** How did that sound? Anything it said that you wouldn't say to a customer?
 
-## Example: First Coast Alarm
+## Examples | First Coast Alarm
 
 **Caller:** Mark, facilities manager of a small office building off Baymeadows Rd, Jacksonville. **Service:** site walk (security, takeover or add-on). **Ends with:** a quote request saved. No appointment is booked; the team follows up to set the walk.
 
@@ -173,7 +180,7 @@ Answer in this order:
 
 > **You say** Is that how you'd want a property manager handled? Anything about the pricing or the residential answer you'd change?
 
-## Example: Next Level Haul Away
+## Examples | Next Level Haul Away
 
 **Caller:** Mark, homeowner clearing out a garage in Orange Park after a move. **Service:** cleanouts (garage, one room). **Ends with:** a quote request saved. The team follows up with a price.
 
@@ -240,7 +247,7 @@ Answer in this order:
 
 ## After the call, part 1: go through each service's questions
 
-Go one service at a time. Read out the questions, then ask whether anything should be added, removed or reworded. **Note every change.**
+Go one service at a time. Read out the questions, then ask whether anything should be added, removed or reworded. **Note every change.** This is part of verifying the call flows, which is mandatory: every service gets checked, and a service nobody has run is not live.
 
 > **You say** Before we wrap up, let's go through what it asks for each of your services. For [service name], it asks...
 

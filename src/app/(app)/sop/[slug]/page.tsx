@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, FileDown } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { SopProse } from "@/components/sop/sop-prose";
 import { PricingCalculator } from "@/components/sop/pricing-calculator";
+import { SectionTabs } from "@/components/sop/section-tabs";
 import { GuideVideo } from "@/components/sop/guide-video";
 import {
   DemoFilledProse,
@@ -56,6 +57,14 @@ const TOC_THRESHOLD = 6;
  * calculator marker, so the document decides what goes there.
  */
 const SIDE_CATEGORY = "Objection handling";
+
+/**
+ * Consecutive sections filed under this heading (`## Examples | First Coast
+ * Alarm`) are shown as tabs of one numbered step instead of one long scroll.
+ * Written in the content, like the calculator marker. They are left out of the
+ * contents list, since a hidden tab has nothing on the page to jump to.
+ */
+const TAB_CATEGORY = "Examples";
 
 /** The heading's id, matching what the renderer emits. */
 const anchor = (title: string, i: number) =>
@@ -120,6 +129,7 @@ export default async function SopDocumentPage({
     items: { section: (typeof doc.sections)[number]; index: number }[];
   }[] = [];
   doc.sections.forEach((section, index) => {
+    if (section.category === TAB_CATEGORY) return;
     const category = section.category ?? null;
     const last = tocGroups[tocGroups.length - 1];
     if (last && last.category === category) last.items.push({ section, index });
@@ -281,10 +291,52 @@ export default async function SopDocumentPage({
                 let step = 0;
                 let depth = 0;
                 return doc.sections.map((s, i) => {
+                  // The rest of a run of tabs was rendered with its first.
+                  if (
+                    s.category === TAB_CATEGORY &&
+                    doc.sections[i - 1]?.category === TAB_CATEGORY
+                  ) {
+                    return null;
+                  }
                   if (s.branch) depth = Math.min(depth + 1, 2);
                   else {
                     step += 1;
                     depth = 0;
+                  }
+                  if (s.category === TAB_CATEGORY) {
+                    const run = [];
+                    for (
+                      let j = i;
+                      doc.sections[j]?.category === TAB_CATEGORY;
+                      j++
+                    ) {
+                      run.push(doc.sections[j]);
+                    }
+                    return (
+                      <section
+                        key={s.title}
+                        className="mt-10 border-t pt-7 first:mt-0 first:border-t-0 first:pt-0"
+                      >
+                        <h2
+                          id={anchor(s.category, i)}
+                          className="scroll-mt-6 text-[15px] font-extrabold tracking-[-0.01em]"
+                        >
+                          <span
+                            aria-hidden
+                            className="mr-2 text-muted-foreground/70 tabular-nums"
+                          >
+                            {String(step).padStart(2, "0")}
+                          </span>
+                          {s.category}
+                        </h2>
+                        <SectionTabs
+                          tabs={run.map((r) => ({
+                            title: r.title,
+                            content: prose(r, "mt-3"),
+                          }))}
+                        />
+                      </section>
+                    );
                   }
                   const newGroup =
                     s.category && s.category !== doc.sections[i - 1]?.category;
