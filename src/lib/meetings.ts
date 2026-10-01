@@ -610,6 +610,9 @@ export type Meeting = {
     durationMs: number | null;
     startedAt: string;
     direction: "out" | "in";
+    /** Who was on our side: whoever owns the number it went out from (or came
+     *  in to), else whoever logged a call on its session. Null when unknown. */
+    byName: string | null;
   }[];
   /**
    * A time they asked to be rung back, read from a call's transcript
@@ -992,6 +995,12 @@ const meetingSelect = sql`
     from (
       select cr.recording_id as "recordingId", cr.duration_ms as "durationMs",
         cr.started_at as "startedAt",
+        coalesce(
+          (select u.name from app_user u
+            where u.telnyx_did in (cr.from_number, cr.to_number) limit 1),
+          (select u2.name from "call" c2 join app_user u2 on u2.id = c2.user_id
+            where c2.telnyx_session_id = cr.call_session_id limit 1)
+        ) as "byName",
         case when cr.from_number in ('+' || l.phone_key, m.attendee_phone)
           then 'in' else 'out' end as direction
       from call_recording cr
@@ -1493,6 +1502,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
             durationMs: number | null;
             startedAt: string;
             direction: "out" | "in";
+            byName?: string | null;
           }[]
         | null) ?? []
     ).map((d) => ({
@@ -1500,6 +1510,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
       durationMs: d.durationMs === null ? null : Number(d.durationMs),
       startedAt: d.startedAt,
       direction: d.direction === "in" ? "in" : "out",
+      byName: d.byName ?? null,
     })),
     callbackSuggestion: (() => {
       const c = r.callback_suggestion as

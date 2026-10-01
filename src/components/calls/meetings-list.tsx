@@ -2112,8 +2112,14 @@ export function MeetingsList({
                         : null
                     }
                     company={m.company ?? m.attendeeName ?? "Other call"}
-                    callerName="Founders"
-                    label={rec.direction === "in" ? "They called" : "Other call"}
+                    callerName={rec.byName ?? "Caller"}
+                    label={
+                      rec.byName
+                        ? `${rec.direction === "in" ? "They called" : "Call"} (${rec.byName})`
+                        : rec.direction === "in"
+                          ? "They called"
+                          : "Other call"
+                    }
                   />
                 ))}
                 {/* Where they asked to be rung back on a call nothing else
