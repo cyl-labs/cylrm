@@ -1,3 +1,4 @@
+import { recordAiUsage } from "@/lib/ai-usage";
 import type { SopSection } from "@/lib/sop";
 
 /**
@@ -96,7 +97,19 @@ export async function transcribeClip(clip: Blob): Promise<string> {
       console.error("[transcribeClip]", res.status, (await res.text()).slice(0, 160));
       return "";
     }
-    const json = (await res.json()) as { text?: string };
+    const json = (await res.json()) as {
+      text?: string;
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
+    // An eight second clip: tokens when OpenAI reports them, otherwise the
+    // per-minute price for the clip's length (about a third of a cent a minute).
+    void recordAiUsage({
+      feature: "hint-audio",
+      model: "gpt-4o-mini-transcribe",
+      inputTokens: json.usage?.input_tokens,
+      outputTokens: json.usage?.output_tokens,
+      fallbackUsd: (8 / 60) * 0.003,
+    });
     return typeof json.text === "string" ? json.text : "";
   } catch {
     return "";
@@ -269,7 +282,14 @@ export async function matchObjection(
     if (!res.ok) return empty;
     const json = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
+    void recordAiUsage({
+      feature: "hint",
+      model: MODEL,
+      inputTokens: json.usage?.prompt_tokens,
+      outputTokens: json.usage?.completion_tokens,
+    });
     const raw = json.choices?.[0]?.message?.content;
     if (!raw) return empty;
     const parsed = JSON.parse(raw) as Partial<Hint>;

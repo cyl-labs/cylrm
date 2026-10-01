@@ -28,6 +28,7 @@ import { transcribeUrl, transcriptionConfigured } from "@/lib/deepgram";
 import { recordingDownloadUrl } from "@/lib/telnyx";
 import type { TranscriptTurn } from "@/db/schema";
 import type { StoredBrief } from "@/lib/brief-lines";
+import { recordAiUsage } from "@/lib/ai-usage";
 
 const API = "https://api.openai.com/v1/chat/completions";
 
@@ -556,7 +557,14 @@ export async function writeBrief(source: BriefSource): Promise<string> {
   }
   const body = (await res.json()) as {
     choices?: { message?: { content?: string } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
+  void recordAiUsage({
+    feature: "brief",
+    model: MODEL,
+    inputTokens: body.usage?.prompt_tokens,
+    outputTokens: body.usage?.completion_tokens,
+  });
   const text = body.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error("OpenAI returned an empty brief.");
   return text;

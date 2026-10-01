@@ -2000,3 +2000,26 @@ export const elevenlabsWatch = pgTable("elevenlabs_watch", {
   tier: text("tier").notNull(),
   seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * One OpenAI request this app made, and what it cost (2026-10-02).
+ *
+ * OpenAI only reports a bill to an admin key, which this server does not hold,
+ * so each call records its own token usage with the cost at the rates in
+ * `lib/ai-usage.ts` *at the time*: a later price change does not rewrite the
+ * past. Costs are millionths of a dollar. Feeds the AI bucket on Spend.
+ */
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: serial("id").primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    /** What it was for: `brief`, `hint`, `hint-audio`, `callback`. */
+    feature: text("feature").notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    costMicros: bigint("cost_micros", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [index("ai_usage_at_idx").on(t.at.desc())],
+);

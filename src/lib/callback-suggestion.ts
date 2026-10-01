@@ -20,6 +20,7 @@
 
 import { wallClockIn } from "@/lib/call-time";
 import type { TranscriptTurn } from "@/db/schema";
+import { recordAiUsage } from "@/lib/ai-usage";
 
 const API = "https://api.openai.com/v1/chat/completions";
 const MODEL = "gpt-4.1-mini";
@@ -98,7 +99,14 @@ export async function readCallbackRequest(args: {
   }
   const body = (await res.json()) as {
     choices?: { message?: { content?: string } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
+  void recordAiUsage({
+    feature: "callback",
+    model: MODEL,
+    inputTokens: body.usage?.prompt_tokens,
+    outputTokens: body.usage?.completion_tokens,
+  });
   let parsed: { agreed?: unknown; date?: unknown; time?: unknown; quote?: unknown };
   try {
     parsed = JSON.parse(body.choices?.[0]?.message?.content ?? "{}");

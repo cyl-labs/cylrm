@@ -7,6 +7,7 @@ import {
 } from "@/components/calls/subscriptions-card";
 import { getSubscriptions, monthlyCents } from "@/lib/subscriptions";
 import { getElevenLabs } from "@/lib/elevenlabs";
+import { getAiSpend } from "@/lib/ai-usage";
 import { getRecharges } from "@/lib/recharges";
 import {
   RechargesCard,
@@ -116,6 +117,7 @@ const BUCKET = {
   pay: "bg-emerald-500 dark:bg-emerald-400",
   subs: "bg-violet-500 dark:bg-violet-400",
   eleven: "bg-amber-500 dark:bg-amber-400",
+  ai: "bg-rose-500 dark:bg-rose-400",
 };
 
 const CARD =
@@ -184,10 +186,11 @@ export default async function SpendPage({
     countShowedUpDemos(days),
     usdToSgd(),
   ]);
-  const [subs, eleven, top] = await Promise.all([
+  const [subs, eleven, top, ai] = await Promise.all([
     getSubscriptions(days, fx?.rate ?? null),
     getElevenLabs(),
     getRecharges(days, fx?.rate ?? null),
+    getAiSpend(days),
   ]);
 
   // Asked for Singapore dollars and the rate would not come: stay in USD
@@ -244,7 +247,10 @@ export default async function SpendPage({
     (eleven
       ? (eleven.monthlyUsd * 12 * days) / 365 + eleven.overageUsd
       : 0) + top.total;
-  const everything = allIn + subs.total + elevenTotal;
+  // OpenAI is metered by this app's own calls (`lib/ai-usage.ts`), since the key
+  // here cannot read a bill. It covers what the CRM used, from the day metering
+  // began, and says so on the card below.
+  const everything = allIn + subs.total + elevenTotal + ai.total;
   const share = (n: number) =>
     everything > 0 ? Math.round((n / everything) * 100) : 0;
   const subRows: SubscriptionRow[] = subs.rows.map((s) => {
@@ -364,7 +370,7 @@ export default async function SpendPage({
               Everything, {days} days
             </p>
             <p className="text-[12px] text-muted-foreground">
-              Phones, the floor&rsquo;s pay and our subscriptions together
+              Phones, the floor&rsquo;s pay, subscriptions and AI together
             </p>
           </div>
           <p className="mt-2 text-3xl font-extrabold tabular-nums tracking-[-0.02em]">
@@ -381,9 +387,12 @@ export default async function SpendPage({
               {(eleven || top.total > 0) && (
                 <div className={BUCKET.eleven} style={{ width: `${share(elevenTotal)}%` }} />
               )}
+              {ai.total > 0 && (
+                <div className={BUCKET.ai} style={{ width: `${share(ai.total)}%` }} />
+              )}
             </div>
           )}
-          <dl className="mt-3 grid grid-cols-1 gap-2 text-[13px] sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-3 grid grid-cols-1 gap-2 text-[13px] sm:grid-cols-2 lg:grid-cols-5">
             {[
               { label: "Phones", note: "Telnyx usage", value: spend.total, dot: BUCKET.phones },
               { label: "Floor pay", note: "pickup bonuses and demo fees", value: floorPay, dot: BUCKET.pay },
@@ -399,6 +408,16 @@ export default async function SpendPage({
                         : `${money(top.total)} recharged`,
                       value: elevenTotal,
                       dot: BUCKET.eleven,
+                    },
+                  ]
+                : []),
+              ...(ai.requests > 0
+                ? [
+                    {
+                      label: "AI (OpenAI)",
+                      note: `${ai.requests.toLocaleString("en-US")} requests, tracked by this app`,
+                      value: ai.total,
+                      dot: BUCKET.ai,
                     },
                   ]
                 : []),
@@ -438,6 +457,39 @@ export default async function SpendPage({
                 : ", after the plan renews, so no recharge needed"}
               . Recharges only count once you log them below.
             </p>
+          )}
+          {ai.byFeature.length > 0 && (
+            <div className="mt-3 border-t border-border/60 pt-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+                AI, by what it was used for
+              </p>
+              <ul className="mt-1.5 flex flex-col gap-1 text-[13px]">
+                {ai.byFeature.map((f) => (
+                  <li key={f.feature} className="flex items-baseline gap-2">
+                    <span className="min-w-0 flex-1">{f.label}</span>
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                      {f.requests.toLocaleString("en-US")} requests
+                    </span>
+                    <span className="w-20 text-right font-semibold tabular-nums">
+                      {money(f.usd)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                What this CRM used, counted from its own requests
+                {ai.since
+                  ? ` since ${new Intl.DateTimeFormat("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      timeZone: "America/New_York",
+                    }).format(ai.since)}`
+                  : ""}
+                . It is not your OpenAI balance: anything else on the same
+                account is not in it, and the credit left has to be read on
+                OpenAI&rsquo;s own billing page.
+              </p>
+            </div>
           )}
           {subs.unconverted > 0 && (
             <p className="mt-2 text-[12px] text-warning">
