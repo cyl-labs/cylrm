@@ -794,6 +794,18 @@ const NO_SHOW_RING_DAYS = 7;
  */
 const DEMO_RECORDING_WHERE = sql`
   cr.to_number in ('+' || l.phone_key, m.attendee_phone)
+  -- A call made from a caller's own number is theirs, not the demo
+  -- (2026-10-02). The window is wide on purpose, so every call to the business
+  -- after it was booked fell inside it and was labelled Demo call: Akshansh's
+  -- ring to Just Dump It, days before the demo, came up as the demo. Founders
+  -- run demos, and a closer runs the ones handed to them, so those two stay;
+  -- anything else is left to the Other calls list.
+  and not exists (
+    select 1 from app_user u
+    where u.role <> 'admin'
+      and u.id is distinct from m.closer_user_id
+      and u.telnyx_did in (cr.from_number, cr.to_number)
+  )
   -- Never before the call that booked it (its row is written as the call
   -- ends, after the recording started), or a demo booked the same day
   -- would offer the cold call as the demo.
@@ -1095,6 +1107,12 @@ const meetingSelect = sql`
       limit 1
     ) pd on true
     where cr.to_number in ('+' || l.phone_key, pd.attendee_phone)
+      and not exists (
+        select 1 from app_user u
+        where u.role <> 'admin'
+          and u.id is distinct from m.closer_user_id
+          and u.telnyx_did in (cr.from_number, cr.to_number)
+      )
       and cr.started_at >= greatest(
         pd.start_at - interval '12 hours',
         coalesce((select bk.called_at from "call" bk where bk.id = pd.call_id), '-infinity')
