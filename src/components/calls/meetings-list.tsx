@@ -376,7 +376,8 @@ export function MeetingsList({
       n +
       (m.recordingId && isShort(m.recordingMs) ? 1 : 0) +
       m.earlierDemoRecordings.filter((r) => isShort(r.durationMs)).length +
-      m.demoRecordings.filter((r) => isShort(r.durationMs)).length,
+      m.demoRecordings.filter((r) => isShort(r.durationMs)).length +
+      m.otherRecordings.filter((r) => isShort(r.durationMs)).length,
     0,
   );
   const [busy, setBusy] = React.useState<number | null>(null);
@@ -873,6 +874,7 @@ export function MeetingsList({
         const keep = (ms: number | null) => !hideShort || !isShort(ms);
         const earlierDemo = m.earlierDemoRecordings.filter((r) => keep(r.durationMs));
         const ownRecordings = m.demoRecordings.filter((r) => keep(r.durationMs));
+        const otherCalls = m.otherRecordings.filter((r) => keep(r.durationMs));
         const cancelled = m.status === "cancelled";
         // The server's answer until the clock above has ticked once, then the
         // live one. `m.started` was worked out when the page rendered, which
@@ -1925,7 +1927,8 @@ export function MeetingsList({
                 rather than mixed in with them (2026-09-28). */}
             {(m.recordingId && keep(m.recordingMs)) ||
             earlierDemo.length > 0 ||
-            ownRecordings.length > 0 ? (
+            ownRecordings.length > 0 ||
+            otherCalls.length > 0 ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="text-[12px] font-semibold text-muted-foreground">
                   Recordings
@@ -2010,6 +2013,26 @@ export function MeetingsList({
                     />
                   );
                 })}
+                {/* Every other call with this number, founders only: ones
+                    nobody logged an outcome on and that fall outside every
+                    meeting's window, like a quick call to rearrange a time.
+                    Oldest first, dated, because without a date several of
+                    them are indistinguishable. */}
+                {otherCalls.map((rec) => (
+                  <LogRecording
+                    key={rec.recordingId}
+                    recordingId={rec.recordingId}
+                    recordingMs={rec.durationMs}
+                    startedAt={
+                      rec.startedAt
+                        ? `${format.format(new Date(rec.startedAt))} ${zoneLabel}`
+                        : null
+                    }
+                    company={m.company ?? m.attendeeName ?? "Other call"}
+                    callerName="Founders"
+                    label={rec.direction === "in" ? "They called" : "Other call"}
+                  />
+                ))}
               </div>
             ) : null}
 

@@ -592,6 +592,25 @@ export type Meeting = {
     durationMs: number | null;
     startedAt: string;
   }[];
+  /**
+   * Every other recording of a call with this business's number, in or out,
+   * that is not the cold call or the demo cluster above (2026-10-02). Founders
+   * only, and only on the business's current meeting so a lead with four
+   * meetings does not repeat the list on four cards.
+   *
+   * Asked for after a founder's call with Santa Fe Junk Removal ("call me back
+   * around twelve") was saved, transcribed and attached to nothing: it was
+   * dialled without an outcome, so no call row carries it, and it fell outside
+   * every meeting's window. The lead's recordings list on the dial card and the
+   * Spreadsheet already finds such calls by number; the meeting card did not.
+   * Newest 25.
+   */
+  otherRecordings: {
+    recordingId: string;
+    durationMs: number | null;
+    startedAt: string;
+    direction: "out" | "in";
+  }[];
 
   /**
    * What the row needs to ring them without leaving the screen.
@@ -951,6 +970,30 @@ const meetingSelect = sql`
     from call_recording cr
     where ${DEMO_RECORDING_WHERE}
   ) as demo_recordings,
+  -- Every other recording of a call with this number, for the business's
+  -- current meeting only (accepted first, then the latest). The calls that
+  -- belong to no meeting window, and no call row, are the point. The cold call
+  -- is left out by session. Newest 25, in or out.
+  case when m.id = (
+    select m3.id from call_meeting m3
+    where m3.call_lead_id = m.call_lead_id
+    order by (m3.status = 'accepted') desc, m3.start_at desc, m3.id desc
+    limit 1
+  ) then (
+    select coalesce(json_agg(o order by o."startedAt" asc nulls last), '[]'::json)
+    from (
+      select cr.recording_id as "recordingId", cr.duration_ms as "durationMs",
+        cr.started_at as "startedAt",
+        case when cr.from_number in ('+' || l.phone_key, m.attendee_phone)
+          then 'in' else 'out' end as direction
+      from call_recording cr
+      where (cr.to_number in ('+' || l.phone_key, m.attendee_phone)
+          or cr.from_number in ('+' || l.phone_key, m.attendee_phone))
+        and cr.call_session_id is distinct from bc.telnyx_session_id
+      order by cr.started_at desc nulls last
+      limit 25
+    ) o
+  ) else '[]'::json end as other_recordings,
   -- Whether somebody has said what came of it (2026-09-25). A demo is logged
   -- by its attendance answer (read above); a follow-up has none, so it counts
   -- as logged once a call is logged on the business from twelve hours before
@@ -1385,6 +1428,21 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
         startedAt: d.startedAt,
       })),
     ),
+    otherRecordings: (
+      (r.other_recordings as
+        | {
+            recordingId: string;
+            durationMs: number | null;
+            startedAt: string;
+            direction: "out" | "in";
+          }[]
+        | null) ?? []
+    ).map((d) => ({
+      recordingId: d.recordingId,
+      durationMs: d.durationMs === null ? null : Number(d.durationMs),
+      startedAt: d.startedAt,
+      direction: d.direction === "in" ? "in" : "out",
+    })),
     nextFollowUpAt: iso(r.next_follow_up_at),
     leadOutcome: (r.lead_outcome as string | null) ?? null,
     logged:
@@ -1545,8 +1603,24 @@ export async function getMeetings(
   const dids = await getDids();
   return rows.map((r) => {
     const m = toMeeting(r, dids);
-    // The founders' own: a caller's view never carries it.
-    return ownerId === undefined ? m : { ...m, callBack: null };
+    // The founders' own: a caller's view never carries it. The same goes for
+    // the calls no meeting claims: a caller can only play what
+    // `recordingVisibleTo` lets them, which does not reach a founder's call
+    // outside a demo window, so offering the button would be offering a 404.
+    if (ownerId !== undefined) {
+      return { ...m, callBack: null, otherRecordings: [] };
+    }
+    // Whatever the row already shows under the cold call and the demo is not
+    // listed twice.
+    const shown = new Set([
+      ...m.demoRecordings.map((d) => d.recordingId),
+      ...m.earlierDemoRecordings.map((d) => d.recordingId),
+      ...(m.recordingId ? [m.recordingId] : []),
+    ]);
+    return {
+      ...m,
+      otherRecordings: m.otherRecordings.filter((d) => !shown.has(d.recordingId)),
+    };
   });
 }
 
