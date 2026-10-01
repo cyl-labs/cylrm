@@ -99,14 +99,13 @@ export async function readCallbackRequest(args: {
   }
   const body = (await res.json()) as {
     choices?: { message?: { content?: string } }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   void recordAiUsage({
     feature: "callback",
     model: MODEL,
     inputTokens: body.usage?.prompt_tokens,
     outputTokens: body.usage?.completion_tokens,
-    cachedTokens: body.usage?.prompt_tokens_details?.cached_tokens,
   });
   let parsed: { agreed?: unknown; date?: unknown; time?: unknown; quote?: unknown };
   try {

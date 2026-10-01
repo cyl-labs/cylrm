@@ -282,14 +282,13 @@ export async function matchObjection(
     if (!res.ok) return empty;
     const json = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
-      usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     void recordAiUsage({
       feature: "hint",
       model: MODEL,
       inputTokens: json.usage?.prompt_tokens,
       outputTokens: json.usage?.completion_tokens,
-      cachedTokens: json.usage?.prompt_tokens_details?.cached_tokens,
     });
     const raw = json.choices?.[0]?.message?.content;
     if (!raw) return empty;
