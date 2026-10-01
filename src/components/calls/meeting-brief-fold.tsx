@@ -103,7 +103,7 @@ export function MeetingBriefFold({
       <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
         <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-        Briefing
+        Summary of the booking call
         <span
           className="font-normal text-muted-foreground"
           suppressHydrationWarning
