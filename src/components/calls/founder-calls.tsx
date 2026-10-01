@@ -87,7 +87,7 @@ const TITLES: Record<CallBackMode, (name: string) => string> = {
   no_answer: (name) => `No answer from ${name}`,
   spoke: (name) => `When do you ring ${name} next?`,
   move: (name) => `Move the call back with ${name}`,
-  new: (name) => `Ring ${name} back`,
+  new: (name) => `Ring ${name} back later`,
 };
 
 const EXPLAINED: Record<CallBackMode, string> = {
@@ -98,7 +98,7 @@ const EXPLAINED: Record<CallBackMode, string> = {
   spoke:
     "You spoke to them but have no new time yet. The call back moves to when you will ring next.",
   move: "This only moves the call back on your calendar. Nothing is sent to them.",
-  new: "Puts a call back on your calendar at the time you pick. The meeting stays on your list until you ring or close it. Only founders see it, and nothing is sent to them.",
+  new: "The meeting stays exactly as it was. This adds a call back at the time you pick, which stays on your list until you ring them or close it. Only founders see it, and nothing is sent to them.",
 };
 
 export function CallBackPrompt({

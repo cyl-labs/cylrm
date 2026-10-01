@@ -1744,24 +1744,18 @@ export function MeetingsList({
                         More
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="min-w-56">
-                        {(quiet || (showWho && m.callBack) || reschedule) && (
-                          <DropdownMenuLabel>Move it</DropdownMenuLabel>
+                        {(quiet || reschedule) && (
+                          <DropdownMenuLabel>Change the meeting time</DropdownMenuLabel>
                         )}
                         {quiet && (
                           <DropdownMenuItem onSelect={() => setMovingQuietly(m)}>
                             <Clock className="size-3.5" />
                             <span className="flex flex-col">
-                              Move quietly
+                              Move this meeting to a new time
                               <span className="text-[11px] text-muted-foreground">
-                                In the CRM only. Nothing is sent.
+                                Same meeting, new time. In the CRM only, nothing is sent.
                               </span>
                             </span>
-                          </DropdownMenuItem>
-                        )}
-                        {showWho && m.callBack && (
-                          <DropdownMenuItem onSelect={() => setPrompt({ m, mode: "move" })}>
-                            <Clock className="size-3.5" />
-                            Change the call back time
                           </DropdownMenuItem>
                         )}
                         {reschedule && (
@@ -1792,15 +1786,47 @@ export function MeetingsList({
                             >
                               <CalendarClock className="size-3.5" />
                               <span className="flex flex-col">
-                                Move on Cal.com
+                                Reschedule on Cal.com
                                 <span className="text-[11px] text-muted-foreground">
-                                  Cal.com emails them the new time.
+                                  Same meeting, new time. Cal.com emails them.
                                 </span>
                               </span>
                             </a>
                           </DropdownMenuItem>
                         )}
-                        {(quiet || (showWho && m.callBack) || reschedule) && (
+                        {/* The other thing, and the one that gets confused with
+                            moving: the meeting stays exactly as it was and a
+                            separate call back is added. Founders only. */}
+                        {showWho && (m.callBack || (hasStarted && m.status !== "cancelled")) && (
+                          <>
+                            {(quiet || reschedule) && <DropdownMenuSeparator />}
+                            <DropdownMenuLabel>Ring them back later</DropdownMenuLabel>
+                            {m.callBack ? (
+                              <DropdownMenuItem onSelect={() => setPrompt({ m, mode: "move" })}>
+                                <Clock className="size-3.5" />
+                                <span className="flex flex-col">
+                                  Change the call back time
+                                  <span className="text-[11px] text-muted-foreground">
+                                    The meeting stays as it was.
+                                  </span>
+                                </span>
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onSelect={() => setPrompt({ m, mode: "new" })}
+                              >
+                                <PhoneForwarded className="size-3.5" />
+                                <span className="flex flex-col">
+                                  Set a call back
+                                  <span className="text-[11px] text-muted-foreground">
+                                    The meeting stays as it was. Adds a call back at a time you pick.
+                                  </span>
+                                </span>
+                              </DropdownMenuItem>
+                            )}
+                          </>
+                        )}
+                        {(quiet || reschedule || (showWho && (m.callBack || hasStarted))) && (
                           <DropdownMenuSeparator />
                         )}
                         {m.listId !== null && m.leadId !== null && !m.dncBlock && (
@@ -2112,7 +2138,7 @@ export function MeetingsList({
                     }}
                   >
                     <PhoneForwarded className="size-3.5" />
-                    Set a call back
+                    Ring them back later
                   </Button>
                 )}
               </div>
