@@ -1379,6 +1379,27 @@ const joins = sql`
 // `dids` is threaded in rather than read here, exactly as `toLead` takes it:
 // `getDids` is async and cached per request, and a mapper that awaited would
 // make every row its own round trip.
+/**
+ * Whether a time read from a call is a call back, as opposed to the meeting's
+ * own time (2026-10-02).
+ *
+ * "Is there any way you can call me around two?" said on the call that booked
+ * a demo for two o'clock is the demo, not a promise to ring: Amarillo Junk
+ * Removal was offered a call back at exactly the time of the demo it was
+ * moved to. Two rules, both because the time belongs to the meeting rather
+ * than to a new call:
+ *  - a meeting that has not started yet is rescheduled, not rung back (More,
+ *    "Move this meeting to a new time");
+ *  - a time within the hour of the meeting's own is the same appointment.
+ */
+function realCallBack(m: Meeting): Meeting["callbackSuggestion"] {
+  const c = m.callbackSuggestion;
+  if (!c) return null;
+  if (!m.started) return null;
+  const apart = Math.abs(new Date(c.at).getTime() - new Date(m.startAt).getTime());
+  return apart < 60 * 60_000 ? null : c;
+}
+
 function toMeeting(r: Row, dids: DidMap): Meeting {
   const listed = (r.phone as string | null) ?? null;
   const booked = (r.attendee_phone as string | null) ?? null;
@@ -1666,7 +1687,7 @@ export async function getMeetings(
       otherRecordings: m.otherRecordings.filter((d) => !shown.has(d.recordingId)),
       // An open call back already says when; a cancelled meeting needs none.
       callbackSuggestion:
-        m.callBack || m.status === "cancelled" ? null : m.callbackSuggestion,
+        m.callBack || m.status === "cancelled" ? null : realCallBack(m),
     };
   });
 }
