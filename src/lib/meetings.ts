@@ -622,6 +622,9 @@ export type Meeting = {
    * call supersedes the promise. Null otherwise.
    */
   callbackSuggestion: { recordingId: string; at: string; quote: string } | null;
+  /** On a booking Cal.com cancelled because it was rescheduled: the booking
+   *  that replaced it. Null for any other cancelled meeting. */
+  rescheduledTo: { id: number; startAt: string } | null;
 
   /**
    * What the row needs to ring them without leaving the screen.
@@ -825,6 +828,29 @@ const DEMO_RECORDING_WHERE = sql`
   )
 `;
 
+/**
+ * The booking that replaced a cancelled one (2026-10-02).
+ *
+ * Rescheduling on Cal.com cancels the old booking and creates a new one, so a
+ * reschedule is two rows and the old one reads "cancelled". The sync handles
+ * both in one pass, so the new booking is created within moments of the old
+ * one being marked cancelled (`synced_at` moves when its status changes). Same
+ * business, same kind, accepted, created inside half an hour of that. A later,
+ * unrelated booking of the same business is not matched, which is the point of
+ * the window.
+ */
+const REPLACED_BY = sql`
+  select n.id, n.start_at from call_meeting n
+  where m.status = 'cancelled'
+    and n.call_lead_id = m.call_lead_id
+    and n.id <> m.id
+    and n.status = 'accepted'
+    and n.kind = m.kind
+    and abs(extract(epoch from (n.created_at - m.synced_at))) < 1800
+  order by n.created_at
+  limit 1
+`;
+
 const meetingSelect = sql`
   m.id, m.cal_booking_uid, m.start_at, m.end_at, m.cal_start_at, m.status, m.title,
   -- The caller's own name typed into the booking form in place of the
@@ -1023,6 +1049,7 @@ const meetingSelect = sql`
       limit 25
     ) o
   ) else '[]'::json end as other_recordings,
+  (select json_build_object('id', rb.id, 'startAt', rb.start_at) from (${REPLACED_BY}) rb) as rescheduled_to,
   -- A call back they asked for, read from a transcript (lib/callback-suggestion).
   -- Same meeting rule as the list above. Still ahead, and nothing recorded with
   -- the number since that call started: a later call has already dealt with it.
@@ -1530,6 +1557,10 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
       direction: d.direction === "in" ? "in" : "out",
       byName: d.byName ?? null,
     })),
+    rescheduledTo: (() => {
+      const c = r.rescheduled_to as { id: number; startAt: string } | null | undefined;
+      return c && c.id ? { id: Number(c.id), startAt: new Date(c.startAt).toISOString() } : null;
+    })(),
     callbackSuggestion: (() => {
       const c = r.callback_suggestion as
         | { recordingId: string; at: string; quote: string }
@@ -1635,7 +1666,10 @@ export async function getMeetings(
           // card's "Moved quietly. Cal.com still has ..." line tests: the
           // time we hold differs from Cal.com's.
           sql`(m.start_at <= now()
-            or (m.cal_start_at is not null and m.start_at <> m.cal_start_at))`
+            or (m.cal_start_at is not null and m.start_at <> m.cal_start_at)
+            -- A cancelled booking is history whatever its date: a rescheduled
+            -- one is where you go to hear its recording and see that it moved.
+            or m.status = 'cancelled')`
         : sql`(
               m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS})
               -- A missed demo outstays the twelve hours: it is the one call
@@ -1653,6 +1687,9 @@ export async function getMeetings(
               or (${hasCallBack(ownerId)})
             )
             and (m.status = 'accepted' or m.start_at > now())
+            -- A booking Cal.com cancelled because it was rescheduled has its
+            -- replacement on this list; the old one is under Past meetings.
+            and not (m.status = 'cancelled' and exists (${REPLACED_BY}))
             -- A follow-up written off, or any meeting still ahead on a business
             -- taken off (2026-09-29: "delete people who are wasting our
             -- time"), leaves at once rather than sorting lower. A demo already

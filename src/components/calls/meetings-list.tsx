@@ -1176,6 +1176,18 @@ export function MeetingsList({
                 </>
               )}
             </p>
+            {/* A booking Cal.com cancelled because it was rescheduled
+                (2026-10-02): say so, and where it went, so someone listening
+                to its recording knows why it is marked cancelled. */}
+            {m.status === "cancelled" && m.rescheduledTo && (
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                Rescheduled on Cal.com. The new booking is{" "}
+                <span className="font-semibold text-foreground">
+                  {format.format(new Date(m.rescheduledTo.startAt))} {zoneLabel}
+                </span>
+                .
+              </p>
+            )}
             {/* Moved in the CRM only (2026-09-28). Cal.com still has the old
                 time and sends its reminder for it, so the row says so. */}
             {m.calStartAt && (
