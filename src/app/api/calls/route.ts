@@ -211,6 +211,25 @@ export async function POST(request: Request) {
     .returning({ id: call.id, calledAt: call.calledAt });
 
   /**
+   * A founder logging a callback moves the founders' call back too
+   * (2026-10-02). The Meetings card reads `founder_call`, the callbacks diary
+   * reads this call, and they were two records of one promise: Mark logged
+   * "call me December 1" after a prospect rang him back, the diary said
+   * December and the meeting card went on saying "call back in 11 days" until
+   * somebody noticed. One open call back per business, so it moves to the new
+   * time, and the new note replaces the old one when there is one. Founders
+   * only: a caller's callback is the callers' diary and never touches it.
+   */
+  if (me.role === "admin" && body.outcome === "callback" && callbackAt) {
+    await db.execute(sql`
+      update founder_call
+      set start_at = ${callbackAt.toISOString()}::timestamptz,
+          notes = coalesce(nullif(${notes ?? ""}, ''), notes)
+      where call_lead_id = ${leadId} and done_at is null
+    `);
+  }
+
+  /**
    * Claim the booking this call just made, without waiting for the sync.
    *
    * The Cal.com sync links a meeting to the call that booked it, and it runs
