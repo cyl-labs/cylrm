@@ -1,7 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Merge, Mic, MicOff, PhoneCall, PhoneOff } from "lucide-react";
+import { ChevronUp, Merge, Mic, MicOff, PhoneCall, PhoneOff } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useCallLine } from "./call-line";
 import { IncomingCall } from "./incoming-call";
 import { useCallDrawn, useIncomingDrawn } from "./line-presence";
@@ -128,16 +134,44 @@ function OngoingCallBar({
           // Only with a number to dial them from: a second leg needs the
           // caller's own DID, and without it this would fail on the press.
           dialFrom &&
-          savedLines.slice(0, 2).map((l) => (
-            <button
-              key={l.phoneNumber}
-              type="button"
-              onClick={() => line.addCall(e164(l.phoneNumber) ?? l.phoneNumber, dialFrom)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors hover:bg-muted"
-            >
-              <PhoneCall className="size-3.5" strokeWidth={2.4} />
-              {l.label}
-            </button>
+          (savedLines.length <= 2 ? (
+            savedLines.map((l) => (
+              <button
+                key={l.phoneNumber}
+                type="button"
+                onClick={() => line.addCall(e164(l.phoneNumber) ?? l.phoneNumber, dialFrom)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors hover:bg-muted"
+              >
+                <PhoneCall className="size-3.5" strokeWidth={2.4} />
+                {l.label}
+              </button>
+            ))
+          ) : (
+            // Every saved line, not the first two (2026-10-02). It sliced to two
+            // and the bar showed whichever two sorted first, so a client's own
+            // demo line was reachable from the Keypad and nowhere on an
+            // incoming call. More than two do not fit a pill, least of all on a
+            // phone, so they go in a menu that opens upward.
+            <DropdownMenu>
+              <DropdownMenuTrigger className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors hover:bg-muted">
+                <PhoneCall className="size-3.5" strokeWidth={2.4} />
+                Add an agent
+                <ChevronUp className="size-3.5" strokeWidth={2.4} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="center" className="max-h-72 min-w-56 overflow-y-auto">
+                {savedLines.map((l) => (
+                  <DropdownMenuItem
+                    key={l.phoneNumber}
+                    onSelect={() =>
+                      line.addCall(e164(l.phoneNumber) ?? l.phoneNumber, dialFrom)
+                    }
+                  >
+                    <PhoneCall className="size-3.5" />
+                    {l.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ))
         )}
         <button
