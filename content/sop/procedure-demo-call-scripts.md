@@ -16,12 +16,12 @@ Coast Alarm and Next Level Haul Away) are in tabs under it and show what a
 filled-in script looks like. After every demo, do the two parts at the bottom:
 go through each service's questions, then sort out call forwarding.
 
-> **Verifying the call flows is mandatory.** A client's receptionist is never
-> handed over, and never forwarded live, until you have run its call flows
-> yourself: this script end to end, and the question flow of each service they
-> offer, not just the most common job. The demo going well proves one flow.
-> Do not skip it because the owner is happy, or because the same agent worked
-> for the last client.
+**Verifying the call flows is mandatory.** A client's receptionist is never
+handed over, and never forwarded live, until you have run its call flows
+yourself: this script end to end, and the question flow of each service they
+offer, not just the most common job. The demo going well proves one flow.
+Do not skip it because the owner is happy, or because the same agent worked
+for the last client.
 
 ## Say this before you dial the agent in
 
