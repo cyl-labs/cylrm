@@ -681,7 +681,7 @@ export type CallLogRow = {
   id: number;
   /** Which table the row came from. Ids are only unique within one, so this is
    *  half of any key — and it is what the table renders differently. */
-  source: "call" | "keypad";
+  source: "call" | "keypad" | "demo";
   calledAt: string;
   /** Null for a keypad call: there is no lead for it to be an outcome about. */
   outcome: CallOutcome | null;
@@ -873,6 +873,45 @@ export async function getCallLog(
       }
   `;
 
+  // The founders' own calls to a business that has a meeting (2026-10-02), for
+  // the Meetings filter only. A founder running a demo never taps an outcome, so
+  // the call has no row in `call` and the filter, which only counted the calls
+  // that *booked* a meeting, left out the one conversation founders care about.
+  // The recording is the record: a call between a founder's line and a number
+  // belonging to a business with a meeting, long enough to be a conversation.
+  // One that already has a `call` row (an outcome was logged on its session) is
+  // left to that row, so nothing shows twice. Moves no tile and no payout, like
+  // the keypad half.
+  const demo = sql`
+    select 'demo' as source, r.id, r.started_at as called_at, null::text as outcome,
+      null::text as notes, null::timestamptz as callback_at, false as added_to_call,
+      u.name as by_name,
+      coalesce(nullif(l.company, ''), nullif(l.name, ''), l.phone) as company,
+      l.phone, cl.name as list_name,
+      to_char(r.started_at at time zone z.tz, 'HH24:MI') as their_time,
+      true as in_hours,
+      (z.tz is not null) as zone_known,
+      r.recording_id, r.duration_ms as recording_ms
+    from call_recording r
+    join app_user u
+      on u.role = 'admin' and u.telnyx_did in (r.from_number, r.to_number)
+    join lateral (
+      select m.call_lead_id from call_meeting m
+      join call_lead ml on ml.id = m.call_lead_id
+      where r.to_number in ('+' || ml.phone_key, '+' || ml.direct_phone_key, m.attendee_phone)
+         or r.from_number in ('+' || ml.phone_key, '+' || ml.direct_phone_key, m.attendee_phone)
+      limit 1
+    ) mm on true
+    join call_lead l on l.id = mm.call_lead_id
+    join call_list cl on cl.id = l.call_list_id
+    ${leadZone}
+    where ${sinceOn(w, sql`r.started_at`)}
+      and r.duration_ms >= 20000
+      and not exists (select 1 from "call" cc where cc.telnyx_session_id = r.call_session_id)
+      ${listId ? sql`and cl.id = ${listId}` : sql``}
+      ${userId ? sql`and u.id = ${userId}` : sql``}
+  `;
+
   const keypad = sql`
     select 'keypad' as source, c.id, c.called_at, null::text as outcome,
       null::text as notes, null::timestamptz as callback_at, c.added_to_call,
@@ -896,12 +935,15 @@ export async function getCallLog(
 
   // The limit belongs to the combined set, not to each half: 300 of each would
   // be 600 rows on a screen whose header promises 300.
+  const wantDemo = filter === "meetings";
   const body =
     wantCalls && wantKeypad
       ? sql`${calls} union all ${keypad}`
-      : wantCalls
-        ? calls
-        : keypad;
+      : wantCalls && wantDemo
+        ? sql`${calls} union all ${demo}`
+        : wantCalls
+          ? calls
+          : keypad;
 
   const rows = (await db.execute(sql`
     select * from (${body}) t
@@ -910,10 +952,11 @@ export async function getCallLog(
   `)) as Row[];
 
   return rows.map((r) => {
-    const source = r.source === "keypad" ? "keypad" : "call";
+    const source =
+      r.source === "keypad" ? "keypad" : r.source === "demo" ? "demo" : "call";
     return {
       id: n(r.id),
-      source: source as "call" | "keypad",
+      source: source as "call" | "keypad" | "demo",
       calledAt: String(r.called_at),
       outcome: r.outcome === null ? null : (r.outcome as CallOutcome),
       // Null for anything logged before staff accounts existed. Never for a

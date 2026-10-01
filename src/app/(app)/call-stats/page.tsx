@@ -903,7 +903,7 @@ export default async function CallStatsPage({
                             !c.outcome && "font-medium text-muted-foreground",
                           )}
                         >
-                          {c.outcome ? OUTCOME_LABELS[c.outcome] : "Keypad"}
+                          {c.outcome ? OUTCOME_LABELS[c.outcome] : c.source === "demo" ? "Demo call" : "Keypad"}
                         </span>
                         {c.outcome === "callback" && c.callbackAt && (
                           <span className="block text-[12px] text-muted-foreground">
