@@ -33,7 +33,7 @@ now's not a good time" and the demo is gone. Cal.com has already reminded them.
 Call **on the minute**, talk as if the demo has already started, and don't say
 the company name.
 
-> **You say** Hi [name], it's [your name]. I've got the agent on the other line, give me two seconds and I'll bring it in.
+> **You say** Hey, is this [name]? Yeah, someone from my team reached out to you last week and we had set up a time to do a voice agent demo. Do you recall?
 
 If they don't answer, text them, then ring again.
 
