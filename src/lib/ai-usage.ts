@@ -14,8 +14,8 @@ import { db } from "@/db";
  * are the one thing here that goes stale: if a model's price moves, change it
  * here and the past stays as it was recorded.
  */
-const RATES: Record<string, { input: number; output: number }> = {
-  "gpt-4.1-mini": { input: 0.4, output: 1.6 },
+const RATES: Record<string, { input: number; output: number; cached?: number }> = {
+  "gpt-4.1-mini": { input: 0.4, output: 1.6, cached: 0.1 },
   // Audio in at the audio rate, text out at the text rate.
   "gpt-4o-mini-transcribe": { input: 1.25, output: 5 },
 };
@@ -39,6 +39,10 @@ export async function recordAiUsage(args: {
   model: string;
   inputTokens?: number;
   outputTokens?: number;
+  /** Part of the input OpenAI served from its prompt cache, billed at a
+   *  quarter of the rate. The live hints repeat one long prompt, so most of
+   *  their input is cached (90% on the account page the day this shipped). */
+  cachedTokens?: number;
   /** When the response carried no usage (audio), a flat estimate in dollars. */
   fallbackUsd?: number;
 }): Promise<void> {
@@ -46,9 +50,13 @@ export async function recordAiUsage(args: {
     const rate = RATES[args.model];
     const input = Math.max(0, Math.round(args.inputTokens ?? 0));
     const output = Math.max(0, Math.round(args.outputTokens ?? 0));
+    const cached = Math.min(input, Math.max(0, Math.round(args.cachedTokens ?? 0)));
     const usd =
       rate && (input > 0 || output > 0)
-        ? (input * rate.input + output * rate.output) / 1_000_000
+        ? ((input - cached) * rate.input +
+            cached * (rate.cached ?? rate.input) +
+            output * rate.output) /
+          1_000_000
         : (args.fallbackUsd ?? 0);
     await db.execute(sql`
       insert into ai_usage (feature, model, input_tokens, output_tokens, cost_micros)
