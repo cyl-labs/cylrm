@@ -153,6 +153,9 @@ export type VisibleRecording = {
   recordingId: string;
   transcriptText: string | null;
   transcriptTurns: TranscriptTurn[] | null;
+  /** The written summary of a call over five minutes, or null. */
+  summary: string | null;
+  durationMs: number | null;
 };
 
 /**
@@ -187,7 +190,7 @@ export async function findVisibleRecording(
   me: CurrentUser,
 ): Promise<VisibleRecording | null> {
   const rows = (await db.execute(sql`
-    select r.recording_id, r.transcript_text, r.transcript_turns
+    select r.recording_id, r.transcript_text, r.transcript_turns, r.summary, r.duration_ms
     from call_recording r
     where r.recording_id = ${id} and ${recordingVisibleTo(
       scopeOf(me),
@@ -198,6 +201,8 @@ export async function findVisibleRecording(
     recording_id: string;
     transcript_text: string | null;
     transcript_turns: TranscriptTurn[] | null;
+    summary: string | null;
+    duration_ms: number | null;
   }[];
 
   const row = rows[0];
@@ -206,5 +211,7 @@ export async function findVisibleRecording(
     recordingId: row.recording_id,
     transcriptText: row.transcript_text,
     transcriptTurns: row.transcript_turns,
+    summary: row.summary ?? null,
+    durationMs: row.duration_ms === null || row.duration_ms === undefined ? null : Number(row.duration_ms),
   };
 }

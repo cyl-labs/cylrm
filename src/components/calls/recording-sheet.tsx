@@ -1,5 +1,6 @@
 "use client";
 
+import { briefLines } from "@/lib/brief-lines";
 import * as React from "react";
 import { Check, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -65,6 +66,11 @@ export function RecordingSheet({
 }) {
   const [turns, setTurns] = React.useState<TranscriptTurn[] | null>(null);
   const [text, setText] = React.useState<string | null>(null);
+  // The written summary of a call over five minutes, and how long the call
+  // was, which decides whether to offer to write one.
+  const [summary, setSummary] = React.useState<string | null>(null);
+  const [durationMs, setDurationMs] = React.useState<number | null>(null);
+  const [summarising, setSummarising] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   // Whether the "is there one already" question has been answered yet. Without
   // it the button flashes up for a moment on every open, inviting a click that
@@ -83,6 +89,8 @@ export function RecordingSheet({
     setRenderedId(recordingId);
     setTurns(null);
     setText(null);
+    setSummary(null);
+    setDurationMs(null);
     setLoaded(false);
     setAt(0);
   }
@@ -95,12 +103,19 @@ export function RecordingSheet({
 
     fetch(`/api/recordings/${recordingId}/transcribe`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { text: string | null; turns: TranscriptTurn[] | null } | null) => {
+      .then((data: {
+        text: string | null;
+        turns: TranscriptTurn[] | null;
+        summary?: string | null;
+        durationMs?: number | null;
+      } | null) => {
         if (stale) return;
         if (data?.turns) {
           setTurns(data.turns);
           setText(data.text);
         }
+        setSummary(data?.summary?.trim() ? data.summary : null);
+        setDurationMs(data?.durationMs ?? null);
         setLoaded(true);
       })
       .catch(() => !stale && setLoaded(true));
@@ -125,6 +140,22 @@ export function RecordingSheet({
     const data = (await res.json()) as { text: string; turns: TranscriptTurn[] };
     setTurns(data.turns);
     setText(data.text);
+  }
+
+  async function writeSummary() {
+    setSummarising(true);
+    const res = await fetch(`/api/recordings/${recordingId}/summary`, {
+      method: "POST",
+    }).catch(() => null);
+    setSummarising(false);
+    const data = (await res?.json().catch(() => ({}))) as
+      | { summary?: string; error?: string }
+      | undefined;
+    if (!res?.ok || !data?.summary) {
+      toast.error(data?.error ?? "Could not write that summary.");
+      return;
+    }
+    setSummary(data.summary);
   }
 
   /** Jump the audio to a turn and keep playing from there. The whole point of
@@ -182,6 +213,42 @@ export function RecordingSheet({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {/* A summary of a call over five minutes (2026-10-02), above the
+              words it was made from. Written by a machine from the transcript,
+              and said to be, since a founder repeating it back to a prospect
+              should check it. Offered, not forced, when a long call has a
+              transcript and no summary yet. */}
+          {summary ? (
+            <div className="mb-4 rounded-lg bg-muted/50 px-3.5 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Summary
+              </p>
+              <ul className="mt-1.5 space-y-1 text-[13px]">
+                {briefLines(summary).map((line, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span aria-hidden className="text-muted-foreground/60">•</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Written by a machine from the transcript, so check anything
+                before you repeat it back to them.
+              </p>
+            </div>
+          ) : (
+            loaded &&
+            turns !== null &&
+            turns.length > 0 &&
+            (durationMs ?? 0) >= 5 * 60_000 && (
+              <div className="mb-4">
+                <Button size="sm" variant="outline" onClick={writeSummary} disabled={summarising}>
+                  {summarising && <Loader2 className="size-4 animate-spin" />}
+                  {summarising ? "Writing…" : "Write a summary"}
+                </Button>
+              </div>
+            )
+          )}
           {!loaded ? (
             <p className="text-[13px] text-muted-foreground">Loading…</p>
           ) : turns === null ? (

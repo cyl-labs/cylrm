@@ -1046,6 +1046,10 @@ export const callRecording = pgTable(
     autoCheckedAt: timestamp("auto_checked_at", { withTimezone: true }),
     /** When they asked to be rung back, read from the transcript:
      *  `{ at, quote }`. Null when they did not. See `lib/callback-suggestion.ts`. */
+    /** A machine-written summary of a call over five minutes
+     *  (`lib/call-summary.ts`), shown at the top of the recording sheet. */
+    summary: text("summary"),
+    summaryAt: timestamp("summary_at", { withTimezone: true }),
     callbackSuggestion: jsonb("callback_suggestion").$type<{
       at: string;
       quote: string;

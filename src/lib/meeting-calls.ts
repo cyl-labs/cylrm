@@ -26,6 +26,7 @@ import { db } from "@/db";
 import type { TranscriptTurn } from "@/db/schema";
 import { zoneForLead } from "@/lib/calls";
 import { readCallbackRequest, suggestionConfigured } from "@/lib/callback-suggestion";
+import { SUMMARY_MIN_MS, summaryConfigured, writeCallSummary } from "@/lib/call-summary";
 import { transcribeUrl, transcriptionConfigured } from "@/lib/deepgram";
 import { recordingDownloadUrl } from "@/lib/telnyx";
 
@@ -39,6 +40,7 @@ type Row = {
   started_at: string;
   transcript_text: string | null;
   transcript_turns: TranscriptTurn[] | null;
+  duration_ms: number | null;
   lead_id: number | null;
 };
 
@@ -46,13 +48,15 @@ export async function processMeetingCalls(): Promise<{
   considered: number;
   transcribed: number;
   suggested: number;
+  summarised: number;
   failed: number;
 }> {
-  const result = { considered: 0, transcribed: 0, suggested: 0, failed: 0 };
+  const result = { considered: 0, transcribed: 0, suggested: 0, summarised: 0, failed: 0 };
   if (!transcriptionConfigured()) return result;
 
   const rows = (await db.execute(sql`
     select r.id, r.recording_id, r.started_at, r.transcript_text, r.transcript_turns,
+      r.duration_ms,
       (
         select l.id from call_meeting m
         join call_lead l on l.id = m.call_lead_id
@@ -64,14 +68,21 @@ export async function processMeetingCalls(): Promise<{
     from call_recording r
     where r.auto_checked_at is null
       and r.started_at > now() - make_interval(days => ${DAYS}::int)
-      and r.duration_ms >= ${MIN_MS}
       and r.received_at is not null
-      and exists (
-        select 1 from call_meeting m
-        join call_lead l on l.id = m.call_lead_id
-        where ('+' || l.phone_key) in (r.to_number, r.from_number)
-           or ('+' || l.direct_phone_key) in (r.to_number, r.from_number)
-           or m.attendee_phone in (r.to_number, r.from_number)
+      and (
+        -- Any call over five minutes, whoever it was with: that is where the
+        -- detail is, and it is the length that gets a written summary.
+        r.duration_ms >= ${SUMMARY_MIN_MS}
+        or (
+          r.duration_ms >= ${MIN_MS}
+          and exists (
+            select 1 from call_meeting m
+            join call_lead l on l.id = m.call_lead_id
+            where ('+' || l.phone_key) in (r.to_number, r.from_number)
+               or ('+' || l.direct_phone_key) in (r.to_number, r.from_number)
+               or m.attendee_phone in (r.to_number, r.from_number)
+          )
+        )
       )
     order by r.started_at desc
     limit ${PER_TICK}
@@ -107,7 +118,25 @@ export async function processMeetingCalls(): Promise<{
         result.transcribed += 1;
       }
 
-      if (suggestionConfigured() && text) {
+      // A summary for a call over five minutes, kept beside the transcript.
+      if (
+        summaryConfigured() &&
+        text &&
+        Number(r.duration_ms ?? 0) >= SUMMARY_MIN_MS
+      ) {
+        const summary = await writeCallSummary({ turns, text });
+        if (summary) {
+          await db.execute(sql`
+            update call_recording set summary = ${summary}, summary_at = now()
+            where id = ${r.id}
+          `);
+          result.summarised += 1;
+        }
+      }
+
+      // Only a call with a meeting behind it can have a call back suggested:
+      // the suggestion is drawn on that meeting's card.
+      if (r.lead_id !== null && suggestionConfigured() && text) {
         const tz = (r.lead_id ? await zoneForLead(r.lead_id) : null) ?? "America/New_York";
         const found = await readCallbackRequest({
           turns,
@@ -127,6 +156,44 @@ export async function processMeetingCalls(): Promise<{
     } catch (err) {
       result.failed += 1;
       console.error("[meeting-calls] failed", r.recording_id, err);
+    }
+  }
+
+  // Long calls already looked at before summaries existed (or whose summary
+  // failed): the transcript is stored, so this costs only the summary. A few a
+  // tick, inside the same three days.
+  if (summaryConfigured()) {
+    const pending = (await db.execute(sql`
+      select r.id, r.transcript_text, r.transcript_turns
+      from call_recording r
+      where r.summary is null
+        and r.transcript_text is not null
+        and r.duration_ms >= ${SUMMARY_MIN_MS}
+        and r.started_at > now() - make_interval(days => ${DAYS}::int)
+      order by r.started_at desc
+      limit 3
+    `)) as unknown as {
+      id: number;
+      transcript_text: string;
+      transcript_turns: TranscriptTurn[] | null;
+    }[];
+    for (const p of pending) {
+      try {
+        const summary = await writeCallSummary({
+          turns: p.transcript_turns,
+          text: p.transcript_text,
+        });
+        // Marked even when there was nothing to say, or the same call would be
+        // picked up every five minutes.
+        await db.execute(sql`
+          update call_recording set summary = ${summary ?? ""}, summary_at = now()
+          where id = ${p.id}
+        `);
+        if (summary) result.summarised += 1;
+      } catch (err) {
+        result.failed += 1;
+        console.error("[meeting-calls] summary failed", p.id, err);
+      }
     }
   }
   return result;

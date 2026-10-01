@@ -45,10 +45,13 @@ export async function GET(
     return Response.json({ error: "Recording not found." }, { status: 404 });
   }
 
+  // The summary and the length ride along so the sheet can show the summary
+  // (calls over five minutes) or offer to write one, in the same fetch.
+  const extra = { summary: row.summary, durationMs: row.durationMs };
   return Response.json(
     row.transcriptText === null
-      ? { text: null, turns: null }
-      : { text: row.transcriptText, turns: row.transcriptTurns ?? [] },
+      ? { text: null, turns: null, ...extra }
+      : { text: row.transcriptText, turns: row.transcriptTurns ?? [], ...extra },
   );
 }
 
