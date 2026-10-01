@@ -117,8 +117,11 @@ export type QuotaDigestResult = {
 };
 
 export type QuotaStanding = {
+  id: number;
   name: string;
   calls: number;
+  /** Calls owed by this person: their own figure, else the default. */
+  quota: number;
   /**
    * How long this person has been on the team, and how much of the quota week
    * they have actually been here for.
@@ -215,7 +218,7 @@ export async function getQuotaStandings(
         and not exists (select 1 from call c where c.user_id = u.id)
       )`;
   const callers = (await db.execute(sql`
-    select u.id, u.name, u.created_at,
+    select u.id, u.name, u.created_at, u.weekly_quota,
       (u.telnyx_did is not null or u.dial_method = 'handset') as can_dial,
       exists (
         select 1 from call_list cl where cl.assigned_user_id = u.id
@@ -284,8 +287,10 @@ export async function getQuotaStandings(
     const heldMs = nowMs - Math.max(joinedMs, weekStartMs);
     const daysOfWeek = Math.max(1, Math.ceil(heldMs / 86_400_000));
     standings.push({
+      id: n(c.id),
       name: String(c.name ?? "Unknown"),
       calls,
+      quota: c.weekly_quota == null ? WEEKLY_CALL_QUOTA : n(c.weekly_quota),
       daysOnTeam,
       startedThisWeek: joinedMs > weekStartMs,
       daysOfWeek: daysOfWeek < 7 ? daysOfWeek : null,
@@ -347,7 +352,7 @@ export async function sendQuotaDigest(
   // sorted worst first, and it carries the week it counted, which is what the
   // claim below is keyed on.
   const { standings, weekStart } = await getQuotaStandings();
-  const under = standings.filter((s) => s.calls < WEEKLY_CALL_QUOTA);
+  const under = standings.filter((s) => s.calls < s.quota);
 
   const result: QuotaDigestResult = {
     weekStart,
@@ -362,10 +367,10 @@ export async function sendQuotaDigest(
   // the same from the outside.
   const title =
     under.length === 0
-      ? `Everyone hit ${WEEKLY_CALL_QUOTA} this week`
+      ? "Everyone hit their quota this week"
       : under.length === 1
-        ? `1 caller under ${WEEKLY_CALL_QUOTA} this week`
-        : `${under.length} callers under ${WEEKLY_CALL_QUOTA} this week`;
+        ? "1 caller under quota this week"
+        : `${under.length} callers under quota this week`;
 
   // Worst first — `under` is sorted ascending by calls — so the truncation
   // falls on the people nearest the target rather than the furthest from it.

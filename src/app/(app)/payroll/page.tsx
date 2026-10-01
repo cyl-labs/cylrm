@@ -64,6 +64,19 @@ export default async function PayrollPage() {
     (r) => r.pickupBonusCents + r.bankedBonusCents > 0,
   ).length;
   const unanswered = demos.filter((d) => d.status === null).length;
+  // Grouped by who the money is sent to, for the callers set to be paid via
+  // somebody. Only what is owed now: a person owed nothing is not listed.
+  const viaGroups = (() => {
+    const byName = new Map<string, { name: string; cents: number; people: { name: string; cents: number }[] }>();
+    for (const r of rows) {
+      if (!r.paidViaName || r.totalCents <= 0) continue;
+      const g = byName.get(r.paidViaName) ?? { name: r.paidViaName, cents: 0, people: [] };
+      g.cents += r.totalCents;
+      g.people.push({ name: r.name, cents: r.totalCents });
+      byName.set(r.paidViaName, g);
+    }
+    return [...byName.values()];
+  })();
   const weeks = byWeek(history);
 
   // Dates are formatted here and handed down as text. The two components
@@ -184,6 +197,32 @@ export default async function PayrollPage() {
               </div>
             </dl>
           </div>
+          {/* Money that goes through somebody else (2026-10-01). Each person
+              is still paid and recorded on their own row below, so the books
+              stay one per person; this only says who to send it to and how
+              it divides, for the callers a founder has set to be paid via a
+              manager. */}
+          {viaGroups.length > 0 && (
+            <div className="border-b border-border/60 bg-muted/30 px-5 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground">
+                Paid through someone
+              </p>
+              <ul className="mt-1.5 flex flex-col gap-1.5 text-[13px]">
+                {viaGroups.map((g) => (
+                  <li key={g.name}>
+                    <span className="font-semibold">
+                      Send {g.name} {formatMoney(g.cents)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      for {g.people.map((p) => `${p.name} ${formatMoney(p.cents)}`).join(", ")}.
+                      Record each person&rsquo;s payment on their own row below.
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <PayrollTable rows={rowsWithLabels} />
         </div>
 

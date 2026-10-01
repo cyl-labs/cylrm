@@ -24,6 +24,7 @@ export function MobileNav({
   role,
   keypad = false,
   texting = false,
+  manager = false,
   unreadReplies = 0,
   callbacksDue = 0,
   missedCalls = 0,
@@ -35,6 +36,7 @@ export function MobileNav({
   /** Granted the Keypad. Admins always are. */
   keypad?: boolean;
   texting?: boolean;
+  manager?: boolean;
   unreadReplies?: number;
   callbacksDue?: number;
   missedCalls?: number;
@@ -91,6 +93,7 @@ export function MobileNav({
             role={role}
             keypad={keypad}
             texting={texting}
+            manager={manager}
             unreadReplies={unreadReplies}
             callbacksDue={callbacksDue}
             missedCalls={missedCalls}

@@ -1,3 +1,4 @@
+import { isManager } from "@/lib/managers";
 import { LogOut } from "lucide-react";
 import { cookies } from "next/headers";
 import { countUnreadReplies } from "@/lib/replies";
@@ -86,7 +87,7 @@ export default async function AppLayout({
   // Whether this person can be rung back at all needs a number of their own
   // and dialling in the browser rather than from a handset. Without both there
   // is nothing for a prospect to reach.
-  const [unread, callbacks, missed, meetings, unreadTexts, keypad, rows, method] =
+  const [unread, callbacks, missed, meetings, unreadTexts, keypad, rows, method, manager] =
     await Promise.all([
       me?.role === "admin" ? countUnreadReplies() : 0,
       me?.role === "admin"
@@ -100,6 +101,7 @@ export default async function AppLayout({
         sql`select telnyx_did from app_user where id = ${me?.id ?? -1}`,
       ) as Promise<{ telnyx_did: string | null }[]>,
       dialMethodOf(me?.id),
+      isManager(me),
     ]);
   const [row] = rows;
   const reachable = Boolean(row?.telnyx_did?.trim()) && method === "browser";
@@ -130,6 +132,7 @@ export default async function AppLayout({
             role={me?.role}
             keypad={keypad}
             texting={smsEnabled()}
+            manager={manager}
             unreadReplies={unread}
             callbacksDue={callbacks}
             missedCalls={missed}

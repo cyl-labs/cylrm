@@ -17,9 +17,14 @@ import {
   Receipt,
   Trophy,
   Users,
+  UsersRound,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
+
+/** The manager's view of his own people. Not an admin path: the page checks who
+ *  reports to whom. */
+export const MY_TEAM_PREFIX = "/my-team";
 
 export type WorkspaceId = "email" | "call";
 
@@ -109,6 +114,9 @@ export const WORKSPACES: Workspace[] = [
       { href: "/call-pipeline", label: "Pipeline", icon: Kanban, group: "tools" },
       { href: "/scoreboard", label: "Scoreboard", icon: Trophy, group: "results" },
       { href: "/call-stats", label: "Stats", icon: BarChart3, group: "results" },
+      // Only for somebody a founder has put in charge of other callers (see
+      // `lib/managers.ts`); nobody else is offered it and the page refuses them.
+      { href: MY_TEAM_PREFIX, label: "My team", icon: UsersRound, group: "results" },
       { href: "/keypad", label: "Keypad", icon: Hash, group: "tools" },
       // Deliberately not "Accounts": that is the Gmail sending accounts on
       // the email side, and two screens with one name is how the wrong one
@@ -230,8 +238,10 @@ export function linksFor(
   role: Role | undefined,
   keypad = false,
   texting = false,
+  manager = false,
 ) {
   const hidden = [
+    ...(manager ? [] : [MY_TEAM_PREFIX]),
     ...(role === "admin" ? [] : ADMIN_ONLY_CALL_PREFIXES),
     ...(role === "admin" || keypad ? [] : [KEYPAD_PREFIX]),
     ...(texting ? [] : ["/texts"]),
@@ -256,6 +266,7 @@ const CALL_PREFIXES = [
   "/call-pipeline",
   "/scoreboard",
   "/call-stats",
+  "/my-team",
   "/team",
   "/payroll",
   "/spend",

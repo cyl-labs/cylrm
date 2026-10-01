@@ -237,6 +237,7 @@ const COLUMNS = [
   "Dials with",
   "Their number",
   "Paid by",
+  "Manager and quota",
   "Permissions",
   "Calls",
   "",
@@ -881,6 +882,33 @@ export function TeamManager({
                       ) : (
                         <span className="text-muted-foreground">
                           {m.paymentMethod || "-"}
+                        </span>
+                      )}
+                    </td>
+                    {/* Who looks after them, whose account their pay goes
+                        to, and their weekly quota. A founder's call and made
+                        only here: a manager cannot widen his own group. The
+                        picker offers active floor accounts that are not
+                        themselves managed, which keeps it one level deep. */}
+                    <td className="px-4 py-2.5">
+                      {m.role === "admin" ? (
+                        <span className="text-muted-foreground">-</span>
+                      ) : canManage ? (
+                        <GroupCell
+                          member={m}
+                          options={team.filter(
+                            (t) =>
+                              t.active &&
+                              t.role !== "admin" &&
+                              t.id !== m.id &&
+                              t.managerId === null,
+                          )}
+                          busy={busyId === m.id}
+                          onSave={(body, msg) => patch(m, body, msg)}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {team.find((t) => t.id === m.managerId)?.name ?? "-"}
                         </span>
                       )}
                     </td>
@@ -1930,5 +1958,86 @@ function PaymentMethodCell({
         if (e.key === "Escape") setDraft(value ?? "");
       }}
     />
+  );
+}
+
+/**
+ * Reports-to, paid-via and weekly quota for one person (2026-10-01).
+ *
+ * Plain selects: the option list is a handful of names, and a select opens
+ * before hydration and works on a phone. The quota saves on blur like the
+ * payment method does, and an empty box puts them back on the default.
+ */
+function GroupCell({
+  member,
+  options,
+  busy,
+  onSave,
+}: {
+  member: TeamMember;
+  options: TeamMember[];
+  busy: boolean;
+  onSave: (body: Record<string, unknown>, saved?: string) => void;
+}) {
+  const [draft, setDraft] = React.useState(
+    member.weeklyQuota === null ? "" : String(member.weeklyQuota),
+  );
+  const [synced, setSynced] = React.useState(member.weeklyQuota);
+  if (member.weeklyQuota !== synced) {
+    setSynced(member.weeklyQuota);
+    setDraft(member.weeklyQuota === null ? "" : String(member.weeklyQuota));
+  }
+
+  const select =
+    "h-8 w-full min-w-36 rounded-md border bg-background px-2 text-[13px] disabled:opacity-50";
+  const choose = (key: "managerId" | "paidViaUserId") => (
+    <select
+      className={select}
+      disabled={busy}
+      value={member[key] ?? ""}
+      onChange={(e) =>
+        onSave({ [key]: e.target.value === "" ? null : Number(e.target.value) })
+      }
+    >
+      <option value="">{key === "managerId" ? "Nobody" : "Paid directly"}</option>
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.name}
+        </option>
+      ))}
+    </select>
+  );
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="flex flex-col gap-0.5 text-[11px] font-semibold text-muted-foreground">
+        Reports to
+        {choose("managerId")}
+      </label>
+      <label className="flex flex-col gap-0.5 text-[11px] font-semibold text-muted-foreground">
+        Pay is sent to
+        {choose("paidViaUserId")}
+      </label>
+      <label className="flex flex-col gap-0.5 text-[11px] font-semibold text-muted-foreground">
+        Weekly calls owed (blank is the default 300)
+        <Input
+          value={draft}
+          disabled={busy}
+          inputMode="numeric"
+          placeholder="300"
+          className="h-8 w-24 text-[13px]"
+          onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
+          onBlur={() => {
+            const next = draft === "" ? null : Number(draft);
+            if (next === member.weeklyQuota) return;
+            onSave({ weeklyQuota: next });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") setDraft(member.weeklyQuota === null ? "" : String(member.weeklyQuota));
+          }}
+        />
+      </label>
+    </div>
   );
 }

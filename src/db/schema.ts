@@ -681,7 +681,27 @@ export const appUser = pgTable("app_user", {
    * window fails the save. Never shown as "on a call": nobody is talking.
    */
   wrapUpAt: timestamp("wrap_up_at", { withTimezone: true }),
-}, (t) => [index("app_user_presence_at_idx").on(t.presenceAt)]);
+  /**
+   * Who looks after this person (2026-10-01). Set by a founder on Team, never
+   * by the manager, and the whole of what "manager" means: there is no role for
+   * it. A manager is whoever somebody else's `manager_id` points at, so every
+   * `role === "admin"` test keeps meaning what it meant and a missed check
+   * fails closed. See `lib/managers.ts`.
+   */
+  managerId: integer("manager_id").references((): AnyPgColumn => appUser.id),
+  /** Calls owed per week, for this person. Null is the default
+   *  (`WEEKLY_CALL_QUOTA`). Changes who is flagged as behind and nothing else:
+   *  pay does not read it. */
+  weeklyQuota: integer("weekly_quota"),
+  weeklyQuotaBy: integer("weekly_quota_by").references((): AnyPgColumn => appUser.id),
+  weeklyQuotaAt: timestamp("weekly_quota_at", { withTimezone: true }),
+  /** Their payouts are sent to this other person's account, who passes it on.
+   *  Payout rows stay one per person; only Payroll's grouping reads it. */
+  paidViaUserId: integer("paid_via_user_id").references((): AnyPgColumn => appUser.id),
+}, (t) => [
+  index("app_user_presence_at_idx").on(t.presenceAt),
+  index("app_user_manager_id_idx").on(t.managerId),
+]);
 
 export const call = pgTable(
   "call",

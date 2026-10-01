@@ -94,6 +94,10 @@ export type PayrollRow = {
   totalCents: number;
   /** How they prefer to be paid. Free text; may be a link. */
   paymentMethod: string | null;
+  /** When a founder has set their pay to go through another account, who. The
+   *  payout rows stay one per person; only the screen groups by this. */
+  paidViaUserId: number | null;
+  paidViaName: string | null;
 };
 
 /**
@@ -124,7 +128,8 @@ export type PayrollRow = {
  */
 export async function getPayrollRows(): Promise<PayrollRow[]> {
   const rows = (await db.execute(sql`
-    select u.id, u.name, u.active, u.payment_method,
+    select u.id, u.name, u.active, u.payment_method, u.paid_via_user_id,
+      (select v.name from app_user v where v.id = u.paid_via_user_id) as paid_via_name,
       coalesce(p.paid_at, u.created_at) as period_start,
       pay.paid_at as last_paid_at,
       res.paid_at as last_reset_at,
@@ -221,6 +226,8 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
       meetingCommissionCents: commission,
       totalCents: bonus + banked + commission,
       paymentMethod: (r.payment_method as string | null) ?? null,
+      paidViaUserId: r.paid_via_user_id == null ? null : n(r.paid_via_user_id),
+      paidViaName: (r.paid_via_name as string | null) ?? null,
     };
   });
 

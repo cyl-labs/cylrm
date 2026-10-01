@@ -58,6 +58,9 @@ export async function PATCH(
     keypadAccess?: unknown;
     textAccess?: unknown;
     liveHints?: unknown;
+    managerId?: unknown;
+    paidViaUserId?: unknown;
+    weeklyQuota?: unknown;
   } | null;
   if (!body) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
@@ -210,6 +213,85 @@ export async function PATCH(
         }
       }
     }
+  }
+
+  // Who looks after this person, and whose account their pay is sent to. A
+  // founder's decision, made here and nowhere else: a manager cannot widen his
+  // own group. The guards are about shape, not trust. Nobody manages an admin
+  // or themselves; a manager has to be a floor account that is not itself
+  // managed, which keeps it one level deep and rules out cycles.
+  for (const key of ["managerId", "paidViaUserId"] as const) {
+    if (!(key in body)) continue;
+    const v = (body as Record<string, unknown>)[key];
+    if (v !== null && !Number.isInteger(v)) {
+      return Response.json({ error: "Invalid person." }, { status: 400 });
+    }
+    if (v !== null) {
+      if (v === userId) {
+        return Response.json(
+          { error: "Somebody cannot be their own manager." },
+          { status: 400 },
+        );
+      }
+      if (target.role === "admin") {
+        return Response.json(
+          { error: "An admin is not managed by anyone." },
+          { status: 400 },
+        );
+      }
+      const [boss] = await db
+        .select({
+          role: appUser.role,
+          active: appUser.active,
+          managerId: appUser.managerId,
+        })
+        .from(appUser)
+        .where(eq(appUser.id, v as number));
+      if (!boss || !boss.active || boss.role === "admin") {
+        return Response.json(
+          { error: "Pick an active caller or closer." },
+          { status: 400 },
+        );
+      }
+      if (boss.managerId !== null) {
+        return Response.json(
+          { error: "That person is managed by someone, so they cannot manage others." },
+          { status: 400 },
+        );
+      }
+    }
+    if (key === "managerId") values.managerId = v as number | null;
+    else values.paidViaUserId = v as number | null;
+  }
+  // A manager cannot themselves be put under someone while they have people.
+  if ("managerId" in body && values.managerId != null) {
+    const [has] = await db
+      .select({ id: appUser.id })
+      .from(appUser)
+      .where(eq(appUser.managerId, userId))
+      .limit(1);
+    if (has) {
+      return Response.json(
+        { error: "They manage people already. Move those first." },
+        { status: 400 },
+      );
+    }
+  }
+
+  // A founder setting someone's weekly quota. Null puts them back on the
+  // default. A manager does the same for his own people through
+  // /api/my-team/[id]/quota, which records the same two fields.
+  if ("weeklyQuota" in body) {
+    const q = body.weeklyQuota;
+    if (q !== null && !(Number.isInteger(q) && (q as number) >= 0 && (q as number) <= 5000)) {
+      return Response.json(
+        { error: "Quota must be a whole number of calls, or empty for the default." },
+        { status: 400 },
+      );
+    }
+    values.weeklyQuota = q as number | null;
+    values.weeklyQuotaBy = me.id;
+    values.weeklyQuotaAt = new Date();
   }
 
   // The number they ring from. Checked against their market, because a US

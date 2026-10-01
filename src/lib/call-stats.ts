@@ -1,3 +1,4 @@
+import { WEEKLY_CALL_QUOTA } from "@/lib/call-quota";
 import { cache } from "react";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
@@ -176,6 +177,9 @@ export type WeekProgress = {
   weekStart: string;
   /** The exact moment it began, so a screen can say when it resets. */
   since: string;
+  /** Calls owed this week: their own figure if a founder or their manager set
+   *  one, otherwise the default. */
+  quota: number;
 };
 
 /**
@@ -202,12 +206,18 @@ export const getWeekProgress = cache(
     // the `call_lead` join included (a call always has a lead, so it cannot
     // move the count).
     const [row] = (await db.execute(sql`
-      select count(*) as n
+      select count(*) as n,
+        (select weekly_quota from app_user where id = ${userId}) as quota
       from "call" c
       join call_lead l on l.id = c.call_lead_id
       where c.user_id = ${userId} and c.called_at >= ${at.toISOString()}::timestamptz
-    `)) as { n: string | number }[];
-    return { calls: Number(row?.n ?? 0), weekStart, since: at.toISOString() };
+    `)) as { n: string | number; quota: number | null }[];
+    return {
+      calls: Number(row?.n ?? 0),
+      weekStart,
+      since: at.toISOString(),
+      quota: row?.quota ?? WEEKLY_CALL_QUOTA,
+    };
   },
 );
 

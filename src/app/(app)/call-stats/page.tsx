@@ -1,3 +1,4 @@
+import { reportsOf } from "@/lib/managers";
 import { CALLING_HOURS_LABEL, getCallLists } from "@/lib/calls";
 import Link from "next/link";
 import {
@@ -137,7 +138,19 @@ export default async function CallStatsPage({
   // exactly as `callScope` does: a bug upstream fails closed to an empty
   // screen rather than open to the whole floor's numbers.
   const mine = me?.role !== "admin";
-  const scopeId = mine ? (me?.id ?? -1) : undefined;
+  // A manager can open any one of his own people's numbers (2026-10-01): the
+  // same screen, scoped to that person exactly as it is scoped to a caller
+  // looking at themselves. Nobody outside `reportsOf` is reachable, because the
+  // id has to be found in his list before it is used for anything. The query
+  // string never widens a scope, only picks among people he already manages.
+  const reports = mine && me ? await reportsOf(me.id) : [];
+  const viewing =
+    mine && reports.length > 0
+      ? (reports.find((r) => r.id === Number(person)) ?? null)
+      : null;
+  // The second-person wording ("your calls") is only true when it is their own.
+  const own = mine && !viewing;
+  const scopeId = mine ? (viewing?.id ?? me?.id ?? -1) : undefined;
   const region = await screenRegion(
     "call-stats",
     rawTz,
@@ -220,7 +233,7 @@ export default async function CallStatsPage({
   // in, and a URL carrying a person id suggests it could carry somebody
   // else's.
   const personParam: Record<string, string> =
-    !mine && personId ? { person: String(personId) } : {};
+    (!mine || viewing) && personId ? { person: String(personId) } : {};
   // A `?list=` naming a niche that has gone falls back to all of them rather
   // than reporting zeroes as if the calling had stopped.
   const wanted = Number(list);
@@ -279,39 +292,39 @@ export default async function CallStatsPage({
     {
       label: "Calls logged",
       value: totals.calls,
-      sub: mine ? "every dial you made" : "attempts, not leads",
+      sub: own ? "every dial you made" : "attempts, not leads",
     },
     {
       label: "Leads dialled",
       value: totals.leadsDialled,
-      sub: mine
+      sub: own
         ? `businesses you rang, ${(totals.calls / (totals.leadsDialled || 1)).toFixed(1)} calls each`
         : `${(totals.calls / (totals.leadsDialled || 1)).toFixed(1)} calls each`,
     },
     {
       label: "Pickups",
       value: totals.pickups,
-      sub: mine
+      sub: own
         ? `someone answered, ${pct(totals.pickups, totals.calls)} of your calls`
         : `${pct(totals.pickups, totals.calls)} of calls`,
     },
     {
       label: "Demos booked",
       value: totals.demos,
-      sub: mine
+      sub: own
         ? "meetings you set up"
         : `${per100(totals.demos, totals.calls)} per 100 calls`,
     },
     {
       label: "Trials started",
       value: totals.trials,
-      sub: mine ? "went on to a free trial" : "reached a trial",
+      sub: own ? "went on to a free trial" : "reached a trial",
     },
     {
       label: "Won",
       value: totals.won,
       sub:
-        mine || totals.won + totals.lost === 0
+        own || totals.won + totals.lost === 0
           ? "contracts signed"
           : `${pct(totals.won, totals.won + totals.lost)} of decided`,
     },
@@ -324,7 +337,7 @@ export default async function CallStatsPage({
       // Said in the title rather than left to be worked out from the numbers:
       // a caller opening a screen called Call stats would reasonably read it
       // as the floor's and their own figures as everybody's.
-      title={mine ? "My stats" : "Call stats"}
+      title={viewing ? `${viewing.name}'s stats` : mine ? "My stats" : "Call stats"}
       actions={
         <>
           <CallFilters
@@ -332,8 +345,15 @@ export default async function CallStatsPage({
             listId={listId ?? "all"}
             // Undefined drops the picker entirely, and "all" keeps their own
             // id out of every query string the filters rebuild.
-            people={mine ? undefined : peopleOptions}
-            personId={mine ? "all" : (personId ?? "all")}
+            people={
+              mine
+                ? reports.length > 0
+                  ? reports
+                  : undefined
+                : peopleOptions
+            }
+            allLabel={mine ? "Me" : undefined}
+            personId={viewing ? viewing.id : mine ? "all" : (personId ?? "all")}
             range={range}
             day={day}
             tz={region}
@@ -352,7 +372,18 @@ export default async function CallStatsPage({
             yours; the calendar is the control people miss, because a grid of
             dates does not look like a filter; and the last sentence is the
             only thing that tells anyone the recordings are down there at all. */}
-        {mine && (
+        {viewing && (
+          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-[13px] leading-relaxed">
+            <p>
+              You are looking at{" "}
+              <span className="font-semibold">{viewing.name}&rsquo;s calls</span>.
+              Every number and every recording on this page is theirs. Use the
+              first filter to go back to your own, or to open someone else on
+              your team.
+            </p>
+          </div>
+        )}
+        {own && (
           <div className="rounded-lg border bg-muted/40 px-4 py-3 text-[13px] leading-relaxed">
             <p>
               These are{" "}
@@ -372,7 +403,7 @@ export default async function CallStatsPage({
         {/* A caller opening this at nine in the morning sees six zeroes, which
             reads as a broken screen rather than as a day that has not started.
             Said plainly, with the two ways out: another day, or the dialler. */}
-        {mine && totals.calls === 0 && (
+        {own && totals.calls === 0 && (
           <p className="text-[13px]">
             <span className="font-semibold">No calls here yet.</span>{" "}
             <span className="text-muted-foreground">
@@ -475,7 +506,7 @@ export default async function CallStatsPage({
               {/* Named as the card is actually headed on this version of the
                   screen: a link pointing at "Every call" on a page whose table
                   says "Your calls" is a link to something that is not there. */}
-              in {mine ? "Your calls" : "Every call"} below. The dialler hides
+              in {own ? "Your calls" : "Every call"} below. The dialler hides
               these leads by default, so a call here was placed with{" "}
               <span className="font-semibold">Open now</span> switched off, from
               a callback booked for that time, or as a ring back from Missed
@@ -500,13 +531,13 @@ export default async function CallStatsPage({
           <div className={CARD}>
             <div className="border-b border-border/60 px-5 py-3.5">
               <p className="text-sm font-extrabold tracking-[-0.01em]">
-                {mine ? "How your calls ended" : "What the calls did"}
+                {own ? "How your calls ended" : "What the calls did"}
               </p>
               {/* An admin knows these bars are the outcome each call was
                   logged as. A caller needs telling that this is the same menu
                   they tap on the dial card, or the card reads as a second set
                   of numbers rather than the same ones counted up. */}
-              {mine && (
+              {own && (
                 <p className="mt-0.5 text-[11px] text-muted-foreground/75">
                   What you tapped at the end of each call.
                 </p>
@@ -662,10 +693,10 @@ export default async function CallStatsPage({
         <div className={CARD}>
           <div className="border-b border-border/60 px-5 py-3.5">
             <p className="text-sm font-extrabold tracking-[-0.01em]">
-              {mine ? "Your niches" : "By list"}
+              {own ? "Your niches" : "By list"}
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/75">
-              {mine
+              {own
                 ? "How much of each niche you have ever rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the dates above. Niches with no calls in this range are folded away. Search, or show them all."
                 :"How much of each niche has been rung, how often someone picked up, and demos booked. Open a row for the rest. Worked is lifetime; the other two are the selected range. Niches with no calls in this range are folded away. Search, or show them all."}
             </p>
@@ -677,7 +708,7 @@ export default async function CallStatsPage({
               reach, but they cannot reach what is not theirs. */}
           {lists.length === 0 ? (
             <p className="px-5 py-8 text-center text-[13px] text-muted-foreground">
-              {mine
+              {own
                 ? "No niches are assigned to you yet. Ask whoever runs the floor to put you on one, and your numbers will start showing up here."
                 : "No call lists yet. Import a CSV on the Call lists screen."}
             </p>
@@ -697,7 +728,7 @@ export default async function CallStatsPage({
         <div className={cn(CARD, "overflow-hidden")}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-3">
             <p className="text-sm font-extrabold tracking-[-0.01em]">
-              {mine ? "Your calls" : "Every call"}
+              {own ? "Your calls" : viewing ? `${viewing.name}'s calls` : "Every call"}
             </p>
             <p className="text-[12px] text-muted-foreground">
               {log.length === CALL_LOG_LIMIT
@@ -712,7 +743,7 @@ export default async function CallStatsPage({
               <LogFilter
                 outcome={outcome ?? "all"}
                 listId={listId ?? "all"}
-                personId={mine ? "all" : (personId ?? "all")}
+                personId={viewing ? viewing.id : mine ? "all" : (personId ?? "all")}
                 range={range}
                 day={day}
                 tz={region}

@@ -25,8 +25,11 @@ import { cn } from "@/lib/utils";
 export function QuotaBar({
   calls,
   since,
+  quota = WEEKLY_CALL_QUOTA,
 }: {
   calls: number;
+  /** Calls owed this week for this person. */
+  quota?: number;
   /**
    * When this week's count started, already worded ("Fri 5pm ET").
    *
@@ -37,10 +40,10 @@ export function QuotaBar({
    */
   since?: string;
 }) {
-  const left = callsRemaining(calls);
+  const left = callsRemaining(calls, quota);
   const met = left === 0;
-  const pct = Math.round(quotaFraction(calls) * 100);
-  const over = calls - WEEKLY_CALL_QUOTA;
+  const pct = Math.round(quotaFraction(calls, quota) * 100);
+  const over = calls - quota;
 
   return (
     <div className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-2 sm:px-7">
@@ -60,8 +63,8 @@ export function QuotaBar({
         role="progressbar"
         aria-valuenow={calls}
         aria-valuemin={0}
-        aria-valuemax={WEEKLY_CALL_QUOTA}
-        aria-label={`${calls} of ${WEEKLY_CALL_QUOTA} calls this week`}
+        aria-valuemax={quota}
+        aria-label={`${calls} of ${quota} calls this week`}
       >
         <div
           className={cn(
@@ -76,7 +79,7 @@ export function QuotaBar({
         <span className="font-extrabold">{calls.toLocaleString()}</span>
         <span className="text-muted-foreground">
           {" "}
-          / {WEEKLY_CALL_QUOTA.toLocaleString()}
+          / {quota.toLocaleString()}
         </span>
       </p>
 

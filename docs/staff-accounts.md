@@ -173,3 +173,59 @@ Employees sign in individually so every call has a name on it. The single shared
   callers until it is given out again. Same `PATCH /api/call-lists/[id]` as
   every other assign. HTML5 drag never fires on touch, so on a phone the menu
   is the route. Founders only (`canManage`).
+
+## Managers: a caller who looks after other callers (2026-10-01)
+
+`lib/managers.ts`, migration `2026-10-01-manager-link.sql` (**apply before
+deploying**: `listTeam`, `getWeekProgress` and the payroll query all select the
+new columns). Built for Akshansh, who hires callers for the founders and runs
+them: he needs to see their numbers, hear their calls, set their quotas and
+pass their pay on, and nothing else.
+
+- **There is no manager role.** A manager is whoever somebody else's
+  `app_user.manager_id` points at, set by a founder in the Team row ("Reports
+  to"). A new `Role` was rejected for the same reason in both directions:
+  making him an admin would have handed him pay, accounts and every other
+  caller, and a new role value fails against about sixty `role === "admin"`
+  tests. He stays a caller or closer, keeps his own quota and pickup pay, and
+  every admin test in the app means what it meant.
+- **One rule, one function**: `canManage(me, targetId)`. Founders may manage
+  anybody; otherwise the target's `manager_id` must be `me.id`, and never
+  `me.id` itself (a manager cannot set his own quota). `reportsOf` is the
+  roster, switched-off people included, since their calls are still his to
+  review. **`callScope` is deliberately untouched**: his own working screens
+  (Call lists, Callbacks, the Spreadsheet) stay his own. Everything a manager
+  gets is a new surface or an explicit extra.
+- **The shape is kept one level deep**: the API refuses a manager who is
+  himself managed, a person with reports being put under someone, an admin as
+  a manager, and an admin being managed. Rules out cycles without a walker.
+- **What he gets.**
+  - `/my-team` (nav link only for someone with reports; the page 404s anybody
+    else, founders included, who have Team and Stats). Per person: calls this
+    week against their quota, pickups, demos, last call, and a quota box.
+  - `/call-stats?person=<id>` for one of his people. The page resolves `person`
+    against `reportsOf` first and falls back to his own numbers for anything
+    else, so the query string only picks among people he already manages. It
+    reuses the caller's scoped screen, so every figure, call and recording is
+    the same code path that scopes a caller to himself. Copy that says "you"
+    is keyed on `own`, not `mine`.
+  - **Recordings**: `recordingVisibleTo(userId, alsoUserIds)` adds their calls
+    and keypad calls, and `findVisibleRecording` passes his reports. The play
+    and transcribe routes both use it.
+  - **Quotas**: `app_user.weekly_quota` (null = the standard 300, `WEEKLY_CALL_QUOTA`),
+    stored with who set it and when. The quota bar, the standings card and
+    the Friday digest read each person's own figure. It changes who is flagged
+    as behind and nothing else: payroll does not read it. Set by a founder on
+    Team or by the manager on `/my-team`, both through the same two fields.
+  - **Pay passes through him**: `app_user.paid_via_user_id`. Payout rows stay
+    one per person, so the books and each person's history are unchanged;
+    only Payroll groups by it ("Paid through someone": send him the total, with
+    each person's share), and `/my-team` shows him what each is owed now,
+    read-only. A founder still sends the money and presses Paid on each row.
+- **What he does not get, on purpose.** Switching accounts on or off, creating
+  them, Telnyx lines, assigning or moving call lists (founders hand lists to
+  callers directly), and Payroll itself. The quota digest is not sent to him:
+  the same information is on `/my-team` all week.
+- **Not built, and said so**: a "got paid" confirmation from each person. If
+  anyone ever disputes a payment passed on by a manager, that is the record
+  that is missing.

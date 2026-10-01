@@ -36,6 +36,11 @@ export type TeamMember = {
   /** How they prefer to be paid — free text, possibly a link. Set on Team,
    *  read on Payroll at the moment a payout is recorded. */
   paymentMethod: string | null;
+  /** Who looks after them, whose account their pay goes to, and their own
+   *  weekly quota (null = the default). See `lib/managers.ts`. */
+  managerId: number | null;
+  paidViaUserId: number | null;
+  weeklyQuota: number | null;
   /** Lifetime, across every list — what the Team screen shows next to a name
    *  so a dormant account is obvious without opening Stats. */
   calls: number;
@@ -66,6 +71,9 @@ export async function listTeam(): Promise<TeamMember[]> {
       liveHints: appUser.liveHints,
       textAccess: appUser.textAccess,
       paymentMethod: appUser.paymentMethod,
+      managerId: appUser.managerId,
+      paidViaUserId: appUser.paidViaUserId,
+      weeklyQuota: appUser.weeklyQuota,
       // A join rather than a correlated subquery, because the subquery this
       // replaces was silently wrong. Drizzle renders an interpolated column
       // unqualified inside `.select()`, so `${appUser.id}` came out as a bare

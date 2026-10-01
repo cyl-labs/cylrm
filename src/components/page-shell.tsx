@@ -1,3 +1,4 @@
+import { isManager } from "@/lib/managers";
 import { isFloor } from "@/lib/roles";
 import { countUnreadReplies } from "@/lib/replies";
 import { countCallbacksDue } from "@/lib/calls";
@@ -35,7 +36,7 @@ export async function PageShell({
   // they are off the Scoreboard and off the payroll confirm list. A caller can
   // only ever be on a Call CRM screen, so there is no workspace to check as
   // well as the role.
-  const [unread, callbacks, missed, meetings, unreadTexts, week, keypad] =
+  const [unread, callbacks, missed, meetings, unreadTexts, week, keypad, manager] =
     await Promise.all([
       me?.role === "admin" ? countUnreadReplies() : 0,
       me?.role === "admin"
@@ -46,6 +47,7 @@ export async function PageShell({
       countUnreadTexts(me),
       me && isFloor(me.role) ? getWeekProgress(me.id) : null,
       canUseKeypad(me?.id, me?.role),
+      isManager(me),
     ]);
   return (
     <div className="flex h-svh flex-col">
@@ -54,6 +56,7 @@ export async function PageShell({
         role={me?.role}
         keypad={keypad}
         texting={smsEnabled()}
+        manager={manager}
         unreadReplies={unread}
         callbacksDue={callbacks}
         missedCalls={missed}
@@ -70,6 +73,7 @@ export async function PageShell({
       {week && (
         <QuotaBar
           calls={week.calls}
+          quota={week.quota}
           // Eastern, because that is the clock the quota week is cut in — not
           // the reader's, which would name an hour the reset does not happen
           // at. Formatted here rather than in the bar: the shell is a server

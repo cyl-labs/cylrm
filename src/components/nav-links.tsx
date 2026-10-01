@@ -24,6 +24,7 @@ export function NavLinks({
   role,
   keypad = false,
   texting = false,
+  manager = false,
   unreadReplies = 0,
   callbacksDue = 0,
   missedCalls = 0,
@@ -42,6 +43,8 @@ export function NavLinks({
   keypad?: boolean;
   /** Texting is switched on, so there is a Texts screen to link to. */
   texting?: boolean;
+  /** Has callers reporting to them, so "My team" is on offer. */
+  manager?: boolean;
   unreadReplies?: number;
   /** Callbacks whose time has passed — the calling side's version of unread. */
   callbacksDue?: number;
@@ -53,7 +56,7 @@ export function NavLinks({
 }) {
   const pathname = usePathname();
   const workspace = workspaceForPath(pathname);
-  const links = linksFor(workspace, role, keypad, texting);
+  const links = linksFor(workspace, role, keypad, texting, manager);
 
   // Read once when the drawer opens: it unmounts on close, so the next open
   // starts from whichever page it moved to.

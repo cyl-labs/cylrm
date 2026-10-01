@@ -85,7 +85,7 @@ export function QuotaStandings() {
       <div className="flex flex-wrap items-start gap-3 border-b px-4 py-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-extrabold tracking-[-0.01em]">
-            Calls against the {WEEKLY_CALL_QUOTA} quota
+            Calls against each person's quota ({WEEKLY_CALL_QUOTA} unless set)
           </p>
           <p className="mt-0.5 text-[12px] text-muted-foreground">
             {week ? (
@@ -138,7 +138,7 @@ export function QuotaStandings() {
       ) : (
         <ul className="divide-y divide-border/60">
           {week.standings.map((s) => {
-            const met = s.calls >= WEEKLY_CALL_QUOTA;
+            const met = s.calls >= s.quota;
             // What to say about how new they are, and nothing at all once they
             // have been here a month: a tag on every row is noise, and its
             // absence has to mean something, which the note above says.
@@ -151,7 +151,7 @@ export function QuotaStandings() {
                 : null;
             const width = Math.min(
               100,
-              Math.round((s.calls / WEEKLY_CALL_QUOTA) * 100),
+              Math.round((s.calls / Math.max(1, s.quota)) * 100),
             );
             return (
               <li key={s.name} className="flex items-center gap-3 px-4 py-2">
@@ -189,7 +189,7 @@ export function QuotaStandings() {
                     met ? "font-semibold text-success" : "text-muted-foreground",
                   )}
                 >
-                  {s.calls.toLocaleString("en-US")} / {WEEKLY_CALL_QUOTA}
+                  {s.calls.toLocaleString("en-US")} / {s.quota}
                 </span>
               </li>
             );

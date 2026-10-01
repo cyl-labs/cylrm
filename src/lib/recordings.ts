@@ -2,6 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import type { TranscriptTurn } from "@/db/schema";
 import type { CurrentUser } from "@/lib/session";
+import { reportIdsOf } from "@/lib/managers";
 
 /** Whose recordings to limit to: a caller's id, or undefined for an admin,
  *  who hears everything — the same shape `callScope` gives. */
@@ -19,10 +20,39 @@ const scopeOf = (me: CurrentUser): number | undefined =>
  * Never a skipped clause: only the admin branch drops the ownership test, so
  * there is no path where a missing id widens this to every recording.
  */
-export const recordingVisibleTo = (userId: number | undefined): SQL =>
+export const recordingVisibleTo = (
+  userId: number | undefined,
+  /** People whose calls this person may also hear: their reports, if a founder
+   *  made them somebody's manager (2026-10-01). Never widens an admin (who
+   *  hears everything already) and is empty for everybody else. */
+  alsoUserIds: number[] = [],
+): SQL =>
   userId === undefined
     ? sql`true`
     : sql`(
+        ${
+          alsoUserIds.length === 0
+            ? sql`false`
+            : sql`(
+                exists (
+                  select 1 from call c
+                  where c.telnyx_session_id = r.call_session_id
+                    and c.user_id in (${sql.join(
+                      alsoUserIds.map((id) => sql`${id}`),
+                      sql`, `,
+                    )})
+                )
+                or exists (
+                  select 1 from keypad_call k
+                  where k.telnyx_session_id = r.call_session_id
+                    and k.user_id in (${sql.join(
+                      alsoUserIds.map((id) => sql`${id}`),
+                      sql`, `,
+                    )})
+                )
+              )`
+        }
+        or
         exists (
           select 1
           from call c
@@ -159,7 +189,10 @@ export async function findVisibleRecording(
   const rows = (await db.execute(sql`
     select r.recording_id, r.transcript_text, r.transcript_turns
     from call_recording r
-    where r.recording_id = ${id} and ${recordingVisibleTo(scopeOf(me))}
+    where r.recording_id = ${id} and ${recordingVisibleTo(
+      scopeOf(me),
+      me.role === "admin" ? [] : await reportIdsOf(me.id),
+    )}
     limit 1
   `)) as {
     recording_id: string;

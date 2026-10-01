@@ -43,6 +43,7 @@ export function CallFilters({
   lists,
   listId,
   people,
+  allLabel = "Everyone",
   personId = "all",
   range,
   day,
@@ -55,6 +56,9 @@ export function CallFilters({
    *  everybody is treated as current, which is the safe way round. */
   people?: { id: number; name: string; active?: boolean }[];
   personId?: number | "all";
+  /** What the no-person choice is called. "Everyone" for a founder, "Me" for a
+   *  manager choosing between himself and his people. */
+  allLabel?: string;
   /** Omitted on screens with no date range, like the board. */
   range?: string;
   /** A single day in the reporting zone, YYYY-MM-DD, when one is picked off
@@ -121,7 +125,7 @@ export function CallFilters({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Everyone</SelectItem>
+            <SelectItem value="all">{allLabel}</SelectItem>
             {people
               .filter((u) => u.active !== false)
               .map((u) => (
