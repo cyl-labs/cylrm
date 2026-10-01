@@ -793,7 +793,7 @@ const NO_SHOW_RING_DAYS = 7;
  * the demo's own recording list.
  */
 const DEMO_RECORDING_WHERE = sql`
-  cr.to_number in ('+' || l.phone_key, m.attendee_phone)
+  cr.to_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
   -- A call made from a caller's own number is theirs, not the demo
   -- (2026-10-02). The window is wide on purpose, so every call to the business
   -- after it was booked fell inside it and was labelled Demo call: Akshansh's
@@ -1013,11 +1013,11 @@ const meetingSelect = sql`
           (select u2.name from "call" c2 join app_user u2 on u2.id = c2.user_id
             where c2.telnyx_session_id = cr.call_session_id limit 1)
         ) as "byName",
-        case when cr.from_number in ('+' || l.phone_key, m.attendee_phone)
+        case when cr.from_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
           then 'in' else 'out' end as direction
       from call_recording cr
-      where (cr.to_number in ('+' || l.phone_key, m.attendee_phone)
-          or cr.from_number in ('+' || l.phone_key, m.attendee_phone))
+      where (cr.to_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
+          or cr.from_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone))
         and cr.call_session_id is distinct from bc.telnyx_session_id
       order by cr.started_at desc nulls last
       limit 25
@@ -1039,13 +1039,13 @@ const meetingSelect = sql`
     )
     from call_recording cr
     where cr.callback_suggestion is not null
-      and (cr.to_number in ('+' || l.phone_key, m.attendee_phone)
-        or cr.from_number in ('+' || l.phone_key, m.attendee_phone))
+      and (cr.to_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
+        or cr.from_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone))
       and (cr.callback_suggestion->>'at')::timestamptz > now()
       and not exists (
         select 1 from call_recording later
-        where (later.to_number in ('+' || l.phone_key, m.attendee_phone)
-          or later.from_number in ('+' || l.phone_key, m.attendee_phone))
+        where (later.to_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
+          or later.from_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone))
           and later.started_at > cr.started_at
           and coalesce(later.duration_ms, 0) >= 15000
       )
@@ -1106,7 +1106,7 @@ const meetingSelect = sql`
       order by pd.start_at desc
       limit 1
     ) pd on true
-    where cr.to_number in ('+' || l.phone_key, pd.attendee_phone)
+    where cr.to_number in ('+' || l.phone_key, '+' || l.direct_phone_key, pd.attendee_phone)
       and not exists (
         select 1 from app_user u
         where u.role <> 'admin'

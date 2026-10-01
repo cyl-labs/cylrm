@@ -27,7 +27,7 @@ export async function GET(
 
   const owner = callScope(me);
   const [lead] = await db
-    .select({ phoneKey: callLead.phoneKey })
+    .select({ phoneKey: callLead.phoneKey, directPhoneKey: callLead.directPhoneKey })
     .from(callLead)
     .innerJoin(callList, eq(callList.id, callLead.callListId))
     .where(
@@ -39,6 +39,16 @@ export async function GET(
     return Response.json({ error: "Lead not found." }, { status: 404 });
   }
 
-  const recordings = await getRecordingsForNumber(`+${lead.phoneKey}`, me);
+  // The main number and the direct line (a second number somebody gave us for
+  // the same business), newest first. Without the second, a 30 minute call on
+  // the direct line was attached to nothing on the lead.
+  const numbers = [lead.phoneKey, lead.directPhoneKey].filter(
+    (k): k is string => Boolean(k),
+  );
+  const recordings = (
+    await Promise.all(numbers.map((k) => getRecordingsForNumber(`+${k}`, me)))
+  )
+    .flat()
+    .sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? ""));
   return Response.json({ recordings });
 }

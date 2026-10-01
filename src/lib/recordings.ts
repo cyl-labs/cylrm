@@ -78,7 +78,7 @@ export const recordingVisibleTo = (
           join call_lead l on l.id = m.call_lead_id
           left join call_list cl on cl.id = l.call_list_id
           where (cl.assigned_user_id = ${userId} or m.closer_user_id = ${userId})
-            and r.to_number in ('+' || l.phone_key, m.attendee_phone)
+            and r.to_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
             and r.started_at >= greatest(
               m.start_at - interval '12 hours',
               coalesce((select bk.called_at from "call" bk where bk.id = m.call_id), '-infinity')

@@ -57,6 +57,7 @@ export async function processMeetingCalls(): Promise<{
         select l.id from call_meeting m
         join call_lead l on l.id = m.call_lead_id
         where ('+' || l.phone_key) in (r.to_number, r.from_number)
+           or ('+' || l.direct_phone_key) in (r.to_number, r.from_number)
            or m.attendee_phone in (r.to_number, r.from_number)
         order by m.start_at desc limit 1
       ) as lead_id
@@ -69,6 +70,7 @@ export async function processMeetingCalls(): Promise<{
         select 1 from call_meeting m
         join call_lead l on l.id = m.call_lead_id
         where ('+' || l.phone_key) in (r.to_number, r.from_number)
+           or ('+' || l.direct_phone_key) in (r.to_number, r.from_number)
            or m.attendee_phone in (r.to_number, r.from_number)
       )
     order by r.started_at desc
