@@ -230,6 +230,43 @@ export async function POST(request: Request) {
   }
 
   /**
+   * A founder writing a business off takes it off Meetings too (2026-10-02).
+   * "Not interested" and "lost" end the sale, but an open founders' call back
+   * and a no-show's ring back kept the row on the calendar until someone used
+   * Remove from Meetings. So the call back is closed, and every meeting that
+   * has already started gets the same `cancelled` row Remove writes, which is
+   * what clears a ring back. **A meeting still ahead is left alone**: a
+   * prospect who says no on a call but is still booked for tomorrow is a
+   * decision for the person taking the demo, and Remove is the way to say it.
+   * Founders only; a caller logging the same outcome closes nothing.
+   */
+  if (
+    me.role === "admin" &&
+    (body.outcome === "not_interested" || body.outcome === "lost")
+  ) {
+    await db.execute(sql`
+      update founder_call set done_at = now()
+      where call_lead_id = ${leadId} and done_at is null
+    `);
+    await db.execute(sql`
+      insert into call_meeting_followup
+        (meeting_id, user_id, result, notes, for_start_at)
+      select m.id, ${me.id}, 'cancelled',
+        ${body.outcome === "lost" ? "Closed: logged as lost." : "Closed: logged as not interested."},
+        m.start_at
+      from call_meeting m
+      where m.call_lead_id = ${leadId}
+        and m.status = 'accepted'
+        and m.start_at <= now()
+        and not exists (
+          select 1 from call_meeting_followup fu
+          where fu.meeting_id = m.id and fu.for_start_at = m.start_at
+            and fu.result = 'cancelled'
+        )
+    `);
+  }
+
+  /**
    * Claim the booking this call just made, without waiting for the sync.
    *
    * The Cal.com sync links a meeting to the call that booked it, and it runs
