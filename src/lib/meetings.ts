@@ -611,6 +611,14 @@ export type Meeting = {
     startedAt: string;
     direction: "out" | "in";
   }[];
+  /**
+   * A time they asked to be rung back, read from a call's transcript
+   * (`lib/callback-suggestion.ts`), for founders to accept with one tap.
+   * Only the business's current meeting, only a time still ahead, only when no
+   * call back is open and nothing has been recorded with them since: a later
+   * call supersedes the promise. Null otherwise.
+   */
+  callbackSuggestion: { recordingId: string; at: string; quote: string } | null;
 
   /**
    * What the row needs to ring them without leaving the screen.
@@ -994,6 +1002,35 @@ const meetingSelect = sql`
       limit 25
     ) o
   ) else '[]'::json end as other_recordings,
+  -- A call back they asked for, read from a transcript (lib/callback-suggestion).
+  -- Same meeting rule as the list above. Still ahead, and nothing recorded with
+  -- the number since that call started: a later call has already dealt with it.
+  case when m.id = (
+    select m3.id from call_meeting m3
+    where m3.call_lead_id = m.call_lead_id
+    order by (m3.status = 'accepted') desc, m3.start_at desc, m3.id desc
+    limit 1
+  ) then (
+    select json_build_object(
+      'recordingId', cr.recording_id,
+      'at', cr.callback_suggestion->>'at',
+      'quote', coalesce(cr.callback_suggestion->>'quote', '')
+    )
+    from call_recording cr
+    where cr.callback_suggestion is not null
+      and (cr.to_number in ('+' || l.phone_key, m.attendee_phone)
+        or cr.from_number in ('+' || l.phone_key, m.attendee_phone))
+      and (cr.callback_suggestion->>'at')::timestamptz > now()
+      and not exists (
+        select 1 from call_recording later
+        where (later.to_number in ('+' || l.phone_key, m.attendee_phone)
+          or later.from_number in ('+' || l.phone_key, m.attendee_phone))
+          and later.started_at > cr.started_at
+          and coalesce(later.duration_ms, 0) >= 15000
+      )
+    order by cr.started_at desc
+    limit 1
+  ) else null end as callback_suggestion,
   -- Whether somebody has said what came of it (2026-09-25). A demo is logged
   -- by its attendance answer (read above); a follow-up has none, so it counts
   -- as logged once a call is logged on the business from twelve hours before
@@ -1443,6 +1480,13 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
       startedAt: d.startedAt,
       direction: d.direction === "in" ? "in" : "out",
     })),
+    callbackSuggestion: (() => {
+      const c = r.callback_suggestion as
+        | { recordingId: string; at: string; quote: string }
+        | null
+        | undefined;
+      return c && c.at ? { recordingId: c.recordingId, at: new Date(c.at).toISOString(), quote: c.quote } : null;
+    })(),
     nextFollowUpAt: iso(r.next_follow_up_at),
     leadOutcome: (r.lead_outcome as string | null) ?? null,
     logged:
@@ -1608,7 +1652,7 @@ export async function getMeetings(
     // `recordingVisibleTo` lets them, which does not reach a founder's call
     // outside a demo window, so offering the button would be offering a 404.
     if (ownerId !== undefined) {
-      return { ...m, callBack: null, otherRecordings: [] };
+      return { ...m, callBack: null, otherRecordings: [], callbackSuggestion: null };
     }
     // Whatever the row already shows under the cold call and the demo is not
     // listed twice.
@@ -1620,6 +1664,9 @@ export async function getMeetings(
     return {
       ...m,
       otherRecordings: m.otherRecordings.filter((d) => !shown.has(d.recordingId)),
+      // An open call back already says when; a cancelled meeting needs none.
+      callbackSuggestion:
+        m.callBack || m.status === "cancelled" ? null : m.callbackSuggestion,
     };
   });
 }

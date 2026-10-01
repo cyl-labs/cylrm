@@ -529,6 +529,9 @@ export function MeetingsList({
   const [prompt, setPrompt] = React.useState<{
     m: Meeting;
     mode: CallBackMode;
+    /** Opening note and time, when the prompt starts from a recording. */
+    notes?: string;
+    at?: string;
   } | null>(null);
   const [answering, setAnswering] = React.useState<{
     meetingId: number;
@@ -1923,6 +1926,51 @@ export function MeetingsList({
               </div>
             )}
 
+            {/* A time they asked to be rung back, read from a call's
+                transcript (2026-10-02). A suggestion with one tap, never a
+                call back made behind anybody's back: "around twelve" does not
+                say which day or whose clock, and the dialog shows the time on
+                both before anything is saved. Founders only; it is gone once a
+                call back is open, the time has passed, or a later call has
+                been recorded with them. */}
+            {showWho && m.callbackSuggestion && !m.callBack && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-[13px]">
+                <PhoneForwarded className="size-3.5 shrink-0 text-primary" />
+                <span className="min-w-0">
+                  <span className="font-semibold">
+                    They asked to be rung{" "}
+                    {format.format(new Date(m.callbackSuggestion.at))}
+                  </span>{" "}
+                  <span className="text-muted-foreground">
+                    {zoneLabel}
+                    {theirTime(m.callbackSuggestion.at, m) &&
+                      ` · ${theirTime(m.callbackSuggestion.at, m)} their time`}
+                  </span>
+                  {m.callbackSuggestion.quote && (
+                    <span className="block text-[12px] text-muted-foreground">
+                      &ldquo;{m.callbackSuggestion.quote}&rdquo;
+                    </span>
+                  )}
+                </span>
+                <Button
+                  size="sm"
+                  className="ml-auto h-7 px-2.5 text-[12px]"
+                  onClick={() =>
+                    setPrompt({
+                      m,
+                      mode: "new",
+                      at: m.callbackSuggestion!.at,
+                      notes: m.callbackSuggestion!.quote
+                        ? `They said: "${m.callbackSuggestion!.quote}"`
+                        : "",
+                    })
+                  }
+                >
+                  Check the time and set it
+                </Button>
+              </div>
+            )}
+
             {/* The recordings on a line of their own, under the actions
                 rather than mixed in with them (2026-09-28). */}
             {(m.recordingId && keep(m.recordingMs)) ||
@@ -2033,6 +2081,31 @@ export function MeetingsList({
                     label={rec.direction === "in" ? "They called" : "Other call"}
                   />
                 ))}
+                {/* Where they asked to be rung back on a call nothing else
+                    recorded. A call back is otherwise only made by marking a
+                    no-show, so a promise made on a quick call had nowhere to
+                    live. Founders, and only where there is no call back yet:
+                    one already open is changed from More. */}
+                {showWho && !m.callBack && m.status !== "cancelled" && otherCalls.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-[12px]"
+                    onClick={() => {
+                      const last = otherCalls[otherCalls.length - 1];
+                      setPrompt({
+                        m,
+                        mode: "new",
+                        notes: last.startedAt
+                          ? `From the call on ${format.format(new Date(last.startedAt))} ${zoneLabel}: `
+                          : "",
+                      });
+                    }}
+                  >
+                    <PhoneForwarded className="size-3.5" />
+                    Set a call back
+                  </Button>
+                )}
               </div>
             ) : null}
 
@@ -2467,6 +2540,8 @@ export function MeetingsList({
         // carries over to the next one.
         key={`${prompt.m.id}-${prompt.mode}`}
         mode={prompt.mode}
+        initialNotes={prompt.notes}
+        initialAt={prompt.at}
         meetingId={prompt.m.id}
         callBackId={prompt.m.callBack?.id}
         name={prompt.m.company ?? prompt.m.attendeeName ?? "They"}

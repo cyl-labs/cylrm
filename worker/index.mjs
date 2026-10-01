@@ -67,6 +67,9 @@ async function run() {
   // ElevenLabs shows no invoices, but a top-up raises the credit limit, so
   // one read a tick is enough to log it.
   await tick("elevenlabs");
+  // Calls with a meeting behind them are transcribed by themselves and read for
+  // a promised call back. Five a tick at most; claims each recording first.
+  await tick("meeting-calls");
 }
 
 /**

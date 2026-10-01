@@ -1041,9 +1041,21 @@ export const callRecording = pgTable(
      *  dual-channel. Shape: `{ speaker, start, text }[]`. */
     transcriptTurns: jsonb("transcript_turns").$type<TranscriptTurn[]>(),
     transcribedAt: timestamp("transcribed_at", { withTimezone: true }),
+    /** The meeting-calls cron has looked at this recording (2026-10-02). Set
+     *  once, so a failure is not retried in a loop. */
+    autoCheckedAt: timestamp("auto_checked_at", { withTimezone: true }),
+    /** When they asked to be rung back, read from the transcript:
+     *  `{ at, quote }`. Null when they did not. See `lib/callback-suggestion.ts`. */
+    callbackSuggestion: jsonb("callback_suggestion").$type<{
+      at: string;
+      quote: string;
+    }>(),
   },
   (t) => [
     index("call_recording_session_idx").on(t.callSessionId),
+    index("call_recording_auto_idx")
+      .on(t.startedAt)
+      .where(sql`auto_checked_at is null`),
     // Finding a meeting's demo audio is "this number, around this time", so
     // both columns are in it. Declared here as well as in
     // `2026-09-17-call-recording-numbers.sql`: push drops any index it cannot

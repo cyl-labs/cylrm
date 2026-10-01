@@ -44,7 +44,13 @@ import { cn } from "@/lib/utils";
  * and a time.
  */
 
-export type CallBackMode = "no_show" | "no_answer" | "spoke" | "move";
+/**
+ * `new` is a call back set on a meeting that has none and did not just no-show
+ * (2026-10-02): from a recording where they asked to be rung back, which
+ * nothing else on the card could record. It saves the way `no_show` does (one
+ * open call back per meeting, set again it moves) and offers no "dead".
+ */
+export type CallBackMode = "no_show" | "no_answer" | "spoke" | "move" | "new";
 
 const INTERVALS = [
   { days: 1, label: "Tomorrow" },
@@ -81,6 +87,7 @@ const TITLES: Record<CallBackMode, (name: string) => string> = {
   no_answer: (name) => `No answer from ${name}`,
   spoke: (name) => `When do you ring ${name} next?`,
   move: (name) => `Move the call back with ${name}`,
+  new: (name) => `Ring ${name} back`,
 };
 
 const EXPLAINED: Record<CallBackMode, string> = {
@@ -91,6 +98,7 @@ const EXPLAINED: Record<CallBackMode, string> = {
   spoke:
     "You spoke to them but have no new time yet. The call back moves to when you will ring next.",
   move: "This only moves the call back on your calendar. Nothing is sent to them.",
+  new: "Puts a call back on your calendar at the time you pick. The meeting stays on your list until you ring or close it. Only founders see it, and nothing is sent to them.",
 };
 
 export function CallBackPrompt({
@@ -101,6 +109,8 @@ export function CallBackPrompt({
   theirTz,
   readerTz,
   anchorAt,
+  initialNotes = "",
+  initialAt,
   onClose,
 }: {
   mode: CallBackMode;
@@ -112,15 +122,26 @@ export function CallBackPrompt({
   readerTz: string;
   /** Whose time of day the intervals keep: the demo's, or the call back's. */
   anchorAt: string;
+  /** A note to start from, e.g. which call this came from. */
+  initialNotes?: string;
+  /** A time to open on instead of tomorrow, as an instant (a suggestion read
+   *  from a transcript). */
+  initialAt?: string;
   onClose: () => void;
 }) {
   const router = useRouter();
   const zone = theirTz ?? readerTz;
   const timeOfDay = wallClockOf(anchorAt, zone).slice(11, 16);
-  const [choice, setChoice] = React.useState<number | "pick">(1);
-  const [pickDate, setPickDate] = React.useState(() => dayIn(zone, 1));
-  const [pickTime, setPickTime] = React.useState(timeOfDay);
-  const [notes, setNotes] = React.useState("");
+  const [choice, setChoice] = React.useState<number | "pick">(
+    initialAt ? "pick" : 1,
+  );
+  const [pickDate, setPickDate] = React.useState(() =>
+    initialAt ? wallClockOf(initialAt, zone).slice(0, 10) : dayIn(zone, 1),
+  );
+  const [pickTime, setPickTime] = React.useState(() =>
+    initialAt ? wallClockOf(initialAt, zone).slice(11, 16) : timeOfDay,
+  );
+  const [notes, setNotes] = React.useState(initialNotes);
   const [saving, setSaving] = React.useState<null | "save" | "dead">(null);
 
   const wall =
@@ -145,7 +166,7 @@ export function CallBackPrompt({
     setSaving("save");
     try {
       const res =
-        mode === "no_show"
+        mode === "no_show" || mode === "new"
           ? await fetch("/api/founder-calls", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -355,7 +376,7 @@ export function CallBackPrompt({
               Cancel
             </Button>
             <Button onClick={() => void save()} disabled={saving !== null || !at}>
-              {saving === "save" ? "Saving…" : "Move the call back"}
+              {saving === "save" ? "Saving…" : mode === "new" ? "Set the call back" : "Move the call back"}
             </Button>
           </DialogFooter>
         )}
