@@ -52,16 +52,10 @@ const DEMO_REDIAL_GAP_MINUTES = 20;
  * screen at once, and this runs once per row over what is already an array
  * in memory rather than another round trip to Postgres.
  */
-export function clusterDemoRecordings(
-  recordings: { recordingId: string; durationMs: number | null; startedAt: string }[],
-): { recordingId: string; durationMs: number | null; startedAt: string }[] {
-  if (recordings.length <= 1) {
-    return recordings.map((r) => ({
-      recordingId: r.recordingId,
-      durationMs: r.durationMs,
-      startedAt: r.startedAt,
-    }));
-  }
+export function clusterDemoRecordings<
+  T extends { recordingId: string; durationMs: number | null; startedAt: string },
+>(recordings: T[]): T[] {
+  if (recordings.length <= 1) return [...recordings];
 
   const sorted = [...recordings].sort(
     (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
@@ -95,11 +89,7 @@ export function clusterDemoRecordings(
     }
   }
 
-  return best.map((r) => ({
-    recordingId: r.recordingId,
-    durationMs: r.durationMs,
-    startedAt: r.startedAt,
-  }));
+  return best;
 }
 
 /**
@@ -539,6 +529,8 @@ export type Meeting = {
    *  Null when the call was made from a handset or never recorded. */
   recordingId: string | null;
   recordingMs: number | null;
+  /** The cold call's written summary, when it ran past five minutes. */
+  recordingSummary: string | null;
 
   /**
    * The demo itself — the conversation at the booked time, not the cold call
@@ -586,11 +578,14 @@ export type Meeting = {
     recordingId: string;
     durationMs: number | null;
     startedAt: string;
+    summary: string | null;
   }[];
   demoRecordings: {
     recordingId: string;
     durationMs: number | null;
     startedAt: string;
+    /** The call's written summary (calls over five minutes), or null. */
+    summary: string | null;
   }[];
   /**
    * Every other recording of a call with this business's number, in or out,
@@ -610,6 +605,7 @@ export type Meeting = {
     durationMs: number | null;
     startedAt: string;
     direction: "out" | "in";
+    summary: string | null;
     /** Who was on our side: whoever owns the number it went out from (or came
      *  in to), else whoever logged a call on its session. Null when unknown. */
     byName: string | null;
@@ -974,6 +970,11 @@ const meetingSelect = sql`
     where cr.call_session_id = bc.telnyx_session_id
     order by cr.id limit 1
   ) as recording_ms,
+  (
+    select cr.summary from call_recording cr
+    where cr.call_session_id = bc.telnyx_session_id
+    order by cr.id limit 1
+  ) as recording_summary,
   -- The demo itself, which is a different call from the one above: that one is
   -- the cold call that won the booking, this is the conversation at the booked
   -- time. Found by number and time rather than by a session id, because the
@@ -1011,7 +1012,8 @@ const meetingSelect = sql`
         json_build_object(
           'recordingId', cr.recording_id,
           'durationMs', cr.duration_ms,
-          'startedAt', cr.started_at
+          'startedAt', cr.started_at,
+          'summary', cr.summary
         ) order by cr.started_at asc nulls last, cr.id asc
       ),
       '[]'::json
@@ -1032,7 +1034,7 @@ const meetingSelect = sql`
     select coalesce(json_agg(o order by o."startedAt" asc nulls last), '[]'::json)
     from (
       select cr.recording_id as "recordingId", cr.duration_ms as "durationMs",
-        cr.started_at as "startedAt",
+        cr.started_at as "startedAt", cr.summary as "summary",
         coalesce(
           (select u.name from app_user u
             where u.telnyx_did in (cr.from_number, cr.to_number) limit 1),
@@ -1118,7 +1120,8 @@ const meetingSelect = sql`
         json_build_object(
           'recordingId', cr.recording_id,
           'durationMs', cr.duration_ms,
-          'startedAt', cr.started_at
+          'startedAt', cr.started_at,
+          'summary', cr.summary
         ) order by cr.started_at asc nulls last, cr.id asc
       ),
       '[]'::json
@@ -1525,6 +1528,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     bookingNotes: (r.booking_notes as string | null) ?? null,
     recordingId: (r.recording_id as string | null) ?? null,
     recordingMs: r.recording_ms === null ? null : Number(r.recording_ms),
+    recordingSummary: ((r.recording_summary as string | null) ?? "").trim() || null,
     demoRecordings: clusterDemoRecordings(
       (
         (r.demo_recordings as
@@ -1532,12 +1536,14 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
               recordingId: string;
               durationMs: number | null;
               startedAt: string;
+              summary?: string | null;
             }[]
           | null) ?? []
       ).map((d) => ({
         recordingId: d.recordingId,
         durationMs: d.durationMs === null ? null : Number(d.durationMs),
         startedAt: d.startedAt,
+        summary: ((d.summary ?? "").trim() || null),
       })),
     ),
     otherRecordings: (
@@ -1548,6 +1554,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
             startedAt: string;
             direction: "out" | "in";
             byName?: string | null;
+            summary?: string | null;
           }[]
         | null) ?? []
     ).map((d) => ({
@@ -1556,6 +1563,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
       startedAt: d.startedAt,
       direction: d.direction === "in" ? "in" : "out",
       byName: d.byName ?? null,
+      summary: ((d.summary ?? "").trim() || null),
     })),
     rescheduledTo: (() => {
       const c = r.rescheduled_to as { id: number; startAt: string } | null | undefined;
@@ -1577,12 +1585,13 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     earlierDemoRecordings: clusterDemoRecordings(
       (
         (r.earlier_demo_recordings as
-          | { recordingId: string; durationMs: number | null; startedAt: string }[]
+          | { recordingId: string; durationMs: number | null; startedAt: string; summary?: string | null }[]
           | null) ?? []
       ).map((d) => ({
         recordingId: d.recordingId,
         durationMs: d.durationMs === null ? null : Number(d.durationMs),
         startedAt: d.startedAt,
+        summary: ((d.summary ?? "").trim() || null),
       })),
     ),
     bookingCallId: r.booking_call_id === null ? null : n(r.booking_call_id),

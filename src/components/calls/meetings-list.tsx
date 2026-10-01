@@ -63,6 +63,7 @@ import {
   type CallBackMode,
 } from "@/components/calls/founder-calls";
 import type { StoredBrief } from "@/lib/brief-lines";
+import { briefLines } from "@/lib/brief-lines";
 
 /**
  * How the ring back after a missed demo ended.
@@ -2164,6 +2165,79 @@ export function MeetingsList({
                 )}
               </div>
             ) : null}
+
+            {/* A line for each call over five minutes that has a written summary
+                (2026-10-02), under the recordings it belongs to. The first
+                bullet is the line; opening it shows the rest. The whole thing,
+                with the words it came from, is in the recording sheet. */}
+            {(() => {
+              const mmss = (ms: number | null) =>
+                ms === null
+                  ? ""
+                  : `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, "0")}`;
+              const items = [
+                ...(m.recordingSummary
+                  ? [{ key: "cold", label: "Cold call", ms: m.recordingMs, text: m.recordingSummary }]
+                  : []),
+                ...earlierDemo.map((r, i) => ({
+                  key: r.recordingId,
+                  label: i === 0 ? "Demo call" : `Demo call ${i + 1}`,
+                  ms: r.durationMs,
+                  text: r.summary,
+                })),
+                ...ownRecordings.map((r, i) => {
+                  const name = m.kind === "follow_up" ? "Follow-up call" : "Demo call";
+                  return {
+                    key: r.recordingId,
+                    label: i === 0 ? name : `${name} ${i + 1}`,
+                    ms: r.durationMs,
+                    text: r.summary,
+                  };
+                }),
+                ...otherCalls.map((r) => ({
+                  key: r.recordingId,
+                  label: r.byName
+                    ? `${r.direction === "in" ? "They called" : "Call"} (${r.byName})`
+                    : "Other call",
+                  ms: r.durationMs,
+                  text: r.summary,
+                })),
+              ].filter((x): x is typeof x & { text: string } => Boolean(x.text));
+              if (items.length === 0) return null;
+              return (
+                <div className="mt-2 flex flex-col gap-1.5">
+                  {items.map((x) => {
+                    const lines = briefLines(x.text);
+                    return (
+                      <details
+                        key={x.key}
+                        className="group/sum rounded-lg border bg-muted/30 px-3 py-2 text-[13px]"
+                      >
+                        <summary className="flex cursor-pointer list-none items-baseline gap-2 [&::-webkit-details-marker]:hidden">
+                          <span className="shrink-0 text-[12px] font-semibold">
+                            {x.label} {mmss(x.ms)}
+                          </span>
+                          <span className="min-w-0 truncate text-muted-foreground group-open/sum:whitespace-normal">
+                            {lines[0]}
+                          </span>
+                        </summary>
+                        <ul className="mt-1.5 space-y-1">
+                          {lines.map((line, i) => (
+                            <li key={i} className="flex gap-2">
+                              <span aria-hidden className="text-muted-foreground/60">•</span>
+                              <span>{line}</span>
+                            </li>
+                          ))}
+                          <li className="text-[11px] text-muted-foreground">
+                            Written by a machine from the transcript. Check it before repeating it.
+                          </li>
+                        </ul>
+                      </details>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* What the demo turned up, before the answer is saved. Deliberately
                 the same box, in the same place, with the same two buttons as the
