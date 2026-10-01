@@ -1202,17 +1202,26 @@ export function MeetingsList({
               </p>
             )}
 
-            {m.callBack && (m.callBack.tries > 0 || m.callBack.notes) && (
-              <p className="mt-1 text-[12px] text-muted-foreground">
-                {m.callBack.tries > 0 && (
-                  <span className="font-semibold">
-                    Tried {m.callBack.tries}{" "}
-                    {m.callBack.tries === 1 ? "time" : "times"} with no answer
-                  </span>
-                )}
-                {m.callBack.tries > 0 && m.callBack.notes && " · "}
-                {m.callBack.notes}
+            {m.callBack && m.callBack.tries > 0 && (
+              <p className="mt-1 text-[12px] font-semibold text-muted-foreground">
+                Tried {m.callBack.tries}{" "}
+                {m.callBack.tries === 1 ? "time" : "times"} with no answer
               </p>
+            )}
+            {/* The note on the call back in the same labelled box as the demo
+                notes below it (2026-10-02). It was a line of 12px grey text
+                under the time, so what a prospect had just said ("busy season
+                picks up in January, call December 1st") was the smallest
+                thing on the card and read as a caption. */}
+            {m.callBack?.notes && (
+              <div className="mt-2 rounded-lg bg-muted/50 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Call back note
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap text-[13px]">
+                  {m.callBack.notes}
+                </p>
+              </div>
             )}
 
             {/* Who is taking it (2026-09-25). A founder hands a meeting to a
