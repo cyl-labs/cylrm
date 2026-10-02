@@ -921,3 +921,11 @@ Asked for after the standard advice "track connect rate daily; when it drops
   the flagged alert and does not change the verdict.
 - **It cannot see lead quality.** A fresh, worse list falls the same way, and
   the message says to check that first. Rotating is still manual on Team.
+
+**Cold dials and meeting calls are counted apart** (2026-10-03). The Team line
+reads "N cold dials a day, plus M meeting, follow-up and Keypad calls"
+(`NumberHealth.coldPerDay`). A session that is also a logged `call` counts as
+cold, so a recorded cold call is not counted twice. Reach, fast drops and the
+daily fall already read only logged cold calls; **call length and redials read
+every recording**, meetings included, and were left that way on purpose: a
+founder's number has no logged cold calls, so those two are its only signal.
