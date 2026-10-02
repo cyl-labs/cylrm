@@ -59,7 +59,10 @@ import { MoveQuietly } from "@/components/calls/move-quietly";
 import type { SavedLine } from "@/components/calls/second-line";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
 import { MeetingBriefFold } from "@/components/calls/meeting-brief-fold";
-import { CallSummariesFold } from "@/components/calls/call-summaries-fold";
+import {
+  CallSummariesFold,
+  LONG_CALL_MS,
+} from "@/components/calls/call-summaries-fold";
 import {
   CallBackPrompt,
   type CallBackMode,
@@ -2569,6 +2572,7 @@ export function MeetingsList({
                   : []),
                 ...earlierDemo.map((r, i) => ({
                   key: r.recordingId,
+                  recordingId: r.recordingId,
                   label: i === 0 ? "Demo call" : `Demo call ${i + 1}`,
                   durationMs: r.durationMs,
                   text: r.summary ?? "",
@@ -2577,6 +2581,7 @@ export function MeetingsList({
                   const name = m.kind === "follow_up" ? "Follow-up call" : "Demo call";
                   return {
                     key: r.recordingId,
+                    recordingId: r.recordingId,
                     label: i === 0 ? name : `${name} ${i + 1}`,
                     durationMs: r.durationMs,
                     text: r.summary ?? "",
@@ -2584,13 +2589,20 @@ export function MeetingsList({
                 }),
                 ...otherCalls.map((r) => ({
                   key: r.recordingId,
+                  recordingId: r.recordingId,
                   label: r.byName
                     ? `${r.direction === "in" ? "They called" : "Call"} (${r.byName})`
                     : "Other call",
                   durationMs: r.durationMs,
                   text: r.summary ?? "",
                 })),
-              ].filter((x) => x.text.trim() !== "")}
+              ].filter(
+                // A long call is listed even before its summary is written,
+                // with a button to write it.
+                (x) =>
+                  x.text.trim() !== "" ||
+                  ("recordingId" in x && (x.durationMs ?? 0) >= LONG_CALL_MS),
+              )}
             />
 
             {lead && lead.texts.length > 0 && (
