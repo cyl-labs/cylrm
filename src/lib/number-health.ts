@@ -43,7 +43,32 @@ export type NumberHealth = {
   perDay: number;
   /** When a call was first placed from this number. */
   inUseSince: string | null;
+  /** How long its recorded calls last, when there are enough to say. The
+   *  second signal, for a number whose calls mostly carry no logged outcome. */
+  lengths: CallLengths | null;
+  /** What the status was worked out from. */
+  basis: "outcomes" | "lengths" | null;
 };
+
+export type CallLengths = {
+  /** Recorded calls in the last 7 days. */
+  n: number;
+  /** Share (0 to 100) that ran 30 seconds or more: a real conversation. */
+  longPct: number;
+  /** Share that ended within 10 seconds: picked up and dropped. */
+  shortPct: number;
+  medianSec: number;
+  /** The week before, when there were enough to compare. */
+  longPctBefore: number | null;
+};
+
+/** Recorded calls needed in a week before their lengths say anything. */
+export const LENGTH_MIN_CALLS = 50;
+/** Healthy numbers had 53 to 58% of their recorded calls pass 30 seconds, the
+ *  worst had 32 to 34% (2026-10-03). Below this is worth a look. */
+export const LONG_OK_PCT = 40;
+/** A fall this big in the share of long calls, week on week. */
+export const LONG_DROP_POINTS = 20;
 
 /** Below this many calls in a week there is no verdict, only a count. */
 export const HEALTH_MIN_CALLS = 100;
@@ -135,17 +160,82 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
     }
   }
 
+  // How long its recorded calls last (2026-10-03). A call picked up by a
+  // person who sees "Spam Likely" ends in seconds, so a number whose calls
+  // suddenly get shorter is suspect even when nobody logged an outcome on
+  // them, which is how the founders' number is used. Weaker evidence than
+  // reach, and it is not calibrated against a known-burned number: Omar's
+  // healthy number had 27% of calls under ten seconds. So it can raise a
+  // "keep an eye on it" and never "probably flagged", and it decides only
+  // where there are too few logged outcomes to use reach.
+  const lenRows = (await db.execute(sql`
+    select cr.from_number as num,
+      count(*) filter (where cr.started_at > now() - interval '7 days')::int as n,
+      count(*) filter (where cr.started_at > now() - interval '7 days'
+        and cr.duration_ms >= 30000)::int as long_n,
+      count(*) filter (where cr.started_at > now() - interval '7 days'
+        and cr.duration_ms < 10000)::int as short_n,
+      count(*) filter (where cr.started_at <= now() - interval '7 days'
+        and cr.started_at > now() - interval '14 days')::int as n_before,
+      count(*) filter (where cr.started_at <= now() - interval '7 days'
+        and cr.started_at > now() - interval '14 days'
+        and cr.duration_ms >= 30000)::int as long_before,
+      coalesce((percentile_cont(0.5) within group (order by cr.duration_ms)
+        filter (where cr.started_at > now() - interval '7 days'))::int, 0) as med_ms
+    from call_recording cr
+    where cr.from_number is not null and cr.duration_ms is not null
+      and cr.started_at > now() - interval '14 days'
+    group by 1
+  `)) as {
+    num: string;
+    n: number;
+    long_n: number;
+    short_n: number;
+    n_before: number;
+    long_before: number;
+    med_ms: number;
+  }[];
+  const lengthsOf = new Map<string, CallLengths>();
+  for (const l of lenRows) {
+    if (l.n < LENGTH_MIN_CALLS) continue;
+    lengthsOf.set(l.num, {
+      n: l.n,
+      longPct: Math.round((100 * l.long_n) / l.n),
+      shortPct: Math.round((100 * l.short_n) / l.n),
+      medianSec: Math.round(l.med_ms / 1000),
+      longPctBefore:
+        l.n_before >= LENGTH_MIN_CALLS
+          ? Math.round((100 * l.long_before) / l.n_before)
+          : null,
+    });
+  }
+
   const out: Record<string, NumberHealth> = {};
   for (const r of rows) {
     const v = vol.get(r.num);
+    const lengths = lengthsOf.get(r.num) ?? null;
     const reach =
       r.calls >= HEALTH_MIN_CALLS ? Math.round((100 * r.reached) / r.calls) : null;
     const reachBefore =
       r.calls_before >= HEALTH_MIN_CALLS
         ? Math.round((100 * r.reached_before) / r.calls_before)
         : null;
+    const byOutcomes = judge(r.calls, reach, reachBefore);
+    // Too few logged outcomes to use reach: fall back to call lengths, which
+    // can only ever say "healthy" or "keep an eye on it".
+    let status = byOutcomes;
+    let basis: NumberHealth["basis"] = byOutcomes === "few" ? null : "outcomes";
+    if (byOutcomes === "few" && lengths) {
+      const dropped =
+        lengths.longPctBefore !== null &&
+        lengths.longPctBefore - lengths.longPct >= LONG_DROP_POINTS;
+      status = lengths.longPct < LONG_OK_PCT || dropped ? "watch" : "healthy";
+      basis = "lengths";
+    }
     out[r.num] = {
-      status: judge(r.calls, reach, reachBefore),
+      status,
+      lengths,
+      basis,
       calls: r.calls,
       total: Math.max(v?.total ?? 0, r.calls),
       reach,
