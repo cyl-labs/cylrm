@@ -890,3 +890,16 @@ already says the number is free. Tested against a stand-in Telnyx
 **Found live, left alone**: Mico (active) has no number on Team but
 +1 707 640 8891 still answers on his line `cylrm-mico`, the leftover of this bug.
 Moving it is a founder's call, since he may still be answering it.
+
+**Redials, a signal a caller feels first** (2026-10-03). A founder said "I need to
+call them like 3 times in a row for them to pick up" right after a client's
+screenshot proved the founders' number is flagged. Measured on prod over 7 days,
+the share of a number's recorded calls followed within 3 minutes by another call
+to the same business from the same number: **Founders 24%** (18% a short call then
+a redial), Omar 13%, Aaron 8%, Akshansh 5%, Alex 2%, Harry 1%. The one confirmed
+case is by far the highest. `NumberHealth.redial`: 15% or more raises a healthy or
+too-few number to "keep an eye on it", 20% or more flags it, from 60 recorded
+calls a week (`REDIAL_*`). It only ever raises a verdict, appears in the panel as
+"N out of 100 calls had to be redialled within 3 minutes" and in the Telegram
+alert. Omar's 13% is the edge to watch: he scouts a business with a quick call and
+redials. Soft, like the rest, and one known case.
