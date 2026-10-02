@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { calBookingHref } from "@/lib/cal-link";
-import { defaultCallbackAt, meetingZoneLabel } from "@/lib/call-time";
+import { defaultCallbackAt, meetingZoneLabel, wallClockIn } from "@/lib/call-time";
 
 /**
  * The booking step for a demo, wherever one is logged.
@@ -180,6 +180,26 @@ export function BookDemoDialog({
   // A retry must not log it a second time.
   const [logged, setLogged] = React.useState(false);
 
+  // The same moment on the reader's own clock, under the box (2026-10-03):
+  // "4pm their time" is not something a caller can check against their own
+  // day. Silent when both are one clock, or when the lead has no zone and the
+  // box is already on the reader's.
+  const mineAt =
+    lead?.tz && lead.tz !== readerTz && silentAt
+      ? wallClockIn(silentAt, lead.tz)
+      : null;
+  const mine = mineAt
+    ? new Intl.DateTimeFormat("en-US", {
+        timeZone: readerTz,
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short",
+      }).format(mineAt)
+    : null;
+
   async function addSilently(details: DemoDetails) {
     if (!lead) return;
     setSaving(true);
@@ -283,6 +303,15 @@ export function BookDemoDialog({
                     value={silentAt}
                     onChange={(e) => setSilentAt(e.target.value)}
                   />
+                  {mine && (
+                    <p className="text-[13px] font-semibold">
+                      {mine}
+                      <span className="font-normal text-muted-foreground">
+                        {" "}
+                        on your clock
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <Button
                   className="w-full"
