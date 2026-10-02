@@ -507,6 +507,8 @@ export type Meeting = {
    * hold notes, and the ring-back notes only exist once a no show is marked.
    */
   attendanceNotes: string | null;
+  /** The answer above has been claimed by a payout, so it cannot be undone. */
+  attendancePaid: boolean;
   /** Why this number may not be rung, or null. Blocks the clipboard as well
    *  as any dial button, exactly as it does everywhere else. */
   dncBlock: string | null;
@@ -1171,6 +1173,12 @@ const meetingSelect = sql`
     where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
     order by a.marked_at desc limit 1
   ) as attendance_notes,
+  -- Whether that answer has been paid on, which is what stops it being undone.
+  (
+    select a.payout_id is not null from call_demo_attendance a
+    where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
+    order by a.marked_at desc limit 1
+  ) as attendance_paid,
   -- A founder moved this meeting to a call back (2026-09-24). See the cb
   -- lateral in joins, and the founder_call table.
   cb.id as call_back_id, cb.start_at as call_back_at, cb.tries as call_back_tries,
@@ -1499,6 +1507,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     website: (r.website as string | null) ?? null,
     attendance: (r.attendance as Meeting["attendance"]) ?? null,
     attendanceNotes: (r.attendance_notes as string | null) ?? null,
+    attendancePaid: r.attendance_paid === true,
     listId: r.list_id === null || r.list_id === undefined ? null : n(r.list_id),
     listName: (r.list_name as string | null) ?? null,
     niche: (r.niche as string | null) ?? null,
