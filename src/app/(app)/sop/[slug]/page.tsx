@@ -6,6 +6,7 @@ import { SopProse } from "@/components/sop/sop-prose";
 import { PricingCalculator } from "@/components/sop/pricing-calculator";
 import { SectionTabs } from "@/components/sop/section-tabs";
 import { GuideVideo } from "@/components/sop/guide-video";
+import { ContractWalkthrough } from "@/components/sop/contract-walkthrough";
 import {
   DemoFilledProse,
   DemoNumbersProvider,
@@ -41,6 +42,13 @@ const CALCULATOR_MARKER = "[calculator]";
  * what keeps it behind the login.
  */
 const VIDEO_MARKER = /\[video:\s*([a-z0-9][a-z0-9-]{0,60})\]/;
+
+/**
+ * Where the animated "send the agreement" walkthrough goes: a line reading
+ * `[contract-walkthrough]`, handled like the calculator's marker. Left
+ * unhandled it shows as literal text, so a misspelling is visible.
+ */
+const WALKTHROUGH_MARKER = "[contract-walkthrough]";
 
 /** Long enough that finding a section by scrolling stops being reasonable. */
 const TOC_THRESHOLD = 6;
@@ -110,6 +118,7 @@ export default async function SopDocumentPage({
   ) => {
     const html = s.html
       .replace(`<p>${CALCULATOR_MARKER}</p>`, "")
+      .replace(`<p>${WALKTHROUGH_MARKER}</p>`, "")
       .replace(new RegExp(`<p>${VIDEO_MARKER.source}</p>`), "");
     return hasCalculator && hasDemoFills(html) ? (
       <DemoFilledProse html={html} className={className} gutter={gutter} />
@@ -410,6 +419,11 @@ export default async function SopDocumentPage({
                       {s.html.includes(CALCULATOR_MARKER) && (
                         <div className="mt-4">
                           <PricingCalculator />
+                        </div>
+                      )}
+                      {s.html.includes(WALKTHROUGH_MARKER) && (
+                        <div className="mt-4">
+                          <ContractWalkthrough />
                         </div>
                       )}
                       {VIDEO_MARKER.exec(s.html)?.[1] && (

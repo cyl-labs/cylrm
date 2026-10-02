@@ -194,6 +194,50 @@ booked either way.
 
 > **You say** No problem at all, it's yours to keep. Read it over and send it back when you're happy.
 
+## How to send the agreement, step by step
+
+Do this while you are still on the call. If you have never done it, press play
+on the picture below first: it is the real screen, with the buttons you press
+lit up. Nothing in it sends anything.
+
+1. Open **Meetings** from the sidebar and find their row.
+2. Press **Prepare contracts**. If the row already shows green agreement chips,
+   somebody drafted them and you can go straight to step 5.
+3. **Check the business name.** It is copied from a directory, so it is often
+   the trading name. Type the name they sign under (for example add "LLC"). Pick
+   the package the calculator marked cheapest. Make sure there is a name or an
+   email for who signs.
+4. Press **Draft both**. Two green chips appear, each saying **not sent**. The
+   prospect has seen nothing: **nothing is ever emailed or texted on its own.**
+5. Press **Text them**. A box opens under the row with a message already
+   written.
+6. Press **Add paid agreement link** if they said yes to the package. Press
+   **Add trial agreement link** if they hesitated and you offered the 30 day
+   trial. The link is put into the message for you, so there is nothing to copy
+   or paste.
+7. Press **Send text**. A last look shows who it goes to and exactly what it
+   says. Read it, then press **Send**. A text cannot be unsent.
+8. The chip changes to **sent**. Now say the line below: ask them to open it
+   while you are on the phone.
+
+[contract-walkthrough]
+
+**Don't see Text them?** A founder has to turn texting on for your account on
+the Team screen. Ask before your first demo, not during it, because it takes a
+few minutes to start working. Until then you can still draft the contracts, but
+you cannot send the link from here.
+
+**No phone number on the booking, or they replied STOP?** The row says so
+instead of offering the box. Ring them instead.
+
+**The questionnaire** is a separate link. It is under **More** on the row as
+**Copy form link**, and the same text box has an **Add form link** button, so
+you can put it in the same text as the agreement or send it afterwards.
+
+**Wrong name or package on a draft?** If they have not signed yet, a founder can
+discard it and draft a new one. Their link stops working, so tell them you are
+sending a corrected one. Once the client has signed, it cannot be discarded.
+
 ## Then the questions, and a call to hear it working
 
 Two things follow the signature, and they are easier to say in that order: the
