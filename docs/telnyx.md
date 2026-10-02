@@ -778,3 +778,22 @@ session. `calls`, the count the verdict uses, is still only calls logged with an
 outcome, since reach cannot be worked out for a call that has none, so a number
 used mostly for demos says "N calls this week, but only M were logged with an
 outcome" rather than guessing.
+
+**A second signal: how long its recorded calls last** (2026-10-03). For a number
+with fewer than 100 calls logged with an outcome (the founders' number, used for
+demos and follow-ups), reach cannot be worked out, so `getNumberHealth` falls
+back to `call_recording` lengths from that number: the share of recorded calls
+that ran 30 seconds or more, and the share that ended within 10. A call picked up
+by somebody who sees "Spam Likely" ends in seconds.
+
+- **Measured on prod 2026-10-03** (share past 30s, this week vs last): Harry 58%
+  (60%), Omar 53% (47%), Aaron **44% (71%)**, Alex 39% (51%), Akshansh 34% (40%),
+  Founders 32% (37%). Aaron's fall matches what reach showed.
+- **Weaker evidence, so it is capped**: it can say "Looks healthy" or "Keep an
+  eye on it" and never "Probably flagged", and only counts with 50 or more
+  recorded calls in the week (`LENGTH_MIN_CALLS`). `LONG_OK_PCT` (40) and
+  `LONG_DROP_POINTS` (20) were set from the numbers above, not from a number
+  known to be burned: Omar's healthy number had 27% of calls under ten seconds.
+  Recalibrate once a flagged number is confirmed.
+- The panel says which measure the colour came from ("Judged from call length,
+  since only N of its M calls were logged with an outcome").

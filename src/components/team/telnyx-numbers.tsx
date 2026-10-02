@@ -64,6 +64,22 @@ function HealthLine({ h }: { h: NumberHealth }) {
           : `${h.calls} call${h.calls === 1 ? "" : "s"} this week. It takes 100 to judge.`,
     },
   }[h.status];
+  // Judged from how long its recorded calls last, because too few were logged
+  // with an outcome to use the other measure. Said plainly, and always "looks
+  // healthy" or "keep an eye on it": it is the weaker signal.
+  const L = h.basis === "lengths" ? h.lengths : null;
+  if (L) {
+    const before =
+      L.longPctBefore !== null ? `, ${L.longPctBefore}% the week before` : "";
+    look.title = h.status === "healthy" ? "Looks healthy" : "Keep an eye on it";
+    look.says =
+      h.status === "healthy"
+        ? `${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds${before}. Typical call: ${L.medianSec} seconds.`
+        : L.longPctBefore !== null && L.longPct >= 40
+          ? `${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds, down from ${L.longPctBefore} the week before, and ${L.shortPct} ended within 10 seconds.`
+          : `Only ${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds${before}, and ${L.shortPct} ended within 10 seconds. Healthy numbers are usually at 50 or more.`;
+    look.says += ` Judged from call length, since only ${h.calls} of its ${h.total} calls were logged with an outcome.`;
+  }
   return (
     <p className="basis-full text-[12px] text-muted-foreground">
       <span className={cn("inline-flex items-center gap-1.5 font-bold", look.text)}>
