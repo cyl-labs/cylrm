@@ -2247,3 +2247,32 @@ sent to the prospect.
 - A cancelled row takes a follow-up, or any meeting still ahead, off the list
   at once, out of the badge (`startingSoon`) and out of the reminders and
   digests (`notAnsweredYet`). All of it stays under Past meetings.
+
+## Adding a demo to Meetings without Cal.com (2026-10-03)
+
+"add the option to just book the meeting silently, like just add it to my
+meetings tab without making a calcom event. If I'm going in spreadsheet it's
+like an emergency", then "I wanna schedule 4pm based on their local time".
+`POST /api/meetings`, offered in `BookDemoDialog` (the Spreadsheet and the
+Pipeline board) under "In a hurry? Add it to Meetings without Cal.com".
+
+- **The row is an ordinary `call_meeting`**, so the badge, calendar, reminders,
+  recording window and "did they turn up" need nothing of their own. Its
+  `cal_booking_uid` is `crm-<uuid>`, which the Cal.com sync never asks about, and
+  `matched_by = 'manual'` is the value the sync already treats as never
+  re-matched. `call_id` is the lead's latest `demo_booked`, which is what names
+  who booked it.
+- **The time is read on the prospect's clock** (`zoneForLead`, then the reader's
+  zone, the same rule as callbacks and Move quietly). The label says whose
+  clock it is (`meetingZoneLabel`), and the confirmation says "your clock" when
+  the number had no zone. 30 minutes long.
+- **Cal.com is told nothing**: no invite, no reminder email. The dialog says so,
+  and the caller sends the time themselves.
+- **One live demo per business**: a second is refused with the time of the first
+  (409), so a double press, or Cal.com and this both, cannot put two on the
+  screen. A time more than 15 minutes in the past is refused.
+- **In `log` or `correct` mode the one button logs the demo and then adds the
+  meeting.** If the second step fails, a retry does not log the demo again
+  (`logged` state in the dialog).
+- Anyone who may edit the lead (`canEditLead`), not only founders: it is the
+  caller's own emergency.

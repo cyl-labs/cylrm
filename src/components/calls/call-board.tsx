@@ -634,6 +634,7 @@ export function CallBoard({
         <BookDemoDialog
           lead={booking?.card ?? null}
           mode={booking?.mode ?? "book"}
+          readerTz={tz}
           onOpenChange={(open) => {
             if (!open) setBooking(null);
           }}

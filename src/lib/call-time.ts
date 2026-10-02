@@ -48,6 +48,21 @@ export function callbackZoneLabel(
     : `Call back at (${short}, your clock, no zone for this number)`;
 }
 
+/**
+ * The label for a meeting-time box (2026-10-03). Same rule as the callback
+ * label, worded for a meeting: it names whose clock the hour is on, and says
+ * so out loud when it is the reader's own because the number has no zone.
+ */
+export function meetingZoneLabel(
+  tz: string | null | undefined,
+  readerTz: string,
+): string {
+  const short = shortName(tz || readerTz);
+  return tz
+    ? `Meeting time (${short}, their time)`
+    : `Meeting time (${short}, your clock, no zone for this number)`;
+}
+
 export function defaultCallbackAt(
   tz: string | null | undefined,
   readerTz: string,
