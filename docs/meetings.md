@@ -2334,3 +2334,24 @@ call? Why doesn't it show as a new dropdown." Two causes, both fixed.
   `RecordingSheet` now calls `router.refresh()` after writing one.
 - The "Cold call" entry is still left out while the briefing is showing; see the
   note above about the two summarising the same call.
+
+## The briefing reads the real conversation, not a redial (2026-10-03)
+
+"What does this mean, is the summary glitching": the briefing on Port Aransas
+Junk Removal said "Not said on the call". Not a summariser fault. Omar talked to
+the prospect for 76 seconds, hung up, redialled (1.7 seconds), and logged the
+booking on the **redial**. The booking call's recording was two seconds of
+nothing, so the briefing had nothing to read, and the real conversation sat in
+the Recordings line as "Call (Omar)".
+
+- **The conversation that won a meeting** is now the booking call's own recording
+  when it ran 20 seconds or more, and otherwise the **longest call to the same
+  number from the same caller ID (`dialled_from`, else the caller's number) in
+  the two hours before the booking was logged**. One rule in three places: the
+  `brec` lateral in `joins` (`lib/meetings.ts`, feeds the row's "Cold call" line
+  and its summary), the source query in `lib/meeting-brief.ts`, and
+  `ensureTranscripts`, so the call that needs words is the one that gets them.
+- A brief written before this is out of date by fingerprint (its source changed),
+  so it can be regenerated from the briefing fold or the Briefing page.
+- **Not changed**: attendance is still keyed on the booking call (`call_id`), and
+  the call row keeps whatever session it was logged on.
