@@ -929,3 +929,24 @@ cold, so a recorded cold call is not counted twice. Reach, fast drops and the
 daily fall already read only logged cold calls; **call length and redials read
 every recording**, meetings included, and were left that way on purpose: a
 founder's number has no logged cold calls, so those two are its only signal.
+
+## Phone numbers in Spend (2026-10-03)
+
+Number rent and activation were missing from Spend: the five usage products
+(calls out, browser line, recording, lookups, texts) do not include them, while
+the live balance did fall by them. In August numbers were $26.65 of a $34.04
+invoice.
+
+- **Telnyx has no live number billing.** Tried: `usage_reports` (no numbers
+  product), `phone_numbers`, `number_orders`, `sub_number_orders` (no costs),
+  and guessed billing, ledger and transaction paths (404). The only exact source is
+  the monthly invoice (`/invoices`, a PDF behind `?action=link`), which only
+  exists after the month closes.
+- So `numberCosts` in `lib/telnyx-usage.ts` **estimates**: every number on the
+  account from `/phone_numbers`, at the rates read off the August invoice (US
+  local $1/month + $1 activation, Singapore $5 + $5, anything else at the US
+  rate), rent spread per day. It folds into the Phones total, the daily chart,
+  the burn rate and the "Where it goes" table as "Phone numbers".
+- **Missed:** a number bought and released inside the window (only live numbers
+  are listed), and any country priced differently from the US. If a new country
+  is added, add its rate to `NUMBER_RATES` after checking an invoice.

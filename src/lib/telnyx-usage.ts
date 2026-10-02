@@ -309,6 +309,65 @@ async function connectionNames(): Promise<Map<string, string>> {
   return names;
 }
 
+/**
+ * What Telnyx charges for holding a number (2026-10-03), in USD.
+ *
+ * **Read off the August invoice, not off the API**: no usage report or number
+ * endpoint carries these costs, so the figure is held here. US local numbers
+ * were $1.00 a month and $1.00 to activate, Singapore $5.00 and $5.00. Every
+ * other country is billed at the US rate until an invoice says otherwise, and
+ * the screen says the figure is an estimate. Telnyx charges the month on the
+ * 1st and prorates a new number; this spreads the rent evenly per day instead,
+ * which gives the same total over a month and no spike on the 1st.
+ *
+ * Only numbers still on the account are listed, so a number bought and
+ * released inside the window is missed. Rare here, and the balance, which is
+ * read live, still shows the money gone.
+ */
+const NUMBER_RATES: Record<string, { monthly: number; setup: number }> = {
+  SG: { monthly: 5, setup: 5 },
+};
+const DEFAULT_NUMBER_RATE = { monthly: 1, setup: 1 };
+
+async function numberCosts(
+  start: Date,
+  now: Date,
+): Promise<{ held: number; bought: number; setup: number; rental: number; byDay: Map<string, number> }> {
+  const out = { held: 0, bought: 0, setup: 0, rental: 0, byDay: new Map<string, number>() };
+  const all: Row[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const body = JSON.parse(
+      await get(`/phone_numbers?page[size]=250&page[number]=${page}`),
+    ) as { data?: Row[] };
+    const rows = body.data ?? [];
+    all.push(...rows);
+    if (rows.length < 250) break;
+  }
+  for (const n of all) {
+    if (String(n.status ?? "") === "deleted") continue;
+    const at = new Date(String(n.purchased_at ?? n.created_at ?? ""));
+    if (Number.isNaN(at.getTime()) || at > now) continue;
+    const rate = NUMBER_RATES[String(n.country_iso_alpha2 ?? "")] ?? DEFAULT_NUMBER_RATE;
+    out.held += 1;
+    // Rent accrues per day from the later of the window's start and the day
+    // the number was bought.
+    const from = at > start ? at : start;
+    const dayCost = (rate.monthly * 12) / 365;
+    for (let d = new Date(from); d <= now; d = new Date(d.getTime() + 864e5)) {
+      const key = d.toISOString().slice(0, 10);
+      out.byDay.set(key, (out.byDay.get(key) ?? 0) + dayCost);
+      out.rental += dayCost;
+    }
+    if (at >= start) {
+      out.bought += 1;
+      out.setup += rate.setup;
+      const key = at.toISOString().slice(0, 10);
+      out.byDay.set(key, (out.byDay.get(key) ?? 0) + rate.setup);
+    }
+  }
+  return out;
+}
+
 async function pull(days: SpendDays): Promise<Spend> {
   const now = new Date();
   const start = new Date(now.getTime() - days * 864e5);
@@ -369,6 +428,22 @@ async function pull(days: SpendDays): Promise<Spend> {
       const day = String(r.date ?? "").slice(0, 10);
       if (day) byDay.set(day, (byDay.get(day) ?? 0) + num(r.cost));
     }
+  }
+
+  // The numbers themselves: rent and activation, which no usage report carries.
+  try {
+    const nc = await numberCosts(start, now);
+    products.push({
+      id: "numbers",
+      label: "Phone numbers",
+      unit: "count",
+      used: nc.held,
+      cost: nc.setup + nc.rental,
+    });
+    total += nc.setup + nc.rental;
+    for (const [day, c] of nc.byDay) byDay.set(day, (byDay.get(day) ?? 0) + c);
+  } catch (err) {
+    failed.push(`phone numbers: ${err instanceof Error ? err.message : err}`);
   }
 
   // Minutes and calls are quoted off the outbound leg alone. Adding the
