@@ -246,7 +246,19 @@ function when(iso: string, now: number | null) {
     return ago < 60 ? `${ago}m ago` : `${Math.round(ago / 60)}h ago`;
   }
   if (mins < 60) return `in ${mins}m`;
-  if (mins < 60 * 24) return `in ${Math.round(mins / 60)}h`;
+  // Hours and minutes, not hours rounded: 12:30 and 1:00 read "in 51m" and
+  // "in 1h" side by side when they are 81 minutes away (2026-10-02).
+  const hm = (m: number) => {
+    const h = Math.floor(m / 60);
+    const r = m % 60;
+    return r === 0 ? `${h}h` : `${h}h ${r}m`;
+  };
+  if (mins < 60 * 24) return `in ${hm(mins)}`;
+  if (mins < 60 * 24 * 3) {
+    const d = Math.floor(mins / 60 / 24);
+    const h = Math.floor((mins - d * 24 * 60) / 60);
+    return h === 0 ? `in ${d}d` : `in ${d}d ${h}h`;
+  }
   return `in ${Math.round(mins / 60 / 24)}d`;
 }
 
