@@ -128,7 +128,7 @@ export function BookDemoFields({
           href={calBookingHref(calBookingUrl, lead, { name: contact, email })}
           target="_blank"
           rel="noreferrer noopener"
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border bg-background text-sm font-bold transition-colors hover:bg-muted"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border bg-background px-3.5 py-2.5 text-center text-sm leading-snug font-bold transition-colors hover:bg-muted"
         >
           <CalendarPlus className="size-4 shrink-0" strokeWidth={2.2} />
           Book {lead.company ?? "it"} on Cal.com
