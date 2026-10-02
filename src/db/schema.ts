@@ -795,6 +795,34 @@ export const callNumber = pgTable("call_number", {
 });
 
 /**
+ * Why a call from one of our numbers ended (2026-10-03), from Telnyx's
+ * `call.hangup`. Only the leg that carries our number as the caller ID is
+ * kept. `hangup_cause` `call_rejected` (SIP 603) is the far side refusing the
+ * call, which is the symptom of a spam-flagged number; `lib/number-health.ts`
+ * reads it. See `2026-10-03-call-hangup.sql`.
+ */
+export const callHangup = pgTable(
+  "call_hangup",
+  {
+    id: serial("id").primaryKey(),
+    callLegId: text("call_leg_id").notNull().unique(),
+    callSessionId: text("call_session_id"),
+    fromNumber: text("from_number").notNull(),
+    toNumber: text("to_number"),
+    hangupCause: text("hangup_cause"),
+    sipCode: text("sip_code"),
+    hangupSource: text("hangup_source"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  // Declared here too: a push drops an index it cannot see in this file.
+  (t) => [index("call_hangup_from_created_idx").on(t.fromNumber, t.createdAt.desc())],
+);
+
+/**
  * A number dialled from the Keypad — a call with no lead behind it.
  *
  * Its own table, and deliberately not a `call` row: `call` hangs off a

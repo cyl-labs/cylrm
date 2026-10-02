@@ -100,6 +100,14 @@ export async function POST(request: Request) {
     type === "call.answered" ||
     type === "call.hangup"
   ) {
+    // Why a call from one of our numbers ended (2026-10-03). Best effort and
+    // never allowed to fail the webhook: Telnyx retries a failed one and
+    // eventually disables it, and this is only a health signal.
+    if (type === "call.hangup") {
+      await recordHangup(p).catch((err) =>
+        console.error("[telnyx] hangup not recorded:", String(err).slice(0, 200)),
+      );
+    }
     await recordInbound(type, p);
     return NextResponse.json({ ok: true, inbound: type });
   }
@@ -299,5 +307,28 @@ async function recordInbound(
     update inbound_call
     set ended_at = coalesce(ended_at, now())
     where call_session_id = ${sessionId}
+  `);
+}
+
+/**
+ * Keep the end of a leg whose caller ID is one of our numbers: the leg to the
+ * prospect. The caller's own browser leg has a SIP address as its `from`, and
+ * an inbound call has the prospect's number there, so neither matches. One row
+ * per leg (`call_leg_id`), so a retried webhook is absorbed.
+ */
+async function recordHangup(p: Record<string, unknown>): Promise<void> {
+  const from = typeof p.from === "string" ? p.from : "";
+  const leg = typeof p.call_leg_id === "string" ? p.call_leg_id : "";
+  if (!from || !leg) return;
+  const text = (v: unknown) => (typeof v === "string" && v ? v.slice(0, 120) : null);
+  await db.execute(sql`
+    insert into call_hangup
+      (call_leg_id, call_session_id, from_number, to_number, hangup_cause,
+       sip_code, hangup_source, started_at, ended_at)
+    select ${leg}, ${text(p.call_session_id)}, ${from}, ${text(p.to)},
+      ${text(p.hangup_cause)}, ${text(p.sip_hangup_cause)}, ${text(p.hangup_source)},
+      ${text(p.start_time)}::timestamptz, ${text(p.end_time)}::timestamptz
+    where exists (select 1 from app_user u where u.telnyx_did = ${from})
+    on conflict (call_leg_id) do nothing
   `);
 }

@@ -32,27 +32,56 @@ function HealthLine({ h }: { h: NumberHealth }) {
         timeZone: "UTC",
       })
     : null;
+  // What the colour rests on, in words a caller can follow. The strongest sign
+  // is calls that end the moment they are placed: an unanswered call normally
+  // rings for 20 seconds or more, and one a carrier refuses is gone in a few.
+  const quick: string[] = [];
+  if (h.fastFail !== null && h.fastFail >= 10) {
+    quick.push(
+      `${h.fastFail} out of 100 calls were dropped within 8 seconds${h.fastFailBefore !== null ? ` (${h.fastFailBefore} the week before)` : ""}`,
+    );
+  }
+  if (h.refused !== null && h.refused >= 10) {
+    quick.push(`${h.refused} out of 100 were refused outright by the carrier or phone`);
+  }
+  const reachLow = h.reach !== null && h.reach < 70;
+  const reachSays =
+    h.reach === null
+      ? ""
+      : reachLow
+        ? `Only ${h.reach} out of 100 calls got through${h.reachBefore !== null ? ` (${h.reachBefore} the week before)` : ""}.`
+        : h.reachBefore !== null && h.reachBefore - h.reach >= 15
+          ? `${h.reach} out of 100 calls got through, down from ${h.reachBefore} the week before.`
+          : `${h.reach} out of 100 calls got through this week.`;
+  const quickSays = quick.length
+    ? `${quick.join(", and ")}. A normal unanswered call rings for 20 seconds or more.`
+    : h.fastFail !== null && h.status === "healthy"
+      ? h.fastFail === 0
+        ? "None dropped in the first 8 seconds."
+        : `Only ${h.fastFail} out of 100 dropped in the first 8 seconds.`
+      : "";
+  const ringsOut =
+    quick.length === 0 && reachLow
+      ? " They ring out in full, so it may be the lists or the hours rather than the number."
+      : "";
   const look = {
     healthy: {
       dot: "bg-success",
       text: "text-success",
       title: "Healthy",
-      says: `${h.reach} out of 100 calls got through this week.`,
+      says: `${reachSays} ${quickSays}`.trim(),
     },
     watch: {
       dot: "bg-amber-500",
       text: "text-amber-600 dark:text-amber-400",
       title: "Keep an eye on it",
-      says:
-        h.reach !== null && h.reach >= 70
-          ? `${h.reach} out of 100 calls got through, down from ${h.reachBefore} the week before.`
-          : `Only ${h.reach} out of 100 calls got through this week${h.reachBefore !== null ? `, ${h.reachBefore} the week before` : ""}.`,
+      says: `${quickSays} ${reachSays}${ringsOut}`.trim(),
     },
     flagged: {
       dot: "bg-destructive",
       text: "text-destructive",
       title: "Probably flagged as spam",
-      says: `Only ${h.reach} out of 100 calls got through this week${h.reachBefore !== null ? `, ${h.reachBefore} the week before` : ""}. Calls ring out instead of reaching a person or a voicemail.`,
+      says: `${quickSays} ${reachSays}`.trim(),
     },
     few: {
       dot: "bg-muted-foreground/40",
