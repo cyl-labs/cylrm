@@ -60,6 +60,10 @@ const DEFAULT_MINUTES = 30;
  *  bookings than half an hour therefore run a little into the slot below,
  *  which is what Google does with them too. */
 const MIN_BLOCK_PX = 30;
+/** The minutes MIN_BLOCK_PX covers. A 15-minute booking is drawn this tall, so
+ *  the packer must treat it as this long or the next one lands underneath it
+ *  (2026-10-02: a 1:15 demo and a 1:30 call back drew on top of each other). */
+const MIN_BLOCK_MINUTES = Math.ceil((MIN_BLOCK_PX / HOUR_PX) * 60);
 
 /** Noon UTC, never midnight: a date parsed at midnight lands on the previous
  *  day in half the world, which is precisely the bug a calendar displays. */
@@ -251,17 +255,18 @@ function assignColumns(items: Placed[]): Placed[] {
     ends.length = 0;
   };
   for (const it of items) {
+    const drawnEnd = Math.max(it.end, it.start + MIN_BLOCK_MINUTES);
     if (cluster.length && it.start >= clusterEnd) close();
     let c = ends.findIndex((end) => end <= it.start);
     if (c === -1) {
       c = ends.length;
-      ends.push(it.end);
+      ends.push(drawnEnd);
     } else {
-      ends[c] = it.end;
+      ends[c] = drawnEnd;
     }
     it.col = c;
     cluster.push(it);
-    clusterEnd = Math.max(clusterEnd, it.end);
+    clusterEnd = Math.max(clusterEnd, drawnEnd);
   }
   if (cluster.length) close();
   return items;
