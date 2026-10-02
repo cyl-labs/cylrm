@@ -39,6 +39,51 @@ type Lead = {
   }[];
 };
 
+type Booking = {
+  id: number;
+  kind: string;
+  startAt: string;
+  status: string;
+  name: string | null;
+  tz: string | null;
+  attendance: string | null;
+  followUp: string | null;
+  brief: string | null;
+};
+
+/** One booking in a sentence a caller can act on: what it was, when, and what
+ *  came of it. */
+function bookingLine(b: Booking): string {
+  const kind = b.kind === "follow_up" ? "Follow-up" : "Demo";
+  let when = "";
+  try {
+    when = new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: b.tz || undefined,
+      timeZoneName: "short",
+    }).format(new Date(b.startAt));
+  } catch {
+    when = new Date(b.startAt).toLocaleString("en-US");
+  }
+  const ahead = new Date(b.startAt).getTime() > Date.now();
+  let state: string;
+  if (b.status === "cancelled") state = "cancelled";
+  else if (ahead) state = "coming up";
+  else if (b.attendance === "showed_up") state = "they came";
+  else if (b.attendance === "no_show") state = "they did not show up";
+  else if (b.attendance === "invalid") state = "not a real booking";
+  else state = "already held, outcome not logged yet";
+  const after =
+    !ahead && b.followUp
+      ? `, then: ${b.followUp.replace(/_/g, " ")}`
+      : "";
+  return `${kind} ${when}, ${state}${after}`;
+}
+
 function ago(iso: string): string {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 60) return `${Math.max(1, mins)}m ago`;
@@ -57,6 +102,8 @@ export function IncomingCall({
   busy?: boolean;
 }) {
   const [lead, setLead] = React.useState<Lead | null>(null);
+  const [bookings, setBookings] = React.useState<Booking[]>([]);
+  const [summary, setSummary] = React.useState<{ text: string; at: string | null } | null>(null);
   const [looked, setLooked] = React.useState(false);
 
   // Keyed on the number by the caller, so a second call arriving remounts this
@@ -65,18 +112,28 @@ export function IncomingCall({
     let cancelled = false;
     fetch(`/api/inbound-lead?from=${encodeURIComponent(incoming.from)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { lead?: Lead | null } | null) => {
+      .then(
+        (
+          d: {
+            lead?: Lead | null;
+            meetings?: Booking[];
+            lastSummary?: { text: string; at: string | null } | null;
+          } | null,
+        ) => {
         if (cancelled) return;
         setLead(d?.lead ?? null);
+        setBookings(d?.meetings ?? []);
+        setSummary(d?.lastSummary ?? null);
         setLooked(true);
-      })
+        },
+      )
       .catch(() => !cancelled && setLooked(true));
     return () => {
       cancelled = true;
     };
   }, [incoming.from]);
 
-  const who = lead?.company || lead?.name || null;
+  const who = lead?.company || lead?.name || bookings[0]?.name || null;
 
   return (
     // An OPAQUE surface with the green laid over it, never `bg-success/10`
@@ -112,6 +169,8 @@ export function IncomingCall({
               {lead?.title ? ` · ${lead.title}` : ""}
               {lead ? ` · ${lead.list}` : ""}
             </>
+          ) : looked && bookings.length > 0 ? (
+            "Has a booking with us. Details below."
           ) : looked ? (
             // Usually an owner ringing back from their own phone rather than a
             // stranger, and the business name is the one thing that finds the
@@ -121,6 +180,25 @@ export function IncomingCall({
             "Looking them up…"
           )}
         </p>
+
+        {/* What is going on with them (2026-10-03): the booking, what came of it,
+            and the written summary of the last call, read as stored since
+            nothing is generated while the phone rings. Above the call notes
+            because a booked prospect ringing in is the call that matters. */}
+        {(bookings.length > 0 || summary) && (
+          <div className="mt-2.5 space-y-1.5 border-t border-success/30 pt-2.5 text-[12px]">
+            {bookings.slice(0, 2).map((b) => (
+              <p key={b.id} className="font-semibold">
+                {bookingLine(b)}
+              </p>
+            ))}
+            {(bookings.find((b) => b.brief)?.brief ?? summary?.text) && (
+              <p className="line-clamp-5 whitespace-pre-wrap text-muted-foreground">
+                {bookings.find((b) => b.brief)?.brief ?? summary?.text}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* The notes, which are the reason to look at any of this. A callback
             promised last Tuesday says what for, and the outcome alone does
