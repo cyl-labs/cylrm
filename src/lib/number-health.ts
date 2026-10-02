@@ -45,6 +45,11 @@ export type NumberHealth = {
    *  or more, and one the carrier refuses is gone in a few. Null with too few. */
   fastFail: number | null;
   fastFailBefore: number | null;
+  /** Share (0 to 100) of its recorded calls that were followed within 3
+   *  minutes by another call to the same business from the same number: the
+   *  "I have to call three times before they pick up" a flagged number causes.
+   *  Null with too few recorded calls. */
+  redial: number | null;
   /** Share (0 to 100) of this week's calls Telnyx reported as refused
    *  (`call_rejected`), once there are 100 of them on record. Null before then. */
   refused: number | null;
@@ -59,7 +64,7 @@ export type NumberHealth = {
   /** The cutoffs this was judged by, so the words on the page cannot drift
    *  from the rules (the page cannot import this file's constants: it reaches
    *  the database). */
-  limits: { minCalls: number; healthyAt: number; fastWatch: number; dropPoints: number; longOk: number };
+  limits: { minCalls: number; healthyAt: number; fastWatch: number; dropPoints: number; longOk: number; redialWatch: number };
 };
 
 export type CallLengths = {
@@ -110,6 +115,15 @@ export const FAST_FAIL_SECONDS = 8;
  *  41% of their calls end in under 8 seconds, healthy ones had 0 to 4%. */
 export const FAST_WATCH_PCT = 5;
 export const FAST_FLAG_PCT = 15;
+/** Measured on prod 2026-10-03 over 7 days: the founders' number, confirmed
+ *  flagged by a client's screenshot, had 24% of its calls redialled within three
+ *  minutes ("I need to call them 3 times in a row for them to pick up"); every
+ *  other number was 1 to 13%. One known case, so the edges are soft, and it
+ *  leans toward flagging like the rest. */
+export const REDIAL_WATCH_PCT = 15;
+export const REDIAL_FLAG_PCT = 20;
+/** Recorded calls needed in a week before the redial share counts. */
+export const REDIAL_MIN_CALLS = 60;
 /** Hangup records needed in a week before the refused share counts. */
 export const HANGUP_MIN = 60;
 
@@ -289,6 +303,30 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
     long_before: number;
     med_ms: number;
   }[];
+  // Redials: a call followed within three minutes by another to the same
+  // business from the same number.
+  const redialRows = (await db.execute(sql`
+    with r as (
+      select from_number, to_number, started_at from call_recording
+      where from_number is not null and to_number is not null
+        and started_at > now() - interval '7 days'
+    )
+    select from_number as num,
+      count(*)::int as n,
+      count(*) filter (where exists (
+        select 1 from r r2
+        where r2.from_number = r.from_number and r2.to_number = r.to_number
+          and r2.started_at > r.started_at
+          and r2.started_at <= r.started_at + interval '3 minutes'
+      ))::int as redialed
+    from r group by 1
+  `)) as { num: string; n: number; redialed: number }[];
+  const redialOf = new Map(
+    redialRows
+      .filter((x) => x.n >= REDIAL_MIN_CALLS)
+      .map((x) => [x.num, Math.round((100 * x.redialed) / x.n)]),
+  );
+
   const lengthsOf = new Map<string, CallLengths>();
   for (const l of lenRows) {
     if (l.n < LENGTH_MIN_CALLS) continue;
@@ -344,8 +382,17 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
             : "healthy";
       basis = "lengths";
     }
+    // Redials only ever raise the verdict. A number people have to ring three
+    // times is a number people are not picking up, whatever else it says.
+    const redial = redialOf.get(r.num) ?? null;
+    if (redial !== null) {
+      if (redial >= REDIAL_FLAG_PCT) status = "flagged";
+      else if (redial >= REDIAL_WATCH_PCT && (status === "healthy" || status === "few"))
+        status = "watch";
+    }
     out[r.num] = {
       status,
+      redial,
       lengths,
       basis,
       limits: {
@@ -354,6 +401,7 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
         fastWatch: FAST_WATCH_PCT,
         dropPoints: DROP_POINTS,
         longOk: LONG_OK_PCT,
+        redialWatch: REDIAL_WATCH_PCT,
       },
       calls: r.calls,
       total: Math.max(v?.total ?? 0, r.calls),

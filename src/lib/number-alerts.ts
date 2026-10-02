@@ -43,6 +43,11 @@ export function reasonsFor(h: NumberHealth): string[] {
       `Only ${h.reach} out of 100 calls got through this week${h.reachBefore !== null ? ` (${h.reachBefore} the week before)` : ""}.`,
     );
   }
+  if (h.redial !== null && h.redial >= h.limits.redialWatch) {
+    out.push(
+      `${h.redial} out of 100 calls had to be redialled within 3 minutes, which is what happens when people do not pick up the first time.`,
+    );
+  }
   if (h.basis === "lengths" && h.lengths) {
     out.push(
       `Only ${h.lengths.longPct} out of 100 of its ${h.lengths.n} recorded calls ran past 30 seconds, and ${h.lengths.shortPct} ended within 10 seconds.`,

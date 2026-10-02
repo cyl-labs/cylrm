@@ -139,13 +139,20 @@ function HealthLine({ h }: { h: NumberHealth }) {
           : `Only ${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds${before}, and ${L.shortPct} ended within 10 seconds. Healthy numbers are usually at 50 or more.`;
     look.says += ` Judged from call length, since only ${h.calls} of its ${h.total} calls were logged with an outcome.`;
   }
+  // The sign callers feel first: they have to ring a business again and again
+  // before anyone answers.
+  const redialSays =
+    h.redial !== null && h.redial >= h.limits.redialWatch
+      ? ` ${h.redial} out of 100 calls had to be redialled within 3 minutes, which is what happens when people do not pick up the first time.`
+      : "";
   return (
     <p className="basis-full text-[12px] text-muted-foreground">
       <span className={cn("inline-flex items-center gap-1.5 font-bold", look.text)}>
         <span className={cn("size-2 rounded-full", look.dot)} aria-hidden />
         {look.title}
       </span>{" "}
-      {look.says} {h.perDay} calls a day{since ? `, in use since ${since}` : ""}.
+      {look.says}
+      {redialSays} {h.perDay} calls a day{since ? `, in use since ${since}` : ""}.
     </p>
   );
 }
