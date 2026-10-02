@@ -731,3 +731,38 @@ its password is replaced instead so the login their browser held stops working.
 - Tested against a stand-in Telnyx (`TELNYX_API_BASE`) for both cases. Whether
   Telnyx accepts `connection_id: null` on a number was not tried on a real
   one; that step is non-fatal and reported if it fails.
+
+## Number health on Team (2026-10-03)
+
+"Our number is getting marked as spam. Is there a way we can mark in Team, per
+number, how likely it is that it is compromised?" Phase 1 of a plan agreed the
+same day: a colour and a plain sentence under each number in **Your Telnyx
+numbers** (`HealthLine` in `telnyx-numbers.tsx`, `getNumberHealth` in
+`lib/number-health.ts`). Founders only, like the panel.
+
+- **Nothing exposes the carrier's "Spam Likely" label**, so this reads the
+  symptom: **reach** = (pickups + voicemails) / (calls minus wrong numbers) over
+  the last 7 days. Healthy is 70 or more, Watch 50 to 70, Likely flagged under
+  50, and a fall of 15 points from the week before turns a healthy number into
+  Watch. Under 100 calls in the week there is no verdict ("Too few calls to
+  tell"). Thresholds are `HEALTHY_AT`, `WATCH_AT`, `DROP_POINTS`,
+  `HEALTH_MIN_CALLS`.
+- **Why reach and not pickup rate**: on 2026-10-03 the two worst numbers
+  (Akshansh's, Aaron's) had pickup rates of 31 to 34%, the same as healthy
+  ones, while their voicemails collapsed (141 to 3, 191 to 9 in a week) and no
+  answers doubled. A flagged call rings out or is declined and never reaches a
+  mailbox. Healthy numbers reached 90% or more.
+- **Limits**: outcomes are logged by hand, and list quality and hour of day move
+  them too. It says look at this number, not that it is burned.
+- **`call.dialled_from`** (`2026-10-03-call-dialled-from.sql`, additive,
+  **apply before deploying**: `POST /api/calls` writes it) is the number a call
+  went out from, so a number's record follows the number and not whoever holds it
+  now. Stamped at logging from the caller's own number when they dial in the
+  browser (a handset call stays null). Backfilled from the recording's
+  `from_number`, which is exact (6,514 of 7,754 calls on prod). Calls with none
+  are read as the caller's **current** number, which is right until that number
+  is swapped. Indexed (`call_dialled_from_idx`, declared in `schema.ts` so a
+  push keeps it).
+- **Not built yet**: an alert when a number turns red, a "rest this number"
+  switch, and storing Telnyx's hangup reason per call (a harder signal than
+  guessing from outcomes).
