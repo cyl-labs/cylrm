@@ -766,3 +766,15 @@ numbers** (`HealthLine` in `telnyx-numbers.tsx`, `getNumberHealth` in
 - **Not built yet**: an alert when a number turns red, a "rest this number"
   switch, and storing Telnyx's hangup reason per call (a harder signal than
   guessing from outcomes).
+
+**Volume counts every call, the verdict only the logged ones** (2026-10-03).
+The first version counted only `call` rows, so the founders' number read "14
+calls this week, 2 a day" while it placed about 170: 55 Keypad dials and 106
+recorded outbound calls (demos, follow-ups, ring backs) have no outcome logged
+and so no `call` row. `NumberHealth.total` (and the calls-a-day figure and
+"in use since") now count every call from the number across `call`,
+`keypad_call.from_did` and `call_recording.from_number`, once each by Telnyx
+session. `calls`, the count the verdict uses, is still only calls logged with an
+outcome, since reach cannot be worked out for a call that has none, so a number
+used mostly for demos says "N calls this week, but only M were logged with an
+outcome" rather than guessing.
