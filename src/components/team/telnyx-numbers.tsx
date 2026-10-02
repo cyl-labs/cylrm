@@ -58,7 +58,10 @@ function HealthLine({ h }: { h: NumberHealth }) {
       dot: "bg-muted-foreground/40",
       text: "text-muted-foreground",
       title: "Too few calls to tell",
-      says: `${h.calls} call${h.calls === 1 ? "" : "s"} this week. It takes 100 to judge.`,
+      says:
+        h.total > h.calls
+          ? `${h.total} calls this week, but only ${h.calls} were logged with an outcome. It takes 100 logged calls to judge.`
+          : `${h.calls} call${h.calls === 1 ? "" : "s"} this week. It takes 100 to judge.`,
     },
   }[h.status];
   return (
