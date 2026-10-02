@@ -2062,15 +2062,39 @@ export function MeetingsList({
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-[13px]">
                 <PhoneForwarded className="size-3.5 shrink-0 text-primary" />
                 <span className="min-w-0">
-                  <span className="font-semibold">
-                    They asked to be rung{" "}
-                    {format.format(new Date(m.callbackSuggestion.at))}
-                  </span>{" "}
-                  <span className="text-muted-foreground">
-                    {zoneLabel}
-                    {theirTime(m.callbackSuggestion.at, m) &&
-                      ` · ${theirTime(m.callbackSuggestion.at, m)} their time`}
-                  </span>
+                  {/* Their day and time first (2026-10-03). "Friday at noon"
+                      said by a prospect in Florida is Saturday 12:00 AM in
+                      Singapore, and the row led with Singapore, so a correct
+                      suggestion read as the prospect asking for a Saturday.
+                      The caller's own clock follows in brackets. */}
+                  {theirTime(m.callbackSuggestion.at, m) && theirZone ? (
+                    <>
+                      <span className="font-semibold">
+                        They asked to be rung{" "}
+                        {new Intl.DateTimeFormat("en-US", {
+                          timeZone: theirZone,
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        }).format(new Date(m.callbackSuggestion.at))}{" "}
+                        their time
+                      </span>{" "}
+                      <span className="text-muted-foreground">
+                        ({format.format(new Date(m.callbackSuggestion.at))}{" "}
+                        {zoneLabel} for you)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-semibold">
+                        They asked to be rung{" "}
+                        {format.format(new Date(m.callbackSuggestion.at))}
+                      </span>{" "}
+                      <span className="text-muted-foreground">{zoneLabel}</span>
+                    </>
+                  )}
                   {m.callbackSuggestion.quote && (
                     <span className="block text-[12px] text-muted-foreground">
                       &ldquo;{m.callbackSuggestion.quote}&rdquo;
