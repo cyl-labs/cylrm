@@ -52,7 +52,7 @@ export function ListsCell({
   }
   return (
     <ListDropZone person={person}>
-      <div className="flex w-64 flex-col gap-1.5">
+      <div className="flex w-72 flex-col gap-1.5">
         <Headline lists={lists} perDay={perDay} />
         {lists.length > 0 && (
           <div className="flex flex-col">
@@ -182,12 +182,16 @@ function ListLine({
           canManage && "pr-6",
         )}
       >
-        <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{l.name}</span>
+        {/* The name gets a fixed width and the bar takes the rest, so the
+            bars line up as a column and can be compared down the row. A
+            fixed 36px bar left a gap after the name that read as empty
+            space. A long name truncates; the tooltip has it in full. */}
+        <span className="w-[7.5rem] shrink-0 truncate text-[12px] font-medium">{l.name}</span>
         {/* Decoration over a figure already on the tooltip, so it is not
             announced: the rule the "By list" bar on Stats uses. */}
         <span
           aria-hidden
-          className="block h-1 w-9 shrink-0 overflow-hidden rounded-full bg-foreground/10"
+          className="block h-1 min-w-9 flex-1 overflow-hidden rounded-full bg-foreground/10"
         >
           <span
             className="block h-full rounded-full bg-primary"

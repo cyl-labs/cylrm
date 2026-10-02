@@ -187,7 +187,7 @@ Employees sign in individually so every call has a name on it. The single shared
   red, "empty" for a list nothing was imported into). The percentage moved to
   the tooltip. Same numbers as before (`listProgress`, `uncalled`,
   `callerUrgency`), same fold after three, same link, drag and menu on every
-  line, and "Give them another list" under them. The cell is a fixed 16rem so
+  line, and "Give them another list" under them. The cell is a fixed 18rem so
   a long name truncates rather than stretching the column.
 
 ## Managers: a caller who looks after other callers (2026-10-01)
