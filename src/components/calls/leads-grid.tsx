@@ -249,9 +249,12 @@ function CategoryMenu({
   onLogged,
   onCorrected,
   showDealStages,
+  tz,
 }: {
   lead: SheetLead;
   showDealStages: boolean;
+  /** The reader's zone, for a lead that has none of its own. */
+  tz: string;
   /** A call happened: one more attempt, rung just now. */
   onLogged: (id: number, outcome: CallOutcome) => void;
   /** The last call was mislabelled: same attempt, different outcome. */
@@ -417,6 +420,7 @@ function CategoryMenu({
       <BookDemoDialog
         lead={booking ? lead : null}
         mode={booking ?? "book"}
+        readerTz={tz}
         onOpenChange={(open) => {
           if (!open) setBooking(null);
         }}
@@ -1362,6 +1366,7 @@ export function LeadsGrid({
                                     onLogged={handleLogged}
                                     onCorrected={handleCorrected}
                                     showDealStages={showDealStages}
+                                    tz={tz}
                                   />
                                 )}
                               </span>

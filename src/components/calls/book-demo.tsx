@@ -13,7 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import { calBookingHref } from "@/lib/cal-link";
+import { defaultCallbackAt, meetingZoneLabel } from "@/lib/call-time";
 
 /**
  * The booking step for a demo, wherever one is logged.
@@ -157,17 +159,57 @@ export function BookDemoDialog({
   mode,
   onOpenChange,
   onConfirm,
+  readerTz = "America/New_York",
 }: {
   /** Null closes it. */
   lead: DemoLead | null;
   mode: "log" | "correct" | "book";
   onOpenChange: (open: boolean) => void;
   onConfirm?: (details: DemoDetails) => Promise<boolean>;
+  /** The reader's own zone, for a lead whose number belongs to no place. */
+  readerTz?: string;
 }) {
   const calBookingUrl = useCalBookingUrl();
   const [email, setEmail] = React.useState("");
   const [contact, setContact] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  // The Meetings-only booking (2026-10-03): off Cal.com, for an emergency.
+  const [silentOpen, setSilentOpen] = React.useState(false);
+  const [silentAt, setSilentAt] = React.useState("");
+  // The demo call was logged by a press that then failed to add the meeting.
+  // A retry must not log it a second time.
+  const [logged, setLogged] = React.useState(false);
+
+  async function addSilently(details: DemoDetails) {
+    if (!lead) return;
+    setSaving(true);
+    try {
+      if (onConfirm && !logged) {
+        if (!(await onConfirm(details))) return;
+        setLogged(true);
+      }
+      const res = await fetch("/api/meetings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ leadId: lead.id, at: silentAt }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        when?: string;
+        theirs?: boolean;
+      } | null;
+      if (!res.ok) {
+        toast.error(data?.error ?? "Could not add it to Meetings. Try again.");
+        return;
+      }
+      toast.success(
+        `Added to Meetings for ${data?.when ?? "that time"}, ${data?.theirs === false ? "your clock" : "their time"}.`,
+      );
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // Seeded from the lead each time the dialog opens on one, adjusted during
   // render rather than in an effect.
@@ -176,6 +218,9 @@ export function BookDemoDialog({
     setForId(lead.id);
     setEmail(lead.email ?? "");
     setContact(lead.name ?? "");
+    setSilentOpen(false);
+    setSilentAt(defaultCallbackAt(lead.tz, readerTz));
+    setLogged(false);
   }
 
   const who = lead?.company ?? lead?.name ?? lead?.phone ?? "";
@@ -207,6 +252,57 @@ export function BookDemoDialog({
             idPrefix="book-demo"
             hint="If they gave a different number to ring for the demo, change it on Cal.com, but leave the notes line alone: it is how the booking finds this lead."
           />
+        )}
+        {lead && (
+          <div className="space-y-2.5">
+            {!silentOpen ? (
+              <button
+                type="button"
+                onClick={() => setSilentOpen(true)}
+                className="text-[13px] font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              >
+                In a hurry? Add it to Meetings without Cal.com
+              </button>
+            ) : (
+              <div className="space-y-2.5 rounded-lg border bg-muted/30 p-3.5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
+                  Meetings only, no Cal.com
+                </p>
+                <p className="text-[12px] text-muted-foreground">
+                  This puts the demo on the Meetings tab at the time below. Cal.com
+                  is not told, so they get no invite and no reminder email. Send
+                  them the time yourself.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="book-demo-silent-at">
+                    {meetingZoneLabel(lead.tz, readerTz)}
+                  </Label>
+                  <Input
+                    id="book-demo-silent-at"
+                    type="datetime-local"
+                    value={silentAt}
+                    onChange={(e) => setSilentAt(e.target.value)}
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  disabled={saving || !silentAt}
+                  onClick={() =>
+                    void addSilently({
+                      contactEmail: email.trim(),
+                      contactName: contact.trim(),
+                    })
+                  }
+                >
+                  {saving
+                    ? "Saving…"
+                    : onConfirm && !logged
+                      ? "Log Demo booked and add to Meetings"
+                      : "Add to Meetings"}
+                </Button>
+              </div>
+            )}
+          </div>
         )}
         <DialogFooter className="-mx-5 -mb-5">
           <Button
