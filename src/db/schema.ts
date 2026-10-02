@@ -800,6 +800,18 @@ export const callNumber = pgTable("call_number", {
 });
 
 /**
+ * What the Telegram number alert last said about a number (2026-10-03), so a
+ * number that stays flagged is announced once, and one that recovers and is
+ * flagged again is announced again after a day. See `lib/number-alerts.ts` and
+ * `2026-10-03-number-alert.sql`.
+ */
+export const numberAlert = pgTable("number_alert", {
+  phoneNumber: text("phone_number").primaryKey(),
+  lastStatus: text("last_status").notNull().default("unknown"),
+  alertedAt: timestamp("alerted_at", { withTimezone: true }),
+});
+
+/**
  * Why a call from one of our numbers ended (2026-10-03), from Telnyx's
  * `call.hangup`. Only the leg that carries our number as the caller ID is
  * kept. `hangup_cause` `call_rejected` (SIP 603) is the far side refusing the

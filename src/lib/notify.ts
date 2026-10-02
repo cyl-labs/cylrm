@@ -117,6 +117,54 @@ export async function notifyMeetingDigest(
   await send(out.join("\n"));
 }
 
+/**
+ * A number looks flagged as spam (2026-10-03). `reasons` are already worded in
+ * plain sentences by `lib/number-alerts.ts`, which owns the rules.
+ */
+export async function notifyNumberFlagged(n: {
+  number: string;
+  holders: string[];
+  reasons: string[];
+}): Promise<void> {
+  const base = process.env.PUBLIC_APP_URL ?? "";
+  const who = n.holders.length > 0 ? n.holders.join(" and ") : "nobody right now";
+  const lines = [`🚩 ${n.number} looks flagged as spam`, `Used by: ${who}`];
+  if (n.reasons.length > 0) lines.push("", ...n.reasons);
+  lines.push("", "Worth looking at before more calls go out from it.");
+  if (base) lines.push("", `${base}/team`);
+  await send(lines.join("\n"));
+}
+
+/** A call to a founder's number that nobody picked up. */
+export async function notifyMissedCall(m: {
+  from: string;
+  who: string | null;
+  to: string | null;
+}): Promise<void> {
+  const base = process.env.PUBLIC_APP_URL ?? "";
+  const lines = [`📵 Missed call: ${m.who ?? m.from}`];
+  if (m.who) lines.push(m.from);
+  if (m.to) lines.push(`to ${m.to}`);
+  if (base) lines.push("", `${base}/missed-calls`);
+  await send(lines.join("\n"));
+}
+
+/** A text to a founder's number. */
+export async function notifyFounderText(t: {
+  from: string;
+  who: string | null;
+  body: string;
+  href: string | null;
+}): Promise<void> {
+  const base = process.env.PUBLIC_APP_URL ?? "";
+  const body = t.body.length > MAX_BODY ? `${t.body.slice(0, MAX_BODY - 1)}…` : t.body;
+  const lines = [`💬 Text from ${t.who ?? t.from}`];
+  if (t.who) lines.push(t.from);
+  lines.push("", body);
+  if (base && t.href) lines.push("", `${base}${t.href}`);
+  await send(lines.join("\n"));
+}
+
 /** Fired when the poller files a genuine human reply. */
 export async function notifyReply(r: ReplyNotification): Promise<void> {
   const who = r.contactName ?? r.contactEmail;

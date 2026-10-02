@@ -70,6 +70,9 @@ async function run() {
   // Calls with a meeting behind them are transcribed by themselves and read for
   // a promised call back. Five a tick at most; claims each recording first.
   await tick("meeting-calls");
+  // A Telegram message when a number turns probably flagged as spam. Says
+  // nothing on all but the tick a number first flips; see lib/number-alerts.
+  await tick("number-alerts");
 }
 
 /**
