@@ -1190,6 +1190,24 @@ export function MeetingsList({
                 .
               </p>
             )}
+            {/* A cancelled row cannot make contracts, so it hands you to the
+                live booking (2026-10-02: Kevin moved to Sunday, and the new
+                row sat far down the list). Searching by business shows
+                upcoming and past together, so the target is always on the
+                page. With no booking matched, the same search still lists
+                every meeting the business has. */}
+            {cancelled && m.company && (
+              <Link
+                href={`/meetings?q=${encodeURIComponent(m.company)}${
+                  m.rescheduledTo ? `#meeting-${m.rescheduledTo.id}` : ""
+                }`}
+                className="mt-2 inline-flex rounded-md border bg-background px-2.5 py-1 text-[12px] font-semibold hover:bg-muted"
+              >
+                {m.rescheduledTo
+                  ? "Go to the new meeting"
+                  : "Find their other meetings"}
+              </Link>
+            )}
             {/* Moved in the CRM only (2026-09-28). Cal.com still has the old
                 time and sends its reminder for it, so the row says so. */}
             {m.calStartAt && (
