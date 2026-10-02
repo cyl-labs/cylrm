@@ -471,9 +471,12 @@ export async function getBriefedMeetings(): Promise<BriefedMeeting[]> {
  *   person reading it is about to repeat it back to them.
  * - **No advice.** The SOP already says what to do; a model improvising a
  *   pitch mid-brief would be a second, unreviewed script.
- * - **Quote the prospect** for anything that sounds like a commitment. "He
- *   said he'd want it answering evenings" is checkable; "they need evening
- *   cover" is the model's paraphrase presented as their words.
+ * - **Every bullet quotes the call** (2026-10-02). Mission Based
+ *   Construction's brief said the owner wanted a voice agent "in the future
+ *   but not right now" when all she said was "I have thought about having
+ *   something as such". A paraphrase reads exactly like a fact, so each bullet
+ *   now carries the words behind it in quotation marks, and `verifiedBrief`
+ *   drops any bullet whose quote is not actually in the transcript or notes.
  * - **Short.** This is read in the minute before a call, and fourteen of them
  *   are read in a row.
  */
@@ -492,7 +495,8 @@ const SYSTEM = [
   '- Never infer a fact that was not said. If the call does not say what they do, write "not said on the call".',
   "- Keep the prospect's tense. Something they considered or tried in the past is not a plan, a delay or a \"not right now\". Never write that they want something later, or not yet, unless they said so.",
   "- Only lines marked Prospect are the prospect's words. Something our caller said or suggested is never the prospect's view.",
-  "- Quote the prospect in their own words for anything that sounds like a commitment or a number.",
+  '- Every bullet must include, in double quotes, the exact words from the transcript or the notes that back it. Copy them character for character from one speaker: do not fix grammar, join words from different speakers, or add words. Use ... to skip words inside a quote.',
+  '- If you cannot back a bullet with a quote, leave the bullet out. The only exception is a bullet saying something was "not said on the call".',
   "- Give no advice and no pitch. Do not suggest what to say.",
   "- No preamble, no heading, no sign-off. Bullets only, starting with '- '.",
   "- Do not use em dashes.",
@@ -549,7 +553,8 @@ export async function writeBrief(source: BriefSource): Promise<string> {
       // Low but not zero: at 0 the model repeats the transcript's own phrasing
       // back as if it were a summary.
       temperature: 0.2,
-      max_tokens: 320,
+      // Room for the quotes every bullet now carries.
+      max_tokens: 450,
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: userPrompt(source) },
@@ -574,5 +579,67 @@ export async function writeBrief(source: BriefSource): Promise<string> {
   });
   const text = body.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error("OpenAI returned an empty brief.");
-  return text;
+  return verifiedBrief(text, source);
+}
+
+/** Lower case, letters and digits only, single spaces: a quote is matched on
+ *  its words, not on the punctuation or casing a transcript happened to use. */
+const normalise = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/**
+ * Keep only the bullets whose quotes are really in the material.
+ *
+ * The prompt asks for quotes; this is what makes them worth trusting. Each
+ * speaker's lines are run together on their own as well as the whole
+ * transcript, because a transcript splits one sentence across turns when the
+ * other side says "Like," in the middle of it, and a faithful quote of that
+ * sentence is in neither turn alone. A quote with "..." in it is checked
+ * piece by piece. A bullet with no quote survives only when it says something
+ * was not said on the call, which is the one thing a quote cannot back.
+ *
+ * Dropped rather than flagged: a bullet with a quote nobody said is the exact
+ * failure this exists to stop, and showing it with a warning still puts the
+ * words in front of somebody about to dial.
+ */
+export function verifiedBrief(text: string, source: BriefSource): string {
+  const lines = (source.transcript ?? "").split("\n");
+  const bySpeaker = (label: string) =>
+    lines
+      .filter((l) => l.startsWith(label))
+      .map((l) => l.slice(label.length))
+      .join(" ");
+  const haystacks = [
+    source.transcript ?? "",
+    bySpeaker("Prospect: "),
+    bySpeaker("Our caller: "),
+    source.notes ?? "",
+  ]
+    .map(normalise)
+    .filter(Boolean);
+  const found = (quote: string) =>
+    quote
+      .split(/\.\.\.|…/)
+      .map(normalise)
+      .filter(Boolean)
+      .every((piece) => haystacks.some((h) => ` ${h} `.includes(` ${piece} `)));
+
+  const bullets = text.split("\n").filter((l) => l.trim());
+  const kept = bullets.filter((line) => {
+    const quotes = [...line.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
+    if (quotes.length === 0) return /not said on the call/i.test(line);
+    return quotes.every(found);
+  });
+  if (kept.length < bullets.length) {
+    console.warn(
+      `[meeting-brief] dropped ${bullets.length - kept.length} unquoted or misquoted bullet(s) for meeting ${source.meetingId}`,
+    );
+  }
+  return kept.length > 0
+    ? kept.join("\n")
+    : "- Nothing on the call could be quoted for a brief. Open the recording on the meeting row to listen.";
 }
