@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { NumberHealth } from "@/lib/number-health";
 
 /**
  * What numbers the business owns, and who rings from each.
@@ -20,11 +21,63 @@ import { cn } from "@/lib/utils";
  * "assign one of your numbers" is a hard instruction to follow when the app
  * never says what you have.
  */
+/** The colour and the plain words for a number's health. Nothing here says
+ *  "reach": a caller or founder reads how many calls out of a hundred got
+ *  through, and what to do about it. */
+function HealthLine({ h }: { h: NumberHealth }) {
+  const since = h.inUseSince
+    ? new Date(h.inUseSince).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      })
+    : null;
+  const look = {
+    healthy: {
+      dot: "bg-success",
+      text: "text-success",
+      title: "Healthy",
+      says: `${h.reach} out of 100 calls got through this week.`,
+    },
+    watch: {
+      dot: "bg-amber-500",
+      text: "text-amber-600 dark:text-amber-400",
+      title: "Keep an eye on it",
+      says:
+        h.reach !== null && h.reach >= 70
+          ? `${h.reach} out of 100 calls got through, down from ${h.reachBefore} the week before.`
+          : `Only ${h.reach} out of 100 calls got through this week${h.reachBefore !== null ? `, ${h.reachBefore} the week before` : ""}.`,
+    },
+    flagged: {
+      dot: "bg-destructive",
+      text: "text-destructive",
+      title: "Probably flagged as spam",
+      says: `Only ${h.reach} out of 100 calls got through this week${h.reachBefore !== null ? `, ${h.reachBefore} the week before` : ""}. Calls ring out instead of reaching a person or a voicemail.`,
+    },
+    few: {
+      dot: "bg-muted-foreground/40",
+      text: "text-muted-foreground",
+      title: "Too few calls to tell",
+      says: `${h.calls} call${h.calls === 1 ? "" : "s"} this week. It takes 100 to judge.`,
+    },
+  }[h.status];
+  return (
+    <p className="basis-full text-[12px] text-muted-foreground">
+      <span className={cn("inline-flex items-center gap-1.5 font-bold", look.text)}>
+        <span className={cn("size-2 rounded-full", look.dot)} aria-hidden />
+        {look.title}
+      </span>{" "}
+      {look.says} {h.perDay} calls a day{since ? `, in use since ${since}` : ""}.
+    </p>
+  );
+}
+
 const COUNTRY = { SG: "Singapore", US: "US", GB: "UK" } as const;
 
 export function TelnyxNumbers({
   numbers: initial,
   team,
+  health,
   className,
 }: {
   numbers: {
@@ -35,6 +88,9 @@ export function TelnyxNumbers({
     label: string | null;
   }[];
   team: TeamMember[];
+  /** How each number is doing, by number. A number nobody has dialled from is
+   *  absent, and says nothing. */
+  health: Record<string, NumberHealth>;
   className?: string;
 }) {
   const router = useRouter();
@@ -245,6 +301,7 @@ export function TelnyxNumbers({
                 >
                   {n.available ? "Reserve" : "Make available"}
                 </Button>
+                {health[n.phoneNumber] && <HealthLine h={health[n.phoneNumber]} />}
               </li>
             );
           })}

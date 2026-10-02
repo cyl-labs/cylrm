@@ -194,6 +194,10 @@ export async function POST(request: Request) {
       // `call_recording` joins on; the duration is the browser's timer, and
       // is present even on a no-answer, which has no recording at all.
       telnyxSessionId: sessionId,
+      // The caller ID this was placed from (2026-10-03): the caller's own
+      // number when they dial in the browser, which is the only way a number
+      // appears on a call. A handset call leaves it null.
+      dialledFrom: await dialledFromFor(me.id),
       durationSeconds:
         typeof body.durationSeconds === "number" &&
         Number.isFinite(body.durationSeconds)
@@ -496,4 +500,13 @@ export async function DELETE(request: Request) {
 
   await db.delete(call).where(eq(call.id, existing.id));
   return Response.json({ ok: true });
+}
+
+/** The number a browser caller's calls go out from, or null for a handset
+ *  caller (their own phone is the caller ID, which is not one of ours). */
+async function dialledFromFor(userId: number): Promise<string | null> {
+  const [u] = (await db.execute(sql`
+    select telnyx_did, dial_method from app_user where id = ${userId}
+  `)) as { telnyx_did: string | null; dial_method: string }[];
+  return u && u.dial_method === "browser" ? (u.telnyx_did ?? null) : null;
 }

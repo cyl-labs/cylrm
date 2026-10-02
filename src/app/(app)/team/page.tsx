@@ -12,6 +12,7 @@ import {
   poolOf,
 } from "@/lib/lead-stock";
 import { listAccountNumbers } from "@/lib/telnyx";
+import { getNumberHealth } from "@/lib/number-health";
 import { TeamManager } from "@/components/team/team-manager";
 import { TelnyxNumbers } from "@/components/team/telnyx-numbers";
 import { LeadStock } from "@/components/team/lead-stock";
@@ -54,7 +55,7 @@ export default async function TeamPage() {
   // false` here would drop exactly those labels. "Absent means available"
   // still holds — the reserved set is built from the flag below, never from a
   // row existing.
-  const [team, lists, { started, activeDays, perDay }, numberRows] =
+  const [team, lists, { started, activeDays, perDay }, numberRows, health] =
     await Promise.all([
     listTeam(),
     admin ? getCallLists(undefined, tz) : [],
@@ -72,6 +73,8 @@ export default async function TeamPage() {
           { phone_number: string; available: boolean; label: string | null }[]
         >)
       : [],
+    // How each number is doing, read off its calls (lib/number-health).
+    admin ? getNumberHealth() : {},
   ]);
   const stock = buildLeadStock(lists, started, activeDays);
   const listsBy = listsByOwner(lists);
@@ -117,6 +120,7 @@ export default async function TeamPage() {
           <TelnyxNumbers
             numbers={numbers}
             team={team}
+            health={health}
             className="mb-5 rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]"
           />
         )}

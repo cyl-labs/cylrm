@@ -729,6 +729,11 @@ export const call = pgTable(
      *  duration: a no-answer has one of these and no recording at all, and
      *  no-answers are most of the volume. */
     durationSeconds: integer("duration_seconds"),
+    /** The number this call was placed from (2026-10-03), stamped when the
+     *  outcome is logged and backfilled from the recording where there is one.
+     *  Null on handset calls and on older calls with no recording: those are
+     *  read as the caller's current number. See `lib/number-health.ts`. */
+    dialledFrom: text("dialled_from"),
     /** Set on a call that did not connect, for a lead that already has a demo,
      *  trial or booked meeting behind it: the lead stays out of the dial queue
      *  instead of coming back as a cold retry. Only ever true on the lead's
@@ -742,6 +747,9 @@ export const call = pgTable(
   (t) => [
     index("call_user_id_idx").on(t.userId),
     index("call_telnyx_session_id_idx").on(t.telnyxSessionId),
+    // A number's health reads its calls by number and week.
+    // See 2026-10-03-call-dialled-from.sql.
+    index("call_dialled_from_idx").on(t.dialledFrom, t.calledAt.desc()),
     // A lead's latest call, which every calling screen asks for once per lead
     // (`latestCall`). Without it each lead read the whole table: the sidebar's
     // callbacks count took a second on every page. Column order matches that
