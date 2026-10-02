@@ -182,9 +182,12 @@ export function BookDemoDialog({
 
   return (
     <Dialog open={lead !== null} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
+      {/* More room than the shared dialog's 16px, and the title clears the
+          close button: a business name long enough to wrap used to run under
+          the X (2026-10-03). The footer's negative margins follow the padding. */}
+      <DialogContent className="gap-5 p-5 sm:max-w-md">
+        <DialogHeader className="pr-8">
+          <DialogTitle className="leading-snug">
             {mode === "book" ? `Book ${who}'s demo` : `Demo booked: ${who}`}
           </DialogTitle>
           <DialogDescription>
@@ -205,7 +208,7 @@ export function BookDemoDialog({
             hint="If they gave a different number to ring for the demo, change it on Cal.com, but leave the notes line alone: it is how the booking finds this lead."
           />
         )}
-        <DialogFooter>
+        <DialogFooter className="-mx-5 -mb-5">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
