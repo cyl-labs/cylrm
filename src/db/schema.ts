@@ -809,6 +809,7 @@ export const numberAlert = pgTable("number_alert", {
   phoneNumber: text("phone_number").primaryKey(),
   lastStatus: text("last_status").notNull().default("unknown"),
   alertedAt: timestamp("alerted_at", { withTimezone: true }),
+  fellAlertedAt: timestamp("fell_alerted_at", { withTimezone: true }),
 });
 
 /**

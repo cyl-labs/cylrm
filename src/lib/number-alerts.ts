@@ -1,8 +1,16 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { getNumberHealth, type NumberHealth } from "@/lib/number-health";
-import { notificationsConfigured, notifyNumberFlagged } from "@/lib/notify";
+import {
+  DAILY_FALL_ALERT_PCT,
+  getNumberHealth,
+  type NumberHealth,
+} from "@/lib/number-health";
+import {
+  notificationsConfigured,
+  notifyNumberFell,
+  notifyNumberFlagged,
+} from "@/lib/notify";
 
 /**
  * Tell the founders on Telegram when a number turns "probably flagged as spam"
@@ -26,6 +34,49 @@ import { notificationsConfigured, notifyNumberFlagged } from "@/lib/notify";
  * lose a call.
  */
 const COOLDOWN_HOURS = 24;
+
+/**
+ * The second alert (2026-10-03): the last 24 hours' connect rate fell by a
+ * quarter or more against the 7 days before, whatever the verdict says. The
+ * weekly verdict is slow by design; this is the "kill it and rotate" signal
+ * that catches a cliff the day it happens. It is separate from the flagged
+ * alert, with its own 24 hour cooldown (`fell_alerted_at`), and says plainly
+ * that a change of lists would look the same, since the CRM cannot tell.
+ */
+async function sendFellAlert(
+  num: string,
+  names: string[],
+  info: NumberHealth,
+  result: { alerted: string[]; failed: string[] },
+) {
+  const d = info.daily;
+  if (!d || d.fellPct < DAILY_FALL_ALERT_PCT) return;
+  const claimed = (await db.execute(sql`
+    update number_alert set fell_alerted_at = now()
+    where phone_number = ${num}
+      and (fell_alerted_at is null
+           or fell_alerted_at < now() - make_interval(hours => ${COOLDOWN_HOURS}::int))
+    returning phone_number
+  `)) as unknown as { phone_number: string }[];
+  if (claimed.length === 0) return;
+  try {
+    await notifyNumberFell({
+      number: num,
+      holders: names,
+      today: d.today,
+      usual: d.usual,
+      fellPct: d.fellPct,
+      calls: d.todayCalls,
+    });
+    result.alerted.push(`${num} (fell)`);
+  } catch (err) {
+    console.error("[number-alerts] telegram failed:", String(err).slice(0, 200));
+    await db.execute(sql`
+      update number_alert set fell_alerted_at = null where phone_number = ${num}
+    `);
+    result.failed.push(num);
+  }
+}
 
 /** The reasons, in plain sentences, from the same figures the panel reads. */
 export function reasonsFor(h: NumberHealth): string[] {
@@ -80,6 +131,8 @@ export async function sendNumberAlerts(): Promise<{
       insert into number_alert (phone_number) values (${h.num})
       on conflict (phone_number) do nothing
     `);
+
+    await sendFellAlert(h.num, h.names, info, result);
 
     if (info.status !== "flagged") {
       // Recovered, or never flagged: remember it, say nothing.

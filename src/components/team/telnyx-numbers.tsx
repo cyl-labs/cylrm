@@ -145,6 +145,13 @@ function HealthLine({ h }: { h: NumberHealth }) {
     h.redial !== null && h.redial >= h.limits.redialWatch
       ? ` ${h.redial} out of 100 calls had to be redialled within 3 minutes, which is what happens when people do not pick up the first time.`
       : "";
+  // Today against the usual: the early warning, before the week's figure moves.
+  const D = h.daily;
+  const dailySays = D
+    ? D.fellPct >= h.limits.dailyFallWatch
+      ? ` Today is worse: ${D.today} out of 100 calls got through in the last 24 hours, against ${D.usual} the 7 days before (down ${D.fellPct}%). If your lists have not changed, think about swapping this number.`
+      : ` Last 24 hours: ${D.today} out of 100 got through (usual ${D.usual}).`
+    : "";
   return (
     <p className="basis-full text-[12px] text-muted-foreground">
       <span className={cn("inline-flex items-center gap-1.5 font-bold", look.text)}>
@@ -152,7 +159,8 @@ function HealthLine({ h }: { h: NumberHealth }) {
         {look.title}
       </span>{" "}
       {look.says}
-      {redialSays} {h.perDay} calls a day{since ? `, in use since ${since}` : ""}.
+      {redialSays}
+      {dailySays} {h.perDay} calls a day{since ? `, in use since ${since}` : ""}.
     </p>
   );
 }

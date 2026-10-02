@@ -903,3 +903,21 @@ calls a week (`REDIAL_*`). It only ever raises a verdict, appears in the panel a
 "N out of 100 calls had to be redialled within 3 minutes" and in the Telegram
 alert. Omar's 13% is the edge to watch: he scouts a business with a quick call and
 redials. Soft, like the rest, and one known case.
+
+## Daily connect-rate fall (2026-10-03)
+
+Asked for after the standard advice "track connect rate daily; when it drops
+20-30% with the lists unchanged, kill the number and rotate".
+
+- **`getDailyReach` in `lib/number-health.ts`** compares the last 24 hours'
+  reach with the 7 days before them, per number (`NumberHealth.daily`). It
+  needs 25 calls in the day and 60 in the usual week, or it says nothing: ten
+  calls swing 30% on luck. `fellPct` is relative to the usual (usual 80, today
+  60 is 25%).
+- **The panel** shows the day against the usual, and from 20% says so in red-ish
+  words. **Telegram** (`sendFellAlert`, `notifyNumberFell`) fires at 25%, once
+  per 24 hours per number (`number_alert.fell_alerted_at`, migration
+  `2026-10-03-number-alert-fell.sql`, apply before deploying). It is separate from
+  the flagged alert and does not change the verdict.
+- **It cannot see lead quality.** A fresh, worse list falls the same way, and
+  the message says to check that first. Rotating is still manual on Team.

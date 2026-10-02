@@ -54,6 +54,10 @@ export type NumberHealth = {
    *  (`call_rejected`), once there are 100 of them on record. Null before then. */
   refused: number | null;
   perDay: number;
+  /** The last 24 hours against the 7 days before them (2026-10-03), so a
+   *  number that falls off a cliff is seen in a day and not at the end of the
+   *  week. Null with too few calls on either side. */
+  daily: DailyReach | null;
   /** When a call was first placed from this number. */
   inUseSince: string | null;
   /** How long its recorded calls last, when there are enough to say. The
@@ -64,8 +68,29 @@ export type NumberHealth = {
   /** The cutoffs this was judged by, so the words on the page cannot drift
    *  from the rules (the page cannot import this file's constants: it reaches
    *  the database). */
-  limits: { minCalls: number; healthyAt: number; fastWatch: number; dropPoints: number; longOk: number; redialWatch: number };
+  limits: { minCalls: number; healthyAt: number; fastWatch: number; dropPoints: number; longOk: number; redialWatch: number; dailyFallWatch: number };
 };
+
+export type DailyReach = {
+  /** Reach (0 to 100) over the last 24 hours. */
+  today: number;
+  /** Reach over the 7 days before that. */
+  usual: number;
+  todayCalls: number;
+  /** How far today sits under the usual, as a share of the usual (0 to 100,
+   *  0 when it is at or above it). 25 means a quarter of the connections lost. */
+  fellPct: number;
+};
+
+/** The advice this follows: when the connect rate drops by 20 to 30% with the
+ *  lists unchanged, retire the number. 25 is the middle of that, and 20 is
+ *  where the panel starts saying so. */
+export const DAILY_FALL_WATCH_PCT = 20;
+export const DAILY_FALL_ALERT_PCT = 25;
+/** Calls today and in the usual week before a fall means anything: ten calls
+ *  swing 30% on luck alone. */
+export const DAILY_MIN_TODAY = 25;
+export const DAILY_MIN_USUAL = 60;
 
 export type CallLengths = {
   /** Recorded calls in the last 7 days. */
@@ -166,7 +191,35 @@ export function judge(args: {
   return "healthy";
 }
 
+async function getDailyReach(): Promise<Map<string, DailyReach>> {
+  const rows = (await db.execute(sql`
+    select coalesce(c.dialled_from, u.telnyx_did) as num,
+      count(*) filter (where c.called_at > now() - interval '24 hours')::int as t_calls,
+      count(*) filter (where c.called_at > now() - interval '24 hours'
+        and (c.outcome in ${PICKUP} or c.outcome = 'voicemail'))::int as t_reached,
+      count(*) filter (where c.called_at <= now() - interval '24 hours')::int as u_calls,
+      count(*) filter (where c.called_at <= now() - interval '24 hours'
+        and (c.outcome in ${PICKUP} or c.outcome = 'voicemail'))::int as u_reached
+    from "call" c
+    join app_user u on u.id = c.user_id
+    where c.called_at > now() - interval '8 days'
+      and c.outcome <> 'bad_number'
+      and coalesce(c.dialled_from, u.telnyx_did) is not null
+    group by 1
+  `)) as { num: string; t_calls: number; t_reached: number; u_calls: number; u_reached: number }[];
+  const out = new Map<string, DailyReach>();
+  for (const r of rows) {
+    if (r.t_calls < DAILY_MIN_TODAY || r.u_calls < DAILY_MIN_USUAL) continue;
+    const today = Math.round((r.t_reached / r.t_calls) * 100);
+    const usual = Math.round((r.u_reached / r.u_calls) * 100);
+    const fellPct = usual > 0 ? Math.max(0, Math.round(((usual - today) / usual) * 100)) : 0;
+    out.set(r.num, { today, usual, todayCalls: r.t_calls, fellPct });
+  }
+  return out;
+}
+
 export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
+  const daily = await getDailyReach();
   const rows = (await db.execute(sql`
     with c as (
       select coalesce(c.dialled_from, u.telnyx_did) as num,
@@ -402,6 +455,7 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
         dropPoints: DROP_POINTS,
         longOk: LONG_OK_PCT,
         redialWatch: REDIAL_WATCH_PCT,
+        dailyFallWatch: DAILY_FALL_WATCH_PCT,
       },
       calls: r.calls,
       total: Math.max(v?.total ?? 0, r.calls),
@@ -411,6 +465,7 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
       fastFailBefore,
       refused,
       perDay: Math.round(Math.max(v?.total ?? 0, r.calls) / 7),
+      daily: daily.get(r.num) ?? null,
       inUseSince: (() => {
         const first = [r.first_at, v?.first_at]
           .filter((x): x is string => !!x)
