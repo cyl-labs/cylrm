@@ -868,3 +868,25 @@ day: Aaron, Akshansh and the founders' number flag, Harry and Omar stay healthy,
 Alex's 74% reach and Brian's 22 calls come out as watch and too few. The cutoffs
 travel with the data (`NumberHealth.limits`) so the wording on the page cannot
 drift from the rules.
+
+## Taking a number off someone also takes it off their line (2026-10-03)
+
+"When I deactivate a team member their Telnyx room is still associated with the
+number." Deactivating already released the line (`releaseLine`, since
+2026-09-26) and every deactivated person was clean on Telnyx. The gap was the
+two other ways a person stops holding a number, which only changed our own row:
+
+- **Clearing a number on their Team row**, and
+- **swapping it for another** (the new one was pointed at their line, the old one
+  stayed pointed there too, so they rang on both).
+
+Both now call `unpointNumber` (`lib/telnyx.ts`) after the save, which takes the
+number off their personal line **only if it still points at that line** (the
+rule `releaseLine` follows), and off the texting profile if they had texting.
+A failure is reported as a warning on the response, never refused: the account
+already says the number is free. Tested against a stand-in Telnyx
+(`TELNYX_API_BASE`) that records what it is asked, never a real line.
+
+**Found live, left alone**: Mico (active) has no number on Team but
++1 707 640 8891 still answers on his line `cylrm-mico`, the leftover of this bug.
+Moving it is a founder's call, since he may still be answering it.

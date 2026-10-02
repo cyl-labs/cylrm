@@ -10,6 +10,7 @@ import {
   TelnyxNotConfiguredError,
   linkTextingCampaign,
   releaseLine,
+  unpointNumber,
   provisionLine,
   unlinkTextingCampaign,
 } from "@/lib/telnyx";
@@ -296,9 +297,15 @@ export async function PATCH(
 
   // The number they ring from. Checked against their market, because a US
   // number calling Singapore leads is worse than sharing a Singapore one.
+  // The number this person is giving up (cleared, or swapped for another),
+  // taken off their line on Telnyx after the save. See `unpointNumber`.
+  let giveUp: string | null = null;
   if ("telnyxDid" in body) {
     const did =
       typeof body.telnyxDid === "string" ? body.telnyxDid.trim() : "";
+    if (target.telnyxDid && target.telnyxConnectionId && did !== target.telnyxDid) {
+      giveUp = target.telnyxDid;
+    }
     if (did === "") {
       values.telnyxDid = null;
     } else {
@@ -429,6 +436,25 @@ export async function PATCH(
         console.error("[team] locking the line failed", err);
         telnyxWarning =
           "Switched off and their number freed, but Telnyx did not confirm their phone line was removed. Check it on Telnyx.";
+      }
+    }
+  }
+
+  // The number they gave up comes off their line (2026-10-03). After the save
+  // and reported rather than refused, like the deactivation tidy-up above: the
+  // account already says the number is free.
+  if (giveUp && target.active && values.active !== false && target.telnyxConnectionId) {
+    try {
+      await unpointNumber({
+        did: giveUp,
+        connectionId: target.telnyxConnectionId,
+        texting: target.textAccess,
+      });
+    } catch (err) {
+      if (!(err instanceof TelnyxNotConfiguredError)) {
+        console.error("[team] taking the old number off their line failed", err);
+        telnyxWarning =
+          "Saved, but Telnyx did not confirm the old number was taken off their phone line. It may still ring them. Check it on Telnyx.";
       }
     }
   }

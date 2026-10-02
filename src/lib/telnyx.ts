@@ -589,6 +589,43 @@ export async function releaseLine(input: {
 }
 
 /**
+ * Take a number off a person's line, leaving the line itself (2026-10-03).
+ *
+ * Clearing somebody's number on Team, or moving them to another, only changed
+ * our own row: the number on Telnyx stayed pointed at their personal line, so
+ * a number nobody held still rang the person it had been taken from, and a
+ * person moved from one number to another was ringing on both. Found when the
+ * founders noticed a leaver's line was still on the number (Mico's, whose
+ * number showed no holder on Team while Telnyx still answered it on his line).
+ *
+ * Only unpointed when it still points at *their* line, the rule `releaseLine`
+ * follows: one re-pointed somewhere else by hand belongs to whatever uses it
+ * now. Off the texting profile too when they had texting. Throws if Telnyx
+ * refuses to unpoint it, so the caller can say so; a number that is not found
+ * or already points elsewhere is not an error.
+ */
+export async function unpointNumber(input: {
+  did: string;
+  connectionId: string;
+  texting: boolean;
+}): Promise<void> {
+  const found = (
+    await telnyxExact(`/phone_numbers?filter[phone_number]=${encodeURIComponent(input.did)}`)
+  ).data as Record<string, unknown>[] | undefined;
+  const number = found?.find((n) => n.phone_number === input.did);
+  if (input.texting) {
+    // Best effort, as when texting is switched off on Team.
+    await unlinkTextingCampaign(input.did).catch(() => {});
+  }
+  if (number && String(number.connection_id ?? "") === input.connectionId) {
+    await telnyxExact(`/phone_numbers/${number.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ connection_id: null }),
+    });
+  }
+}
+
+/**
  * Is a webhook really from Telnyx?
  *
  * Ed25519 over `${timestamp}|${rawBody}`, against the account public key. The
