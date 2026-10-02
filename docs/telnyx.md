@@ -950,3 +950,21 @@ invoice.
 - **Missed:** a number bought and released inside the window (only live numbers
   are listed), and any country priced differently from the US. If a new country
   is added, add its rate to `NUMBER_RATES` after checking an invoice.
+
+## The incoming-call banner shows the booking (2026-10-03)
+
+Asked for: "when i get incoming calls show me the previous context / booking
+summary of the caller". `/api/inbound-lead` now also returns `meetings` (the
+caller's last three bookings: kind, time in the prospect's zone, cancelled /
+coming up / held, whether they showed, the follow-up result, and the stored
+briefing) and `lastSummary` (newest written call summary). `IncomingCall`
+renders a block above the call notes: one sentence per booking (two at most)
+and up to five lines of the briefing, else the call summary.
+
+- **Read as stored, nothing generated while it rings.** A booking with no
+  briefing yet shows its sentence only.
+- **A booking is found by the lead, and for a founder also by the booking's own
+  phone number**, because a prospect who booked from a mobile rings in from it
+  even when no lead carries that number. A caller never gets the number path
+  (their access is through a lead on their own niches).
+- Not browser-tested: the SQL was run against a seeded local lead and booking.

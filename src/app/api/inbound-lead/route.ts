@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { callScope, getCurrentUser } from "@/lib/session";
+import { answersMeeting } from "@/lib/attendance-sql";
 
 /**
  * Who is ringing, and what was said last time.
@@ -60,7 +61,68 @@ export async function GET(request: Request) {
     list_name: string;
   }[];
 
-  if (!lead) return Response.json({ lead: null });
+  // Bookings with this caller (2026-10-03): "show me the previous context /
+  // booking summary of the caller so i know what is going on". Found by the
+  // lead when there is one, and by the booking's own phone number otherwise,
+  // since a prospect who booked from a mobile rings in from it. The number
+  // path is a founder's only: a caller reaches a booking through a lead on
+  // their own niches, like everything else here.
+  const keyList = sql.join(keys.map((k) => sql`${k}`), sql`, `);
+  const meetingRows = (await db.execute(sql`
+    select m.id, m.kind, m.start_at, m.status, m.attendee_name, m.attendee_tz,
+      b.summary as brief,
+      (select a.status from call_demo_attendance a
+        where a.call_lead_id = m.call_lead_id and ${answersMeeting("a", "m")}
+        order by a.marked_at desc limit 1) as attendance,
+      (select f.result from call_meeting_followup f
+        where f.meeting_id = m.id and f.for_start_at = m.start_at
+        order by f.created_at desc limit 1) as follow_up
+    from call_meeting m
+    left join call_meeting_brief b on b.meeting_id = m.id
+    where ${
+      lead
+        ? sql`m.call_lead_id = ${lead.id}`
+        : owner === undefined
+          ? sql`regexp_replace(coalesce(m.attendee_phone, ''), '[^0-9]', '', 'g') in (${keyList})`
+          : sql`false`
+    }
+    order by m.start_at desc
+    limit 3
+  `)) as {
+    id: number;
+    kind: string;
+    start_at: string;
+    status: string;
+    attendee_name: string | null;
+    attendee_tz: string | null;
+    brief: string | null;
+    attendance: string | null;
+    follow_up: string | null;
+  }[];
+  const meetings = meetingRows.map((m) => ({
+    id: m.id,
+    kind: m.kind,
+    startAt: new Date(m.start_at).toISOString(),
+    status: m.status,
+    name: m.attendee_name,
+    tz: m.attendee_tz,
+    attendance: m.attendance,
+    followUp: m.follow_up,
+    brief: m.brief,
+  }));
+
+  if (!lead) return Response.json({ lead: null, meetings });
+
+  // The newest written summary of a call with them, if one exists. Read as
+  // stored: nothing is generated while the phone is ringing.
+  const [summaryRow] = (await db.execute(sql`
+    select cr.summary, cr.started_at
+    from call c
+    join call_recording cr on cr.call_session_id = c.telnyx_session_id
+    where c.call_lead_id = ${lead.id} and cr.summary is not null
+    order by cr.started_at desc nulls last
+    limit 1
+  `)) as { summary: string; started_at: string | null }[];
 
   // The last few calls, newest first. Notes are the point — the outcome alone
   // says a callback was promised, the note says what for.
@@ -79,6 +141,13 @@ export async function GET(request: Request) {
   }[];
 
   return Response.json({
+    meetings,
+    lastSummary: summaryRow
+      ? {
+          text: summaryRow.summary,
+          at: summaryRow.started_at ? new Date(summaryRow.started_at).toISOString() : null,
+        }
+      : null,
     lead: {
       id: lead.id,
       company: lead.company,
