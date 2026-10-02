@@ -797,3 +797,38 @@ by somebody who sees "Spam Likely" ends in seconds.
   Recalibrate once a flagged number is confirmed.
 - The panel says which measure the colour came from ("Judged from call length,
   since only N of its M calls were logged with an outcome").
+
+## Number health, second version: calls that die at once (2026-10-03)
+
+The founders chose not to pay for Telnyx Number Reputation ($100 a month plus
+$0.10 a check, US only), so the signal is internal and was made as sharp as the
+data allows.
+
+- **Fast drops are the strong signal.** A "no answer" call that ends in under 8
+  seconds (`FAST_FAIL_SECONDS`, from the browser's own timer) was refused, not
+  rung out: a normal unanswered call rings 20 to 30 seconds. **Measured on prod
+  2026-10-03 over 7 days**: Aaron 59% of his no answers under 8s (median 6s, about
+  41% of all his calls), Akshansh 53% (median 7s, about 35%), Harry 18% of 11, Alex
+  3.5% of calls. Healthy numbers have almost no no-answers at all, because their
+  calls reach a voicemail.
+- **Reach is the supporting signal**, because low reach alone also describes a bad
+  list or a bad hour. `judge()`: flagged when 25% or more of calls drop fast
+  (`FAST_FLAG_PCT`), or 10% or more (`FAST_WATCH_PCT`) with reach under 50; watch
+  for 10% or more, reach under 70, a 15 point fall in reach, or a 15 point rise in
+  fast drops. **A number that rings out in full and is not answered is "keep an
+  eye on it" and never "probably flagged"**, and the panel says it may be the
+  lists or the hours.
+- **`call_hangup`** (`2026-10-03-call-hangup.sql`, **apply before deploying** the
+  webhook that writes it; applied to prod 2026-10-03) stores why each call from one
+  of our numbers ended, from Telnyx's `call.hangup` (`hangup_cause`,
+  `sip_hangup_cause`, `hangup_source`). Only the leg whose `from` is one of
+  `app_user.telnyx_did` is kept, one row per `call_leg_id`. `recordHangup` in the
+  webhook is best effort and can never fail it. `call_rejected` (SIP 603) is the
+  far side refusing. Once a number has 100 in a week (`HANGUP_MIN`) the refused
+  share counts beside the fast drops, and it fills from the day it shipped, so it
+  says nothing at first. **Check the first rows after a deploy**: the payload field
+  names (`from`, `call_leg_id`, `hangup_cause`) are from Telnyx's documentation and
+  had not been seen on this account's webhook.
+- Still no way to be certain a carrier has labelled a number: the only ground truth
+  is Telnyx Number Reputation (paid), calling a phone on each carrier, or the Free
+  Caller Registry.

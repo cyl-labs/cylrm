@@ -40,6 +40,14 @@ export type NumberHealth = {
   reach: number | null;
   /** The 7 days before that, when there were enough calls to compare. */
   reachBefore: number | null;
+  /** Share (0 to 100) of timed calls that ended within 8 seconds with no
+   *  answer. The strongest sign: a normal unanswered call rings for 20 seconds
+   *  or more, and one the carrier refuses is gone in a few. Null with too few. */
+  fastFail: number | null;
+  fastFailBefore: number | null;
+  /** Share (0 to 100) of this week's calls Telnyx reported as refused
+   *  (`call_rejected`), once there are 100 of them on record. Null before then. */
+  refused: number | null;
   perDay: number;
   /** When a call was first placed from this number. */
   inUseSince: string | null;
@@ -77,16 +85,47 @@ export const WATCH_AT = 50;
 /** A fall this big from the week before is worth a look even when the number
  *  is still above the line. */
 export const DROP_POINTS = 15;
+/** A call that ends this fast with no answer was refused, not rung out. */
+export const FAST_FAIL_SECONDS = 8;
+/** Measured on prod 2026-10-03: the two numbers that looked flagged had 35 and
+ *  41% of their calls end in under 8 seconds, healthy ones had 0 to 4%. */
+export const FAST_WATCH_PCT = 10;
+export const FAST_FLAG_PCT = 25;
+/** Hangup records needed in a week before the refused share counts. */
+export const HANGUP_MIN = 100;
 
-export function judge(
-  calls: number,
-  reach: number | null,
-  reachBefore: number | null,
-): NumberHealthStatus {
-  if (calls < HEALTH_MIN_CALLS || reach === null) return "few";
-  if (reach < WATCH_AT) return "flagged";
-  if (reach < HEALTHY_AT) return "watch";
-  if (reachBefore !== null && reachBefore - reach >= DROP_POINTS) return "watch";
+/**
+ * The verdict. The strong signal is how many calls end the moment they are
+ * placed (fast drops, and calls Telnyx says were refused): that is what a
+ * carrier does to a flagged number. Reach is the supporting one, because a low
+ * reach alone also describes a bad list or a bad hour. A number that rings out
+ * in full and is simply not answered is therefore "keep an eye on it", never
+ * "probably flagged".
+ */
+export function judge(args: {
+  calls: number;
+  reach: number | null;
+  reachBefore: number | null;
+  fastFail: number | null;
+  fastFailBefore: number | null;
+  refused: number | null;
+}): NumberHealthStatus {
+  const { calls, reach, reachBefore, fastFail, fastFailBefore, refused } = args;
+  const enough = calls >= HEALTH_MIN_CALLS && reach !== null;
+  if (!enough && refused === null) return "few";
+  const strong = Math.max(fastFail ?? 0, refused ?? 0);
+  if (strong >= FAST_FLAG_PCT) return "flagged";
+  if (strong >= FAST_WATCH_PCT && reach !== null && reach < WATCH_AT) return "flagged";
+  if (strong >= FAST_WATCH_PCT) return "watch";
+  if (reach !== null && reach < HEALTHY_AT) return "watch";
+  if (reach !== null && reachBefore !== null && reachBefore - reach >= DROP_POINTS)
+    return "watch";
+  if (
+    fastFail !== null &&
+    fastFailBefore !== null &&
+    fastFail - fastFailBefore >= DROP_POINTS
+  )
+    return "watch";
   return "healthy";
 }
 
@@ -94,7 +133,7 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
   const rows = (await db.execute(sql`
     with c as (
       select coalesce(c.dialled_from, u.telnyx_did) as num,
-        c.called_at, c.outcome::text as outcome
+        c.called_at, c.outcome::text as outcome, c.duration_seconds as secs
       from "call" c
       join app_user u on u.id = c.user_id
       where coalesce(c.dialled_from, u.telnyx_did) is not null
@@ -110,6 +149,16 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
       count(*) filter (where called_at <= now() - interval '7 days'
         and called_at > now() - interval '14 days'
         and (outcome in ${PICKUP} or outcome = 'voicemail'))::int as reached_before,
+      count(*) filter (where called_at > now() - interval '7 days'
+        and outcome <> 'bad_number' and secs is not null)::int as timed,
+      count(*) filter (where called_at > now() - interval '7 days'
+        and outcome = 'no_answer' and secs < ${FAST_FAIL_SECONDS})::int as fast,
+      count(*) filter (where called_at <= now() - interval '7 days'
+        and called_at > now() - interval '14 days'
+        and outcome <> 'bad_number' and secs is not null)::int as timed_before,
+      count(*) filter (where called_at <= now() - interval '7 days'
+        and called_at > now() - interval '14 days'
+        and outcome = 'no_answer' and secs < ${FAST_FAIL_SECONDS})::int as fast_before,
       min(called_at) as first_at
     from c group by num
   `)) as {
@@ -118,8 +167,26 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
     reached: number;
     calls_before: number;
     reached_before: number;
+    timed: number;
+    fast: number;
+    timed_before: number;
+    fast_before: number;
     first_at: string | null;
   }[];
+
+  // Why calls ended, as Telnyx reports it (call_hangup, from 2026-10-03). The
+  // table only fills from the day it was added, so it says nothing for the
+  // first days and takes over from the fast-drop estimate as it grows.
+  const hangups = (await db.execute(sql`
+    select from_number as num,
+      count(*) filter (where created_at > now() - interval '7 days')::int as n,
+      count(*) filter (where created_at > now() - interval '7 days'
+        and hangup_cause = 'call_rejected')::int as refused
+    from call_hangup
+    where created_at > now() - interval '7 days'
+    group by 1
+  `)) as { num: string; n: number; refused: number }[];
+  const hangupOf = new Map(hangups.map((h) => [h.num, h]));
 
   // Every call from each number, whichever way it was made (2026-10-03). The
   // verdict above can only use calls that carry an outcome, but the volume and
@@ -155,6 +222,10 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
         reached: 0,
         calls_before: 0,
         reached_before: 0,
+        timed: 0,
+        fast: 0,
+        timed_before: 0,
+        fast_before: 0,
         first_at: v.first_at,
       });
     }
@@ -220,7 +291,20 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
       r.calls_before >= HEALTH_MIN_CALLS
         ? Math.round((100 * r.reached_before) / r.calls_before)
         : null;
-    const byOutcomes = judge(r.calls, reach, reachBefore);
+    const pct = (a: number, b: number) => Math.round((100 * a) / b);
+    const fastFail = r.timed >= HEALTH_MIN_CALLS ? pct(r.fast, r.timed) : null;
+    const fastFailBefore =
+      r.timed_before >= HEALTH_MIN_CALLS ? pct(r.fast_before, r.timed_before) : null;
+    const hang = hangupOf.get(r.num);
+    const refused = hang && hang.n >= HANGUP_MIN ? pct(hang.refused, hang.n) : null;
+    const byOutcomes = judge({
+      calls: r.calls,
+      reach,
+      reachBefore,
+      fastFail,
+      fastFailBefore,
+      refused,
+    });
     // Too few logged outcomes to use reach: fall back to call lengths, which
     // can only ever say "healthy" or "keep an eye on it".
     let status = byOutcomes;
@@ -240,6 +324,9 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
       total: Math.max(v?.total ?? 0, r.calls),
       reach,
       reachBefore,
+      fastFail,
+      fastFailBefore,
+      refused,
       perDay: Math.round(Math.max(v?.total ?? 0, r.calls) / 7),
       inUseSince: (() => {
         const first = [r.first_at, v?.first_at]
