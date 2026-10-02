@@ -1778,8 +1778,17 @@ export async function getMeetings(
       ${ownedBy(ownerId)}
     order by ${
       opts.past
-        ? // History reads newest first, the same order the call log opens on.
-          sql`m.start_at desc, m.id desc`
+        ? // History reads newest first, the same order the call log opens on,
+          // by when the meeting happened (2026-10-03). A meeting moved quietly
+          // to December, or a cancelled one whose slot is still ahead, has a
+          // start_at in the future and used to sit above everything that
+          // really happened last. Those sort by the time Cal.com held when it
+          // was in the past, else by when the booking was made.
+          sql`(case
+                when m.start_at <= now() then m.start_at
+                when m.cal_start_at is not null and m.cal_start_at <= now() then m.cal_start_at
+                else m.created_at
+              end) desc, m.id desc`
         : sql`
       -- What has not happened yet, first (2026-09-20). It was start_at asc
       -- for everything, which is right for a diary and wrong for this one:

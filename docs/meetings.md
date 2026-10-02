@@ -2367,3 +2367,9 @@ and the reader's in brackets. When they share the reader's clock it reads as
 before. Not checked in a browser: the suggestion needs a started meeting and a
 recording with a stored `callback_suggestion` that no later call has overtaken,
 which I could not reproduce locally.
+
+**Past meetings sort by when the meeting happened** (2026-10-03). It was
+`start_at desc`, so a meeting moved quietly to December, or a cancelled one whose
+slot is still ahead, sat above everything that had really just taken place. The
+key is `start_at` if past, else the time Cal.com held (`cal_start_at`) if that
+is past, else `created_at`.
