@@ -137,6 +137,8 @@ const PRODUCT_NOTE: Record<string, string> = {
   recording: "every call is recorded, charged by the minute",
   "number-lookup": "checking whether a number can receive texts",
   messaging: "texts to prospects, once the carrier approves us",
+  numbers:
+    "monthly rent on every number we hold, plus the setup fee on new ones (an estimate from Telnyx's price list)",
 };
 
 export default async function SpendPage({
@@ -394,7 +396,7 @@ export default async function SpendPage({
           )}
           <dl className="mt-3 grid grid-cols-1 gap-2 text-[13px] sm:grid-cols-2 lg:grid-cols-5">
             {[
-              { label: "Phones", note: "Telnyx usage", value: spend.total, dot: BUCKET.phones },
+              { label: "Phones", note: "Telnyx usage and numbers", value: spend.total, dot: BUCKET.phones },
               { label: "Floor pay", note: "pickup bonuses and demo fees", value: floorPay, dot: BUCKET.pay },
               { label: "Subscriptions", note: "Claude, the Discord and the rest", value: subs.total, dot: BUCKET.subs },
               ...(eleven || top.total > 0
