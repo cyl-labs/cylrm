@@ -77,6 +77,13 @@ export const LENGTH_MIN_CALLS = 50;
 export const LONG_OK_PCT = 40;
 /** A fall this big in the share of long calls, week on week. */
 export const LONG_DROP_POINTS = 20;
+/** Calibrated on a number known to be flagged (2026-10-03): a client's
+ *  screenshot showed "Potential Spam" on the founders' number, whose recorded
+ *  calls ran 33% past 30 seconds with 43% ended within 10. Both at once is
+ *  flagged; Alex's healthy number was 39% and 37%. One known case, so treat the
+ *  edges as soft. */
+export const LONG_FLAG_PCT = 35;
+export const SHORT_FLAG_PCT = 40;
 
 /** Below this many calls in a week there is no verdict, only a count. */
 export const HEALTH_MIN_CALLS = 100;
@@ -313,7 +320,12 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
       const dropped =
         lengths.longPctBefore !== null &&
         lengths.longPctBefore - lengths.longPct >= LONG_DROP_POINTS;
-      status = lengths.longPct < LONG_OK_PCT || dropped ? "watch" : "healthy";
+      status =
+        lengths.longPct < LONG_FLAG_PCT && lengths.shortPct >= SHORT_FLAG_PCT
+          ? "flagged"
+          : lengths.longPct < LONG_OK_PCT || dropped
+            ? "watch"
+            : "healthy";
       basis = "lengths";
     }
     out[r.num] = {

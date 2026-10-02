@@ -789,6 +789,11 @@ export const callNumber = pgTable("call_number", {
    * reserved set is built from `available = false`, never from a row existing.
    */
   label: text("label"),
+  /** When somebody saw this number labelled as spam on a real phone, and what
+   *  the phone said (2026-10-03). The only certain fact about a number's
+   *  reputation we ever get, so the Team panel shows it above any estimate. */
+  spamSeenAt: timestamp("spam_seen_at", { withTimezone: true }),
+  spamSeenNote: text("spam_seen_note"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
