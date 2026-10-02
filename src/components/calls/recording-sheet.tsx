@@ -2,6 +2,7 @@
 
 import { briefLines } from "@/lib/brief-lines";
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Check, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ export function RecordingSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const router = useRouter();
   const [turns, setTurns] = React.useState<TranscriptTurn[] | null>(null);
   const [text, setText] = React.useState<string | null>(null);
   // The written summary of a call over five minutes, and how long the call
@@ -156,6 +158,9 @@ export function RecordingSheet({
       return;
     }
     setSummary(data.summary);
+    // The meeting row behind this was drawn before the summary existed, so it
+    // would stay without one until the page was reloaded (2026-10-03).
+    router.refresh();
   }
 
   /** Jump the audio to a turn and keep playing from there. The whole point of

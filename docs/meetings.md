@@ -2315,3 +2315,22 @@ booking call.** The briefing is written from the call that booked the meeting,
 and the fold also listed that call's own summary as "Cold call", so a business
 with one call showed it twice. The fold skips that entry whenever the briefing
 is showing (not on a cancelled row, which has no briefing).
+
+## Long-call summaries show on the row, and can be asked for from it (2026-10-03)
+
+"Does the summary for the demo call only show up when I click into the demo
+call? Why doesn't it show as a new dropdown." Two causes, both fixed.
+
+- **A long call with no stored summary left the row blank.** The meeting-calls
+  cron writes summaries by itself only for calls in the last three days, so an
+  older demo had none until somebody opened the call and pressed Write a
+  summary there. `CallSummariesFold` now lists **every call over five minutes**
+  (`LONG_CALL_MS`, mirrored from `SUMMARY_MIN_MS` because that file reaches the
+  database), and one without a summary says so and has a **Write summary**
+  button. It transcribes first when there is no transcript (a 409 from the
+  summary route), which is billed per minute, so it only ever happens on a press.
+- **A summary written in the recording window did not reach the row**, which had
+  been drawn before it existed, so the row stayed without one until a reload.
+  `RecordingSheet` now calls `router.refresh()` after writing one.
+- The "Cold call" entry is still left out while the briefing is showing; see the
+  note above about the two summarising the same call.
