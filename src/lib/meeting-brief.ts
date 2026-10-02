@@ -151,7 +151,27 @@ export async function briefSources(
     left join call_list cl on cl.id = l.call_list_id
     left join "call" bc on bc.id = m.call_id
     left join app_user bu on bu.id = bc.user_id
-    left join call_recording cr on cr.call_session_id = bc.telnyx_session_id
+    -- The conversation that won the meeting: the booking call's own recording
+    -- when it ran 20 seconds or more, else the longest call to the same number
+    -- from the same caller ID in the two hours before (a redial logged the
+    -- booking and the real call was the one before it). Same rule as the joins
+    -- in lib/meetings.ts.
+    left join lateral (
+      select r.* from call_recording r
+      where bc.id is not null
+        and (
+          r.call_session_id = bc.telnyx_session_id
+          or (
+            r.to_number = '+' || l.phone_key
+            and r.from_number = coalesce(bc.dialled_from, bu.telnyx_did)
+            and r.started_at between bc.called_at - interval '2 hours' and bc.called_at
+          )
+        )
+      order by
+        (r.call_session_id = bc.telnyx_session_id and coalesce(r.duration_ms, 0) >= 20000) desc,
+        r.duration_ms desc nulls last, r.id
+      limit 1
+    ) cr on true
     where m.id in (${ids})
   `)) as unknown as Record<string, unknown>[];
 
@@ -240,7 +260,23 @@ export async function ensureTranscripts(
     select distinct cr.recording_id
     from call_meeting m
     join "call" bc on bc.id = m.call_id
-    join call_recording cr on cr.call_session_id = bc.telnyx_session_id
+    join call_lead l on l.id = m.call_lead_id
+    left join app_user bu on bu.id = bc.user_id
+    -- The same recording the brief reads, so the one that needs words is the
+    -- real conversation and not a redial logged after it.
+    join lateral (
+      select r.* from call_recording r
+      where r.call_session_id = bc.telnyx_session_id
+        or (
+          r.to_number = '+' || l.phone_key
+          and r.from_number = coalesce(bc.dialled_from, bu.telnyx_did)
+          and r.started_at between bc.called_at - interval '2 hours' and bc.called_at
+        )
+      order by
+        (r.call_session_id = bc.telnyx_session_id and coalesce(r.duration_ms, 0) >= 20000) desc,
+        r.duration_ms desc nulls last, r.id
+      limit 1
+    ) cr on true
     where m.id in (${sql.join(
       meetingIds.map((id) => sql`${id}`),
       sql`, `,

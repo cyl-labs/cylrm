@@ -962,21 +962,9 @@ const meetingSelect = sql`
   -- call log does. Only the id and the length: the audio lives in Telnyx's S3
   -- and a fresh presigned URL is minted per play, which is why one opened a
   -- month later still works.
-  (
-    select cr.recording_id from call_recording cr
-    where cr.call_session_id = bc.telnyx_session_id
-    order by cr.id limit 1
-  ) as recording_id,
-  (
-    select cr.duration_ms from call_recording cr
-    where cr.call_session_id = bc.telnyx_session_id
-    order by cr.id limit 1
-  ) as recording_ms,
-  (
-    select cr.summary from call_recording cr
-    where cr.call_session_id = bc.telnyx_session_id
-    order by cr.id limit 1
-  ) as recording_summary,
+  brec.recording_id as recording_id,
+  brec.duration_ms as recording_ms,
+  brec.summary as recording_summary,
   -- The demo itself, which is a different call from the one above: that one is
   -- the cold call that won the booking, this is the conversation at the booked
   -- time. Found by number and time rather than by a session id, because the
@@ -1463,6 +1451,34 @@ const joins = sql`
   left join call_lead l on l.id = m.call_lead_id
   left join call_list cl on cl.id = l.call_list_id
   left join "call" bc on bc.id = m.call_id
+  -- The recording of the conversation that won this meeting (2026-10-03). Usually
+  -- the booking call's own, but a caller who talks, hangs up and redials, then
+  -- logs the booking on the redial, leaves it pointing at a two second call:
+  -- Omar's Port Aransas booking was logged on a 1.7s redial while the real
+  -- conversation was the 76s call two minutes earlier, so the briefing had
+  -- nothing to read and said so. The call's own recording wins when it ran 20
+  -- seconds or more; otherwise the longest call to the same number from the same
+  -- caller ID in the two hours before the booking was logged.
+  left join lateral (
+    select r.recording_id, r.duration_ms, r.summary
+    from call_recording r
+    where bc.id is not null
+      and (
+        r.call_session_id = bc.telnyx_session_id
+        or (
+          r.to_number = '+' || l.phone_key
+          and r.from_number = coalesce(
+            bc.dialled_from,
+            (select u.telnyx_did from app_user u where u.id = bc.user_id)
+          )
+          and r.started_at between bc.called_at - interval '2 hours' and bc.called_at
+        )
+      )
+    order by
+      (r.call_session_id = bc.telnyx_session_id and coalesce(r.duration_ms, 0) >= 20000) desc,
+      r.duration_ms desc nulls last, r.id
+    limit 1
+  ) brec on true
   ${latestFollowup}
   -- The founders' call back on this meeting while it is open: the meeting
   -- "moved" to that time as a call back, without Cal.com or the prospect ever
