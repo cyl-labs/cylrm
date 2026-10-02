@@ -135,6 +135,30 @@ export async function notifyNumberFlagged(n: {
   await send(lines.join("\n"));
 }
 
+/** A number whose connect rate fell sharply in a day (see number-alerts.ts). */
+export async function notifyNumberFell(n: {
+  number: string;
+  holders: string[];
+  today: number;
+  usual: number;
+  fellPct: number;
+  calls: number;
+}): Promise<void> {
+  const base = process.env.PUBLIC_APP_URL ?? "";
+  const who = n.holders.length > 0 ? n.holders.join(" and ") : "nobody right now";
+  const lines = [
+    `📉 ${n.number} connect rate fell ${n.fellPct}% in a day`,
+    `Used by: ${who}`,
+    "",
+    `Last 24 hours: ${n.today} out of 100 calls got through (${n.calls} calls).`,
+    `The 7 days before: ${n.usual} out of 100.`,
+    "",
+    "If the lists have not changed, the number is probably burning. Consider retiring it and swapping in a fresh one on Team.",
+  ];
+  if (base) lines.push("", `${base}/team`);
+  await send(lines.join("\n"));
+}
+
 /** A call to a founder's number that nobody picked up. */
 export async function notifyMissedCall(m: {
   from: string;
