@@ -2298,3 +2298,20 @@ bottom of the "Did they turn up?" menu (shown once a meeting has an answer).
 - **Not yet covered**: the ring back result on a no show (confirmed, no answer,
   rescheduled, cancelled), the follow-up's outcome, Remove from Meetings (lost)
   and Trial/Won. Those still have no way back from the Meetings row.
+
+## A meeting leaves Upcoming once it is dealt with and the next one is booked (2026-10-03)
+
+"I booked a follow up on Cal.com, why is it still here." Every started meeting
+stays on the list for twelve hours (`KEEP_AFTER_START_HOURS`), answered or not.
+`settledByLaterBooking` in `lib/meetings.ts` now takes it off at once when
+**both** hold: something has been logged (a demo marked Showed up, or a
+follow-up with a call or ring back result against it, the same test as
+`follow_up_logged`) **and** the business has a later accepted booking still
+ahead. A no show (the ring back's business) and an unanswered meeting (owed
+work) are never covered. The row is still under Past meetings.
+
+**The briefing and "Summaries of long calls" no longer both summarise the
+booking call.** The briefing is written from the call that booked the meeting,
+and the fold also listed that call's own summary as "Cold call", so a business
+with one call showed it twice. The fold skips that entry whenever the briefing
+is showing (not on a cancelled row, which has no briefing).

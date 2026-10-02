@@ -1419,6 +1419,46 @@ const stillAhead = sql`(
   )
 )`;
 
+/**
+ * A meeting that has been dealt with and has its successor on the calendar
+ * (2026-10-03). Asked for as "I booked a follow up on Cal.com, why is it still
+ * here": the twelve hours after a start keep every started meeting on the
+ * screen, answered or not, which is right for one nobody has logged and wrong
+ * for one that was logged and then followed by the next booking.
+ *
+ * Dealt with: a demo that somebody says showed up, or a follow-up with a call
+ * or ring back result logged against it (the same test as `follow_up_logged`).
+ * A no show is the ring back's business and a missing answer is owed work, so
+ * neither is covered. The row stays under Past meetings.
+ */
+const settledByLaterBooking = sql`(
+  m.start_at <= now()
+  and m.status = 'accepted'
+  and exists (
+    select 1 from call_meeting nf
+    where nf.call_lead_id = m.call_lead_id
+      and nf.id <> m.id
+      and nf.status = 'accepted'
+      and nf.start_at > now()
+  )
+  and case
+    when m.kind = 'follow_up' then (
+      f.id is not null
+      or exists (
+        select 1 from "call" fc
+        where fc.call_lead_id = m.call_lead_id
+          and fc.called_at >= m.start_at - interval '12 hours'
+          and fc.id is distinct from m.call_id
+      )
+    )
+    else exists (
+      select 1 from call_demo_attendance a
+      where a.call_lead_id = l.id and ${answersMeeting("a", "m")}
+        and a.status = 'showed_up'
+    )
+  end
+)`;
+
 const joins = sql`
   left join call_lead l on l.id = m.call_lead_id
   left join call_list cl on cl.id = l.call_list_id
@@ -1689,7 +1729,8 @@ export async function getMeetings(
             -- one is where you go to hear its recording and see that it moved.
             or m.status = 'cancelled')`
         : sql`(
-              m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS})
+              (m.start_at > now() - make_interval(hours => ${KEEP_AFTER_START_HOURS})
+                and not ${settledByLaterBooking})
               -- A missed demo outstays the twelve hours: it is the one call
               -- worth making, and a row that vanished overnight is a call
               -- nobody makes.
