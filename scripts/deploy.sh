@@ -107,6 +107,8 @@ rsync -az --delete $DRY_RUN \
   --exclude .git \
   --exclude ".env*" \
   --exclude .claude \
+  --exclude /media \
+  --exclude /.next/dev \
   ./ "$HOST:$STAGE/"
 
 if [[ -n "$DRY_RUN" ]]; then
