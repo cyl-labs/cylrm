@@ -174,6 +174,22 @@ Employees sign in individually so every call has a name on it. The single shared
   every other assign. HTML5 drag never fires on touch, so on a phone the menu
   is the route. Founders only (`canManage`).
 
+- **The Call lists cell is a headline over one line per list** (2026-10-02,
+  `components/team/lists-cell.tsx`). It was a stack of bordered cards, one
+  per list and three lines tall, with the person's total at the bottom: six
+  lists made a row five hundred pixels tall, the other cells sat in the space
+  beside it, and the one thing the column is read for (who needs another list)
+  was the last line of the stack. The total now comes first, coloured and
+  dotted only when the warning at the top would fire on it (red for no lists
+  or no new leads, amber inside three days, nothing otherwise), so the column
+  scans like the rest of the table. Each list is one line: name, a thin bar
+  for how far through it is, and how many leads nobody has rung ("no new" in
+  red, "empty" for a list nothing was imported into). The percentage moved to
+  the tooltip. Same numbers as before (`listProgress`, `uncalled`,
+  `callerUrgency`), same fold after three, same link, drag and menu on every
+  line, and "Give them another list" under them. The cell is a fixed 16rem so
+  a long name truncates rather than stretching the column.
+
 ## Managers: a caller who looks after other callers (2026-10-01)
 
 `lib/managers.ts`, migration `2026-10-01-manager-link.sql` (**apply before
