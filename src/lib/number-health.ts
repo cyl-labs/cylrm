@@ -54,6 +54,10 @@ export type NumberHealth = {
    *  (`call_rejected`), once there are 100 of them on record. Null before then. */
   refused: number | null;
   perDay: number;
+  /** Of `perDay`, how many a day are cold dials (a logged call from a list).
+   *  The rest are meeting and follow-up calls and Keypad dials, which are few
+   *  and long, so a count that lumps them in reads far too busy. */
+  coldPerDay: number;
   /** The last 24 hours against the 7 days before them (2026-10-03), so a
    *  number that falls off a cliff is seen in a day and not at the end of the
    *  week. Null with too few calls on either side. */
@@ -287,22 +291,32 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
   const volume = (await db.execute(sql`
     with t as (
       select coalesce(c.dialled_from, u.telnyx_did) as num,
-        coalesce(c.telnyx_session_id, 'call:' || c.id) as k, c.called_at as at
+        coalesce(c.telnyx_session_id, 'call:' || c.id) as k, c.called_at as at,
+        'cold' as kind
       from "call" c join app_user u on u.id = c.user_id
       where coalesce(c.dialled_from, u.telnyx_did) is not null
       union all
-      select k.from_did, coalesce(k.telnyx_session_id, 'keypad:' || k.id), k.called_at
+      select k.from_did, coalesce(k.telnyx_session_id, 'keypad:' || k.id), k.called_at,
+        'other'
       from keypad_call k where k.from_did is not null
       union all
-      select cr.from_number, cr.call_session_id, cr.started_at
+      select cr.from_number, cr.call_session_id, cr.started_at, 'other'
       from call_recording cr
       where cr.from_number is not null and cr.started_at is not null
+    ),
+    -- A call is cold if any source says so: the same session also appears as a
+    -- logged cold call, so it must not be counted again as a meeting call.
+    u as (
+      select num, k, min(at) as at,
+        bool_or(kind = 'cold') as cold
+      from t group by num, k
     )
     select num,
-      count(distinct k) filter (where at > now() - interval '7 days')::int as total,
+      count(*) filter (where at > now() - interval '7 days')::int as total,
+      count(*) filter (where at > now() - interval '7 days' and cold)::int as cold_n,
       min(at) as first_at
-    from t group by num
-  `)) as { num: string; total: number; first_at: string | null }[];
+    from u group by num
+  `)) as { num: string; total: number; cold_n: number; first_at: string | null }[];
   const vol = new Map(volume.map((v) => [v.num, v]));
   for (const v of volume) {
     if (!rows.some((r) => r.num === v.num)) {
@@ -465,6 +479,7 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
       fastFailBefore,
       refused,
       perDay: Math.round(Math.max(v?.total ?? 0, r.calls) / 7),
+      coldPerDay: Math.round((v?.cold_n ?? 0) / 7),
       daily: daily.get(r.num) ?? null,
       inUseSince: (() => {
         const first = [r.first_at, v?.first_at]

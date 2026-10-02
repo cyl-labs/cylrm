@@ -160,7 +160,7 @@ function HealthLine({ h }: { h: NumberHealth }) {
       </span>{" "}
       {look.says}
       {redialSays}
-      {dailySays} {h.perDay} calls a day{since ? `, in use since ${since}` : ""}.
+      {dailySays} {h.coldPerDay} cold dials a day{h.perDay > h.coldPerDay ? `, plus ${h.perDay - h.coldPerDay} meeting, follow-up and Keypad calls` : ""}{since ? `, in use since ${since}` : ""}.
     </p>
   );
 }
