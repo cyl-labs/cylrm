@@ -4,6 +4,7 @@ import { db } from "@/db";
 import type { SmsMedia } from "@/db/schema";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { pushToUser } from "@/lib/push";
+import { notifyFounderText } from "@/lib/notify";
 import { conversationHref } from "@/lib/text-key";
 
 /**
@@ -507,5 +508,24 @@ export async function recordInboundText(
     // rather than stacking behind it.
     tag: `cylrm-sms-${from}-${to}`,
   });
+
+  // A text to a founder's own number also goes to the founders' Telegram
+  // (2026-10-03), the way their meeting reminders do: a founder is not always
+  // in the CRM, and a prospect's reply is worth seeing at once. Only a number
+  // held by an admin; a caller's texts stay a push to that caller. Best effort
+  // and never allowed to fail the webhook.
+  const [owner] = (await db.execute(sql`
+    select role from app_user where id = ${userId}
+  `)) as Row[];
+  if (owner?.role === "admin") {
+    await notifyFounderText({
+      from,
+      who,
+      body,
+      href: conversationHref(from, to),
+    }).catch((err) =>
+      console.error("[sms] founder telegram failed:", String(err).slice(0, 200)),
+    );
+  }
   return { stored: true, notified };
 }

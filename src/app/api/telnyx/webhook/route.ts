@@ -8,6 +8,7 @@ import {
 } from "@/lib/telnyx";
 import { phoneKeyCandidates } from "@/lib/calls";
 import { recordInboundText, smsEnabled, updateTextStatus } from "@/lib/sms";
+import { notifyMissedCall } from "@/lib/notify";
 
 /**
  * Telnyx call and message events.
@@ -303,11 +304,52 @@ async function recordInbound(
     return;
   }
 
-  await db.execute(sql`
-    update inbound_call
-    set ended_at = coalesce(ended_at, now())
-    where call_session_id = ${sessionId}
-  `);
+  // The first hangup of an inbound call that was never answered is a missed
+  // call. When it was a founder's number it also goes to the founders'
+  // Telegram (2026-10-03). The CTE reads the row as it was before this update,
+  // so only the first leg to hang up reports it: later legs find `ended_at`
+  // already set and say nothing. Best effort, never allowed to fail the webhook.
+  const ended = (await db.execute(sql`
+    with prev as (
+      select id, ended_at, answered_at from inbound_call
+      where call_session_id = ${sessionId}
+    )
+    update inbound_call i
+    set ended_at = coalesce(i.ended_at, now())
+    from prev
+    where i.id = prev.id
+    returning prev.ended_at as was_ended, prev.answered_at as was_answered,
+      i.from_number, i.to_number, i.user_id, i.call_lead_id
+  `)) as unknown as {
+    was_ended: string | null;
+    was_answered: string | null;
+    from_number: string;
+    to_number: string;
+    user_id: number | null;
+    call_lead_id: number | null;
+  }[];
+  const missed = ended.find((r) => r.was_ended === null && r.was_answered === null);
+  if (missed && missed.user_id !== null) {
+    await alertFounderMissedCall(missed).catch((err) =>
+      console.error("[telnyx] missed-call telegram failed:", String(err).slice(0, 200)),
+    );
+  }
+}
+
+async function alertFounderMissedCall(m: {
+  from_number: string;
+  to_number: string;
+  user_id: number | null;
+  call_lead_id: number | null;
+}): Promise<void> {
+  const [owner] = (await db.execute(sql`
+    select u.role,
+      (select coalesce(nullif(l.company, ''), l.name) from call_lead l
+        where l.id = ${m.call_lead_id}) as who
+    from app_user u where u.id = ${m.user_id}
+  `)) as { role: string; who: string | null }[];
+  if (owner?.role !== "admin") return;
+  await notifyMissedCall({ from: m.from_number, who: owner.who, to: m.to_number });
 }
 
 /**
