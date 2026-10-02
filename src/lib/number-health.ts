@@ -56,6 +56,10 @@ export type NumberHealth = {
   lengths: CallLengths | null;
   /** What the status was worked out from. */
   basis: "outcomes" | "lengths" | null;
+  /** The cutoffs this was judged by, so the words on the page cannot drift
+   *  from the rules (the page cannot import this file's constants: it reaches
+   *  the database). */
+  limits: { minCalls: number; healthyAt: number; fastWatch: number; dropPoints: number; longOk: number };
 };
 
 export type CallLengths = {
@@ -71,35 +75,43 @@ export type CallLengths = {
 };
 
 /** Recorded calls needed in a week before their lengths say anything. */
-export const LENGTH_MIN_CALLS = 50;
+export const LENGTH_MIN_CALLS = 30;
 /** Healthy numbers had 53 to 58% of their recorded calls pass 30 seconds, the
  *  worst had 32 to 34% (2026-10-03). Below this is worth a look. */
-export const LONG_OK_PCT = 40;
+export const LONG_OK_PCT = 45;
 /** A fall this big in the share of long calls, week on week. */
-export const LONG_DROP_POINTS = 20;
+export const LONG_DROP_POINTS = 15;
 /** Calibrated on a number known to be flagged (2026-10-03): a client's
  *  screenshot showed "Potential Spam" on the founders' number, whose recorded
  *  calls ran 33% past 30 seconds with 43% ended within 10. Both at once is
  *  flagged; Alex's healthy number was 39% and 37%. One known case, so treat the
  *  edges as soft. */
-export const LONG_FLAG_PCT = 35;
-export const SHORT_FLAG_PCT = 40;
+export const LONG_FLAG_PCT = 40;
+export const SHORT_FLAG_PCT = 35;
 
+/**
+ * **Every cutoff in this file leans toward flagging** (2026-10-03, the founders:
+ * "slightly over sensitive to flagging spam over it having false negatives").
+ * A burned number costs a week of calls that nobody picks up; a false alarm
+ * costs one look. Healthy numbers measured that day sat well inside these
+ * (reach 90%+, fast drops 0 to 4%, 53 to 58% of recorded calls past 30
+ * seconds), so the margin is spent on catching more, not on the healthy ones.
+ */
 /** Below this many calls in a week there is no verdict, only a count. */
-export const HEALTH_MIN_CALLS = 100;
-export const HEALTHY_AT = 70;
+export const HEALTH_MIN_CALLS = 60;
+export const HEALTHY_AT = 75;
 export const WATCH_AT = 50;
 /** A fall this big from the week before is worth a look even when the number
  *  is still above the line. */
-export const DROP_POINTS = 15;
+export const DROP_POINTS = 10;
 /** A call that ends this fast with no answer was refused, not rung out. */
 export const FAST_FAIL_SECONDS = 8;
 /** Measured on prod 2026-10-03: the two numbers that looked flagged had 35 and
  *  41% of their calls end in under 8 seconds, healthy ones had 0 to 4%. */
-export const FAST_WATCH_PCT = 10;
-export const FAST_FLAG_PCT = 25;
+export const FAST_WATCH_PCT = 5;
+export const FAST_FLAG_PCT = 15;
 /** Hangup records needed in a week before the refused share counts. */
-export const HANGUP_MIN = 100;
+export const HANGUP_MIN = 60;
 
 /**
  * The verdict. The strong signal is how many calls end the moment they are
@@ -122,7 +134,11 @@ export function judge(args: {
   if (!enough && refused === null) return "few";
   const strong = Math.max(fastFail ?? 0, refused ?? 0);
   if (strong >= FAST_FLAG_PCT) return "flagged";
-  if (strong >= FAST_WATCH_PCT && reach !== null && reach < WATCH_AT) return "flagged";
+  // Reach under the watch line is flagged on its own now, even if the calls
+  // ring out in full: leaning toward flagging means a bad list gets looked at
+  // too, which is a fair price.
+  if (reach !== null && reach < WATCH_AT) return "flagged";
+  if (strong >= FAST_WATCH_PCT && reach !== null && reach < HEALTHY_AT) return "flagged";
   if (strong >= FAST_WATCH_PCT) return "watch";
   if (reach !== null && reach < HEALTHY_AT) return "watch";
   if (reach !== null && reachBefore !== null && reachBefore - reach >= DROP_POINTS)
@@ -332,6 +348,13 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
       status,
       lengths,
       basis,
+      limits: {
+        minCalls: HEALTH_MIN_CALLS,
+        healthyAt: HEALTHY_AT,
+        fastWatch: FAST_WATCH_PCT,
+        dropPoints: DROP_POINTS,
+        longOk: LONG_OK_PCT,
+      },
       calls: r.calls,
       total: Math.max(v?.total ?? 0, r.calls),
       reach,

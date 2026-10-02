@@ -854,3 +854,17 @@ against.
   in red above the estimate. Proof beats inference, and it is the only way to
   grow the set of known cases the thresholds were set from, so record every
   screenshot a client or caller sends. "It is not flagged any more" clears it.
+
+**The cutoffs lean toward flagging** (2026-10-03, the founders: "slightly over
+sensitive to flagging spam over it having false negatives"). A burned number
+costs a week of calls nobody answers, a false alarm costs one look. Now, in
+`lib/number-health.ts`: verdict from 60 calls (was 100); fast drops flag at 15%
+and watch at 5% (was 25 and 10); **reach under 50 flags on its own** (before, a
+number whose calls rang out in full was only "watch"), and reach under 75 (was
+70) is watch; a 10 point fall is watch (was 15); call length flags under 40%
+past 30 seconds with 35% or more ending within 10, and watches under 45% or a 15
+point fall (`LONG_*`, `SHORT_FLAG_PCT`). Checked against everything measured that
+day: Aaron, Akshansh and the founders' number flag, Harry and Omar stay healthy,
+Alex's 74% reach and Brian's 22 calls come out as watch and too few. The cutoffs
+travel with the data (`NumberHealth.limits`) so the wording on the page cannot
+drift from the rules.

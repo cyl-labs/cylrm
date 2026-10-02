@@ -59,21 +59,21 @@ function HealthLine({ h }: { h: NumberHealth }) {
   // is calls that end the moment they are placed: an unanswered call normally
   // rings for 20 seconds or more, and one a carrier refuses is gone in a few.
   const quick: string[] = [];
-  if (h.fastFail !== null && h.fastFail >= 10) {
+  if (h.fastFail !== null && h.fastFail >= h.limits.fastWatch) {
     quick.push(
       `${h.fastFail} out of 100 calls were dropped within 8 seconds${h.fastFailBefore !== null ? ` (${h.fastFailBefore} the week before)` : ""}`,
     );
   }
-  if (h.refused !== null && h.refused >= 10) {
+  if (h.refused !== null && h.refused >= h.limits.fastWatch) {
     quick.push(`${h.refused} out of 100 were refused outright by the carrier or phone`);
   }
-  const reachLow = h.reach !== null && h.reach < 70;
+  const reachLow = h.reach !== null && h.reach < h.limits.healthyAt;
   const reachSays =
     h.reach === null
       ? ""
       : reachLow
         ? `Only ${h.reach} out of 100 calls got through${h.reachBefore !== null ? ` (${h.reachBefore} the week before)` : ""}.`
-        : h.reachBefore !== null && h.reachBefore - h.reach >= 15
+        : h.reachBefore !== null && h.reachBefore - h.reach >= h.limits.dropPoints
           ? `${h.reach} out of 100 calls got through, down from ${h.reachBefore} the week before.`
           : `${h.reach} out of 100 calls got through this week.`;
   const quickSays = quick.length
@@ -112,8 +112,8 @@ function HealthLine({ h }: { h: NumberHealth }) {
       title: "Too few calls to tell",
       says:
         h.total > h.calls
-          ? `${h.total} calls this week, but only ${h.calls} were logged with an outcome. It takes 100 logged calls to judge.`
-          : `${h.calls} call${h.calls === 1 ? "" : "s"} this week. It takes 100 to judge.`,
+          ? `${h.total} calls this week, but only ${h.calls} were logged with an outcome. It takes ${h.limits.minCalls} logged calls to judge.`
+          : `${h.calls} call${h.calls === 1 ? "" : "s"} this week. It takes ${h.limits.minCalls} to judge.`,
     },
   }[h.status];
   // Judged from how long its recorded calls last, because too few were logged
@@ -134,7 +134,7 @@ function HealthLine({ h }: { h: NumberHealth }) {
         ? `Only ${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds, and ${L.shortPct} ended within 10 seconds. That is the pattern of a number we know was flagged.`
         : h.status === "healthy"
         ? `${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds${before}. Typical call: ${L.medianSec} seconds.`
-        : L.longPctBefore !== null && L.longPct >= 40
+        : L.longPctBefore !== null && L.longPct >= h.limits.longOk
           ? `${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds, down from ${L.longPctBefore} the week before, and ${L.shortPct} ended within 10 seconds.`
           : `Only ${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds${before}, and ${L.shortPct} ended within 10 seconds. Healthy numbers are usually at 50 or more.`;
     look.says += ` Judged from call length, since only ${h.calls} of its ${h.total} calls were logged with an outcome.`;
