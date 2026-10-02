@@ -2,10 +2,8 @@
 
 import { isFloor, ROLE_LABEL, type Role } from "@/lib/roles";
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ChevronDown,
   Handshake,
   KeyRound,
   Pencil,
@@ -16,12 +14,9 @@ import {
 import { toast } from "sonner";
 import type { TeamMember } from "@/lib/users";
 import type { PoolList, TeamList } from "@/lib/lead-stock";
-import { callerUrgency, whenOut } from "@/lib/lead-words";
-import { AssignListMenu } from "@/components/team/assign-list";
+import { ListsCell } from "@/components/team/lists-cell";
 import {
-  ListDropZone,
   ListMoverProvider,
-  MovableList,
   type MoverPerson,
 } from "@/components/team/list-mover";
 
@@ -105,98 +100,6 @@ function tenure(iso: string): string {
   const months = Math.floor((days % 365) / 30);
   const y = `${years} year${years === 1 ? "" : "s"}`;
   return months > 0 ? `${y} ${months} mo` : y;
-}
-
-/**
- * What one person has left across every list they hold.
- *
- * The bars above say how far through each list is, which is not the same
- * question as "how much work has this person got" — and that is the one the
- * warning at the top is answering, so the row it is about had better answer it
- * too. Their own pace, the same divisor `callersRunningOut` uses: 333 leads is
- * three days for the man who starts 121 a day and a fortnight for somebody who
- * starts 25.
- */
-function LeadTotal({
-  lists,
-  perDay,
-}: {
-  lists: TeamList[];
-  perDay: number;
-}) {
-  const uncalled = lists.reduce((n, l) => n + l.uncalled, 0);
-  const left = lists.reduce((n, l) => n + l.leftToCall, 0);
-  const daysLeft = perDay > 0 && uncalled > 0 ? uncalled / perDay : null;
-  return (
-    <p className="border-t pt-1.5 text-[11px] tabular-nums text-muted-foreground">
-      {/* Coloured only when the warning above would fire on it — a row where
-          every figure shouts says nothing. `callerUrgency` returns nothing at
-          all for somebody with no pace to divide by. */}
-      <span
-        className={cn(
-          "font-semibold text-foreground",
-          callerUrgency(uncalled, daysLeft),
-        )}
-      >
-        {uncalled === 0
-          ? "No new leads left"
-          : `${uncalled.toLocaleString("en-US")} never rung in all`}
-      </span>
-      {uncalled === 0 && left > 0 && ` · ${left} still to ring back`}
-      {/* Its own line rather than a wrap: at this column's width "about 20
-          days at 4 a day" broke after "a" and left "day" stranded. */}
-      {daysLeft !== null ? (
-        <span className="block">
-          {whenOut(daysLeft)} at {Math.round(perDay)} a day
-        </span>
-      ) : perDay > 0 ? (
-        <span className="block">rings {Math.round(perDay)} new a day</span>
-      ) : null}
-    </p>
-  );
-}
-
-/**
- * A caller's lists, the first few open and the rest behind a button
- * (2026-09-28). Somebody holding a dozen lists made their row a screen and a
- * half tall, and every other person sat below it. The lists arrive sorted by
- * most left to call, so the ones kept open are the ones they are working
- * through; the button says how many new leads are folded away, so closing it
- * never hides that a caller has plenty. Folding a single list saves nothing,
- * so a fold only appears when it hides two or more.
- */
-const LISTS_SHOWN = 3;
-
-function ListFold({
-  lists,
-  render,
-}: {
-  lists: TeamList[];
-  render: (l: TeamList) => React.ReactNode;
-}) {
-  const [open, setOpen] = React.useState(false);
-  if (lists.length <= LISTS_SHOWN + 1) return <>{lists.map(render)}</>;
-  const hidden = lists.slice(LISTS_SHOWN);
-  const hiddenNew = hidden.reduce((n, l) => n + l.uncalled, 0);
-  return (
-    <>
-      {(open ? lists : lists.slice(0, LISTS_SHOWN)).map(render)}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="flex items-center gap-1 self-start rounded-md px-1 py-0.5 text-[12px] font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-      >
-        <ChevronDown
-          aria-hidden
-          className={cn("size-3.5 transition-transform", open && "rotate-180")}
-        />
-        {open
-          ? `Show only the first ${LISTS_SHOWN}`
-          : `Show ${hidden.length} more lists (${hiddenNew.toLocaleString("en-US")} never rung)`}
-      </button>
-    </>
-  );
 }
 
 const NO_DID = "__market__";
@@ -633,134 +536,14 @@ export function TeamManager({
                         that caller has nothing new to dial, whatever the bar
                         says about retries still owed. */}
                     <td className="px-4 py-2.5">
-                      {/* Drop a list dragged from another row here, to give
-                          it to this person (2026-09-25). Confirmed first. */}
-                      <ListDropZone
+                      <ListsCell
                         person={{ id: m.id, name: m.name, market: m.callRegion }}
-                      >
-                      {listsOf(m.id).length > 0 ? (
-                        <div className="flex min-w-52 max-w-72 flex-col gap-1.5">
-                          <ListFold lists={listsOf(m.id)} render={(l) => {
-                            const pct = Math.round(l.fraction * 100);
-                            return (
-                              <MovableList
-                                key={l.id}
-                                list={l}
-                                owner={{ id: m.id, name: m.name, market: m.callRegion }}
-                              >
-                              <Link
-                                href={`/calls/${l.id}`}
-                                draggable={false}
-                                title={`${l.total} leads · ${l.leftToCall} left to call · ${l.uncalled} never rung`}
-                                className={cn(
-                                  "block rounded-md border px-2 py-1.5 transition-colors hover:bg-muted/60",
-                                  canManage && "pr-7",
-                                )}
-                              >
-                                <span className="flex items-baseline justify-between gap-2">
-                                  <span className="truncate text-[12px] font-semibold">
-                                    {l.name}
-                                  </span>
-                                  <span className="shrink-0 text-[11px] font-semibold tabular-nums text-muted-foreground">
-                                    {pct}%
-                                  </span>
-                                </span>
-                                {/* Decoration over a percentage already written
-                                    beside it, so it is not announced twice —
-                                    the rule the "By list" bar on Stats uses. */}
-                                <span
-                                  aria-hidden
-                                  className="mt-1 block h-1 overflow-hidden rounded-full bg-foreground/10"
-                                >
-                                  <span
-                                    className="block h-full rounded-full bg-primary"
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </span>
-                                <span className="mt-1 block text-[11px] tabular-nums text-muted-foreground">
-                                  {/* An empty list is not a caller who has run
-                                      out of new leads, it is a list nothing was
-                                      ever imported into — and red on it sends
-                                      somebody hunting for the wrong problem. */}
-                                  {l.total === 0 ? (
-                                    "nothing imported into it yet"
-                                  ) : (
-                                    <>
-                                      {l.leftToCall} left to call ·{" "}
-                                      {l.uncalled === 0 ? (
-                                        <span className="font-semibold text-destructive">
-                                          no new leads
-                                        </span>
-                                      ) : (
-                                        <>{l.uncalled} never rung</>
-                                      )}
-                                    </>
-                                  )}
-                                </span>
-                              </Link>
-                              </MovableList>
-                            );
-                          }} />
-                          {/* The total, under the lists it adds up. Asked for
-                              after somebody handed a caller two lists and read
-                              the warning as unchanged: the per-list numbers
-                              never said what he had between them, and the only
-                              place the total appeared was the warning he was
-                              trying to clear. The days are the warning's own
-                              arithmetic at their own pace — the fastest caller
-                              on the floor needs the most leads to look safe,
-                              and that is worth being able to see on the row
-                              rather than inferring it from an alarm. */}
-                          <LeadTotal
-                            lists={listsOf(m.id)}
-                            perDay={pace[m.id] ?? 0}
-                          />
-                          {/* Under their lists rather than in the row menu:
-                              the decision is made while reading the bars
-                              above it, and a menu hides it behind a click at
-                              the far end of a thirteen-column row.
-
-                              Hidden rather than disabled when there is nothing
-                              to give: a row of "Nothing left to give" against
-                              every name is noise, and the warning above says
-                              it once, where it matters. */}
-                          {canManage && m.active && pool.length > 0 && (
-                            <AssignListMenu
-                              className="self-start"
-                              person={{ id: m.id, name: m.name }}
-                              pool={pool}
-                              theirLists={listsOf(m.id).map((l) => l.name)}
-                              market={m.callRegion}
-                              label="Give them another"
-                            />
-                          )}
-                        </div>
-                      ) : m.active && isFloor(m.role) ? (
-                        <div className="flex min-w-52 max-w-72 flex-col items-start gap-1.5">
-                          <span className="whitespace-nowrap text-[12px] font-semibold text-destructive">
-                            None yet, so their screen is empty
-                          </span>
-                          {canManage ? (
-                            <AssignListMenu
-                              className="self-start"
-                              person={{ id: m.id, name: m.name }}
-                              pool={pool}
-                              theirLists={[]}
-                              market={m.callRegion}
-                            />
-                          ) : (
-                            <Link
-                              href="/calls"
-                              className="whitespace-nowrap text-[12px] font-semibold underline-offset-4 hover:underline"
-                            >
-                              Assign on Call lists
-                            </Link>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                      </ListDropZone>
+                        lists={listsOf(m.id)}
+                        perDay={pace[m.id] ?? 0}
+                        pool={pool}
+                        canManage={canManage && m.active}
+                        showEmpty={m.active && isFloor(m.role)}
+                      />
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       {canManage ? (
