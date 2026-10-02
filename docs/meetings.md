@@ -2276,3 +2276,25 @@ Pipeline board) under "In a hurry? Add it to Meetings without Cal.com".
   (`logged` state in the dialog).
 - Anyone who may edit the lead (`canEditLead`), not only founders: it is the
   caller's own emergency.
+
+## Undo "did they turn up" (2026-10-03)
+
+"I logged one as no show by accident, it was meant for another meeting."
+`DELETE /api/meetings/[id]/answer`, as **Undo: back to not answered** at the
+bottom of the "Did they turn up?" menu (shown once a meeting has an answer).
+
+- **It removes the one attendance row the list reads for that meeting** (same
+  `answersMeeting` rule and ordering as the `attendance` column), so what goes is
+  exactly what the row showed. The answer route is an upsert, so before this an
+  answer could be changed but never withdrawn.
+- **Refused once a payout has claimed it** (409, and the menu says so instead of
+  offering the button: `attendancePaid`). The money is out; the fix is a
+  correcting payout, the same line the answer route holds.
+- **Undoing "Not a real booking" reopens the founders' call back it closed**
+  (those closed within 30 seconds of the answer). Undoing a No show does **not**
+  touch a call back or a ring back result somebody set afterwards: they are their
+  own records, cancelled from their own cards.
+- Founders, and a closer on a meeting handed to them.
+- **Not yet covered**: the ring back result on a no show (confirmed, no answer,
+  rescheduled, cancelled), the follow-up's outcome, Remove from Meetings (lost)
+  and Trial/Won. Those still have no way back from the Meetings row.

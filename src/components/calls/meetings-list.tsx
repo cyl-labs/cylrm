@@ -24,6 +24,7 @@ import {
   PhoneForwarded,
   PhoneOutgoing,
   ShieldAlert,
+  Undo2,
   UserX,
   Video,
 } from "lucide-react";
@@ -784,6 +785,26 @@ export function MeetingsList({
    * "Rebooked" and "Not rebooking" on a call back: logged at once, nothing to
    * ask. The other two ask when to ring next, through the prompt.
    */
+  async function undoAnswer(meeting: Meeting) {
+    setBusy(meeting.id);
+    try {
+      const res = await fetch(`/api/meetings/${meeting.id}/answer`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Could not undo that.");
+        return;
+      }
+      toast.success(
+        `Undone: ${meeting.company ?? meeting.attendeeName ?? "meeting"} is waiting for an answer again.`,
+      );
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function closeCallBack(
     meeting: Meeting,
     result: "rescheduled" | "cancelled",
@@ -1483,6 +1504,25 @@ export function MeetingsList({
                           {ATTENDANCE_LABEL[sVal]}
                         </DropdownMenuItem>
                       ))}
+                      {/* Withdraw the answer (2026-10-03): a No show logged on
+                          the wrong meeting could be changed but never taken
+                          back. Once a payout has claimed it the money is out,
+                          so it says why it cannot go. */}
+                      {m.attendance && (
+                        <>
+                          <DropdownMenuSeparator />
+                          {m.attendancePaid ? (
+                            <p className="max-w-60 px-2 py-1.5 text-[12px] leading-snug text-muted-foreground">
+                              This answer has been paid on, so it cannot be undone here.
+                            </p>
+                          ) : (
+                            <DropdownMenuItem onSelect={() => void undoAnswer(m)}>
+                              <Undo2 className="size-3.5" />
+                              Undo: back to not answered
+                            </DropdownMenuItem>
+                          )}
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
