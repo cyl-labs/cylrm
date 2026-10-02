@@ -2355,3 +2355,15 @@ the Recordings line as "Call (Omar)".
   so it can be regenerated from the briefing fold or the Briefing page.
 - **Not changed**: attendance is still keyed on the booking call (`call_id`), and
   the call row keeps whatever session it was logged on.
+
+## A suggested call back leads with their day and time (2026-10-03)
+
+"Why did it suggest Saturday next week": a prospect in Florida said "next Friday,
+probably 12PM eastern". Friday noon Eastern is **Saturday 12:00 AM in Singapore**,
+and the suggestion row led with the reader's clock, so a correct suggestion read
+as the prospect asking for a Saturday. It now says "They asked to be rung Fri,
+Oct 9, 12:00 PM their time (Sat, Oct 10, 12:00 AM SGT for you)", their day first
+and the reader's in brackets. When they share the reader's clock it reads as
+before. Not checked in a browser: the suggestion needs a started meeting and a
+recording with a stored `callback_suggestion` that no later call has overtaken,
+which I could not reproduce locally.
