@@ -78,6 +78,19 @@ export function MeetingFilters({
   const pathname = usePathname();
   const params = useSearchParams();
   const [q, setQ] = React.useState(values.q);
+  // The last search this box itself pushed to the address. The box stays
+  // mounted when the screen changes under it (Past meetings to Upcoming), so
+  // an address that arrives with its own `q` has to be taken into the box.
+  // Without that, the debounce below sees the old empty text disagreeing with
+  // the address and clears it 350ms later (2026-10-02: "Go to the new
+  // meeting" landed on plain /meetings).
+  const pushedQ = React.useRef(values.q);
+  React.useEffect(() => {
+    if (values.q !== pushedQ.current) {
+      pushedQ.current = values.q;
+      setQ(values.q);
+    }
+  }, [values.q]);
 
   const go = React.useCallback(
     (key: keyof MeetingFilterValues, value: string) => {
@@ -95,7 +108,10 @@ export function MeetingFilters({
   // typed is one navigation and not nine.
   React.useEffect(() => {
     if (q === values.q) return;
-    const t = setTimeout(() => go("q", q.trim()), 350);
+    const t = setTimeout(() => {
+      pushedQ.current = q.trim();
+      go("q", q.trim());
+    }, 350);
     return () => clearTimeout(t);
   }, [q, values.q, go]);
 
