@@ -102,6 +102,9 @@ export function fingerprint(s: BriefSource): string {
   return createHash("sha256")
     .update(
       JSON.stringify([
+        // The prompt too, so a brief written under older instructions reads
+        // as out of date rather than as current.
+        SYSTEM,
         s.company,
         s.niche,
         s.notes ?? "",
@@ -179,7 +182,9 @@ export async function briefSources(
     // fallback for a recording transcribed before turns were stored.
     let transcript =
       turns && turns.length > 0
-        ? turns.map((t) => `${t.speaker}: ${t.text}`).join("\n")
+        ? turns
+            .map((t) => `${t.speaker === "caller" ? "Our caller" : "Prospect"}: ${t.text}`)
+            .join("\n")
         : ((r.transcript_text as string | null) ?? null);
     if (transcript && transcript.length > MAX_TRANSCRIPT_CHARS) {
       // From the front: the end of a booking call is where the commitment and
@@ -479,12 +484,14 @@ const SYSTEM = [
   "Write at most 5 short bullets, each one line. Cover only what is actually there:",
   "- What the business does and its size, if said.",
   "- The problem they described: missed calls, when, what it costs them.",
-  "- Anything they objected to or hesitated over.",
+  "- Anything they objected to or hesitated over, only if they actually did. Most booking calls have no objection; leave the bullet out rather than invent one.",
   "- Anything the caller promised or agreed.",
   "- Anything awkward worth knowing before dialling (annoyed, rushed, wrong person, asked not to be called at a certain time).",
   "",
   "Rules:",
   '- Never infer a fact that was not said. If the call does not say what they do, write "not said on the call".',
+  "- Keep the prospect's tense. Something they considered or tried in the past is not a plan, a delay or a \"not right now\". Never write that they want something later, or not yet, unless they said so.",
+  "- Only lines marked Prospect are the prospect's words. Something our caller said or suggested is never the prospect's view.",
   "- Quote the prospect in their own words for anything that sounds like a commitment or a number.",
   "- Give no advice and no pitch. Do not suggest what to say.",
   "- No preamble, no heading, no sign-off. Bullets only, starting with '- '.",
