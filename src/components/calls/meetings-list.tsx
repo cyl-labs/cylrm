@@ -2555,7 +2555,9 @@ export function MeetingsList({
                 recordings are still there to read about. */}
             <CallSummariesFold
               items={[
-                ...(m.recordingSummary
+                // Not when the briefing above is showing: it is written from
+                // this same call, so the fold repeated it (2026-10-03).
+                ...(m.recordingSummary && !(briefs && !cancelled)
                   ? [
                       {
                         key: "cold",
