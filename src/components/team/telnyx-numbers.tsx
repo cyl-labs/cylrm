@@ -24,6 +24,29 @@ import type { NumberHealth } from "@/lib/number-health";
 /** The colour and the plain words for a number's health. Nothing here says
  *  "reach": a caller or founder reads how many calls out of a hundred got
  *  through, and what to do about it. */
+type Seen = { at: string; note: string | null };
+
+/** Proof, from a real phone, that a number was labelled as spam. Shown above
+ *  every estimate, which it overrides. */
+function SeenLine({ seen }: { seen: Seen }) {
+  const day = new Date(seen.at).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  return (
+    <p className="basis-full text-[12px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5 font-bold text-destructive">
+        <span className="size-2 rounded-full bg-destructive" aria-hidden />
+        Confirmed flagged as spam
+      </span>{" "}
+      Seen on a real phone {day}
+      {seen.note ? `: ${seen.note}` : ""}. This is certain; the lines below are
+      our own estimate.
+    </p>
+  );
+}
+
 function HealthLine({ h }: { h: NumberHealth }) {
   const since = h.inUseSince
     ? new Date(h.inUseSince).toLocaleDateString("en-US", {
@@ -100,9 +123,16 @@ function HealthLine({ h }: { h: NumberHealth }) {
   if (L) {
     const before =
       L.longPctBefore !== null ? `, ${L.longPctBefore}% the week before` : "";
-    look.title = h.status === "healthy" ? "Looks healthy" : "Keep an eye on it";
-    look.says =
+    look.title =
       h.status === "healthy"
+        ? "Looks healthy"
+        : h.status === "flagged"
+          ? "Probably flagged as spam"
+          : "Keep an eye on it";
+    look.says =
+      h.status === "flagged"
+        ? `Only ${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds, and ${L.shortPct} ended within 10 seconds. That is the pattern of a number we know was flagged.`
+        : h.status === "healthy"
         ? `${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds${before}. Typical call: ${L.medianSec} seconds.`
         : L.longPctBefore !== null && L.longPct >= 40
           ? `${L.longPct} out of 100 of its ${L.n} recorded calls ran past 30 seconds, down from ${L.longPctBefore} the week before, and ${L.shortPct} ended within 10 seconds.`
@@ -126,6 +156,7 @@ export function TelnyxNumbers({
   numbers: initial,
   team,
   health,
+  seen: initialSeen,
   className,
 }: {
   numbers: {
@@ -139,12 +170,41 @@ export function TelnyxNumbers({
   /** How each number is doing, by number. A number nobody has dialled from is
    *  absent, and says nothing. */
   health: Record<string, NumberHealth>;
+  /** Numbers somebody has seen labelled as spam on a real phone. */
+  seen: Record<string, Seen>;
   className?: string;
 }) {
   const router = useRouter();
   const [numbers, setNumbers] = React.useState(initial);
   // Server data wins whenever the page refreshes.
   React.useEffect(() => setNumbers(initial), [initial]);
+
+  const [seen, setSeen] = React.useState(initialSeen);
+  React.useEffect(() => setSeen(initialSeen), [initialSeen]);
+  // Which number is being reported as spam-labelled, and what the phone said.
+  const [reporting, setReporting] = React.useState<string | null>(null);
+  const [reportDraft, setReportDraft] = React.useState("");
+
+  async function saveSeen(phoneNumber: string, note: string | null) {
+    setReporting(null);
+    const res = await fetch("/api/call-dids", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phoneNumber, spamSeen: note }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => ({}));
+      toast.error(data?.error ?? "Could not save that.");
+      return;
+    }
+    setSeen((p) => {
+      const next = { ...p };
+      if (note === null) delete next[phoneNumber];
+      else next[phoneNumber] = { at: new Date().toISOString(), note: note.trim() || null };
+      return next;
+    });
+    router.refresh();
+  }
 
   // Which number's label is being typed, and what into. One at a time: this is
   // a note on a row, not a form.
@@ -349,7 +409,62 @@ export function TelnyxNumbers({
                 >
                   {n.available ? "Reserve" : "Make available"}
                 </Button>
+                {seen[n.phoneNumber] && <SeenLine seen={seen[n.phoneNumber]} />}
                 {health[n.phoneNumber] && <HealthLine h={health[n.phoneNumber]} />}
+                {/* Proof beats a guess (2026-10-03): when a client sends a
+                    screenshot of "Potential Spam", record it here and it shows
+                    in red above the estimate. */}
+                <div className="basis-full text-[12px]">
+                  {reporting === n.phoneNumber ? (
+                    <span className="flex flex-wrap items-center gap-2">
+                      <input
+                        autoFocus
+                        value={reportDraft}
+                        maxLength={200}
+                        placeholder="What did the phone say? e.g. Potential Spam"
+                        onChange={(e) => setReportDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void saveSeen(n.phoneNumber, reportDraft);
+                          if (e.key === "Escape") setReporting(null);
+                        }}
+                        className="h-7 w-80 max-w-full rounded-md border bg-background px-2 text-[12px] outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-7"
+                        onClick={() => void saveSeen(n.phoneNumber, reportDraft)}
+                      >
+                        Save
+                      </Button>
+                      <button
+                        type="button"
+                        className="font-semibold text-muted-foreground hover:text-foreground"
+                        onClick={() => setReporting(null)}
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : seen[n.phoneNumber] ? (
+                    <button
+                      type="button"
+                      className="font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                      onClick={() => void saveSeen(n.phoneNumber, null)}
+                    >
+                      It is not flagged any more
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                      onClick={() => {
+                        setReportDraft("");
+                        setReporting(n.phoneNumber);
+                      }}
+                    >
+                      Seen as spam on a phone? Record it
+                    </button>
+                  )}
+                </div>
               </li>
             );
           })}

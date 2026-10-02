@@ -68,9 +68,15 @@ export default async function TeamPage() {
         },
     admin
       ? (db.execute(
-          sql`select phone_number, available, label from call_number`,
+          sql`select phone_number, available, label, spam_seen_at, spam_seen_note from call_number`,
         ) as Promise<
-          { phone_number: string; available: boolean; label: string | null }[]
+          {
+            phone_number: string;
+            available: boolean;
+            label: string | null;
+            spam_seen_at: string | null;
+            spam_seen_note: string | null;
+          }[]
         >)
       : [],
     // How each number is doing, read off its calls (lib/number-health).
@@ -121,6 +127,17 @@ export default async function TeamPage() {
             numbers={numbers}
             team={team}
             health={health}
+            seen={Object.fromEntries(
+              numberRows
+                .filter((r) => r.spam_seen_at)
+                .map((r) => [
+                  r.phone_number,
+                  {
+                    at: new Date(r.spam_seen_at as string).toISOString(),
+                    note: r.spam_seen_note,
+                  },
+                ]),
+            )}
             className="mb-5 rounded-[14px] border bg-card shadow-[0_1px_3px_rgba(41,47,76,0.05)]"
           />
         )}

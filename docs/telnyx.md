@@ -832,3 +832,25 @@ data allows.
 - Still no way to be certain a carrier has labelled a number: the only ground truth
   is Telnyx Number Reputation (paid), calling a phone on each carrier, or the Free
   Caller Registry.
+
+## A known-flagged number, and recording proof (2026-10-03)
+
+A client sent a screenshot of the **founders' number (+1 872 277 8445) showing
+"Potential Spam" (Chicago, IL)** while a call from it was running, 1:47 in: a
+flagged number still gets answered sometimes. The panel had it at "Keep an eye
+on it", so this is the one certain data point the estimate has been checked
+against.
+
+- **Its recorded calls**: 33% past 30 seconds, 43% ended within 10. Akshansh's
+  number, flagged by fast drops, was 34% and 42%; healthy numbers were Harry 58%
+  and 9%, Omar 53% and 27%, Alex 39% and 37%. So the call-length signal now **can**
+  say "Probably flagged" when under 35% of recorded calls pass 30 seconds **and**
+  40% or more end within 10 (`LONG_FLAG_PCT`, `SHORT_FLAG_PCT`). Before, it was
+  capped at "keep an eye on it". One known case, so the edges are soft.
+- **"Seen as spam on a phone? Record it"** under each number
+  (`call_number.spam_seen_at` / `spam_seen_note`,
+  `2026-10-03-number-spam-seen.sql`, **apply before deploying**; `PATCH
+  /api/call-dids` with `spamSeen`, null clears) shows "Confirmed flagged as spam"
+  in red above the estimate. Proof beats inference, and it is the only way to
+  grow the set of known cases the thresholds were set from, so record every
+  screenshot a client or caller sends. "It is not flagged any more" clears it.

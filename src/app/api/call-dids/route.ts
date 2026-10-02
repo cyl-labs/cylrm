@@ -93,6 +93,9 @@ export async function PATCH(request: Request) {
     phoneNumber?: unknown;
     available?: unknown;
     label?: unknown;
+    /** What a phone showed, to record that this number was seen labelled as
+     *  spam; null clears it. */
+    spamSeen?: unknown;
   } | null;
   if (!body || typeof body.phoneNumber !== "string") {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
@@ -105,7 +108,8 @@ export async function PATCH(request: Request) {
   // and "" are how a label gets cleared.
   const setAvailable = typeof body.available === "boolean";
   const hasLabel = "label" in body;
-  if (!setAvailable && !hasLabel) {
+  const hasSpamSeen = "spamSeen" in body;
+  if (!setAvailable && !hasLabel && !hasSpamSeen) {
     return Response.json(
       { error: "Nothing to change." },
       { status: 400 },
@@ -129,6 +133,14 @@ export async function PATCH(request: Request) {
     label = trimmed === "" ? null : trimmed;
   }
 
+  let spamSeen: string | null = null;
+  if (hasSpamSeen) {
+    if (body.spamSeen !== null && typeof body.spamSeen !== "string") {
+      return Response.json({ error: "Invalid note." }, { status: 400 });
+    }
+    spamSeen = ((body.spamSeen as string | null) ?? "").trim().slice(0, 200) || null;
+  }
+
   // A row may not exist yet — one is written only when a number leaves the
   // pool, and a number being labelled has not left it. Created without values
   // so that neither field is set by the act of creating it.
@@ -150,8 +162,26 @@ export async function PATCH(request: Request) {
     `);
   }
 
+  if (hasSpamSeen) {
+    // Null clears it. A note is optional ("what did the phone say" is for the
+    // next person), but seeing the label is the fact, so the time is set
+    // whether or not anything was typed. `body.spamSeen === null` clears.
+    await db.execute(
+      body.spamSeen === null
+        ? sql`
+            update call_number set spam_seen_at = null, spam_seen_note = null,
+              updated_at = now()
+            where phone_number = ${body.phoneNumber}`
+        : sql`
+            update call_number set spam_seen_at = now(), spam_seen_note = ${spamSeen},
+              updated_at = now()
+            where phone_number = ${body.phoneNumber}`,
+    );
+  }
+
   return Response.json({
     phoneNumber: body.phoneNumber,
+    ...(hasSpamSeen ? { spamSeen: body.spamSeen === null ? null : spamSeen } : {}),
     ...(setAvailable ? { available: body.available } : {}),
     ...(hasLabel ? { label } : {}),
   });
