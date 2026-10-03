@@ -22,7 +22,13 @@ import { db } from "@/db";
 import { recordAiUsage } from "@/lib/ai-usage";
 import { clusterDemoRecordings, DEMO_RECORDING_WHERE } from "@/lib/meetings";
 import { normalise } from "@/lib/meeting-brief";
-import { REVIEW_STAGES, RUBRIC_TEXT } from "@/lib/demo-review-rubric";
+import { briefSources } from "@/lib/meeting-brief";
+import {
+  BOOKING_RUBRIC_TEXT,
+  BOOKING_STAGES,
+  REVIEW_STAGES,
+  RUBRIC_TEXT,
+} from "@/lib/demo-review-rubric";
 import type { TranscriptTurn } from "@/db/schema";
 import type {
   DemoReview,
@@ -143,21 +149,28 @@ export async function reviewSource(meetingId: number): Promise<ReviewSource | nu
   };
 }
 
-export function reviewFingerprint(s: ReviewSource): string {
+/** Which call is being reviewed: the demo a founder or closer runs, or the cold
+ *  call a caller made to book it. Each has its own table, steps and prompt. */
+export type ReviewKind = "demo" | "booking";
+
+const TABLE = { demo: sql.raw("call_meeting_review"), booking: sql.raw("call_booking_review") };
+
+export function reviewFingerprint(s: ReviewSource, kind: ReviewKind = "demo"): string {
   return createHash("sha256")
-    .update(JSON.stringify([SYSTEM, RUBRIC_TEXT, s.company, s.transcript ?? ""]))
+    .update(JSON.stringify([SYSTEMS[kind], s.company, s.transcript ?? ""]))
     .digest("hex")
     .slice(0, 32);
 }
 
 export async function getStoredReviews(
   meetingIds: number[],
+  kind: ReviewKind = "demo",
 ): Promise<Map<number, StoredReview>> {
   const out = new Map<number, StoredReview>();
   if (meetingIds.length === 0) return out;
   const rows = (await db.execute(sql`
     select meeting_id, review, generated_at
-    from call_meeting_review
+    from ${TABLE[kind]}
     where meeting_id in (${sql.join(
       meetingIds.map((id) => sql`${id}`),
       sql`, `,
@@ -172,15 +185,24 @@ export async function getStoredReviews(
   return out;
 }
 
-const SYSTEM = [
+function buildSystem(kind: ReviewKind): string {
+  const stages = kind === "demo" ? REVIEW_STAGES : BOOKING_STAGES;
+  return [
+  ...(kind === "booking"
+    ? [
+        "You review a recorded cold call and give the caller honest, specific feedback, scored against the reference below.",
+        "The caller phones small service businesses to book a demo of an AI phone receptionist. The call may be short. In the transcript, 'Our caller' is our side and 'Prospect' is whoever answered. Many cold calls never get far: a voicemail, a quick hang up, a wrong person. Do not mark steps missed that the call never reached; use not_reached.",
+      ]
+    : [
   "You review a recorded sales demo call and give the closer honest, specific feedback, scored against the reference method below.",
   "The closer sells an AI phone receptionist to a small service business. The call is a founder or closer talking to the business owner. Part of it is a demo: the closer may add the AI receptionist to the line and play a pretend customer while the owner listens. Treat that stretch as the presentation and do not mark the closer down for not asking questions during it; it may look garbled in the transcript. This is the second call with the owner: the caller who booked it only asked a few script questions, so the closer is still expected to find out what matters to this owner, but a demo is not held to the rule that 80% of the call is questions.",
   "In the transcript, 'Closer' is our side and 'Prospect' is the business owner.",
+    ]),
   "",
-  RUBRIC_TEXT,
+  kind === "demo" ? RUBRIC_TEXT : BOOKING_RUBRIC_TEXT,
   "",
-  `Score each of these ${REVIEW_STAGES.length} steps, using these exact keys:`,
-  ...REVIEW_STAGES.map((s) => `- ${s.key} (${s.method}): ${s.means}`),
+  `Score each of these ${stages.length} steps, using these exact keys:`,
+  ...stages.map((s) => `- ${s.key} (${s.method}): ${s.means}`),
   "",
   "Ratings: done (clearly did it), partly (tried or half did it, or did it in a telling way instead of getting the prospect to say it), missed (the call reached the point where it belonged and the closer did not do it), not_reached (the call never got that far, for example it ended early).",
   "",
@@ -197,12 +219,18 @@ const SYSTEM = [
   "- Be fair and specific. Do not praise a step that was not done, and do not mark a step missed when it was done in different words. Judge the method, not the outcome: a sale that was lost can still be a well run call.",
   "- Plain everyday language. No sales jargon without explaining it. Never use an em dash.",
 ].join("\n");
+}
 
-function userPrompt(s: ReviewSource): string {
+const SYSTEMS: Record<ReviewKind, string> = {
+  demo: buildSystem("demo"),
+  booking: buildSystem("booking"),
+};
+
+function userPrompt(s: ReviewSource, kind: ReviewKind): string {
   const parts = [`Business: ${s.company}`];
   if (s.niche) parts.push(`Trade: ${s.niche}`);
   parts.push(`Length: about ${s.minutes} minutes`);
-  parts.push(`\nTranscript of the demo call:\n${s.transcript}`);
+  parts.push(`\nTranscript of the ${kind === "demo" ? "demo" : "booking"} call:\n${s.transcript}`);
   return parts.join("\n");
 }
 
@@ -212,7 +240,10 @@ const clean = (v: unknown) =>
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 /** Write one review, or throw naming the vendor. */
-export async function writeReview(s: ReviewSource): Promise<DemoReview> {
+export async function writeReview(
+  s: ReviewSource,
+  kind: ReviewKind = "demo",
+): Promise<DemoReview> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("No OPENAI_API_KEY is configured on this server.");
   if (!s.transcript || !s.talk) throw new Error("There is no transcript to review.");
@@ -226,8 +257,8 @@ export async function writeReview(s: ReviewSource): Promise<DemoReview> {
       max_tokens: 3200,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: userPrompt(s) },
+        { role: "system", content: SYSTEMS[kind] },
+        { role: "user", content: userPrompt(s, kind) },
       ],
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -264,7 +295,7 @@ export async function writeReview(s: ReviewSource): Promise<DemoReview> {
   const byKey = new Map(
     list(raw.stages).map((x) => [String((x as { key?: unknown }).key), x as Record<string, unknown>]),
   );
-  const stages: ReviewStage[] = REVIEW_STAGES.map((def) => {
+  const stages: ReviewStage[] = (kind === "demo" ? REVIEW_STAGES : BOOKING_STAGES).map((def) => {
     const got = byKey.get(def.key);
     let rating = RATINGS.includes(got?.rating as StageRating)
       ? (got?.rating as StageRating)
@@ -305,4 +336,65 @@ export async function writeReview(s: ReviewSource): Promise<DemoReview> {
     biggestFix: clean(raw.biggestFix),
     talk: s.talk,
   };
+}
+
+/**
+ * The booking call (the cold call that won the meeting) as a review source.
+ * Read through `briefSources`, so it is the same conversation the briefing
+ * reads, including the redial rule. Talk figures are counted from the
+ * transcript lines ("Our caller:" is ours).
+ */
+export async function bookingSource(meetingId: number): Promise<{
+  source: ReviewSource;
+  hasRecording: boolean;
+} | null> {
+  const got = (await briefSources([meetingId])).get(meetingId);
+  if (!got) return null;
+  let closerWords = 0;
+  let allWords = 0;
+  let questions = 0;
+  for (const line of (got.transcript ?? "").split("\n")) {
+    const mine = line.startsWith("Our caller: ");
+    if (!mine && !line.startsWith("Prospect: ")) continue;
+    const text = line.slice(mine ? 12 : 10);
+    const w = text.split(/\s+/).filter(Boolean).length;
+    allWords += w;
+    if (mine) {
+      closerWords += w;
+      questions += (text.match(/\?/g) ?? []).length;
+    }
+  }
+  const minutes = got.transcriptMinutes ?? 0;
+  return {
+    hasRecording: got.hasRecording,
+    source: {
+      meetingId,
+      company: got.company,
+      niche: got.niche,
+      recordingIds: [],
+      untranscribedIds: [],
+      minutes,
+      transcript: got.transcript,
+      talk:
+        allWords > 0
+          ? {
+              closerPercent: Math.round((closerWords / allWords) * 100),
+              closerQuestions: questions,
+              minutes,
+            }
+          : null,
+    },
+  };
+}
+
+/** Which of these meetings did this user book (their call won it). */
+export async function bookedBy(meetingIds: number[], userId: number): Promise<number[]> {
+  if (meetingIds.length === 0) return [];
+  const rows = (await db.execute(sql`
+    select m.id from call_meeting m
+    join "call" c on c.id = m.call_id
+    where c.user_id = ${userId}
+      and m.id in (${sql.join(meetingIds.map((id) => sql`${id}`), sql`, `)})
+  `)) as unknown as { id: number }[];
+  return rows.map((r) => Number(r.id));
 }
