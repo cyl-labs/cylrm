@@ -75,7 +75,7 @@ const MODEL = BRIEF_MODEL;
 /** Per meeting. A 14-minute transcript is the longest seen so far and lands
  *  well inside this; the timeout is here so one bad call cannot hang the
  *  whole document. */
-const TIMEOUT_MS = 45_000;
+const TIMEOUT_MS = 90_000;
 
 /**
  * How much transcript to send.
@@ -87,7 +87,10 @@ const TIMEOUT_MS = 45_000;
  * over this is trimmed from the *front*, since the end of a booking call is
  * where the commitment and the objections are.
  */
-const MAX_TRANSCRIPT_CHARS = 14_000;
+// About 11k tokens. The whole of a 28 minute call is 29k characters, so this only
+// trims the very longest; the cap also keeps one request well inside the
+// account's tokens-per-minute limit (30,000 on gpt-4.1 when this was measured).
+const MAX_TRANSCRIPT_CHARS = 45_000;
 
 export const briefConfigured = () => Boolean(process.env.OPENAI_API_KEY);
 
@@ -564,36 +567,63 @@ export async function getBriefedMeetings(): Promise<BriefedMeeting[]> {
  *   are read in a row.
  */
 const SYSTEM = [
-  "You brief a salesperson in the minute before they take a booked demo.",
-  "You are given the transcript of the cold call that won the meeting, plus any notes the caller typed and the outcomes of earlier calls to the same business.",
+  "You brief a salesperson in the minute before they take a booked demo. They will NOT read the transcript, so the briefing has to give them the whole picture in plain words: who these people are, what was discussed, what was promised or agreed, and anything that does not add up. Write short sentences in everyday words. If a word or name would not be obvious to a non-expert, explain it in a few plain words in brackets the first time.",
+  "You are given the transcript of the cold call that won the meeting, plus any notes the caller typed and the outcomes of earlier calls to the same business. 'Our caller' is our salesperson. 'Prospect' is the business owner or whoever answered.",
   "",
-  "Our callers follow a fixed script, so do not retell the call. The script asks what time they close, what happens to calls after that (voicemail, someone answers, the owner answers, whether someone is paid to be on call), whether they have considered or seen a voice agent, then offers a demo and books a time. Report what THIS prospect said, never what the caller said or what the script says.",
+  "Our callers follow a script: what time they close, what happens to calls after that, whether they have considered a voice agent, then offering a demo and booking a time. Do not retell the script. Report what THIS prospect said and what was agreed.",
   "",
-  "Write short bullets, one line each, in this order. Each bullet is a short plain headline of 14 words or fewer that a busy reader takes in at a glance, written in short everyday words, then \" Details: \" and the evidence for anyone who wants to check. The evidence has this form: Asked: \"what our caller said\" Said: \"what the prospect answered\". Where the prospect raised it unprompted use Said: \"...\" alone. Each quoted piece is a full sentence or two (up to about 45 words) copied exactly from ONE speaker, never cut before a \"but\", a reason or a condition, with no fixed grammar, joined speakers or added words (use ... to skip words).",
+  "Every line below except \"In short\", \"Terms\" and \"Watch out\" has three parts on one line: a short headline of 14 words or fewer, then \" Because: \" and ONE plain sentence of 25 words or fewer that gives the reason or the context behind the headline, in your own words with NO quotation marks (this is where you explain who \"they\", \"them\" or \"it\" is, and why the headline is true), then \" Details: \" and the evidence: Asked: \"what our caller said\" Said: \"what the prospect answered\" (or Said: \"...\" alone if they raised it unprompted). Quoted pieces are exact, up to about 45 words, from ONE speaker, never cut before a \"but\" or a reason. The evidence must be directly about the headline. A quote about price is not evidence of who decides. Use ... to skip words, and never fix grammar or join speakers.",
   "",
-  "The first four labelled lines are always written, with the label exactly as shown: Trial, Time, Decision maker, Warmth. The rest are written only when the call has something for them:",
-  "- Trial: whether OUR CALLER suggested a trial (a free or 30 day trial, or to try it with no commitment). Always written, and the most important line. If the caller suggested one, the headline is \"Suggested by our caller.\" then Details with the caller's words and how the prospect reacted. If not, write exactly \"Not suggested.\" with no Details. If the prospect raised a trial first, say so in plain words (for example \"The prospect asked about a trial.\") with Details; that is not our caller suggesting one.",
-  "- Time: ONLY how flexible the prospect is about the booked time, so the salesperson knows whether it is fine to ring an hour or two early. Do NOT state the day or time (it is shown elsewhere) and do NOT retell the back and forth. Write exactly one of: \"Fine to ring early.\" or \"Better not to ring early.\" or \"Not sure if ringing early is fine.\" Then, ONLY after \"Better not to ring early.\" or \"Not sure\", one short reason of 12 words or fewer, in plain words (for example: On a job site until 4:30.). Then write \" Details: \" and the evidence in Asked: \"...\" Said: \"...\" form, for the reader who wants to check. Choosing one of the options the caller offered, or saying yes to a time, is the NORMAL case and means \"Fine to ring early.\": it is not a sign of being particular. \"Better not to ring early.\" needs a real constraint in the call: a reason or a window (on a job site until 4:30, in a meeting, only free after a certain hour), pushing back on the times offered, or asking to move it. The short reason must NOT restate the time or the option they picked; say what the constraint is. If you cannot name a constraint, it is \"Fine to ring early.\" and the reason is left out. Judge from the whole exchange and read the ENTIRE transcript, including the end, before saying a time was not discussed. This line is the one exception to \"give no advice\". Only if no time was discussed anywhere, write exactly \"No time was discussed in this recording.\"",
-  "- Decision maker: who decides whether to buy. Headline in plain words, for example \"The owner. Decides alone.\" or \"Not clear if they decide alone.\" Never assume the person on the call decides: if the call does not show it, write \"Not clear from the call.\" Add Details only when something was said.",
-  "- Warmth: one plain word (keen, interested, lukewarm, polite only) and a reason in a few words, then Details. If nothing shows how they felt, write \"Not clear from the call.\"",
-  "- After hours: ONE line on what happens to their calls once they are closed, as a short plain sentence (for example \"The owner picks up himself, even late.\"), then Details. Fold the closing time in only if it matters. Never write a separate Hours line.",
-  "- Voice agent: what they think of a voice agent in plain words: \"Has not considered one.\", \"Has not heard of it.\", \"Already looked into it.\", \"Already uses one.\" or \"Open to it.\" Only write this line if it adds something the other lines do not. If the only evidence is a quote already used in another line, leave this line out.",
-  "- About them: one or two lines, each a short plain observation that shows what kind of person they are, or something interesting or unusual they said. Look for: how they come across (blunt, jokey, rushed, chatty, careful, suspicious), their situation (new business, a one person crew, in the busy season), a bad or good past experience, a tool or competitor they use, a strong opinion, a person to ask for. Say what you notice in a few words, for example \"Blunt and very busy. Wants a call back.\" then Details with what they said. Only something specific and a little unusual, that a salesperson would not guess: skip generic traits such as friendly, polite, open, casual, flexible or busy, and skip anything the other lines already cover. Do not judge someone's personality from one word. If nothing specific stands out, leave this line out entirely.",
-  "- Demo: how they reacted to being offered the demo, only if it was more than a plain yes (an objection or hesitation). Leave it out otherwise.",
-  "- Promised: anything the caller promised or agreed to send or do. Leave it out if nothing was.",
-  "- Gatekeeper: only when the person who agreed is not the owner or decision maker, or anything awkward worth knowing before dialling (annoyed, rushed, wrong person).",
+  "Lines, in this order. The first five are always written. The rest only when the call has something for them:",
+  "- In short: 3 to 5 short sentences that tell the whole story. Who they are (name, their role, the business, its size if said). What they are like to deal with if that stood out. What was discussed and agreed, INCLUDING any talk about price and anything our caller offered or promised (a discount, a price cap, a callback). What is still open or unclear. Start with the most important thing. No quotes needed in this line. Do not use the labels Asked or Said here.",
+  "- Trial: whether OUR CALLER suggested a trial (a free or 30 day trial, or trying it with no commitment). If yes, the headline is \"Suggested by our caller.\" with Because and Details. If not, write exactly \"Not suggested.\" and nothing else. If the prospect raised a trial first, say so plainly with Because and Details; that is not our caller suggesting one.",
+  "- Time: ONLY how flexible they are about the booked time, so the salesperson knows whether it is fine to ring an hour or two early. Do not state the day or time. Headline is exactly one of \"Fine to ring early.\", \"Better not to ring early.\", \"Not sure if ringing early is fine.\". Because gives the reason in plain words that shows from the call (for example \"He took the first time offered and said he is around all day.\" or \"He is on a job site until 4:30.\"). Choosing one of the times offered is the normal case and means \"Fine to ring early.\". \"Better not\" needs a real constraint in the call: a reason or window, pushing back on the times, or asking to move it. Read the entire transcript, including the end, before saying a time was not discussed; if none was, write exactly \"No time was discussed in this recording.\"",
+  "- Decision maker: who decides whether to buy, in plain words, for example \"The owner. Decides alone.\" Never assume the person on the call decides. If the call shows someone else must approve, agree or be convinced, say who and do NOT say \"decides alone\". If it is not clear write \"Not clear from the call.\" Because explains how you can tell.",
+  "- Warmth: one plain word (keen, interested, lukewarm, polite only) and a few words of why, then Because and Details. If nothing shows how they felt, write \"Not clear from the call.\"",
+  "- Price: only when price, cost or a discount was discussed. The headline says what the prospect said about price and what our caller offered or promised (a lower price, a cap, a discount). Because says what it means for the demo, in plain words.",
+  "- After hours: ONE sentence on what happens to their calls once they are closed (never a separate Hours line), with Because and Details.",
+  "- Voice agent: what they think of a voice agent in plain words: \"Has not considered one.\", \"Has not heard of it.\", \"Already looked into it.\", \"Already uses one.\", \"Open to it.\" Only if it adds something the other lines do not. If the evidence is a quote already used in another line, leave this line out.",
+  "- About them: one or two lines on what kind of person they are or something specific and unusual that a salesperson would not guess (their situation, a past experience, a tool or competitor they use, a strong opinion, a connection they offered). Skip generic traits (friendly, polite, open, casual, busy) and anything another line covers. If nothing specific stands out, leave it out.",
+  "- Demo: how they reacted to being offered the demo, only if it was more than a plain yes.",
+  "- Promised: anything our caller promised or agreed to do or send, or anything the prospect promised. Leave out if nothing.",
+  "- Gatekeeper: only when the person who agreed is not the owner or decision maker, or anything awkward to know before dialling.",
+  "- Terms: only when the call names a company, product, acronym or industry word the salesperson may not know and it matters to the sale. One line: \"Word: what it means in a few plain words.\" separated by semicolons. Add \"(general knowledge)\" after any meaning that is not from the call itself. No quotes needed.",
+  "- Watch out: only when something does not add up or is unclear: two lines that disagree, a \"they\" or \"them\" the call never explains, something said that needs a follow up question. One or two short sentences saying what, and what to ask. No quotes needed.",
   "",
   "Rules:",
-  "- NEVER use the same quote in two lines. If two lines would share a quote, write one line. Do not write lines called Hours, Reach, Business or Also said.",
-  "- A headline needs evidence that shows it. If you cannot back a line with a quote, leave it out. The only exceptions are the four always-written lines when the call truly shows nothing (their plain \"not suggested\" or \"not clear\" wording).",
-  "- Never infer a fact that was not said.",
-  "- Keep the prospect's tense. Something they considered or tried in the past is not a plan, a delay or a \"not right now\". Never write that they want something later, or not yet, unless they said so.",
-  "- Read a short answer against the question that was asked. If the caller asks \"have you considered\", \"have you heard of\" or \"do you use\" a voice agent and the prospect says \"no\", that means they have not, it is NOT a refusal and NOT a lack of interest. Only write that they are not interested when they decline it after it was explained or offered, in words that say so.",
-  "- Only lines marked Prospect are the prospect's words. Something our caller said or suggested is never the prospect's view.",
-  "- Give no advice and no pitch, except the Time line, which says whether it is fine to ring early.",
-  "- No preamble, no heading, no sign-off. Bullets only, starting with '- '.",
+  "- NEVER use the same quote in two lines. Do not write lines called Hours, Reach, Business or Also said.",
+  "- A line needs evidence that shows it. If you cannot back a line with a quote, leave it out. The only exceptions are the lines marked above as needing no quotes.",
+  "- Never infer a fact that was not said, apart from the plain explanations in Because, Terms and Watch out. In \"In short\" in particular, never say the prospect is not interested, wants it later, or has decided anything unless they said so in words; if they only said they had thought about something, say exactly that.",
+  "- Keep the prospect's tense. Something they considered or tried in the past is not a plan or a delay.",
+  "- Read a short answer against the question that was asked. If the caller asks \"have you considered\", \"have you heard of\" or \"do you use\" a voice agent and the prospect says \"no\", that means they have not, it is NOT a refusal.",
+  "- Only lines marked Prospect are the prospect's words. Our caller's pitch is never the prospect's view.",
+  "- Give no advice and no pitch, except the Time line.",
+  "- No preamble, no heading, no sign-off. Bullets only, each starting with '- '.",
   "- Do not use em dashes.",
   "- If there is no transcript and no notes, reply with exactly: - No recording or notes from the booking call.",
+].join("\n");
+
+/**
+ * The second pass (2026-10-04): an editor reads the call and the draft together.
+ *
+ * Added after a briefing on a 28 minute call said the owner "decides alone"
+ * while its own evidence said he "would have to endorse it to them", quoted
+ * "so 50 is the last, right?" under Decision maker (it was a price cap), and
+ * never explained that "them" was his phone company or that the whole call was a
+ * negotiation over price. One pass cannot see its own contradictions.
+ */
+const EDITOR = [
+  "You are an editor. You get a phone call transcript and a draft briefing written from it for a salesperson who will not read the transcript. Return the corrected briefing in exactly the same format as the draft: the same labels, one line each starting with '- ', each line with the headline, Because and Details parts it already has (and no quotes on In short, Terms or Watch out).",
+  "Check each of these and fix what is wrong:",
+  "1. Evidence matches the headline. If a quote is about something else (a price quote under Decision maker), replace it with a quote that is really about the headline, or cut the line.",
+  "2. No two lines disagree. If one line says the owner decides alone but the call shows they need someone else's agreement, correct the line and add a Watch out line saying who and what to ask.",
+  "3. Every unclear word (them, they, it, that, a company or acronym) in the headlines and Because sentences is explained from the rest of the call, or added to Terms, or flagged in Watch out if the call never says.",
+  "4. In short covers the real story, including any price talk, discount or promise our caller made, and what is still open. If the call was mostly a negotiation, say so first.",
+  "5. Quotation marks appear only after \" Details: \", never in a headline or a Because sentence: move any quote there. Nothing generic or repeated. Remove filler. Keep every headline at 14 words or fewer and every Because at 25 words or fewer, in plain everyday words.",
+  "6. Every quote is copied exactly from one speaker in the transcript. Prospect words under Said, our caller's words under Asked. Never write evidence that is not in the transcript.",
+  "7. In short and every Because sentence make no claim about the prospect's interest, plans, intent or timing (not interested, not looking, wants it later, may buy) that they did not say in words. Replace any such claim with exactly what they said, or remove it.",
+  "8. Time still says only how flexible they are, with the reason in Because. Trial still says only whether our caller suggested one.",
+  "Reply with the corrected briefing only. No preamble, no explanation of your changes, no em dashes.",
 ].join("\n");
 
 function userPrompt(s: BriefSource): string {
@@ -640,44 +670,66 @@ export async function writeBrief(
       : "- No recording of the booking call, and the caller left no notes.";
   }
 
-  const res = await fetch(API, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  const ask = async (system: string, user: string): Promise<string> => {
+    // A per-minute token limit is the normal way this fails when several
+    // briefings are written at once, so a 429 waits for the time the answer
+    // names and tries again, up to three times, rather than failing the line.
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      res = await fetch(API, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          // Low but not zero: at 0 the model repeats the transcript's own phrasing
+          // back as if it were a summary.
+          temperature: 0.2,
+          // Room for the evidence on every line.
+          max_tokens: 3500,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (res.status !== 429 || attempt === 3) break;
+      const hint = (await res.text().catch(() => "")).match(/try again in ([\d.]+)(ms|s)/i);
+      const wait = hint ? Number(hint[1]) * (hint[2].toLowerCase() === "ms" ? 1 : 1000) : 4000;
+      await new Promise((r) => setTimeout(r, Math.min(Math.max(wait, 1000) + 500, 20_000)));
+    }
+    if (!res || !res.ok) {
+      const detail = res ? await res.text().catch(() => "") : "";
+      throw new Error(`OpenAI ${res?.status ?? "?"}: ${detail.slice(0, 200)}`);
+    }
+    const body = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    void recordAiUsage({
+      feature: "brief",
       model,
-      // Low but not zero: at 0 the model repeats the transcript's own phrasing
-      // back as if it were a summary.
-      temperature: 0.2,
-      // Room for the quotes every line carries, and up to thirteen lines.
-      // Room for the fuller quotes (question and answer on every line).
-      max_tokens: 2400,
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: userPrompt(source) },
-      ],
-    }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`OpenAI ${res.status}: ${detail.slice(0, 200)}`);
-  }
-  const body = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
+      inputTokens: body.usage?.prompt_tokens,
+      outputTokens: body.usage?.completion_tokens,
+    });
+    const out = body.choices?.[0]?.message?.content?.trim();
+    if (!out) throw new Error("OpenAI returned an empty brief.");
+    return out;
   };
-  void recordAiUsage({
-    feature: "brief",
-    model,
-    inputTokens: body.usage?.prompt_tokens,
-    outputTokens: body.usage?.completion_tokens,
-  });
-  const text = body.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error("OpenAI returned an empty brief.");
+
+  const prompt = userPrompt(source);
+  const draft = await ask(SYSTEM, prompt);
+  // The editor pass. If it fails or comes back empty the draft stands: a briefing
+  // that skipped its second look is better than none.
+  let text = draft;
+  try {
+    text = await ask(EDITOR, `${prompt}\n\nDRAFT BRIEFING:\n${draft}`);
+  } catch (err) {
+    console.warn("[meeting-brief] editor pass failed, using the draft", err);
+  }
   return verifiedBrief(text, source);
 }
 
@@ -751,7 +803,9 @@ export function verifiedBrief(text: string, source: BriefSource): string {
     );
   // The four lines that are always written (2026-10-04): Trial first because it
   // is the one the founders most want to see, then Time, Decision maker, Warmth.
-  const ALWAYS = /^\s*-?\s*(Trial|Time|Decision maker|Warmth):/i;
+  const ALWAYS = /^\s*-?\s*(In short|Trial|Time|Decision maker|Warmth):/i;
+  // Lines that explain rather than report, so they carry no quotes.
+  const NO_QUOTES = /^\s*-?\s*(In short|Terms|Watch out):/i;
   const quotesOf = (t: string) => [...t.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
   const evidenceOk = (t: string) => quotesOf(t).every(found) && attributed(t);
   const kept = bullets
@@ -763,6 +817,22 @@ export function verifiedBrief(text: string, source: BriefSource): string {
         const at = line.indexOf(" Details: ");
         if (!evidenceOk(line.slice(at))) line = line.slice(0, at);
       }
+      // "Because" without its colon is split like the rest (the model drops it
+      // about one line in ten), but only ahead of the evidence.
+      {
+        const at = line.indexOf(" Details: ");
+        const head = at < 0 ? line : line.slice(0, at);
+        if (!head.includes(" Because: ")) {
+          const fixedHead = head.replace(/\s+Because\s+(?!:)/, " Because: ");
+          line = fixedHead + (at < 0 ? "" : line.slice(at));
+        }
+      }
+      // The Time headline is one of three sentences (2026-10-04). The model
+      // sometimes answers "Flexible." or "Firm.", the old words, so they are
+      // mapped rather than shown.
+      line = line
+        .replace(/^(\s*-?\s*Time:\s*)Flexible\b\.?/i, "$1Fine to ring early.")
+        .replace(/^(\s*-?\s*Time:\s*)Firm\b\.?/i, "$1Better not to ring early.");
       // The model's "no time discussed" is trusted only when the caller's own
       // lines have no day or clock time in them (Roll N Load was written up "no
       // time came up" on a call that read the booking back).
@@ -781,6 +851,7 @@ export function verifiedBrief(text: string, source: BriefSource): string {
     })
     .filter((line) => {
       if (line === "") return false;
+      if (NO_QUOTES.test(line)) return true;
       if (quotesOf(line).length === 0) {
         // Only the four always-written lines may stand with no evidence, and
         // only in their plain "nothing to report" or verdict-only wording.
@@ -810,8 +881,9 @@ export function verifiedBrief(text: string, source: BriefSource): string {
   }
   // A missing always-written line reads as "nobody looked", where a plain
   // "not clear" says it was checked.
-  const labelOf = (l: string) => /^\s*-?\s*(Trial|Time|Decision maker|Warmth):/i.exec(l)?.[1]?.toLowerCase();
+  const labelOf = (l: string) => /^\s*-?\s*(In short|Trial|Time|Decision maker|Warmth):/i.exec(l)?.[1]?.toLowerCase();
   const fixed: Record<string, string> = {
+    "in short": "",
     trial: "- Trial: Not suggested.",
     time: timeTalked
       ? "- Time: A time was discussed on the call but could not be summarised. Listen to the recording."
@@ -819,8 +891,8 @@ export function verifiedBrief(text: string, source: BriefSource): string {
     "decision maker": "- Decision maker: Not clear from the call.",
     warmth: "- Warmth: Not clear from the call.",
   };
-  const head = (["trial", "time", "decision maker", "warmth"] as const).map(
-    (k) => unique.find((l) => labelOf(l) === k) ?? fixed[k],
-  );
+  const head = (["in short", "trial", "time", "decision maker", "warmth"] as const)
+    .map((k) => unique.find((l) => labelOf(l) === k) ?? fixed[k])
+    .filter(Boolean);
   return [...head, ...unique.filter((l) => !labelOf(l))].join("\n");
 }
