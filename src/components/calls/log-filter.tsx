@@ -31,6 +31,7 @@ export function LogFilter({
   personId,
   range,
   day,
+  custom,
   tz,
 }: {
   outcome: LogFilterValue | "all";
@@ -38,6 +39,8 @@ export function LogFilter({
   personId: number | "all";
   range?: string;
   day?: string;
+  /** Two typed dates in force, which replace the range (2026-10-04). */
+  custom?: { from: string; to: string } | null;
   /** The clock the screen is read in, carried through like everything else
    *  here: narrowing to one outcome must not move the times. */
   tz?: string;
@@ -50,7 +53,10 @@ export function LogFilter({
     if (listId !== "all") params.set("list", String(listId));
     if (personId !== "all") params.set("person", String(personId));
     if (tz) params.set("tz", tz);
-    if (day) params.set("day", day);
+    if (custom) {
+      params.set("from", custom.from);
+      params.set("to", custom.to);
+    } else if (day) params.set("day", day);
     else if (range) params.set("range", range);
     if (next !== "all") params.set("outcome", next);
 

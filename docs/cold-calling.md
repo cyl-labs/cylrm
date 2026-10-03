@@ -1168,3 +1168,28 @@ inbound handled.
   listed number's when the list has none.
 - Not yet used by the Meetings row's dial button, which rings the number given
   at booking.
+
+## Stats: This week, Last week and a date picker (2026-10-04)
+
+"There's a gap in our stats date filtering, it's impossible to see last week."
+The range select only had Today, Yesterday, Last 7 days, Last 30 days and All time,
+plus a single day off the calendar, so a calendar week and any named stretch were
+out of reach. `getCallTotals` and every card already read a `between` window; only
+the control was missing.
+
+- **New choices on the range select** (`components/calls/call-filters.tsx`): **This
+  week** and **Last week** (Monday to Sunday in the reporting zone, the same Monday
+  the calendar and the payroll week start on; `mondayOf` in the page), and **Pick
+  dates...**, a small dialog with two date inputs capped at today. URL: `?from=` and
+  `?to=` (YYYY-MM-DD). `?range=thisweek|lastweek` are the presets.
+- Typed dates win over the range and the day. Reversed dates are swapped, not
+  refused, and a future end is cut to today. A range starting after today is ignored.
+- **`windowParams` in the page is the one thing that says which dates are in force**,
+  and it feeds the calendar's links, the "Show just those calls" link, the outcome
+  filter (`LogFilter` gained a `custom` prop) and the range select. Anything new that
+  rebuilds this screen's URL has to carry it or the dates silently reset, the trap
+  `call-filters.tsx` documents for the niche. Tapping a calendar day clears `from` and
+  `to`.
+- A line under the filters says "Showing 28 Sep to 4 Oct, Singapore time" with a way
+  back to the last 7 days. Only Stats passes `today`, so Pipeline and Callbacks do not
+  get the picker.

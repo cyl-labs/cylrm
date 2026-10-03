@@ -52,8 +52,22 @@ function windowFor(
   range: string,
   day: string | undefined,
   tz: string,
+  custom?: { from: string; to: string } | null,
 ): StatsWindow {
+  // Typed dates win over everything (2026-10-04): the presets could name
+  // "today", "yesterday", seven and thirty days back, so last week and any
+  // named stretch were out of reach.
+  if (custom) return { kind: "between", from: custom.from, to: custom.to, tz };
   if (day) return { kind: "day", date: day, tz };
+  // Calendar weeks, Monday to Sunday in the reporting zone, the same Monday the
+  // calendar and the payroll week start on.
+  if (range === "thisweek") {
+    return { kind: "between", from: mondayOf(todayInStatsTz(tz)), to: todayInStatsTz(tz), tz };
+  }
+  if (range === "lastweek") {
+    const monday = mondayOf(todayInStatsTz(tz));
+    return { kind: "between", from: shiftDay(monday, -7), to: shiftDay(monday, -1), tz };
+  }
   if (range === "today") return { kind: "day", date: todayInStatsTz(tz), tz };
   if (range === "yesterday") return { kind: "day", date: dayBack(1, tz), tz };
   if (range === "all") return { kind: "all", tz };
@@ -62,7 +76,19 @@ function windowFor(
 
 // "yesterday" and "90" are gone from the picker but still honoured: a
 // bookmarked URL should not silently become something else.
-const RANGE_KEYS = new Set(["today", "yesterday", "7", "30", "90", "all"]);
+const RANGE_KEYS = new Set([
+  "today", "yesterday", "thisweek", "lastweek", "7", "30", "90", "all",
+]);
+
+/** A calendar date moved by whole days, stepped in UTC so no zone can move it. */
+const shiftDay = (iso: string, days: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+/** The Monday on or before a calendar date. */
+const mondayOf = (iso: string) =>
+  shiftDay(iso, -((new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7));
 const isDay = (v: string | undefined): v is string =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
@@ -117,10 +143,14 @@ export default async function CallStatsPage({
     outcome?: string;
     month?: string;
     tz?: string;
+    from?: string;
+    to?: string;
   }>;
 }) {
   const {
     range: raw,
+    from: rawFrom,
+    to: rawTo,
     list,
     day: rawDay,
     person,
@@ -180,7 +210,22 @@ export default async function CallStatsPage({
   // window where the numbers mean something, and it is also the period pay is
   // worked out over. Today is still one tap away in the picker.
   const range = raw && RANGE_KEYS.has(raw) ? raw : "7";
-  const w = windowFor(range, day, zone.tz);
+  // Two typed dates (2026-10-04). Reversed is a slip, so swapped rather than
+  // refused; a future end is cut to today, since a range running past today has
+  // nothing in its tail.
+  const today = todayInStatsTz(zone.tz);
+  const custom = (() => {
+    if (!isDay(rawFrom) || !isDay(rawTo)) return null;
+    const [lo, hi] = rawFrom <= rawTo ? [rawFrom, rawTo] : [rawTo, rawFrom];
+    return lo > today ? null : { from: lo, to: hi > today ? today : hi };
+  })();
+  const w = windowFor(range, custom ? undefined : day, zone.tz, custom);
+  // Whichever one thing says which dates are in force, for every link below.
+  const windowParams: Record<string, string> = custom
+    ? { from: custom.from, to: custom.to }
+    : day
+      ? { day }
+      : { range };
 
   // The calendar's own month. It follows the window unless the arrows have
   // been used, and the filter controls deliberately do NOT carry `?month=`
@@ -355,7 +400,9 @@ export default async function CallStatsPage({
             allLabel={mine ? "Me" : undefined}
             personId={viewing ? viewing.id : mine ? "all" : (personId ?? "all")}
             range={range}
-            day={day}
+            day={custom ? undefined : day}
+            custom={custom}
+            today={today}
             tz={region}
           />
           {/* Last of the four: it is the one you set once and leave, where
@@ -419,6 +466,23 @@ export default async function CallStatsPage({
               Call lists
             </Link>
             <span className="text-muted-foreground"> to start dialling.</span>
+          </p>
+        )}
+        {w.kind === "between" && (
+          <p className="text-[13px] text-muted-foreground">
+            Showing <span className="font-bold">{dayLabel(w.from)}</span> to{" "}
+            <span className="font-bold">{dayLabel(w.to)}</span>, {zone.name} time.{" "}
+            <Link
+              href={`/call-stats?${new URLSearchParams({
+                ...(listId ? { list: String(listId) } : {}),
+                ...personParam,
+                ...(region !== DEFAULT_STATS_REGION ? { tz: region } : {}),
+                range: "7",
+              })}`}
+              className="font-semibold text-primary hover:underline"
+            >
+              Back to the last 7 days
+            </Link>
           </p>
         )}
         {w.kind === "day" && (
@@ -495,7 +559,7 @@ export default async function CallStatsPage({
                 href={`/call-stats?${new URLSearchParams({
                   ...(listId ? { list: String(listId) } : {}),
                   ...personParam,
-                  ...(day ? { day } : { range }),
+                  ...windowParams,
                   ...(region !== DEFAULT_STATS_REGION ? { tz: region } : {}),
                   outcome: "outside_hours",
                 })}`}
@@ -588,7 +652,7 @@ export default async function CallStatsPage({
                 ...personParam,
                 ...(outcome ? { outcome } : {}),
                 ...(region !== DEFAULT_STATS_REGION ? { tz: region } : {}),
-                ...(day ? { day } : { range }),
+                ...windowParams,
               }}
               selectedDay={w.kind === "day" ? w.date : undefined}
               from={covered.from}
@@ -745,7 +809,8 @@ export default async function CallStatsPage({
                 listId={listId ?? "all"}
                 personId={viewing ? viewing.id : mine ? "all" : (personId ?? "all")}
                 range={range}
-                day={day}
+                day={custom ? undefined : day}
+                custom={custom}
                 tz={region}
               />
             </div>

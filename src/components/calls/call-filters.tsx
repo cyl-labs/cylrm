@@ -12,7 +12,17 @@ import {
 } from "@/components/ui/select";
 // Same formatter the range tabs use, so "25 Aug 2026" cannot be written one
 // way on one screen and another way on the next.
-import { formatStatsDate } from "@/components/calls/range-tabs";
+import { formatStatsDate, formatStatsRange } from "@/components/calls/range-tabs";
+import * as React from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { beginNavigation } from "@/components/navigation-progress";
 
 /**
@@ -27,6 +37,8 @@ import { beginNavigation } from "@/components/navigation-progress";
 const RANGES = [
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
+  { value: "thisweek", label: "This week" },
+  { value: "lastweek", label: "Last week" },
   { value: "7", label: "Last 7 days" },
   { value: "30", label: "Last 30 days" },
   { value: "all", label: "All time" },
@@ -47,6 +59,8 @@ export function CallFilters({
   personId = "all",
   range,
   day,
+  custom,
+  today,
   tz,
 }: {
   lists: { id: number; name: string }[];
@@ -65,6 +79,11 @@ export function CallFilters({
    *  the calendar. It replaces the range rather than narrowing it, so only one
    *  is ever set. */
   day?: string;
+  /** Two typed dates in force (2026-10-04); replaces the range. Turns on the
+   *  "Pick dates" choice when `today` is also given. */
+  custom?: { from: string; to: string } | null;
+  /** Today in the reporting zone, YYYY-MM-DD, capping the date inputs. */
+  today?: string;
   /** The clock the screen is being read in. Carried through every change for
    *  the same reason the niche and the person are — a filter that dropped it
    *  would quietly move every number back to Eastern. */
@@ -72,12 +91,16 @@ export function CallFilters({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [pickOpen, setPickOpen] = React.useState(false);
+  const [from, setFrom] = React.useState(custom?.from ?? today ?? "");
+  const [to, setTo] = React.useState(custom?.to ?? today ?? "");
 
   function go(next: {
     list?: string;
     person?: string;
     range?: string;
     day?: string | null;
+    custom?: { from: string; to: string } | null;
   }) {
     const params = new URLSearchParams();
     const list = next.list ?? String(listId);
@@ -94,8 +117,12 @@ export function CallFilters({
     // A day and a range are the same question answered two ways, so setting
     // one clears the other.
     const nextDay = next.day === undefined ? day : next.day;
+    const nextCustom = next.custom === undefined ? custom : next.custom;
     if (next.range) params.set("range", next.range);
-    else if (nextDay) params.set("day", nextDay);
+    else if (nextCustom) {
+      params.set("from", nextCustom.from);
+      params.set("to", nextCustom.to);
+    } else if (nextDay) params.set("day", nextDay);
     else if (range) params.set("range", range);
 
     const query = params.toString();
@@ -158,8 +185,17 @@ export function CallFilters({
       {range !== undefined && (
         <>
           <Select
-            value={day ? "day" : range}
-            onValueChange={(v) => go({ range: v, day: null })}
+            value={custom ? "custom" : day ? "day" : range}
+            onValueChange={(v) => {
+              if (v === "pick") {
+                setFrom(custom?.from ?? today ?? "");
+                setTo(custom?.to ?? today ?? "");
+                setPickOpen(true);
+                return;
+              }
+              if (v === "custom") return;
+              go({ range: v, day: null, custom: null });
+            }}
           >
             <SelectTrigger size="sm" className="w-full sm:w-36">
               <SelectValue />
@@ -176,8 +212,69 @@ export function CallFilters({
               {day && (
                 <SelectItem value="day">On {formatStatsDate(day)}</SelectItem>
               )}
+              {custom && (
+                <SelectItem value="custom">
+                  {formatStatsRange(custom.from, custom.to)}
+                </SelectItem>
+              )}
+              {today !== undefined && (
+                <SelectItem value="pick">Pick dates...</SelectItem>
+              )}
             </SelectContent>
           </Select>
+          {today !== undefined && (
+            <Dialog open={pickOpen} onOpenChange={setPickOpen}>
+              <DialogContent className="sm:max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>Pick the dates</DialogTitle>
+                </DialogHeader>
+                <p className="text-[13px] text-muted-foreground">
+                  Every call from the start of the first day to the end of the
+                  last, in the time zone this screen is set to. Both days are
+                  included.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="stats-from">From</Label>
+                    <input
+                      id="stats-from"
+                      type="date"
+                      value={from}
+                      max={today}
+                      onChange={(e) => setFrom(e.target.value)}
+                      className="w-full rounded-md border bg-background px-2.5 py-1.5 text-[13px]"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="stats-to">To</Label>
+                    <input
+                      id="stats-to"
+                      type="date"
+                      value={to}
+                      max={today}
+                      onChange={(e) => setTo(e.target.value)}
+                      className="w-full rounded-md border bg-background px-2.5 py-1.5 text-[13px]"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setPickOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={!from || !to}
+                    onClick={() => {
+                      const [lo, hi] = from <= to ? [from, to] : [to, from];
+                      go({ custom: { from: lo, to: hi }, day: null });
+                      setPickOpen(false);
+                    }}
+                  >
+                    Show these dates
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </>
       )}
     </>

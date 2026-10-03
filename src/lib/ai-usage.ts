@@ -16,6 +16,7 @@ import { db } from "@/db";
  */
 const RATES: Record<string, { input: number; output: number }> = {
   "gpt-4.1-mini": { input: 0.4, output: 1.6 },
+  "gpt-4.1": { input: 2, output: 8 },
   // Audio in at the audio rate, text out at the text rate.
   "gpt-4o-mini-transcribe": { input: 1.25, output: 5 },
 };
