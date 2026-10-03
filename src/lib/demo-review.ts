@@ -242,17 +242,17 @@ function buildSystem(kind: ReviewKind): string {
   "Ratings: done (clearly did it), partly (tried or half did it, or did it in a telling way instead of getting the prospect to say it), missed (the call reached the point where it belonged and the closer did not do it), not_reached (the call never got that far, for example it ended early).",
   "",
   "Reply with one JSON object and nothing else, in exactly this shape:",
-  '{"headline": string, "stages": [{"key": string, "rating": "done"|"partly"|"missed"|"not_reached", "evidence": string|null, "note": string}], "wentWell": [string], "toImprove": [{"what": string, "tryThis": string}], "objections": [{"theySaid": string, "handled": string, "tryThis": string}], "biggestFix": string}',
+  '{"headline": string, "nextSteps": [{"when": string, "do": string, "say": string}], "stages": [{"key": string, "rating": "done"|"partly"|"missed"|"not_reached", "evidence": string|null, "note": string}], "wentWell": [string], "objections": [{"theySaid": string, "handled": string, "tryThis": string}]}',
   "",
   "Rules:",
-  "- headline: one plain sentence summing up how the call went against the method.",
-  "- stages: all the keys above, in the order given. note is one short plain sentence saying what happened, in everyday words. evidence is an exact quote of up to about 25 words copied character for character from ONE speaker in the transcript that backs the rating, or null when there is nothing to quote (a missed or not_reached step usually has none). Never write evidence that is not in the transcript.",
-  "- wentWell: 2 to 4 specific things the closer did well, each naming the moment. Leave the list shorter rather than flatter. Empty is allowed.",
-  "- toImprove: 2 to 4 specific changes, most important first. what says the gap and where it happened. tryThis is a short line the closer could actually say next time, in the style of the reference (a question, not a statement, where the method calls for one). Never invent facts about the prospect that were not said.",
-  "- objections: one entry for each real objection or hesitation the prospect raised (price, need to think, need to ask someone, already have something, not now). theySaid is a short quote of it, handled says in one sentence what the closer did, tryThis is how the reference would handle it. Empty list if there were none.",
-  "- biggestFix: the single most valuable thing to change, in one or two plain sentences.",
+  "- READING LEVEL: write everything the reader sees at a third grade reading level. Use short everyday words. Keep sentences under 12 words, one idea each. Never use sales words such as discovery, qualify, consequence, reframe, transition, objection, rapport, insight, framework, leverage, value proposition, or pain point. Say what to do, not what to explore. Say owner, not prospect.",
+  "- headline: one plain sentence on how the call went.",
+  "- nextSteps: 1 to 3 steps for the NEXT call, most important first, chosen because they would change the result the most. Never repeat the same lesson twice. If the call went well, give one step that would make it better. Each step has: when, do and say. when points at the moment in THIS call. Start with what the owner said and put a few of their exact words in double quotes, for example: When the owner said \"many people do not like talking to a machine\". do is one thing to do, starting with a verb, in plain words. say is the exact words to say, one or two short sentences, a question where the method calls for one. Never make up facts about the owner.",
+  "- stages: all the keys above, in the order given. note is one short plain sentence saying what happened. evidence is an exact quote of up to about 25 words copied character for character from ONE speaker in the transcript that backs the rating, or null when there is nothing to quote (a missed or not_reached step usually has none). Never write evidence that is not in the transcript.",
+  "- wentWell: 2 to 4 specific things done well, each naming the moment. Leave the list shorter rather than flatter. Empty is allowed.",
+  "- objections: one entry for each time the owner pushed back or hesitated (price, need to think, need to ask someone, already have something, not now). theySaid is a short exact quote of it, handled says in one sentence what was done, tryThis is what to say instead, in plain words. Empty list if there were none.",
   "- Be fair and specific. Do not praise a step that was not done, and do not mark a step missed when it was done in different words. Judge the method, not the outcome: a sale that was lost can still be a well run call.",
-  "- Plain everyday language. No sales jargon without explaining it. Never use an em dash.",
+  "- Never use an em dash.",
 ].join("\n");
 }
 
@@ -349,17 +349,31 @@ export async function writeReview(
     };
   });
 
+  // The moment each step points at. Quoted words that are not really in the
+  // call are cut out rather than shown, the same rule the evidence follows.
+  const nextSteps = list(raw.nextSteps)
+    .map((x) => {
+      const o = x as { when?: unknown; do?: unknown; say?: unknown };
+      const when = clean(o.when).replace(/["“]([^"“”]+)["”]/g, (all, q: string) =>
+        inCall(q) ? all : "",
+      );
+      let tidy = when.replace(/\s+/g, " ").trim();
+      // A pointer whose quote was cut ends mid-sentence ("When the owner said"),
+      // which is worse than no pointer.
+      tidy = tidy.replace(/\s+([.,;:])/g, "$1");
+      if (/\b(said|asked|told you|answered)[\s:,.]*$/i.test(tidy) || tidy.length < 12) tidy = "";
+      return { when: tidy, do: clean(o.do), say: clean(o.say) };
+    })
+    .filter((x) => x.do && x.say)
+    .slice(0, 3);
+
   return {
     headline: clean(raw.headline),
     stages,
     wentWell: list(raw.wentWell).map(clean).filter(Boolean).slice(0, 4),
-    toImprove: list(raw.toImprove)
-      .map((x) => ({
-        what: clean((x as { what?: unknown }).what),
-        tryThis: clean((x as { tryThis?: unknown }).tryThis),
-      }))
-      .filter((x) => x.what)
-      .slice(0, 4),
+    nextSteps: nextSteps.length > 0 ? nextSteps : undefined,
+    // Kept for reviews written before nextSteps; new ones leave it empty.
+    toImprove: [],
     objections: list(raw.objections)
       .map((x) => ({
         theySaid: clean((x as { theySaid?: unknown }).theySaid),
@@ -368,7 +382,7 @@ export async function writeReview(
       }))
       .filter((x) => x.theySaid)
       .slice(0, 6),
-    biggestFix: clean(raw.biggestFix),
+    biggestFix: nextSteps[0]?.do ?? "",
     talk: s.talk,
     recordingIds: s.recordingIds.length > 0 ? s.recordingIds : undefined,
   };

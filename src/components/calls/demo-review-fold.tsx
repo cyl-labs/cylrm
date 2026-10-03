@@ -105,8 +105,8 @@ export function DemoReviewFold({
         {!r ? (
           <p className="text-muted-foreground">
             {booking
-              ? "A structured review of the cold call that booked this demo, measured against our calling script and Gong's cold-call research. It covers what worked, what to tighten and suggested wording. The first review takes up to a minute while the recording is analysed."
-              : "A structured review of this demo against our sales framework (NEPQ and Challenger, with Gong's demo research). It covers what worked, what to tighten and suggested wording. The first review takes up to a minute while the recording is analysed."}
+              ? "A review of the cold call that booked this demo. It shows what went well, what to do better, and what to say next time. The first review can take up to a minute."
+              : "A review of this demo. It shows what went well, what to do better, and what to say next time. The first review can take up to a minute."}
           </p>
         ) : (
           <>
@@ -117,17 +117,42 @@ export function DemoReviewFold({
               {r.talk.closerQuestions === 1 ? "question" : "questions"} in{" "}
               {r.talk.minutes} minutes.{" "}
               {booking
-                ? "Gong's research puts the caller at about 55% of the conversation on cold calls that book. A share well above that often means the owner was not given room to respond."
-                : "Gong's research puts the seller at about two thirds of the conversation on winning demos, so a higher share is expected here. Long stretches without any exchange are what to watch for."}
+                ? "On cold calls that book a demo, the caller talks about half the time. If the caller talks much more, the owner may not get a turn."
+                : "In good demos, the seller talks about two thirds of the time. So a lot of talking is fine. Long stretches with no back and forth are not."}
             </p>
 
-            {r.biggestFix && (
+            {r.nextSteps && r.nextSteps.length > 0 ? (
               <div className="rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
                 <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  The one thing to change
+                  {booking ? "Do this on your next call" : "Do this on your next demo"}
                 </p>
-                <p className="mt-0.5">{r.biggestFix}</p>
+                <ol className="mt-1.5 space-y-2.5">
+                  {r.nextSteps.map((st, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 space-y-0.5">
+                        {st.when && <p className="text-muted-foreground">{st.when}</p>}
+                        <p className="font-semibold">{st.do}</p>
+                        <p>
+                          <span className="text-muted-foreground">Say: </span>
+                          &ldquo;{st.say}&rdquo;
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
               </div>
+            ) : (
+              r.biggestFix && (
+                <div className="rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    The one thing to change
+                  </p>
+                  <p className="mt-0.5">{r.biggestFix}</p>
+                </div>
+              )
             )}
 
             {r.wentWell.length > 0 && (
@@ -174,7 +199,7 @@ export function DemoReviewFold({
 
             <div>
               <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Step by step
+                How each step went
               </p>
               <ul className="space-y-1.5">
                 {shown.map((s) => (
@@ -276,8 +301,8 @@ export function DemoReviewFold({
         </div>
         {r && (
           <p className="text-[12px] text-muted-foreground">
-            Generated from the call transcript. Treat it as coaching guidance
-            rather than a formal evaluation. Tone and delivery are not assessed.
+            Made from the call text. It is a guide, not a grade. It cannot hear
+            how someone sounded.
           </p>
         )}
       </div>
