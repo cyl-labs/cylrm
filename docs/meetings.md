@@ -2544,3 +2544,41 @@ machine") and read as amateurish to the closers who will use it. They now speak
 neutrally about "our sales framework" and "coaching guidance". Keep new copy in
 that voice: no references to who taught the method, no apologies for being
 automated.
+
+### Choosing which call a demo review reads (2026-10-03)
+
+Asked for because "demo calls are only valid if it's the real demo call", and the
+automatic pick is a guess: a demo that drops is several recordings, and a
+voicemail can be mistaken for the demo. The demo review fold now lists **every
+recording of that business** (the automatic demo pick, any earlier demo, and the
+other calls, founders only) as tickboxes with its length and time; the reviewer
+ticks the real one, or every part of one that dropped, then presses "Review the
+ticked calls".
+
+- Ticked to begin with: the automatic pick, or, once a review exists, the calls it
+  was written from (`DemoReview.recordingIds`, stored in the review's jsonb, so no
+  migration). A different selection reads as a different transcript, so it is a
+  new review by fingerprint.
+- `POST /api/meetings/review` takes `recordingIds` (demo reviews only). A chosen id
+  is honoured only if the call was to or from **this business's number or the
+  booking's phone** (`reviewSource(meetingId, onlyIds)`), so a crafted request
+  cannot pull another business's recording in. A chosen set is taken as given and
+  not clustered; the automatic pick still is.
+- Still needs 3 minutes in total; the refusal says to tick every part if the call
+  dropped. The fold now shows whenever the business has any recording, not only
+  when the system found a demo, so a founder can pick one the system missed.
+- Not for booking-call reviews: that one reads the call that booked the meeting.
+
+### A swapped number no longer turns a caller's calls into the founders' demo (2026-10-03)
+
+SIDCO Junk Removal showed Akshansh's 47 second voicemail (Sep 25, from his old
++16232698357, signing off as "Peter") as the founders' "Demo call". The test that
+keeps a caller's own calls out of the demo list compared the recording's number
+with each caller's **current** `telnyx_did`, so the day Akshansh was given a new
+number his old line belonged to nobody. `DEMO_RECORDING_WHERE`, the earlier-demo
+list and the Other calls names (`meetings.ts`), and the founders' demo list in the
+call log (`call-stats.ts`) now also count **any number a person has dialled from**
+(`call.dialled_from`). Affects everyone who has swapped: Akshansh (2,638 calls on
+his old number in 30 days), Aaron, Mico, Maryjane, Gigi. The label "Founders"
+beside a demo call is fixed text, so a call wrongly listed as a demo also reads
+as the founders'.

@@ -62,8 +62,19 @@ export type ReviewSource = {
   talk: DemoReview["talk"] | null;
 };
 
-/** The demo's recordings (a redial keeps both halves), transcribed or not. */
-export async function reviewSource(meetingId: number): Promise<ReviewSource | null> {
+/**
+ * The demo's recordings (a redial keeps both halves), transcribed or not.
+ *
+ * `onlyIds` is the reviewer's own choice of which calls to analyse
+ * (2026-10-03): the automatic pick is a guess, a demo that drops is several
+ * recordings, and a voicemail can be mistaken for the demo. Chosen ids are only
+ * honoured when the call was to or from this business's number, so a crafted
+ * request cannot pull in somebody else's recording.
+ */
+export async function reviewSource(
+  meetingId: number,
+  onlyIds?: string[],
+): Promise<ReviewSource | null> {
   const meta = (await db.execute(sql`
     select coalesce(l.company, m.attendee_name, 'Unlinked booking') as company,
            cl.niche as niche
@@ -74,7 +85,24 @@ export async function reviewSource(meetingId: number): Promise<ReviewSource | nu
   `)) as unknown as Record<string, unknown>[];
   if (meta.length === 0) return null;
 
-  const rows = (await db.execute(sql`
+  const chosen = onlyIds && onlyIds.length > 0 ? onlyIds : null;
+  const rows = (await db.execute(
+    chosen
+      ? sql`
+    select cr.recording_id, cr.duration_ms, cr.started_at,
+           cr.transcript_turns as turns, cr.transcript_text as text
+    from call_meeting m
+    left join call_lead l on l.id = m.call_lead_id
+    join call_recording cr
+      on cr.recording_id in (${sql.join(chosen.map((id) => sql`${id}`), sql`, `)})
+     and (
+       cr.to_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
+       or cr.from_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
+     )
+    where m.id = ${meetingId}
+    order by cr.started_at asc, cr.id asc
+  `
+      : sql`
     select cr.recording_id, cr.duration_ms, cr.started_at,
            cr.transcript_turns as turns, cr.transcript_text as text
     from call_meeting m
@@ -82,17 +110,19 @@ export async function reviewSource(meetingId: number): Promise<ReviewSource | nu
     join call_recording cr on ${DEMO_RECORDING_WHERE}
     where m.id = ${meetingId}
     order by cr.started_at asc, cr.id asc
-  `)) as unknown as Record<string, unknown>[];
+  `,
+  )) as unknown as Record<string, unknown>[];
 
-  const clustered = clusterDemoRecordings(
-    rows.map((r) => ({
-      recordingId: String(r.recording_id),
-      durationMs: r.duration_ms === null ? null : Number(r.duration_ms),
-      startedAt: new Date(r.started_at as string).toISOString(),
-      turns: Array.isArray(r.turns) ? (r.turns as TranscriptTurn[]) : null,
-      text: (r.text as string | null) ?? null,
-    })),
-  );
+  const all = rows.map((r) => ({
+    recordingId: String(r.recording_id),
+    durationMs: r.duration_ms === null ? null : Number(r.duration_ms),
+    startedAt: new Date(r.started_at as string).toISOString(),
+    turns: Array.isArray(r.turns) ? (r.turns as TranscriptTurn[]) : null,
+    text: (r.text as string | null) ?? null,
+  }));
+  // The reviewer's choice is taken as given. Only the automatic pick is
+  // clustered (the group holding the longest call).
+  const clustered = chosen ? all : clusterDemoRecordings(all);
 
   const minutes =
     Math.round((clustered.reduce((a, r) => a + (r.durationMs ?? 0), 0) / 60_000) * 10) / 10;
@@ -335,6 +365,7 @@ export async function writeReview(
       .slice(0, 6),
     biggestFix: clean(raw.biggestFix),
     talk: s.talk,
+    recordingIds: s.recordingIds.length > 0 ? s.recordingIds : undefined,
   };
 }
 

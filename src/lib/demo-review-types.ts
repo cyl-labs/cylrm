@@ -24,6 +24,20 @@ export type DemoReview = {
   biggestFix: string;
   /** Counted from the transcript, never written by the model. */
   talk: { closerPercent: number; closerQuestions: number; minutes: number };
+  /** The recordings this review was written from, so the fold can show which
+   *  calls were analysed and pre-tick them next time (2026-10-03). Absent on
+   *  reviews written before the picker existed. */
+  recordingIds?: string[];
+};
+
+/** One recording a reviewer can choose to analyse. */
+export type ReviewCall = {
+  recordingId: string;
+  /** "Demo call 2", "Call (Akshansh)", "Other call". */
+  label: string;
+  durationMs: number | null;
+  /** Already formatted in the reader's zone. */
+  startedLabel: string | null;
 };
 
 export type StoredReview = { review: DemoReview; generatedAt: string };

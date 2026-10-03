@@ -42,12 +42,20 @@ export async function POST(request: Request) {
     meetingId?: unknown;
     force?: unknown;
     kind?: unknown;
+    recordingIds?: unknown;
   } | null;
   const meetingId = Number(body?.meetingId);
   if (!Number.isInteger(meetingId) || meetingId <= 0) {
     return Response.json({ error: "No meeting given." }, { status: 400 });
   }
   const kind: ReviewKind = body?.kind === "booking" ? "booking" : "demo";
+  // The calls the reviewer ticked as the real demo (demo reviews only).
+  const picked =
+    kind === "demo" && Array.isArray(body?.recordingIds)
+      ? (body.recordingIds as unknown[])
+          .filter((v): v is string => typeof v === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(v))
+          .slice(0, 10)
+      : [];
 
   if (kind === "demo") {
     if (me.role !== "admin" && me.role !== "closer") {
@@ -79,11 +87,16 @@ export async function POST(request: Request) {
 
   let source: ReviewSource | null;
   if (kind === "demo") {
-    source = await reviewSource(meetingId);
+    source = await reviewSource(meetingId, picked);
     if (!source) return Response.json({ error: "Meeting not found." }, { status: 404 });
     if (source.recordingIds.length === 0) {
       return Response.json(
-        { error: "There is no recording of the demo call, so there is nothing to review." },
+        {
+          error:
+            picked.length > 0
+              ? "None of the calls you chose belong to this business, so there is nothing to review."
+              : "There is no recording of the demo call, so there is nothing to review. Tick the call you want reviewed.",
+        },
         { status: 422 },
       );
     }
@@ -95,7 +108,7 @@ export async function POST(request: Request) {
           { status: 502 },
         );
       }
-      source = (await reviewSource(meetingId)) ?? source;
+      source = (await reviewSource(meetingId, picked)) ?? source;
     }
   } else {
     let got = await bookingSource(meetingId);
@@ -123,7 +136,7 @@ export async function POST(request: Request) {
   if (kind === "demo" && source.minutes < REVIEW_MIN_MINUTES) {
     return Response.json(
       {
-        error: `The demo call was only ${source.minutes} minutes, too short to review. Reviews need at least ${REVIEW_MIN_MINUTES}.`,
+        error: `The calls you chose add up to only ${source.minutes} minutes, too short to review. A demo review needs at least ${REVIEW_MIN_MINUTES}. If the call dropped, tick every part of it.`,
       },
       { status: 422 },
     );

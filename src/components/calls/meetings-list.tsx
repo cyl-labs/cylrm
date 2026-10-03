@@ -967,6 +967,43 @@ export function MeetingsList({
         const ownRecordings = m.demoRecordings.filter((r) => keep(r.durationMs));
         const otherCalls = m.otherRecordings.filter((r) => keep(r.durationMs));
         const cancelled = m.status === "cancelled";
+        // Every recording that could be the demo, for the review's picker
+        // (2026-10-03): the automatic pick plus every other call to this
+        // business, so a reviewer can choose the real one, or every part of one
+        // that dropped. Not filtered by "hide short calls": a short part of a
+        // dropped demo still has to be selectable.
+        const reviewCalls = (() => {
+          const seen = new Set<string>();
+          const out: { recordingId: string; label: string; durationMs: number | null; startedAt: string | null }[] = [];
+          const add = (
+            r: { recordingId: string; durationMs: number | null; startedAt?: string | null },
+            label: string,
+          ) => {
+            if (seen.has(r.recordingId)) return;
+            seen.add(r.recordingId);
+            out.push({ recordingId: r.recordingId, label, durationMs: r.durationMs, startedAt: r.startedAt ?? null });
+          };
+          m.demoRecordings.forEach((r, i) => add(r, i === 0 ? "Demo call" : `Demo call ${i + 1}`));
+          m.earlierDemoRecordings.forEach((r) => add(r, "Earlier demo call"));
+          m.otherRecordings.forEach((r) =>
+            add(
+              r,
+              r.byName
+                ? `${r.direction === "in" ? "They called" : "Call"} (${r.byName})`
+                : "Other call",
+            ),
+          );
+          return out
+            .sort((a, b) => (a.startedAt ?? "").localeCompare(b.startedAt ?? ""))
+            .map((c) => ({
+              recordingId: c.recordingId,
+              label: c.label,
+              durationMs: c.durationMs,
+              startedLabel: c.startedAt
+                ? `${format.format(new Date(c.startedAt))} ${zoneLabel}`
+                : null,
+            }));
+        })();
         // The server's answer until the clock above has ticked once, then the
         // live one. `m.started` was worked out when the page rendered, which
         // is the wrong moment for a card somebody is still looking at when
@@ -2630,10 +2667,12 @@ export function MeetingsList({
             {/* How the demo call went against the NEPQ and Challenger
                 checklist (2026-10-03). Only where the demo was recorded, and
                 never on a cancelled booking. */}
-            {reviews && !cancelled && m.demoRecordings.length > 0 && (
+            {reviews && !cancelled && reviewCalls.length > 0 && (
               <DemoReviewFold
                 meetingId={m.id}
                 initial={reviews[m.id] ?? null}
+                calls={reviewCalls}
+                defaultIds={m.demoRecordings.map((r) => r.recordingId)}
               />
             )}
 
