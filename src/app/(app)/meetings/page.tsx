@@ -10,6 +10,7 @@ import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
 import { getStoredBriefs } from "@/lib/meeting-brief";
+import { getStoredReviews } from "@/lib/demo-review";
 import type { CalendarEvent } from "@/components/calls/meetings-calendar";
 import { getSavedLines } from "@/lib/calls";
 import { calConfigured } from "@/lib/cal";
@@ -285,6 +286,18 @@ export default async function MeetingsPage({
       : closerId !== null
         ? Object.fromEntries(
             await getStoredBriefs(
+              meetings.filter((m) => m.closerUserId === closerId).map((m) => m.id),
+            ),
+          )
+        : null;
+  // The review of each demo call (2026-10-03), for the same people as the
+  // briefs: founders for every meeting, a closer for the ones handed to them.
+  const reviews =
+    me?.role === "admin"
+      ? Object.fromEntries(await getStoredReviews(meetings.map((m) => m.id)))
+      : closerId !== null
+        ? Object.fromEntries(
+            await getStoredReviews(
               meetings.filter((m) => m.closerUserId === closerId).map((m) => m.id),
             ),
           )
@@ -648,6 +661,7 @@ export default async function MeetingsPage({
           followUpBookingUrl={process.env.CAL_FOLLOWUP_URL ?? null}
           texting={texting}
           briefs={briefs}
+          reviews={reviews}
           // Re-sending an invitation needs the Cal.com API, so an account
           // without a key draws no button rather than one that can only fail.
           // Not gated on role: the caller who typed the address wrong is the

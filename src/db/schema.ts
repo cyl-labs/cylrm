@@ -1564,6 +1564,34 @@ export const callMeetingBrief = pgTable(
 );
 
 /**
+ * A written review of the demo call, scored against the NEPQ and Challenger
+ * checklist (2026-10-03). Stored for the reason `callMeetingBrief` is: it costs
+ * an OpenAI call and possibly a Deepgram minute. `review` is a `DemoReview`
+ * (`lib/demo-review-types.ts`).
+ */
+export const callMeetingReview = pgTable(
+  "call_meeting_review",
+  {
+    id: serial("id").primaryKey(),
+    meetingId: integer("meeting_id")
+      .notNull()
+      .unique()
+      .references(() => callMeeting.id, { onDelete: "cascade" }),
+    review: jsonb("review").notNull(),
+    sourceFingerprint: text("source_fingerprint"),
+    model: text("model"),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    generatedByUserId: integer("generated_by_user_id").references(
+      () => appUser.id,
+      { onDelete: "set null" },
+    ),
+  },
+  (t) => [index("call_meeting_review_meeting_idx").on(t.meetingId)],
+);
+
+/**
  * `fieldValues` is a snapshot for the same reason `payout` snapshots its rates.
  * Raising a price must not rewrite what an agreement said on the day it was
  * drafted, and this is the only record of that on our side.

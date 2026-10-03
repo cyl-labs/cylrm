@@ -284,9 +284,19 @@ export async function ensureTranscripts(
       and cr.transcript_text is null
   `)) as unknown as Record<string, unknown>[];
 
-  const ids = rows.map((r) => String(r.recording_id));
-  if (ids.length === 0) return { transcribed: 0, failed: 0 };
+  return transcribeRecordings(rows.map((r) => String(r.recording_id)));
+}
 
+/**
+ * Transcribe these recordings and store the text on them. Shared by the briefing
+ * and the demo call review. Failures are counted, never thrown.
+ */
+export async function transcribeRecordings(
+  ids: string[],
+): Promise<{ transcribed: number; failed: number }> {
+  if (ids.length === 0 || !transcriptionConfigured()) {
+    return { transcribed: 0, failed: 0 };
+  }
   let transcribed = 0;
   let failed = 0;
   // Two at a time. Deepgram is given a URL and fetches the audio itself, so
@@ -631,7 +641,7 @@ export async function writeBrief(source: BriefSource): Promise<string> {
 
 /** Lower case, letters and digits only, single spaces: a quote is matched on
  *  its words, not on the punctuation or casing a transcript happened to use. */
-const normalise = (s: string) =>
+export const normalise = (s: string) =>
   s
     .toLowerCase()
     .replace(/[’']/g, "")

@@ -59,6 +59,8 @@ import { MoveQuietly } from "@/components/calls/move-quietly";
 import type { SavedLine } from "@/components/calls/second-line";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
 import { MeetingBriefFold } from "@/components/calls/meeting-brief-fold";
+import { DemoReviewFold } from "@/components/calls/demo-review-fold";
+import type { StoredReview } from "@/lib/demo-review-types";
 import {
   CallSummariesFold,
   LONG_CALL_MS,
@@ -313,6 +315,7 @@ export function MeetingsList({
   lines = [],
   canInvite = false,
   briefs = null,
+  reviews = null,
   closerId = null,
   closers = [],
 }: {
@@ -358,6 +361,8 @@ export function MeetingsList({
    *  no Briefing fold: writing one costs an OpenAI call and the Briefing page
    *  and its route are founders only. */
   briefs?: Record<number, StoredBrief> | null;
+  /** Demo call reviews, founders and the meeting's closer only. */
+  reviews?: Record<number, StoredReview> | null;
   /** The reader's own id when they are a closer, else null. A row they were
    *  handed (`closerUserId`) gets the closing controls a founder has. */
   closerId?: number | null;
@@ -2612,6 +2617,16 @@ export function MeetingsList({
               <MeetingBriefFold
                 meetingId={m.id}
                 initial={briefs[m.id] ?? null}
+              />
+            )}
+
+            {/* How the demo call went against the NEPQ and Challenger
+                checklist (2026-10-03). Only where the demo was recorded, and
+                never on a cancelled booking. */}
+            {reviews && !cancelled && m.demoRecordings.length > 0 && (
+              <DemoReviewFold
+                meetingId={m.id}
+                initial={reviews[m.id] ?? null}
               />
             )}
 

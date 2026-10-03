@@ -2428,3 +2428,37 @@ call" (the four always-written ones) or is left out. If the script's questions
 change, change the list in both prompts. Tested on a made-up call before
 shipping: Time came out Firm with the reason quoted, "No" to the voice agent
 question read as "has not considered one".
+
+## Demo call review, scored against the mentor's NEPQ + Challenger checklist (2026-10-03)
+
+Asked for so the founders and the closers who start taking meetings can see what
+a demo did well, what it missed and what to change, against one yardstick. A fold
+("How the demo call went") on each Meetings row that has a demo recording, under
+the briefing. `lib/demo-review.ts` gathers and writes, `POST /api/meetings/review`
+generates, `call_meeting_review` stores (`2026-10-03-meeting-review.sql`,
+**applied before the deploy**), `components/calls/demo-review-fold.tsx` draws it.
+
+- **The yardstick is `lib/demo-review-rubric.ts`**, condensed from the PDF "Sales
+  Knowledge Base: NEPQ + Challenger" (28 Sep 2026). Both halves are scored, at
+  the founders' request: the nine NEPQ stages plus Challenger's teach, tailor
+  and take control (twelve steps). If the PDF changes, change that file; the
+  fingerprint includes it, so old reviews read as out of date. Tone of voice is
+  in the PDF but cannot be heard in a transcript, so it is not scored.
+- **A review is always a press, never automatic.** It costs an OpenAI call and,
+  if the recording was never transcribed, a Deepgram minute. Opening the fold
+  spends nothing. An unchanged review is returned free unless "Review it again".
+- **Which recording**: the same demo cluster the row's "Demo call" buttons use
+  (`DEMO_RECORDING_WHERE` + `clusterDemoRecordings`, so a redial keeps both
+  halves). Under 3 minutes is refused as too short to score.
+- **Every rating is backed by a quote that is checked against the transcript**
+  (the same trick as `verifiedBrief`). A "done" with no real quote is downgraded
+  to "partly". The talk split (share of words, number of questions) is counted
+  from the turns, not estimated by the model.
+- **The live agent stretch counts as the presentation**: the prompt tells the
+  model not to mark the closer down for not asking questions while playing the
+  pretend customer.
+- **Who sees it**: founders on every meeting, a closer on the meetings handed to
+  them (`closer_user_id`), checked in the route as well as the page.
+- Metered on Spend as "Demo call reviews" (`ai_usage` feature `review`).
+- Tested on a made-up pitch-first transcript (12 steps scored, quotes verified,
+  objection picked out). **Not yet checked in a browser against a real demo.**
