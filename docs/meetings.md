@@ -2462,3 +2462,27 @@ generates, `call_meeting_review` stores (`2026-10-03-meeting-review.sql`,
 - Metered on Spend as "Demo call reviews" (`ai_usage` feature `review`).
 - Tested on a made-up pitch-first transcript (12 steps scored, quotes verified,
   objection picked out). **Not yet checked in a browser against a real demo.**
+
+### Demo review, second pass: the Gong Files checks (2026-10-03)
+
+A second PDF from the mentor, "The Gong Files" (Dial Club, Oct 2026), was folded
+into the demo review rather than built as a feature of its own: it is a book of
+tips from recorded sales calls, mostly software, so correlation and a guide.
+
+- **Four more steps**, tagged "Gong" in `lib/demo-review-rubric.ts`: agreeing a
+  next step before hanging up, how price was handled (late, plain, never "list
+  price", price first thing is partly at best), offering an easy way out (trial,
+  month to month, cancel any time), and starting the demo with what the owner
+  cares about without a feature dump. Sixteen steps in all. The Gong objection
+  steps and the demo talk figures are in the reference text too.
+- **The talk line no longer says the prospect should do most of the talking.**
+  That is the discovery rule; Gong's winning demos had the seller at about 65%.
+  The fold says so, and the prompt says a demo is not held to the 80%-questions
+  rule (the booking caller only asks the script's questions).
+- **ROI is deliberately not scored.** Gong found presenting ROI lowers close rates
+  (-27%) while `procedure-closing-the-demo` is built around the ROI maths. That
+  is a founders' decision and has not been made. Do not add an ROI step or touch
+  that page on this document's say-so.
+- Not built, discussed: scoring the callers' booking calls against Gong's opener
+  and objection data, and a Stats view of connect rate by hour and attempt from
+  our own calls.

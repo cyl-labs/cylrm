@@ -95,8 +95,10 @@ export function DemoReviewFold({
               The closer spoke {r.talk.closerPercent}% of the words and asked{" "}
               {r.talk.closerQuestions}{" "}
               {r.talk.closerQuestions === 1 ? "question" : "questions"} in{" "}
-              {r.talk.minutes} minutes. The method says most of a call should be
-              the prospect talking.
+              {r.talk.minutes} minutes. In the data Gong studied, winning demos
+              had the seller talking about two thirds of the time, so a high
+              number is normal here. What hurts is long stretches with no back
+              and forth.
             </p>
 
             {r.biggestFix && (
