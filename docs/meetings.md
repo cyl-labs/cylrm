@@ -2710,3 +2710,26 @@ the calendar (`bookedFor`, `slotLabel`). Checked on 7 real calls: relaxed ones r
 "Fine to ring a little early", ARR Disposal and Holzfaller (afternoon only, on a job site
 until 4:30) read "Better not to ring early", and Roll N Load now reads Wednesday 10AM.
 The advice is the model's read of a few sentences, so treat it as a guide.
+
+### Reviews give a "do this next time" card, in plain words (2026-10-04)
+
+"Are there very clear action steps in the feedback?" Checked on a real 19 minute demo
+(FM Junk Removal): partly. The advice was generic ("spend more time asking about the
+owner's real needs"), four tips said the same thing, and nothing said *where* in the call to
+use a line. The review (`lib/demo-review.ts`, demo and booking kinds both) now returns
+`nextSteps`: up to three steps for the next call, most important first, each with
+**when** (the moment in this call, led by the owner's own words in quotes), **do** (one
+thing, starting with a verb) and **say** (the exact words). The fold shows it as the first
+thing, "Do this on your next demo" (or "call"), with the full step by step breakdown below.
+`toImprove` and `biggestFix` are no longer produced; reviews written before this still
+show their old "one thing to change" box.
+
+- **Quoted words in `when` are checked against the transcript** and cut out if they are not
+  there; a pointer left ending mid-sentence ("When the owner said") is dropped.
+- **Third grade reading level**: the prompt asks for short everyday words, sentences under
+  12 words, and bans sales words (discovery, qualify, consequence, reframe, objection,
+  rapport, insight, framework, pain point) and "prospect". The fold's own copy was
+  shortened the same way. Measured on the FM Junk Removal review with the Flesch-Kincaid
+  formula: grade **3.9** (35 sentences, 12.5 words each), so close to, not exactly, third
+  grade. The briefing and call summaries are written for founders and were not changed.
+- Still founders only. The step labels come from `demo-review-rubric.ts`.
