@@ -81,10 +81,6 @@ Then drop the agent, ask the owner to unmute, and ask what they thought:
 
 **Tell them what happens after a real call.** The agent sends an email summary of everything that happened, to the owner and to the customer.
 
-**Short on time?** On a quick demo, stop after the address and the items and say: "So that's how it's going to sound. At the end it confirms the name and email, and then it sends a summary of the call to you and to the customer." The full call above is better, because they hear it book a job from start to finish.
-
-**Want it to sound like their business?** Use their own most common job instead of junk removal. The Demo Call Scripts page has a template for that, and a worked example, plus the curveball questions to ask.
-
 </details>
 
 ## Straight after the demo, get their numbers
