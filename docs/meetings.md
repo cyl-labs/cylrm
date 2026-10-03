@@ -2582,3 +2582,15 @@ call log (`call-stats.ts`) now also count **any number a person has dialled from
 his old number in 30 days), Aaron, Mico, Maryjane, Gigi. The label "Founders"
 beside a demo call is fixed text, so a call wrongly listed as a demo also reads
 as the founders'.
+
+### Call reviews are founders only (2026-10-03, later the same day)
+
+"How the demo call went" and "How the booking call went" were first opened to a
+closer on their own meetings and a caller on their own bookings. The founders
+withdrew that: **a need to know thing, founders only.** The Meetings page now
+loads and draws both folds for `role === "admin"` and nothing for anyone else, and
+`POST /api/meetings/review` refuses a non-founder for either kind. The closer and
+caller wording earlier in this file describes what was built and then withdrawn;
+the code paths for them are left in place (`bookedBy`, `bookedByMe`) and are
+unreachable. Reopening it to anyone is a decision to make again, not a flag to
+flip.
