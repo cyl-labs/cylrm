@@ -2684,3 +2684,29 @@ The meeting is booked for Mon, Oct 5, 10:00 AM CDT (their time)."** The slot com
 own zone, else Eastern and said so) by `slotLabel`, and goes into the fingerprint so a
 reschedule rewrites the briefing. The code writes it, not the model, which is why
 `briefSources` gained `bookedFor` and a `leadZone` join.
+
+### The Time line reads how relaxed they were, and says whether to ring early (2026-10-04, final)
+
+This replaces the Firm / Flexible / Accepted wording above. Three rounds of "what does
+that mean?" ended with the real purpose: **"if they're chill then it's fine if I call an
+hour or two earlier."** People never say outright that a time can move, so fixed labels
+were true of nearly every call and no use to the reader. The briefing's Time line is now
+the day and time agreed, one plain sentence on how they were about it (picked at once,
+said yes easily, said they are around; or gave a window or a reason such as being on a
+job site until 4:30, pushed back, asked to move it), and then one of **"Fine to ring a
+little early."**, **"Better not to ring early."** or **"Unclear if ringing early is
+fine."**, with the Asked/Said evidence. It is the one line allowed to advise. The
+long-call summary's Time line asks for the same.
+
+**A label can cause a false claim.** "No time came up on the call" was written on Roll N
+Load, whose recording reads the booking back ("Wednesday, October 7, 10AM your time",
+"Okay. I'm good"). The prompt now says to read the whole transcript before claiming a
+time was not discussed, and `verifiedBrief` refuses that claim whenever the caller's own
+lines contain a day or a clock time (`timeTalked`): the line is then dropped and replaced
+by "A time was discussed on the call but could not be summarised. Listen to the
+recording." When it really is absent the line reads "Not discussed in this recording (it
+may have been agreed on another call, or booked from a link)" plus the booked slot from
+the calendar (`bookedFor`, `slotLabel`). Checked on 7 real calls: relaxed ones read
+"Fine to ring a little early", ARR Disposal and Holzfaller (afternoon only, on a job site
+until 4:30) read "Better not to ring early", and Roll N Load now reads Wednesday 10AM.
+The advice is the model's read of a few sentences, so treat it as a guide.
