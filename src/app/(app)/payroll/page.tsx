@@ -18,6 +18,8 @@ import {
 import { getPayrollReminderSetting } from "@/lib/payroll-reminder";
 import { PayrollTable } from "@/components/payroll/payroll-table";
 import { DemoConfirmList } from "@/components/payroll/demo-confirm-list";
+import { getMeetings, type Meeting } from "@/lib/meetings";
+import { readerZone } from "@/lib/users";
 import { ReminderScheduleCard } from "@/components/calls/reminder-schedule";
 import { cn } from "@/lib/utils";
 
@@ -44,12 +46,16 @@ export default async function PayrollPage() {
   // list in another file.
   if (me?.role !== "admin") redirect("/calls");
 
-  const [rows, demos, history, reminder, unpaidMeetings] = await Promise.all([
+  const zone = await readerZone(me.id);
+  const [rows, demos, history, reminder, unpaidMeetings, allMeetings] = await Promise.all([
     getPayroll(),
     getDemosToConfirm(),
     getPayoutHistory(),
     getPayrollReminderSetting(),
     getUnpaidMeetings(),
+    // Every meeting ever, so a booking from months ago can still show its
+    // recordings and summaries beside the question (2026-10-03).
+    getMeetings(undefined, zone.tz, { past: true }),
   ]);
 
   const owedTotal = rows.reduce((sum, r) => sum + r.totalCents, 0);
@@ -63,7 +69,35 @@ export default async function PayrollPage() {
   const pickupPeople = rows.filter(
     (r) => r.pickupBonusCents + r.bankedBonusCents > 0,
   ).length;
+  // The meeting behind each booking, by the booking call. A booking can have
+  // two (one cancelled and rebooked): the live one wins, else the latest.
+  const meetingByCall = new Map<number, Meeting>();
+  for (const m of allMeetings) {
+    if (m.bookingCallId === null || m.kind !== "demo") continue;
+    const have = meetingByCall.get(m.bookingCallId);
+    const better =
+      !have ||
+      (m.status === "accepted" && have.status !== "accepted") ||
+      (m.status === "accepted" === (have.status === "accepted") && m.startAt > have.startAt);
+    if (better) meetingByCall.set(m.bookingCallId, m);
+  }
+  const clock = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone.tz,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const stamp = (iso: string) => `${clock.format(new Date(iso))} ${zone.label}`;
+  const stateOf = (d: (typeof demos)[number]) => {
+    const m = meetingByCall.get(d.callId);
+    return !m ? null : m.status !== "accepted" ? "cancelled" : m.started ? "passed" : "upcoming";
+  };
   const unanswered = demos.filter((d) => d.status === null).length;
+  const unansweredNow = demos.filter(
+    (d) => d.status === null && stateOf(d) !== "upcoming",
+  ).length;
   // Grouped by who the money is sent to, for the callers set to be paid via
   // somebody. Only what is owed now: a person owed nothing is not listed.
   const viaGroups = (() => {
@@ -119,10 +153,33 @@ export default async function PayrollPage() {
         bookingNotes: m.bookingNotes,
       })),
   }));
-  const demosWithLabels = demos.map((d) => ({
-    ...d,
-    bookedLabel: formatPayDay(d.bookedAt),
-  }));
+  const demosWithLabels = demos.map((d) => {
+    const m = meetingByCall.get(d.callId) ?? null;
+    return {
+      ...d,
+      bookedLabel: formatPayDay(d.bookedAt),
+      meeting: m
+        ? {
+            startLabel: stamp(m.startAt),
+            state: stateOf(d) as "upcoming" | "passed" | "cancelled",
+            coldCall: m.recordingId
+              ? {
+                  recordingId: m.recordingId,
+                  durationMs: m.recordingMs,
+                  summary: m.recordingSummary,
+                }
+              : null,
+            demoCalls: m.demoRecordings.map((r) => ({
+              recordingId: r.recordingId,
+              durationMs: r.durationMs,
+              startedLabel: r.startedAt ? stamp(r.startedAt) : null,
+              summary: r.summary,
+            })),
+            attendanceNotes: m.attendanceNotes,
+          }
+        : null,
+    };
+  });
 
   return (
     <PageShell title="Payroll">
@@ -244,12 +301,21 @@ export default async function PayrollPage() {
                 Every demo ever booked, not just the ones still sitting in the
                 pipeline&rsquo;s Demo booked column. A lead that has moved on
                 since was still a meeting, and still earns the $30 if they
-                turned up. Nothing earns it until it is marked.
+                turned up. Nothing earns it until it is marked. This counts every
+                booking from a caller until somebody answers it, including demos
+                still to come, so it is longer than the Meetings screen&rsquo;s
+                &ldquo;not logged&rdquo;, which only counts demos from the last
+                seven days that have already happened. Open a row to hear the
+                calls and read what was said.
               </p>
             </div>
             {unanswered > 0 && (
               <p className="ml-auto rounded-full bg-primary/12 px-2.5 py-1 text-[11px] font-bold text-primary">
-                {unanswered} unanswered
+                {unansweredNow > 0
+                  ? `${unansweredNow} need an answer now`
+                  : "Nothing to answer now"}
+                {unanswered > unansweredNow &&
+                  ` · ${unanswered - unansweredNow} not due yet`}
               </p>
             )}
           </div>
