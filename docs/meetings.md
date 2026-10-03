@@ -2393,3 +2393,10 @@ for good. `logged` in `lib/meetings.ts` and `unlogged` in `lib/meeting-stats.ts`
 now treat a demo with a cancelled row at its current time as dealt with. The
 pay question is untouched: Payroll's confirm list reads attendance, so a demo
 that really happened is still asked about there.
+
+**The booking call's summary shows until a briefing replaces it (2026-10-03).**
+The de-duplication above hid the "Cold call" entry whenever the briefing fold
+was on the row, including when no briefing had been written. Three upcoming
+meetings had a summary of the booking call and nothing else on the row, so it
+read as summaries only appearing inside the call. The entry is now skipped only
+when `briefs[m.id]` exists.
