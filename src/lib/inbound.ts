@@ -46,6 +46,9 @@ export type InboundCall = {
   leadId: number | null;
   company: string | null;
   leadName: string | null;
+  /** The teammate whose number this is, when it is one of ours and matches no
+   *  lead. Shown instead of "Unknown caller". */
+  teamName: string | null;
   listName: string | null;
   /** The niche it sits in, so "Open lead" can land on the dial card for it
    *  rather than on the spreadsheet. Null exactly when `leadId` is. */
@@ -252,6 +255,15 @@ export async function getInboundCalls(
       ic.ended_at, ic.handled_at, ic.rings, ic.first_at,
       u.name as for_name,
       h.name as handled_by,
+      -- Our own people (2026-10-04): a call from a teammate's number matches no
+      -- lead, so it read "Unknown caller" (Akshansh ringing a founder from his
+      -- new number). A number a person holds now, or has dialled from before
+      -- (the call log, dialled_from), is theirs.
+      coalesce(
+        (select tm.name from app_user tm where tm.telnyx_did = ic.from_number limit 1),
+        (select tm2.name from "call" tc join app_user tm2 on tm2.id = tc.user_id
+          where tc.dialled_from = ic.from_number order by tc.called_at desc limit 1)
+      ) as team_name,
       l.id as lead_id, l.company, l.name as lead_name,
       l.dnc_status, l.dnc_checked_at,
       cl.name as list_name, cl.id as list_id,
@@ -300,6 +312,7 @@ export async function getInboundCalls(
       leadId: r.lead_id === null ? null : Number(r.lead_id),
       company: (r.company as string | null) ?? null,
       leadName: (r.lead_name as string | null) ?? null,
+      teamName: (r.team_name as string | null) ?? null,
       listName: (r.list_name as string | null) ?? null,
       listId: r.list_id === null ? null : Number(r.list_id),
       attempts: Number(r.attempts ?? 0),

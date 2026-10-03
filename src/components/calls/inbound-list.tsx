@@ -206,7 +206,7 @@ export function InboundList({
         toast.error(data.error ?? "Could not save that. Try again.");
         return;
       }
-      const who = c.company ?? c.leadName ?? c.from;
+      const who = c.company ?? c.leadName ?? (c.teamName ? `${c.teamName} (your team)` : c.from);
       toast.success(
         outcome === null
           ? // Two different rows share this branch and must not share a
@@ -344,7 +344,9 @@ export function InboundList({
                         />
                       )}
                       <span className="truncate">
-                        {c.company ?? c.leadName ?? "Unknown caller"}
+                        {c.company ??
+                          c.leadName ??
+                          (c.teamName ? `${c.teamName} (your team)` : "Unknown caller")}
                       </span>
                     </p>
                     <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
