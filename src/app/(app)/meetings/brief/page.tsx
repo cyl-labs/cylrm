@@ -5,7 +5,7 @@ import { PageShell } from "@/components/page-shell";
 import { GenerateBriefing } from "@/components/calls/generate-briefing";
 import { getBriefedMeetings } from "@/lib/meeting-brief";
 import { briefLines } from "@/lib/brief-lines";
-import { BriefLine } from "@/components/calls/brief-line";
+import { BriefList } from "@/components/calls/brief-line";
 import { getCurrentUser } from "@/lib/session";
 import { readerZone } from "@/lib/users";
 import { prospectZone, theirClock } from "@/lib/call-time";
@@ -154,19 +154,7 @@ export default async function BriefPage() {
                   <>
                     {/* The same lines the fold on each Meetings row draws —
                         see `briefLines`. */}
-                    <ul className="space-y-1">
-                      {briefLines(m.summary).map((line, i) => (
-                        <li
-                          key={i}
-                          className="flex gap-2 text-[13px] leading-snug"
-                        >
-                          <span className="select-none text-muted-foreground">
-                            &bull;
-                          </span>
-                          <BriefLine line={line} />
-                        </li>
-                      ))}
-                    </ul>
+                    <BriefList lines={briefLines(m.summary)} />
                     {m.stale && (
                       // Said out loud rather than silently rewritten: a brief
                       // that predates the last conversation is still worth
