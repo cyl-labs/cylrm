@@ -47,6 +47,10 @@ const API = "https://api.openai.com/v1/chat/completions";
 // following the written rules, and about five times the price, which is still
 // cents a month. The live objection hints stay on the mini, where speed matters.
 export const BRIEF_MODEL = "gpt-4.1";
+
+/** What a bare agreement to the time offered reads as: it is not Firm and not
+ *  Flexible, and "not said" alone reads as if nobody mentioned the time. */
+const TIME_AGREED = "Time: Agreed to the time offered. Not said whether it can move.";
 const MODEL = BRIEF_MODEL;
 
 /** Per meeting. A 14-minute transcript is the longest seen so far and lands
@@ -538,7 +542,7 @@ const SYSTEM = [
   "Our callers follow a fixed script, so do not retell the call. The script asks: what time they close; what happens to calls after that (voicemail, someone answers, the owner answers, and if someone is paid to be on call); whether they have considered or seen a voice agent; then offers a demo, books a time and asks their time zone. Report what THIS prospect said at those points, and anything else notable. Never report what the caller said or what the script says.",
   "",
   "Write short bullets, each one line, in this order. The first four labelled lines are always written, with the label exactly as shown. The rest are written only when the prospect actually said something for them:",
-  "- Time: Firm, Flexible, or not said on the call. How fixed the booked time is, because the salesperson sometimes wants to ring an hour or two early. Firm means they gave a reason it cannot move or said it is the only time they are free. Flexible means they said they are free or around at other times. Simply agreeing to the time the caller suggested is NOT flexible: write \"not said on the call\".",
+  "- Time: how fixed the booked time is, because the salesperson sometimes wants to ring an hour or two early. Start the line with exactly one of these four: \"Firm\" (they gave a reason it cannot move or said it is the only time they are free), \"Flexible\" (they said they are free or around at other times), \"Agreed to the time offered. Not said whether it can move.\" (they simply accepted the time the caller suggested, with no reason and no other times: this is the most common case and is NOT Flexible), or \"No time came up on the call.\" (no time was discussed). After the first three, add the Asked/Said evidence.",
   "- Decides: who makes the decision, only if the call says. Do not assume the person on the call decides: if it is not said, write \"not said on the call\".",
   "- Reach: the best number, way or hours to reach them, or when not to ring.",
   "- Warmth: one plain word (keen, interested, lukewarm, polite only) followed by the reason.",
@@ -558,7 +562,7 @@ const SYSTEM = [
   "- Read a short answer against the question that was asked. If the caller asks \"have you considered\", \"have you heard of\" or \"do you use\" a voice agent and the prospect says \"no\", that means they have not considered, heard of or used one. It is NOT a refusal and NOT a lack of interest. Only write that they are not interested, or reject it, when they decline it after it was explained or offered, in words that say so.",
   "- Only lines marked Prospect are the prospect's words. Something our caller said or suggested is never the prospect's view.",
   '- Every bullet must carry its evidence from the call, giving the big picture and not a fragment, because a one-line quote can be read the wrong way without what came before it. Give the question or remark that prompted it, then the full answer, in this form: Asked: "what our caller said" Said: "what the prospect answered". Where the prospect raised it unprompted, use Said: "..." alone. Each quoted piece should be a full sentence or two (up to about 45 words) copied exactly from ONE speaker: never cut off the part of a sentence that changes its meaning (a "but", a reason, a condition), and do not fix grammar, join words from different speakers, or add words. Use ... to skip words inside a quote.',
-  '- The evidence must itself show what the label says. A bare "yes", "okay", "sure", "that will be fine" or "that works" says almost nothing: for Time it is agreement to the time offered, so write "not said on the call". For Reach the evidence must contain a number, an email, a time window or a way of being reached. If you cannot back a bullet with evidence like that, leave the bullet out. The only exception is a bullet saying something was "not said on the call".',
+  '- The evidence must itself show what the label says. A bare "yes", "okay", "sure", "that will be fine" or "that works" says almost nothing: for Time it is agreement to the time offered, so write "Agreed to the time offered. Not said whether it can move." with the evidence after it. For Reach the evidence must contain a number, an email, a time window or a way of being reached. If you cannot back a bullet with evidence like that, leave the bullet out. The only exception is a bullet saying something was "not said on the call".',
   '- Only Time, Decides, Reach and Warmth are written when there is nothing to report. Every other label (Hours, After hours, Voice agent, Demo, Business, Also said, Promised, Gatekeeper) is left out entirely when the call has nothing for it. Never write "Also said: not said on the call".',
   "- Give no advice and no pitch. Do not suggest what to say.",
   "- No preamble, no heading, no sign-off. Bullets only, starting with '- '.",
@@ -735,17 +739,19 @@ export function verifiedBrief(text: string, source: BriefSource): string {
         quotes.length > 0 &&
         bareAgreement(quotes[quotes.length - 1])
       ) {
-        return "- Time: not said on the call";
+        // Keeps the evidence, so the reader sees what was agreed to.
+        const at = line.search(/Asked:|Said:/);
+        return `- ${TIME_AGREED}${at >= 0 ? " " + line.slice(at) : ""}`;
       }
       return line;
     })
     .filter((line) => {
       const quotes = [...line.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
       if (quotes.length === 0) {
-        if (!/not said on the call/i.test(line)) return false;
         // Only these four are written when there is nothing to say; a label
         // like "Also said: not said on the call" is noise.
-        return /^\s*-?\s*(Time|Decides|Reach|Warmth):/i.test(line);
+        if (!/^\s*-?\s*(Time|Decides|Reach|Warmth):/i.test(line)) return false;
+        return /not said on the call|^\s*-?\s*Time:\s*(Agreed to the time offered|No time came up)/i.test(line);
       }
       return quotes.every(found) && attributed(line);
     });
@@ -754,7 +760,21 @@ export function verifiedBrief(text: string, source: BriefSource): string {
       `[meeting-brief] dropped ${bullets.length - kept.length} unquoted or misquoted bullet(s) for meeting ${source.meetingId}`,
     );
   }
-  return kept.length > 0
-    ? kept.join("\n")
-    : "- Nothing on the call could be quoted for a brief. Open the recording on the meeting row to listen.";
+  if (kept.length === 0) {
+    return "- Nothing on the call could be quoted for a brief. Open the recording on the meeting row to listen.";
+  }
+  // The four lines that are always there (2026-10-04). The model sometimes
+  // leaves one out (Warmth on Mission Based Construction), and a missing line
+  // reads as "nobody looked" where "not said on the call" says it was checked.
+  const labelOf = (l: string) => /^\s*-?\s*(Time|Decides|Reach|Warmth):/i.exec(l)?.[1]?.toLowerCase();
+  const fixed: Record<string, string> = {
+    time: "- Time: No time came up on the call.",
+    decides: "- Decides: not said on the call",
+    reach: "- Reach: not said on the call",
+    warmth: "- Warmth: not said on the call",
+  };
+  const head = (["time", "decides", "reach", "warmth"] as const).map(
+    (k) => kept.find((l) => labelOf(l) === k) ?? fixed[k],
+  );
+  return [...head, ...kept.filter((l) => !labelOf(l))].join("\n");
 }

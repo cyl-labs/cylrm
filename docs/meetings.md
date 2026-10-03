@@ -2636,3 +2636,20 @@ talking. The model is stored on each briefing and review row, and the price is i
 `ai-usage.ts` (`RATES`), so Spend meters it correctly. Briefings written before
 this are rewritten anyway (the prompt changed), but **stored long-call summaries are
 not rewritten**, so older ones are still the mini's wording.
+
+### The Time line says what happened, not "not said" (2026-10-04)
+
+"Doesn't 'Time: not said on the call' indicate that they never said anything at all?"
+It did read that way, when it meant they agreed to the time offered and did not say
+whether it can move. The briefing's Time line is now exactly one of: **Firm**,
+**Flexible**, **Agreed to the time offered. Not said whether it can move.** (a plain
+acceptance, the most common case, never Flexible) or **No time came up on the call.**,
+each followed by its Asked/Said evidence (`TIME_AGREED` in `lib/meeting-brief.ts`; the
+long-call summary's prompt has the same four meanings). `verifiedBrief` also fills in
+any of Time, Decides, Reach or Warmth the model left out (Warmth was missing on
+Mission Based Construction) with "not said on the call", in that order at the top. The
+"Written by a machine..." footers on the briefing fold, the recording sheet's summary
+and the long-call summaries fold now read "Generated from the call transcript. Check
+anything before repeating it to the prospect." Known weak spot: Warmth is still
+"not said" on a call where the owner said she had thought about a voice agent; the
+model is cautious about it.

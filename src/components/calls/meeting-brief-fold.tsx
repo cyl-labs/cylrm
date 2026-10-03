@@ -153,8 +153,8 @@ export function MeetingBriefFold({
         )}
         {brief && (
           <p className="mt-2 text-[12px] text-muted-foreground">
-            Written by a machine from the booking call, so check anything
-            before you repeat it back to them.
+            Generated from the call transcript. Check anything before
+            repeating it to the prospect.
           </p>
         )}
       </div>

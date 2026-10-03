@@ -134,8 +134,8 @@ export function CallSummariesFold({ items }: { items: CallSummaryItem[] }) {
           </div>
         ))}
         <p className="text-[12px] text-muted-foreground">
-          Written by a machine from the call&rsquo;s transcript, so check
-          anything before you repeat it back to them.
+          Generated from the call transcript. Check anything before
+          repeating it to the prospect.
         </p>
       </div>
     </details>

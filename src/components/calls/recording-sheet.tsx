@@ -237,8 +237,8 @@ export function RecordingSheet({
                 ))}
               </ul>
               <p className="mt-2 text-[11px] text-muted-foreground">
-                Written by a machine from the transcript, so check anything
-                before you repeat it back to them.
+                Generated from the call transcript. Check anything before
+                repeating it to the prospect.
               </p>
             </div>
           ) : (
