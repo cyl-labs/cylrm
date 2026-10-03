@@ -643,6 +643,31 @@ export function MeetingsList({
    * the no-show ring back, which deliberately writes no call row — this one is
    * a conversation that happened, and the founders asked for it to count.
    */
+  /**
+   * Pick one answer from a follow-up menu (2026-10-04).
+   *
+   * "No answer" is not logged as a call here. A `no_answer` call is a retry
+   * outcome, so it put a lead in the middle of a sale back into the callers'
+   * cold queue (Toro Dumpsters: logged No answer after a follow-up, and the row
+   * showed nothing happening). It is a reminder to ring them back instead: the
+   * call back prompt, the same one a missed demo uses, which adds a founders'
+   * call back (or counts one more try on the one already open) and shows on the
+   * row.
+   */
+  function pickFollowUp(meeting: Meeting, outcome: CallOutcome) {
+    // Founders only: the call back route is theirs, and a closer's No answer
+    // still logs a call as before.
+    if (outcome === "no_answer" && showWho) {
+      setPrompt(
+        meeting.callBack
+          ? { m: meeting, mode: "no_answer" }
+          : { m: meeting, mode: "new", notes: "No answer on the follow-up call." },
+      );
+      return;
+    }
+    setFollowing({ meetingId: meeting.id, outcome, notes: "" });
+  }
+
   async function logFollowUp(
     meeting: Meeting,
     outcome: CallOutcome,
@@ -1638,17 +1663,16 @@ export function MeetingsList({
                     <DropdownMenuContent align="start">
                       <DropdownMenuLabel>How did the follow-up go?</DropdownMenuLabel>
                       <p className="max-w-60 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
-                        This counts as a call. Following up keeps them going;
-                        trial, won or lost closes it.
+                        Following up, trial, won and lost are logged as a call.
+                        No answer sets a reminder to ring them back and logs
+                        nothing.
                       </p>
                       {FOLLOW_UP_OUTCOMES.map((o) => (
                         <DropdownMenuItem
                           key={o}
-                          onSelect={() =>
-                            setFollowing({ meetingId: m.id, outcome: o, notes: "" })
-                          }
+                          onSelect={() => pickFollowUp(m, o)}
                         >
-                          {OUTCOME_LABELS[o]}
+                          {o === "no_answer" && showWho ? "No answer, ring them back" : OUTCOME_LABELS[o]}
                         </DropdownMenuItem>
                       ))}
                       <DropdownMenuSeparator />
@@ -1711,21 +1735,16 @@ export function MeetingsList({
                         What came of the follow-up call?
                       </DropdownMenuLabel>
                       <p className="max-w-60 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
-                        This counts as a call. Following up keeps them on this
-                        screen; trial, won or lost closes it.
+                        Following up, trial, won and lost are logged as a call.
+                        No answer sets a reminder to ring them back and logs
+                        nothing.
                       </p>
                       {FOLLOW_UP_OUTCOMES.map((o) => (
                         <DropdownMenuItem
                           key={o}
-                          onSelect={() =>
-                            setFollowing({
-                              meetingId: m.id,
-                              outcome: o,
-                              notes: "",
-                            })
-                          }
+                          onSelect={() => pickFollowUp(m, o)}
                         >
-                          {OUTCOME_LABELS[o]}
+                          {o === "no_answer" && showWho ? "No answer, ring them back" : OUTCOME_LABELS[o]}
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
