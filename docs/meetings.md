@@ -2753,3 +2753,26 @@ dial card for these"); the follow-up logger broke that rule.
   closers use this, give them the same reminder.
 - The earlier call from this case (call 8212, a Founders `no_answer`) stays in the log. The
   lead was marked Lost by hand, which takes it out of the queue.
+
+### The Time line is only "fine to ring early or not", with the evidence behind a Why (2026-10-04)
+
+The previous Time line retold the exchange and restated the agreed time ("Friday 12:15PM
+Central was agreed after some back and forth..."), which is already shown above the
+briefing. The founders want only how flexible the prospect is, with a reason if they are
+particular, and the reasoning optional. The line is now **"Fine to ring early."**, or
+**"Better not to ring early." + a reason of 12 words or fewer** (on a job site until 4:30),
+or "Not sure if ringing early is fine.", then ` Details: ` and the Asked/Said evidence.
+`BriefLine` (`components/calls/brief-line.tsx`, native `details`, used by the Meetings
+row's briefing fold and the Briefing page) shows everything before `Details:` and puts the
+rest behind a **Why**. The prompt says choosing one of the offered options or saying yes is
+the normal case and means "fine to ring early"; "better not" needs a real constraint (a
+reason or window, pushing back, asking to move it), and the reason must not restate the
+time. If the evidence cannot be verified (a quote not in the call, or on the wrong speaker),
+`verifiedBrief` drops the Details and **keeps the verdict and reason** instead of dropping
+the whole line, which had left Junk Solution with "could not be summarised". "Not
+discussed in this recording" no longer repeats the booked slot either.
+
+Checked on 7 real calls: four read "Fine to ring early", three "Better not to ring early"
+(Holzfaller on a job site until 4:30, ARR Disposal, Go2logistics). The Go2logistics reason
+is thin (they only chose 2:30 over 10AM), so the verdict is the model's judgement, and the
+Why is there to check it.

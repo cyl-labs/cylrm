@@ -67,7 +67,7 @@ function slotLabel(at: Date, tz: string | null): string {
  *  briefing rather than a fact about the recording. */
 const noTimeLine = (s: BriefSource) =>
   s.bookedFor
-    ? `- Time: Not discussed in this recording (it may have been agreed on another call, or booked from a link). The meeting is booked for ${s.bookedFor}.`
+    ? "- Time: Not discussed in this recording (it may have been agreed on another call, or booked from a link)."
     : "- Time: Not discussed in this recording (it may have been agreed on another call, or booked from a link).";
 
 const MODEL = BRIEF_MODEL;
@@ -570,7 +570,7 @@ const SYSTEM = [
   "Our callers follow a fixed script, so do not retell the call. The script asks: what time they close; what happens to calls after that (voicemail, someone answers, the owner answers, and if someone is paid to be on call); whether they have considered or seen a voice agent; then offers a demo, books a time and asks their time zone. Report what THIS prospect said at those points, and anything else notable. Never report what the caller said or what the script says.",
   "",
   "Write short bullets, each one line, in this order. The first five labelled lines (Time, Decides, Reach, Warmth, Trial) are always written, with the label exactly as shown. The rest are written only when the prospect actually said something for them:",
-  "- Time: the time agreed for the demo and how relaxed the prospect was about it, read from how the exchange actually went, because the salesperson may want to ring an hour or two early. Write the day and time agreed (use the caller's read-back at the end if there is one), then one plain sentence on how they were about it, then end with exactly one of: \"Fine to ring a little early.\" or \"Better not to ring early.\" or \"Unclear if ringing early is fine.\" Relaxed signs: picked from the options at once, said yes without questions, said they are around or free, answered casually. Particular signs: gave a window or a reason (on a job site until a certain time, a meeting, only free at one time), pushed back on the times offered, asked to move it. Judge from the whole exchange. Read the ENTIRE transcript, including the end, before saying a time was not discussed. Evidence in Asked/Said form covers the exchange where it was settled (the options offered and the answer). This line is the one exception to \"give no advice\". Only if no time was discussed anywhere in the transcript, write exactly \"No time was discussed in this recording.\"",
+  "- Time: ONLY how flexible the prospect is about the booked time, so the salesperson knows whether it is fine to ring an hour or two early. Do NOT state the day or time (it is shown elsewhere) and do NOT retell the back and forth. Write exactly one of: \"Fine to ring early.\" or \"Better not to ring early.\" or \"Not sure if ringing early is fine.\" Then, ONLY after \"Better not to ring early.\" or \"Not sure\", one short reason of 12 words or fewer, in plain words (for example: On a job site until 4:30.). Then write \" Details: \" and the evidence in Asked: \"...\" Said: \"...\" form, for the reader who wants to check. Choosing one of the options the caller offered, or saying yes to a time, is the NORMAL case and means \"Fine to ring early.\": it is not a sign of being particular. \"Better not to ring early.\" needs a real constraint in the call: a reason or a window (on a job site until 4:30, in a meeting, only free after a certain hour), pushing back on the times offered, or asking to move it. The short reason must NOT restate the time or the option they picked; say what the constraint is. If you cannot name a constraint, it is \"Fine to ring early.\" and the reason is left out. Judge from the whole exchange and read the ENTIRE transcript, including the end, before saying a time was not discussed. This line is the one exception to \"give no advice\". Only if no time was discussed anywhere, write exactly \"No time was discussed in this recording.\"",
   "- Decides: who makes the decision, only if the call says. Do not assume the person on the call decides: if it is not said, write \"not said on the call\".",
   "- Reach: the best number, way or hours to reach them, or when not to ring.",
   "- Warmth: one plain word (keen, interested, lukewarm, polite only) followed by the reason.",
@@ -754,6 +754,15 @@ export function verifiedBrief(text: string, source: BriefSource): string {
     );
   const kept = bullets
     .map((line) => {
+      // A Time line whose evidence cannot be verified keeps its verdict and
+      // short reason and loses the "Details" part, rather than the whole line
+      // being dropped (2026-10-04, Junk Solution): the evidence is optional
+      // reading, the verdict is what the reader came for.
+      if (/^\s*-?\s*Time:/i.test(line) && line.includes(" Details: ")) {
+        const at = line.indexOf(" Details: ");
+        const qs = [...line.slice(at).matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
+        if (!(qs.every(found) && attributed(line.slice(at)))) line = line.slice(0, at);
+      }
       const quotes = [...line.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
       // The model's "no time discussed" is replaced with a line that also says
       // what the calendar holds. It is trusted only when no time-like words
@@ -782,7 +791,7 @@ export function verifiedBrief(text: string, source: BriefSource): string {
         // Only these four are written when there is nothing to say; a label
         // like "Also said: not said on the call" is noise.
         if (!/^\s*-?\s*(Time|Decides|Reach|Warmth|Trial):/i.test(line)) return false;
-        return /not said on the call|^\s*-?\s*Time:\s*Not discussed in this recording|^\s*-?\s*Trial:\s*Not suggested/i.test(line);
+        return /not said on the call|^\s*-?\s*Time:\s*(Not discussed in this recording|A time was discussed|Fine to ring early)|^\s*-?\s*Trial:\s*Not suggested/i.test(line);
       }
       return quotes.every(found) && attributed(line);
     });
@@ -801,7 +810,7 @@ export function verifiedBrief(text: string, source: BriefSource): string {
   const fixed: Record<string, string> = {
     // Only claims "not discussed" when the caller's lines have no time in them.
     time: timeTalked
-      ? `- Time: A time was discussed on the call but could not be summarised. Listen to the recording.${source.bookedFor ? ` The meeting is booked for ${source.bookedFor}.` : ""}`
+      ? "- Time: A time was discussed on the call but could not be summarised. Listen to the recording."
       : noTimeLine(source),
     decides: "- Decides: not said on the call",
     reach: "- Reach: not said on the call",
