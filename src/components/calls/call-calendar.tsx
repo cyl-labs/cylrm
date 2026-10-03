@@ -181,8 +181,8 @@ export function CallCalendar({
                 // days, so the calendar is its own way out.
                 href={
                   picked
-                    ? href({ day: undefined, range: "30", month: undefined })
-                    : href({ day: d.day, range: undefined, month: undefined })
+                    ? href({ day: undefined, range: "30", from: undefined, to: undefined, month: undefined })
+                    : href({ day: d.day, range: undefined, from: undefined, to: undefined, month: undefined })
                 }
                 scroll={false}
                 title={`${d.day}: ${d.calls} calls, ${d.pickups} pickups`}

@@ -552,8 +552,9 @@ const SYSTEM = [
   "- Keep the prospect's tense. Something they considered or tried in the past is not a plan, a delay or a \"not right now\". Never write that they want something later, or not yet, unless they said so.",
   "- Read a short answer against the question that was asked. If the caller asks \"have you considered\", \"have you heard of\" or \"do you use\" a voice agent and the prospect says \"no\", that means they have not considered, heard of or used one. It is NOT a refusal and NOT a lack of interest. Only write that they are not interested, or reject it, when they decline it after it was explained or offered, in words that say so.",
   "- Only lines marked Prospect are the prospect's words. Something our caller said or suggested is never the prospect's view.",
-  '- Every bullet must include, in double quotes, the exact words from the transcript or the notes that back it. Copy them character for character from one speaker: do not fix grammar, join words from different speakers, or add words. Use ... to skip words inside a quote.',
-  '- If you cannot back a bullet with a quote, leave the bullet out. The only exception is a bullet saying something was "not said on the call".',
+  '- Every bullet must carry its evidence from the call, giving the big picture and not a fragment, because a one-line quote can be read the wrong way without what came before it. Give the question or remark that prompted it, then the full answer, in this form: Asked: "what our caller said" Said: "what the prospect answered". Where the prospect raised it unprompted, use Said: "..." alone. Each quoted piece should be a full sentence or two (up to about 45 words) copied exactly from ONE speaker: never cut off the part of a sentence that changes its meaning (a "but", a reason, a condition), and do not fix grammar, join words from different speakers, or add words. Use ... to skip words inside a quote.',
+  '- The evidence must itself show what the label says. A bare "yes", "okay", "sure", "that will be fine" or "that works" says almost nothing: for Time it is agreement to the time offered, so write "not said on the call". For Reach the evidence must contain a number, an email, a time window or a way of being reached. If you cannot back a bullet with evidence like that, leave the bullet out. The only exception is a bullet saying something was "not said on the call".',
+  '- Only Time, Decides, Reach and Warmth are written when there is nothing to report. Every other label (Hours, After hours, Voice agent, Demo, Business, Also said, Promised, Gatekeeper) is left out entirely when the call has nothing for it. Never write "Also said: not said on the call".',
   "- Give no advice and no pitch. Do not suggest what to say.",
   "- No preamble, no heading, no sign-off. Bullets only, starting with '- '.",
   "- Do not use em dashes.",
@@ -584,7 +585,12 @@ function userPrompt(s: BriefSource): string {
  * No retry: the caller generates fourteen of these and reports which failed,
  * which is more useful than one of them silently taking three times as long.
  */
-export async function writeBrief(source: BriefSource): Promise<string> {
+export async function writeBrief(
+  source: BriefSource,
+  /** Which OpenAI model writes it. The default is the one in use; the override
+   *  exists to compare models on real calls (2026-10-04). */
+  model: string = MODEL,
+): Promise<string> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("No OPENAI_API_KEY is configured on this server.");
 
@@ -606,12 +612,13 @@ export async function writeBrief(source: BriefSource): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       // Low but not zero: at 0 the model repeats the transcript's own phrasing
       // back as if it were a summary.
       temperature: 0.2,
       // Room for the quotes every line carries, and up to thirteen lines.
-      max_tokens: 1100,
+      // Room for the fuller quotes (question and answer on every line).
+      max_tokens: 2400,
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: userPrompt(source) },
@@ -630,7 +637,7 @@ export async function writeBrief(source: BriefSource): Promise<string> {
   };
   void recordAiUsage({
     feature: "brief",
-    model: MODEL,
+    model,
     inputTokens: body.usage?.prompt_tokens,
     outputTokens: body.usage?.completion_tokens,
   });
@@ -684,13 +691,59 @@ export function verifiedBrief(text: string, source: BriefSource): string {
       .map(normalise)
       .filter(Boolean)
       .every((piece) => haystacks.some((h) => ` ${h} `.includes(` ${piece} `)));
+  // Who said it (2026-10-04). "Said:" is the prospect and "Asked:" is our
+  // caller, and a model labelled the caller's pitch as the prospect's answer
+  // (Toss Boss: "Voice agent: Has not considered one. Said: I was just looking
+  // for fifteen minutes of your time..."). The quote was real, so the check above
+  // passed it. This one makes the label true.
+  const spoken = (label: string, quote: string) => {
+    const hay = normalise(bySpeaker(label));
+    return quote
+      .split(/\.\.\.|…/)
+      .map(normalise)
+      .filter(Boolean)
+      .every((piece) => ` ${hay} `.includes(` ${piece} `));
+  };
+  const attributed = (line: string) =>
+    [...line.matchAll(/(Asked|Said):\s*["“]([^"“”]+)["”]/g)].every((m) =>
+      spoken(m[1] === "Said" ? "Prospect: " : "Our caller: ", m[2]),
+    );
 
   const bullets = text.split("\n").filter((l) => l.trim());
-  const kept = bullets.filter((line) => {
-    const quotes = [...line.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
-    if (quotes.length === 0) return /not said on the call/i.test(line);
-    return quotes.every(found);
-  });
+  // A bare agreement says nothing about whether a time is firm or flexible
+  // (2026-10-04: "That will be fine." was written up as Time: Firm). The prompt
+  // says so; this is the check that does not depend on the model reading it.
+  const bareAgreement = (quote: string) => {
+    const words = normalise(quote);
+    return (
+      words.split(" ").length <= 6 &&
+      /^(yes|yeah|yep|yup|ok|okay|sure|fine|alright|all right|perfect|great|good|sounds good|that works|that will work|that should work|that would work|that will be fine|thatll be fine|that would be fine|that is fine|thats fine)\b/.test(
+        words,
+      )
+    );
+  };
+  const kept = bullets
+    .map((line) => {
+      const quotes = [...line.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
+      if (
+        /^\s*-?\s*Time:\s*(Firm|Flexible)/i.test(line) &&
+        quotes.length > 0 &&
+        bareAgreement(quotes[quotes.length - 1])
+      ) {
+        return "- Time: not said on the call";
+      }
+      return line;
+    })
+    .filter((line) => {
+      const quotes = [...line.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
+      if (quotes.length === 0) {
+        if (!/not said on the call/i.test(line)) return false;
+        // Only these four are written when there is nothing to say; a label
+        // like "Also said: not said on the call" is noise.
+        return /^\s*-?\s*(Time|Decides|Reach|Warmth):/i.test(line);
+      }
+      return quotes.every(found) && attributed(line);
+    });
   if (kept.length < bullets.length) {
     console.warn(
       `[meeting-brief] dropped ${bullets.length - kept.length} unquoted or misquoted bullet(s) for meeting ${source.meetingId}`,

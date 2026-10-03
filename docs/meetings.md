@@ -2594,3 +2594,36 @@ caller wording earlier in this file describes what was built and then withdrawn;
 the code paths for them are left in place (`bookedBy`, `bookedByMe`) and are
 unreachable. Reopening it to anyone is a decision to make again, not a flag to
 flip.
+
+### Briefing: fuller evidence, and a check on who said what (2026-10-04)
+
+Asked for because a one-line quote "can be lost in translation". Every briefing
+bullet now carries the question and the answer, in the form `Asked: "what our caller
+said" Said: "what the prospect answered"` (each up to about 45 words, never cut
+before a "but", a reason or a condition), instead of one fragment. Changes in
+`lib/meeting-brief.ts`:
+
+- **Prompt**: fuller evidence; a bare "yes", "okay" or "that will be fine" says
+  nothing, so Time is "not said on the call" and Reach needs a number, email, time
+  window or way of being reached; only Time, Decides, Reach and Warmth are written
+  when empty, every other label is left out, never "Also said: not said on the call".
+  `max_tokens` is 2400 now. The fingerprint includes the prompt, so every stored
+  briefing reads as out of date and is rewritten when its fold is opened.
+- **`verifiedBrief`** also (a) turns `Time: Firm|Flexible` into "not said on the
+  call" when the last quote is a bare agreement, (b) drops "not said" lines for any
+  label outside those four, and (c) **checks the speaker**: a `Said:` quote must be
+  in the prospect's lines and an `Asked:` quote in our caller's. Without (c) a real
+  quote passed whichever label the model gave it (Toss Boss: the caller's pitch was
+  written up as the owner's answer to "have you considered a voice agent").
+- `writeBrief(source, model)` takes a model override, for comparing models.
+
+**Model comparison, 7 real booking calls (3 to 9 minutes), the same prompt:**
+`gpt-4.1-mini` against `gpt-4.1`. **Speed was the same**: about 2.8 s a briefing for
+the mini and 2.7 s for the full model, so "too slow" is not the reason to change. On
+the Time line, which has a written rule, the mini broke it 6 times out of 7 (Firm or
+Flexible for a plain agreement) and the full model 2 of 7 (those two are arguable). The
+mini also misattributed a speaker once. Neither is perfect (the full model once
+wrote a caller's question under Also said). At the AI spend on the Spend screen
+(about S$0.20 a month for everything) a model five times dearer costs about a dollar.
+Not switched yet pending a decision; the live objection hints should stay on the mini
+for speed.
