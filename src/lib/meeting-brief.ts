@@ -42,7 +42,12 @@ const API = "https://api.openai.com/v1/chat/completions";
  * not while a prospect is talking — so the argument that settled that one
  * applies with room to spare.
  */
-const MODEL = "gpt-4.1-mini";
+// `gpt-4.1` since 2026-10-04 (was `gpt-4.1-mini`). Compared on 7 real calls with
+// the same prompt: the same speed (about 2.8 s against 2.7 s) but far better at
+// following the written rules, and about five times the price, which is still
+// cents a month. The live objection hints stay on the mini, where speed matters.
+export const BRIEF_MODEL = "gpt-4.1";
+const MODEL = BRIEF_MODEL;
 
 /** Per meeting. A 14-minute transcript is the longest seen so far and lands
  *  well inside this; the timeout is here so one bad call cannot hang the

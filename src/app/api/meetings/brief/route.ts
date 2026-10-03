@@ -9,6 +9,7 @@ import {
   fingerprint,
   getStoredBriefs,
   writeBrief,
+  BRIEF_MODEL,
 } from "@/lib/meeting-brief";
 
 /**
@@ -160,7 +161,7 @@ export async function POST(request: Request) {
         await db.execute(sql`
           insert into call_meeting_brief
             (meeting_id, summary, source_fingerprint, model, generated_by_user_id)
-          values (${id}, ${summary}, ${fp}, ${"gpt-4.1-mini"}, ${authorId})
+          values (${id}, ${summary}, ${fp}, ${BRIEF_MODEL}, ${authorId})
           on conflict (meeting_id) do update set
             summary = excluded.summary,
             source_fingerprint = excluded.source_fingerprint,

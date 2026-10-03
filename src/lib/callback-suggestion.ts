@@ -23,7 +23,11 @@ import type { TranscriptTurn } from "@/db/schema";
 import { recordAiUsage } from "@/lib/ai-usage";
 
 const API = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-4.1-mini";
+// `gpt-4.1` since 2026-10-04 (was `gpt-4.1-mini`). Compared on 7 real calls with
+// the same prompt: the same speed (about 2.8 s against 2.7 s) but far better at
+// following the written rules, and about five times the price, which is still
+// cents a month. The live objection hints stay on the mini, where speed matters.
+const MODEL = "gpt-4.1";
 const TIMEOUT_MS = 30_000;
 /** A callback further out than this is not a callback, it is a misreading. */
 const MAX_AHEAD_DAYS = 14;

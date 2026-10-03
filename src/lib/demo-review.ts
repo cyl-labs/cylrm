@@ -38,7 +38,12 @@ import type {
 } from "@/lib/demo-review-types";
 
 const API = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-4.1-mini";
+// `gpt-4.1` since 2026-10-04 (was `gpt-4.1-mini`). Compared on 7 real calls with
+// the same prompt: the same speed (about 2.8 s against 2.7 s) but far better at
+// following the written rules, and about five times the price, which is still
+// cents a month. The live objection hints stay on the mini, where speed matters.
+export const REVIEW_MODEL = "gpt-4.1";
+const MODEL = REVIEW_MODEL;
 const TIMEOUT_MS = 90_000;
 /** Less than this is a dropped call, not a demo worth scoring. */
 export const REVIEW_MIN_MINUTES = 3;
