@@ -50,7 +50,7 @@ export const BRIEF_MODEL = "gpt-4.1";
 
 /** What a bare agreement to the time offered reads as: it is not Firm and not
  *  Flexible, and "not said" alone reads as if nobody mentioned the time. */
-const TIME_AGREED = "Time: Agreed to the time offered. Not said whether it can move.";
+const TIME_AGREED = "Time: Accepted the time offered, no conditions or reasons given.";
 const MODEL = BRIEF_MODEL;
 
 /** Per meeting. A 14-minute transcript is the longest seen so far and lands
@@ -541,11 +541,12 @@ const SYSTEM = [
   "",
   "Our callers follow a fixed script, so do not retell the call. The script asks: what time they close; what happens to calls after that (voicemail, someone answers, the owner answers, and if someone is paid to be on call); whether they have considered or seen a voice agent; then offers a demo, books a time and asks their time zone. Report what THIS prospect said at those points, and anything else notable. Never report what the caller said or what the script says.",
   "",
-  "Write short bullets, each one line, in this order. The first four labelled lines are always written, with the label exactly as shown. The rest are written only when the prospect actually said something for them:",
-  "- Time: how fixed the booked time is, because the salesperson sometimes wants to ring an hour or two early. Start the line with exactly one of these four: \"Firm\" (they gave a reason it cannot move or said it is the only time they are free), \"Flexible\" (they said they are free or around at other times), \"Agreed to the time offered. Not said whether it can move.\" (they simply accepted the time the caller suggested, with no reason and no other times: this is the most common case and is NOT Flexible), or \"No time came up on the call.\" (no time was discussed). After the first three, add the Asked/Said evidence.",
+  "Write short bullets, each one line, in this order. The first five labelled lines (Time, Decides, Reach, Warmth, Trial) are always written, with the label exactly as shown. The rest are written only when the prospect actually said something for them:",
+  "- Time: how fixed the booked time is, because the salesperson sometimes wants to ring an hour or two early. Start the line with exactly one of these four: \"Firm\" (they gave a reason it cannot move or said it is the only time they are free), \"Flexible\" (they said they are free or around at other times), \"Accepted the time offered, no conditions or reasons given.\" (they simply said yes to the time the caller suggested, with no reason and no other times mentioned: this is the most common case and is NOT Flexible, since people rarely say outright that a time can move), or \"No time came up on the call.\" (no time was discussed). After the first three, add the Asked/Said evidence.",
   "- Decides: who makes the decision, only if the call says. Do not assume the person on the call decides: if it is not said, write \"not said on the call\".",
   "- Reach: the best number, way or hours to reach them, or when not to ring.",
   "- Warmth: one plain word (keen, interested, lukewarm, polite only) followed by the reason.",
+  "- Trial: whether OUR CALLER suggested a trial (a free or 30 day trial, or to try it with no commitment). Always written. If the caller suggested one, start with \"Suggested by our caller.\" then the evidence in this form: Asked: \"what our caller said about the trial\" Said: \"how the prospect reacted\". If the caller did not, write exactly \"Not suggested on the call.\" Only the caller's own suggestion counts: the prospect asking about or mentioning a trial first is not our caller suggesting one, so say what happened in plain words instead (for example \"The prospect asked about a trial.\") with the evidence.",
   "- Hours: when they close, if they said.",
   "- After hours: what happens to calls once they are closed, in their words, including whether they pay someone to be on call.",
   "- Voice agent: what they said when asked if they had considered or seen one. Start with what the answer means in plain words (for example: Has not considered one, Has not heard of it, Already looked into it, Already uses one), then the quote.",
@@ -562,8 +563,8 @@ const SYSTEM = [
   "- Read a short answer against the question that was asked. If the caller asks \"have you considered\", \"have you heard of\" or \"do you use\" a voice agent and the prospect says \"no\", that means they have not considered, heard of or used one. It is NOT a refusal and NOT a lack of interest. Only write that they are not interested, or reject it, when they decline it after it was explained or offered, in words that say so.",
   "- Only lines marked Prospect are the prospect's words. Something our caller said or suggested is never the prospect's view.",
   '- Every bullet must carry its evidence from the call, giving the big picture and not a fragment, because a one-line quote can be read the wrong way without what came before it. Give the question or remark that prompted it, then the full answer, in this form: Asked: "what our caller said" Said: "what the prospect answered". Where the prospect raised it unprompted, use Said: "..." alone. Each quoted piece should be a full sentence or two (up to about 45 words) copied exactly from ONE speaker: never cut off the part of a sentence that changes its meaning (a "but", a reason, a condition), and do not fix grammar, join words from different speakers, or add words. Use ... to skip words inside a quote.',
-  '- The evidence must itself show what the label says. A bare "yes", "okay", "sure", "that will be fine" or "that works" says almost nothing: for Time it is agreement to the time offered, so write "Agreed to the time offered. Not said whether it can move." with the evidence after it. For Reach the evidence must contain a number, an email, a time window or a way of being reached. If you cannot back a bullet with evidence like that, leave the bullet out. The only exception is a bullet saying something was "not said on the call".',
-  '- Only Time, Decides, Reach and Warmth are written when there is nothing to report. Every other label (Hours, After hours, Voice agent, Demo, Business, Also said, Promised, Gatekeeper) is left out entirely when the call has nothing for it. Never write "Also said: not said on the call".',
+  '- The evidence must itself show what the label says. A bare "yes", "okay", "sure", "that will be fine" or "that works" says almost nothing: for Time it is agreement to the time offered, so write "Accepted the time offered, no conditions or reasons given." with the evidence after it. For Reach the evidence must contain a number, an email, a time window or a way of being reached. If you cannot back a bullet with evidence like that, leave the bullet out. The only exception is a bullet saying something was "not said on the call".',
+  '- Only Time, Decides, Reach, Warmth and Trial are written when there is nothing to report. Every other label (Hours, After hours, Voice agent, Demo, Business, Also said, Promised, Gatekeeper) is left out entirely when the call has nothing for it. Never write "Also said: not said on the call".',
   "- Give no advice and no pitch. Do not suggest what to say.",
   "- No preamble, no heading, no sign-off. Bullets only, starting with '- '.",
   "- Do not use em dashes.",
@@ -743,6 +744,15 @@ export function verifiedBrief(text: string, source: BriefSource): string {
         const at = line.search(/Asked:|Said:/);
         return `- ${TIME_AGREED}${at >= 0 ? " " + line.slice(at) : ""}`;
       }
+      // "Trial: Suggested by our caller" only stands when the caller's own words
+      // actually mention a trial (2026-10-04); otherwise it is the model reading
+      // a trial into a pitch about a demo.
+      if (/^\s*-?\s*Trial:\s*Suggested/i.test(line)) {
+        const asked = [...line.matchAll(/Asked:\s*["“]([^"“”]+)["”]/g)].map((m) => m[1]).join(" ");
+        if (!/\b(trial|free|try (it|this|us)|no cost|no charge|30[- ]day|thirty)\b/i.test(asked)) {
+          return "- Trial: Not suggested on the call.";
+        }
+      }
       return line;
     })
     .filter((line) => {
@@ -750,8 +760,8 @@ export function verifiedBrief(text: string, source: BriefSource): string {
       if (quotes.length === 0) {
         // Only these four are written when there is nothing to say; a label
         // like "Also said: not said on the call" is noise.
-        if (!/^\s*-?\s*(Time|Decides|Reach|Warmth):/i.test(line)) return false;
-        return /not said on the call|^\s*-?\s*Time:\s*(Agreed to the time offered|No time came up)/i.test(line);
+        if (!/^\s*-?\s*(Time|Decides|Reach|Warmth|Trial):/i.test(line)) return false;
+        return /not said on the call|^\s*-?\s*Time:\s*(Accepted the time offered|No time came up)|^\s*-?\s*Trial:\s*Not suggested/i.test(line);
       }
       return quotes.every(found) && attributed(line);
     });
@@ -766,14 +776,15 @@ export function verifiedBrief(text: string, source: BriefSource): string {
   // The four lines that are always there (2026-10-04). The model sometimes
   // leaves one out (Warmth on Mission Based Construction), and a missing line
   // reads as "nobody looked" where "not said on the call" says it was checked.
-  const labelOf = (l: string) => /^\s*-?\s*(Time|Decides|Reach|Warmth):/i.exec(l)?.[1]?.toLowerCase();
+  const labelOf = (l: string) => /^\s*-?\s*(Time|Decides|Reach|Warmth|Trial):/i.exec(l)?.[1]?.toLowerCase();
   const fixed: Record<string, string> = {
     time: "- Time: No time came up on the call.",
     decides: "- Decides: not said on the call",
     reach: "- Reach: not said on the call",
     warmth: "- Warmth: not said on the call",
+    trial: "- Trial: Not suggested on the call.",
   };
-  const head = (["time", "decides", "reach", "warmth"] as const).map(
+  const head = (["time", "decides", "reach", "warmth", "trial"] as const).map(
     (k) => kept.find((l) => labelOf(l) === k) ?? fixed[k],
   );
   return [...head, ...kept.filter((l) => !labelOf(l))].join("\n");
