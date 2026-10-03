@@ -48,16 +48,24 @@ export default async function PayrollPage() {
   if (me?.role !== "admin") redirect("/calls");
 
   const zone = await readerZone(me.id);
-  const [rows, demos, history, reminder, unpaidMeetings, allMeetings] = await Promise.all([
-    getPayroll(),
-    getDemosToConfirm(),
-    getPayoutHistory(),
-    getPayrollReminderSetting(),
-    getUnpaidMeetings(),
-    // Every meeting ever, so a booking from months ago can still show its
-    // recordings and summaries beside the question (2026-10-03).
-    getMeetings(undefined, zone.tz, { past: true }),
-  ]);
+  const [rows, demos, history, reminder, unpaidMeetings, queueMeetings, pastMeetings] =
+    await Promise.all([
+      getPayroll(),
+      getDemosToConfirm(),
+      getPayoutHistory(),
+      getPayrollReminderSetting(),
+      getUnpaidMeetings(),
+      // The upcoming queue AND the history, merged (2026-10-03). `past: true`
+      // alone is only what has already happened, so a booking whose demo is
+      // still to come, or was moved to December, never reached its row: ARR
+      // Disposal showed its cancelled October slot and not the live one.
+      getMeetings(undefined, zone.tz),
+      getMeetings(undefined, zone.tz, { past: true }),
+    ]);
+  const allMeetings = [
+    ...queueMeetings,
+    ...pastMeetings.filter((h) => !queueMeetings.some((m) => m.id === h.id)),
+  ];
 
   const owedTotal = rows.reduce((sum, r) => sum + r.totalCents, 0);
   // The two halves of that total, the way the two buttons pay them.
