@@ -567,33 +567,30 @@ const SYSTEM = [
   "You brief a salesperson in the minute before they take a booked demo.",
   "You are given the transcript of the cold call that won the meeting, plus any notes the caller typed and the outcomes of earlier calls to the same business.",
   "",
-  "Our callers follow a fixed script, so do not retell the call. The script asks: what time they close; what happens to calls after that (voicemail, someone answers, the owner answers, and if someone is paid to be on call); whether they have considered or seen a voice agent; then offers a demo, books a time and asks their time zone. Report what THIS prospect said at those points, and anything else notable. Never report what the caller said or what the script says.",
+  "Our callers follow a fixed script, so do not retell the call. The script asks what time they close, what happens to calls after that (voicemail, someone answers, the owner answers, whether someone is paid to be on call), whether they have considered or seen a voice agent, then offers a demo and books a time. Report what THIS prospect said, never what the caller said or what the script says.",
   "",
-  "Write short bullets, each one line, in this order. The first five labelled lines (Time, Decides, Reach, Warmth, Trial) are always written, with the label exactly as shown. The rest are written only when the prospect actually said something for them:",
+  "Write short bullets, one line each, in this order. Each bullet is a short plain headline of 14 words or fewer that a busy reader takes in at a glance, written in short everyday words, then \" Details: \" and the evidence for anyone who wants to check. The evidence has this form: Asked: \"what our caller said\" Said: \"what the prospect answered\". Where the prospect raised it unprompted use Said: \"...\" alone. Each quoted piece is a full sentence or two (up to about 45 words) copied exactly from ONE speaker, never cut before a \"but\", a reason or a condition, with no fixed grammar, joined speakers or added words (use ... to skip words).",
+  "",
+  "The first four labelled lines are always written, with the label exactly as shown: Trial, Time, Decision maker, Warmth. The rest are written only when the call has something for them:",
+  "- Trial: whether OUR CALLER suggested a trial (a free or 30 day trial, or to try it with no commitment). Always written, and the most important line. If the caller suggested one, the headline is \"Suggested by our caller.\" then Details with the caller's words and how the prospect reacted. If not, write exactly \"Not suggested.\" with no Details. If the prospect raised a trial first, say so in plain words (for example \"The prospect asked about a trial.\") with Details; that is not our caller suggesting one.",
   "- Time: ONLY how flexible the prospect is about the booked time, so the salesperson knows whether it is fine to ring an hour or two early. Do NOT state the day or time (it is shown elsewhere) and do NOT retell the back and forth. Write exactly one of: \"Fine to ring early.\" or \"Better not to ring early.\" or \"Not sure if ringing early is fine.\" Then, ONLY after \"Better not to ring early.\" or \"Not sure\", one short reason of 12 words or fewer, in plain words (for example: On a job site until 4:30.). Then write \" Details: \" and the evidence in Asked: \"...\" Said: \"...\" form, for the reader who wants to check. Choosing one of the options the caller offered, or saying yes to a time, is the NORMAL case and means \"Fine to ring early.\": it is not a sign of being particular. \"Better not to ring early.\" needs a real constraint in the call: a reason or a window (on a job site until 4:30, in a meeting, only free after a certain hour), pushing back on the times offered, or asking to move it. The short reason must NOT restate the time or the option they picked; say what the constraint is. If you cannot name a constraint, it is \"Fine to ring early.\" and the reason is left out. Judge from the whole exchange and read the ENTIRE transcript, including the end, before saying a time was not discussed. This line is the one exception to \"give no advice\". Only if no time was discussed anywhere, write exactly \"No time was discussed in this recording.\"",
-  "- Decides: who makes the decision, only if the call says. Do not assume the person on the call decides: if it is not said, write \"not said on the call\".",
-  "- Reach: the best number, way or hours to reach them, or when not to ring.",
-  "- Warmth: one plain word (keen, interested, lukewarm, polite only) followed by the reason.",
-  "- Trial: whether OUR CALLER suggested a trial (a free or 30 day trial, or to try it with no commitment). Always written. If the caller suggested one, start with \"Suggested by our caller.\" then the evidence in this form: Asked: \"what our caller said about the trial\" Said: \"how the prospect reacted\". If the caller did not, write exactly \"Not suggested on the call.\" Only the caller's own suggestion counts: the prospect asking about or mentioning a trial first is not our caller suggesting one, so say what happened in plain words instead (for example \"The prospect asked about a trial.\") with the evidence.",
-  "- Hours: when they close, if they said.",
-  "- After hours: what happens to calls once they are closed, in their words, including whether they pay someone to be on call.",
-  "- Voice agent: what they said when asked if they had considered or seen one. Start with what the answer means in plain words (for example: Has not considered one, Has not heard of it, Already looked into it, Already uses one), then the quote.",
-  "- Demo: how they reacted to being offered the demo, only if it was more than a plain yes. An objection or hesitation goes here, and only if they actually had one. Most booking calls have none; leave the line out rather than invent one.",
-  "- Business: what the business does and its size, if said.",
-  "- Also said: up to two lines for anything notable the prospect said that is not part of the script: a bad experience, a competitor or tool they use or tried, a plan, a person to ask for, how busy they are. Put a story or opinion here, and let Warmth rest on what they said about us. Leave it out if there is nothing.",
-  "- Promised: anything the caller promised or agreed to send or do. Leave the line out if nothing was.",
+  "- Decision maker: who decides whether to buy. Headline in plain words, for example \"The owner. Decides alone.\" or \"Not clear if they decide alone.\" Never assume the person on the call decides: if the call does not show it, write \"Not clear from the call.\" Add Details only when something was said.",
+  "- Warmth: one plain word (keen, interested, lukewarm, polite only) and a reason in a few words, then Details. If nothing shows how they felt, write \"Not clear from the call.\"",
+  "- After hours: ONE line on what happens to their calls once they are closed, as a short plain sentence (for example \"The owner picks up himself, even late.\"), then Details. Fold the closing time in only if it matters. Never write a separate Hours line.",
+  "- Voice agent: what they think of a voice agent in plain words: \"Has not considered one.\", \"Has not heard of it.\", \"Already looked into it.\", \"Already uses one.\" or \"Open to it.\" Only write this line if it adds something the other lines do not. If the only evidence is a quote already used in another line, leave this line out.",
+  "- About them: one or two lines, each a short plain observation that shows what kind of person they are, or something interesting or unusual they said. Look for: how they come across (blunt, jokey, rushed, chatty, careful, suspicious), their situation (new business, a one person crew, in the busy season), a bad or good past experience, a tool or competitor they use, a strong opinion, a person to ask for. Say what you notice in a few words, for example \"Blunt and very busy. Wants a call back.\" then Details with what they said. Only something specific and a little unusual, that a salesperson would not guess: skip generic traits such as friendly, polite, open, casual, flexible or busy, and skip anything the other lines already cover. Do not judge someone's personality from one word. If nothing specific stands out, leave this line out entirely.",
+  "- Demo: how they reacted to being offered the demo, only if it was more than a plain yes (an objection or hesitation). Leave it out otherwise.",
+  "- Promised: anything the caller promised or agreed to send or do. Leave it out if nothing was.",
   "- Gatekeeper: only when the person who agreed is not the owner or decision maker, or anything awkward worth knowing before dialling (annoyed, rushed, wrong person).",
   "",
   "Rules:",
-  '- A quote must actually answer its label. If nothing the prospect said answers a label, write \"not said on the call\" for the four always-written lines and leave out the others. Never fill a line with an unrelated quote.',
-  '- Never infer a fact that was not said. If the call does not say what they do, write "not said on the call".',
+  "- NEVER use the same quote in two lines. If two lines would share a quote, write one line. Do not write lines called Hours, Reach, Business or Also said.",
+  "- A headline needs evidence that shows it. If you cannot back a line with a quote, leave it out. The only exceptions are the four always-written lines when the call truly shows nothing (their plain \"not suggested\" or \"not clear\" wording).",
+  "- Never infer a fact that was not said.",
   "- Keep the prospect's tense. Something they considered or tried in the past is not a plan, a delay or a \"not right now\". Never write that they want something later, or not yet, unless they said so.",
-  "- Read a short answer against the question that was asked. If the caller asks \"have you considered\", \"have you heard of\" or \"do you use\" a voice agent and the prospect says \"no\", that means they have not considered, heard of or used one. It is NOT a refusal and NOT a lack of interest. Only write that they are not interested, or reject it, when they decline it after it was explained or offered, in words that say so.",
+  "- Read a short answer against the question that was asked. If the caller asks \"have you considered\", \"have you heard of\" or \"do you use\" a voice agent and the prospect says \"no\", that means they have not, it is NOT a refusal and NOT a lack of interest. Only write that they are not interested when they decline it after it was explained or offered, in words that say so.",
   "- Only lines marked Prospect are the prospect's words. Something our caller said or suggested is never the prospect's view.",
-  '- Every bullet must carry its evidence from the call, giving the big picture and not a fragment, because a one-line quote can be read the wrong way without what came before it. Give the question or remark that prompted it, then the full answer, in this form: Asked: "what our caller said" Said: "what the prospect answered". Where the prospect raised it unprompted, use Said: "..." alone. Each quoted piece should be a full sentence or two (up to about 45 words) copied exactly from ONE speaker: never cut off the part of a sentence that changes its meaning (a "but", a reason, a condition), and do not fix grammar, join words from different speakers, or add words. Use ... to skip words inside a quote.',
-  '- The evidence must itself show what the label says. A bare "yes", "okay", "sure", "that will be fine" or "that works" says almost nothing: for Time a bare "yes" is fine as long as the surrounding exchange shows which time was agreed. For Reach the evidence must contain a number, an email, a time window or a way of being reached. If you cannot back a bullet with evidence like that, leave the bullet out. The only exception is a bullet saying something was "not said on the call".',
-  '- Only Time, Decides, Reach, Warmth and Trial are written when there is nothing to report. Every other label (Hours, After hours, Voice agent, Demo, Business, Also said, Promised, Gatekeeper) is left out entirely when the call has nothing for it. Never write "Also said: not said on the call".',
-  "- Give no advice and no pitch. Do not suggest what to say.",
+  "- Give no advice and no pitch, except the Time line, which says whether it is fine to ring early.",
   "- No preamble, no heading, no sign-off. Bullets only, starting with '- '.",
   "- Do not use em dashes.",
   "- If there is no transcript and no notes, reply with exactly: - No recording or notes from the booking call.",
@@ -752,73 +749,78 @@ export function verifiedBrief(text: string, source: BriefSource): string {
     /\b(\d{1,2}(:\d{2})?\s*(am|pm)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|next week)\b/i.test(
       bySpeaker("Our caller: "),
     );
+  // The four lines that are always written (2026-10-04): Trial first because it
+  // is the one the founders most want to see, then Time, Decision maker, Warmth.
+  const ALWAYS = /^\s*-?\s*(Trial|Time|Decision maker|Warmth):/i;
+  const quotesOf = (t: string) => [...t.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
+  const evidenceOk = (t: string) => quotesOf(t).every(found) && attributed(t);
   const kept = bullets
     .map((line) => {
-      // A Time line whose evidence cannot be verified keeps its verdict and
-      // short reason and loses the "Details" part, rather than the whole line
-      // being dropped (2026-10-04, Junk Solution): the evidence is optional
-      // reading, the verdict is what the reader came for.
-      if (/^\s*-?\s*Time:/i.test(line) && line.includes(" Details: ")) {
+      // Evidence ("Details") that cannot be verified is cut from a line that is
+      // always written, which keeps its headline; every other line needs its
+      // evidence and is dropped without it (below).
+      if (ALWAYS.test(line) && line.includes(" Details: ")) {
         const at = line.indexOf(" Details: ");
-        const qs = [...line.slice(at).matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
-        if (!(qs.every(found) && attributed(line.slice(at)))) line = line.slice(0, at);
+        if (!evidenceOk(line.slice(at))) line = line.slice(0, at);
       }
-      const quotes = [...line.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
-      // The model's "no time discussed" is replaced with a line that also says
-      // what the calendar holds. It is trusted only when no time-like words
-      // appear in the caller's own lines (2026-10-04: Roll N Load was written up
-      // "no time came up" on a call that read the booking back, "Wednesday,
-      // October 7, 10AM your time", and a fixed label had pushed the model
-      // there).
+      // The model's "no time discussed" is trusted only when the caller's own
+      // lines have no day or clock time in them (Roll N Load was written up "no
+      // time came up" on a call that read the booking back).
       if (/^\s*-?\s*Time:\s*No time was discussed/i.test(line)) {
         return timeTalked ? "" : noTimeLine(source);
       }
-      // "Trial: Suggested by our caller" only stands when the caller's own words
-      // actually mention a trial (2026-10-04); otherwise it is the model reading
-      // a trial into a pitch about a demo.
+      // "Trial: Suggested" only stands when the caller's own words mention a
+      // trial; otherwise it is the model reading one into a pitch about a demo.
       if (/^\s*-?\s*Trial:\s*Suggested/i.test(line)) {
         const asked = [...line.matchAll(/Asked:\s*["“]([^"“”]+)["”]/g)].map((m) => m[1]).join(" ");
         if (!/\b(trial|free|try (it|this|us)|no cost|no charge|30[- ]day|thirty)\b/i.test(asked)) {
-          return "- Trial: Not suggested on the call.";
+          return "- Trial: Not suggested.";
         }
       }
       return line;
     })
     .filter((line) => {
       if (line === "") return false;
-      const quotes = [...line.matchAll(/["“”]([^"“”]+)["“”]/g)].map((m) => m[1]);
-      if (quotes.length === 0) {
-        // Only these four are written when there is nothing to say; a label
-        // like "Also said: not said on the call" is noise.
-        if (!/^\s*-?\s*(Time|Decides|Reach|Warmth|Trial):/i.test(line)) return false;
-        return /not said on the call|^\s*-?\s*Time:\s*(Not discussed in this recording|A time was discussed|Fine to ring early)|^\s*-?\s*Trial:\s*Not suggested/i.test(line);
+      if (quotesOf(line).length === 0) {
+        // Only the four always-written lines may stand with no evidence, and
+        // only in their plain "nothing to report" or verdict-only wording.
+        if (!ALWAYS.test(line)) return false;
+        return /not clear from the call|not suggested|^\s*-?\s*Time:\s*(Not discussed in this recording|A time was discussed|Fine to ring early|Better not to ring early|Not sure if ringing early)|^\s*-?\s*(Decision maker|Warmth):/i.test(line);
       }
-      return quotes.every(found) && attributed(line);
+      return evidenceOk(line);
     });
-  if (kept.length < bullets.length) {
+  // Never the same quote under two labels (2026-10-04: one outburst was written
+  // up under both After hours and Voice agent). The first line to use a quote
+  // keeps it; a later line whose quotes are ALL already used is dropped.
+  const used = new Set<string>();
+  const unique = kept.filter((line) => {
+    const qs = quotesOf(line).map(normalise);
+    if (qs.length === 0) return true;
+    const fresh = qs.filter((q) => !used.has(q));
+    qs.forEach((q) => used.add(q));
+    return fresh.length > 0 || ALWAYS.test(line);
+  });
+  if (unique.length < bullets.length) {
     console.warn(
-      `[meeting-brief] dropped ${bullets.length - kept.length} unquoted or misquoted bullet(s) for meeting ${source.meetingId}`,
+      `[meeting-brief] dropped ${bullets.length - unique.length} unquoted, misquoted or repeated bullet(s) for meeting ${source.meetingId}`,
     );
   }
-  if (kept.length === 0) {
+  if (unique.length === 0) {
     return "- Nothing on the call could be quoted for a brief. Open the recording on the meeting row to listen.";
   }
-  // The four lines that are always there (2026-10-04). The model sometimes
-  // leaves one out (Warmth on Mission Based Construction), and a missing line
-  // reads as "nobody looked" where "not said on the call" says it was checked.
-  const labelOf = (l: string) => /^\s*-?\s*(Time|Decides|Reach|Warmth|Trial):/i.exec(l)?.[1]?.toLowerCase();
+  // A missing always-written line reads as "nobody looked", where a plain
+  // "not clear" says it was checked.
+  const labelOf = (l: string) => /^\s*-?\s*(Trial|Time|Decision maker|Warmth):/i.exec(l)?.[1]?.toLowerCase();
   const fixed: Record<string, string> = {
-    // Only claims "not discussed" when the caller's lines have no time in them.
+    trial: "- Trial: Not suggested.",
     time: timeTalked
       ? "- Time: A time was discussed on the call but could not be summarised. Listen to the recording."
       : noTimeLine(source),
-    decides: "- Decides: not said on the call",
-    reach: "- Reach: not said on the call",
-    warmth: "- Warmth: not said on the call",
-    trial: "- Trial: Not suggested on the call.",
+    "decision maker": "- Decision maker: Not clear from the call.",
+    warmth: "- Warmth: Not clear from the call.",
   };
-  const head = (["time", "decides", "reach", "warmth", "trial"] as const).map(
-    (k) => kept.find((l) => labelOf(l) === k) ?? fixed[k],
+  const head = (["trial", "time", "decision maker", "warmth"] as const).map(
+    (k) => unique.find((l) => labelOf(l) === k) ?? fixed[k],
   );
-  return [...head, ...kept.filter((l) => !labelOf(l))].join("\n");
+  return [...head, ...unique.filter((l) => !labelOf(l))].join("\n");
 }

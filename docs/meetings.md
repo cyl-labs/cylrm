@@ -2776,3 +2776,34 @@ Checked on 7 real calls: four read "Fine to ring early", three "Better not to ri
 (Holzfaller on a job site until 4:30, ARR Disposal, Go2logistics). The Go2logistics reason
 is thin (they only chose 2:30 over 10AM), so the verdict is the model's judgement, and the
 Why is there to check it.
+
+### The briefing, rebuilt to be read at a glance (2026-10-04)
+
+Feedback on a real briefing ("Decides: not said on the call... I have no idea what that
+means", "Reach is useless", "Trial is very important, right now it's one of the many
+bullet points", "this is repeating itself", "Hours is redundant if we know how they handle
+after hours", "instead of Also said, pick out unique things about the prospect"). Changes in
+`lib/meeting-brief.ts` (the prompt `SYSTEM` and `verifiedBrief`) and
+`components/calls/brief-line.tsx` (`BriefList`, `BriefLine`):
+
+- **Every line is a short plain headline (14 words or fewer) with its evidence behind a
+  "Why"** (` Details: Asked: "..." Said: "..."`, native `details`). The old walls of quotes
+  are one click away, not on the page.
+- **Trial is a highlighted panel at the top**, drawn by `BriefList`, not a bullet.
+  "Suggested by our caller." or "Not suggested."
+- **Four lines always, in this order: Trial, Time, Decision maker, Warmth.** "Decides" is
+  now **Decision maker** with plain wording ("The owner. Decides alone." / "Not clear from
+  the call.") and "Not clear" is what a missing one reads as.
+- **Gone:** Reach (the email and zone are in the booking), Hours (folded into After hours),
+  Business and Also said. **After hours** is one sentence. **Voice agent** only appears
+  when it adds something the other lines do not.
+- **About them replaces Also said**: one or two lines on what kind of person they are or
+  something unusual (their situation, a past experience, a tool or competitor, a strong
+  opinion). The prompt bans generic traits (friendly, polite, open, casual, busy) and
+  anything another line already says; if nothing specific stands out it is left out.
+- **`verifiedBrief` never lets one quote stand under two labels** (the same outburst had
+  been written up under After hours and Voice agent): the first line keeps it, a later one
+  whose quotes are all used is dropped. Unverifiable evidence is cut from an always-written
+  line (keeping its headline) and drops any other line.
+- Existing briefings read as out of date and rewrite when opened. Checked on 5 real calls;
+  "About them" is the weakest line and sometimes repeats After hours.

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ChevronRight, FileText, RefreshCw } from "lucide-react";
 import { briefLines, type StoredBrief } from "@/lib/brief-lines";
-import { BriefLine } from "@/components/calls/brief-line";
+import { BriefList } from "@/components/calls/brief-line";
 
 /**
  * The demo briefing, folded under a Meetings row (2026-09-24).
@@ -114,14 +114,7 @@ export function MeetingBriefFold({
       </summary>
       <div className="border-t px-3 py-2.5">
         {brief ? (
-          <ul className="space-y-1">
-            {briefLines(brief.summary).map((line, i) => (
-              <li key={i} className="flex gap-2 text-[13px] leading-snug">
-                <span className="select-none text-muted-foreground">&bull;</span>
-                <BriefLine line={line} />
-              </li>
-            ))}
-          </ul>
+          <BriefList lines={briefLines(brief.summary)} />
         ) : state === "writing" ? (
           <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <RefreshCw className="size-3.5 shrink-0 animate-spin" />
