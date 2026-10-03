@@ -2627,3 +2627,12 @@ wrote a caller's question under Also said). At the AI spend on the Spend screen
 (about S$0.20 a month for everything) a model five times dearer costs about a dollar.
 Not switched yet pending a decision; the live objection hints should stay on the mini
 for speed.
+
+**Switched to `gpt-4.1` (2026-10-04)**, after the comparison above. The briefing
+(`BRIEF_MODEL`), the long-call summary, the callback suggestion and the demo and
+booking call reviews (`REVIEW_MODEL`) now run on it. **The live objection hints
+(`objection-match.ts`) stay on `gpt-4.1-mini`**, since they run while a prospect is
+talking. The model is stored on each briefing and review row, and the price is in
+`ai-usage.ts` (`RATES`), so Spend meters it correctly. Briefings written before
+this are rewritten anyway (the prompt changed), but **stored long-call summaries are
+not rewritten**, so older ones are still the mini's wording.

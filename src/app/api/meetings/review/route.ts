@@ -10,6 +10,7 @@ import {
   reviewFingerprint,
   reviewSource,
   writeReview,
+  REVIEW_MODEL,
   type ReviewKind,
   type ReviewSource,
 } from "@/lib/demo-review";
@@ -142,7 +143,7 @@ export async function POST(request: Request) {
     await db.execute(sql`
       insert into ${table}
         (meeting_id, review, source_fingerprint, model, generated_by_user_id)
-      values (${meetingId}, ${JSON.stringify(review)}::jsonb, ${fp}, ${"gpt-4.1-mini"}, ${me.id})
+      values (${meetingId}, ${JSON.stringify(review)}::jsonb, ${fp}, ${REVIEW_MODEL}, ${me.id})
       on conflict (meeting_id) do update set
         review = excluded.review,
         source_fingerprint = excluded.source_fingerprint,
