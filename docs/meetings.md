@@ -2416,3 +2416,15 @@ not, not that they refused: the summary had been turning it into "not
 interested". The briefing's fingerprint includes the prompt, so old briefs show
 as out of date and are rewritten when their fold is opened. Stored long-call
 summaries are not rewritten.
+
+**Summaries are built around the script's questions (2026-10-03).** Callers
+follow `content/sop/script-us.md`, so retelling the call repeats the script.
+Both prompts now name its questions (closing time, what happens after hours,
+"have you considered a voice agent", the demo offer and the booked time) and ask
+only for what the prospect said at each, in labelled lines: Hours, After hours,
+Voice agent, Demo, plus **Also said** for anything notable that is not in the
+script. A quote must answer its own label, or the line says "not said on the
+call" (the four always-written ones) or is left out. If the script's questions
+change, change the list in both prompts. Tested on a made-up call before
+shipping: Time came out Firm with the reason quoted, "No" to the voice agent
+question read as "has not considered one".
