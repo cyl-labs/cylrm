@@ -121,7 +121,8 @@ export async function POST(request: Request) {
   if (
     body?.status !== "showed_up" &&
     body?.status !== "no_show" &&
-    body?.status !== "invalid"
+    body?.status !== "invalid" &&
+    body?.status !== "half_fee"
   ) {
     return Response.json(
       { error: "Say whether they showed up." },
@@ -129,6 +130,27 @@ export async function POST(request: Request) {
     );
   }
   const status: DemoStatus = body.status;
+
+  // A half fee is a founder's case-by-case decision to pay half of the demo fee
+  // for a booking that did not happen as booked (for example a prospect who
+  // asked to be called back in several months), added 2026-10-03. Founders
+  // only, never a closer, and it needs a written reason so the payout can be
+  // explained later. It pays a caller, so it needs the booking call: a meeting
+  // with no call behind it earns nobody anything.
+  if (status === "half_fee") {
+    if (me.role !== "admin") {
+      return Response.json(
+        { error: "Only a founder can approve a half fee." },
+        { status: 403 },
+      );
+    }
+    if (typeof body.notes !== "string" || body.notes.trim() === "") {
+      return Response.json(
+        { error: "Say why this earns a half fee, so the payment can be explained later." },
+        { status: 400 },
+      );
+    }
+  }
 
 
   // Two different silences, and the write below turns on telling them apart.
@@ -163,6 +185,13 @@ export async function POST(request: Request) {
     if (other && other.call_lead_id !== null) {
       meetingOnly = { id: pin.id, leadId: Number(other.call_lead_id) };
     }
+  }
+
+  if (meetingOnly && status === "half_fee") {
+    return Response.json(
+      { error: "That booking has no caller behind it, so there is no fee to pay half of." },
+      { status: 400 },
+    );
   }
 
   if (meetingOnly) {
@@ -243,6 +272,31 @@ export async function POST(request: Request) {
         {
           error:
             "That business is already marked as having shown up for another booking. It earns the fee once.",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  // A half fee is also once per business, and not alongside a full one: a
+  // business that already earned the whole fee (or half of it) on another
+  // booking is not paid again. A founder who really means it changes the other
+  // answer first, which says so out loud.
+  if (status === "half_fee") {
+    const [clash] = (await db.execute(sql`
+      select a.call_id, a.status
+      from call_demo_attendance a
+      where a.call_lead_id = ${target.call_lead_id}
+        and a.status in ('showed_up', 'half_fee')
+        and a.call_id <> ${callId}
+    `)) as Record<string, unknown>[];
+    if (clash) {
+      return Response.json(
+        {
+          error:
+            clash.status === "showed_up"
+              ? "That business already earned the full fee on another booking."
+              : "That business already has a half fee on another booking.",
         },
         { status: 409 },
       );

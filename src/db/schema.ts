@@ -1183,6 +1183,10 @@ export const payout = pgTable(
      */
     bankedBonusCents: integer("banked_bonus_cents").notNull().default(0),
     meetings: integer("meetings").notNull(),
+    /** Half-fee demos this payout covered (2026-10-03). `meetings` counts full
+     *  fees only; `meetingCommissionCents` includes both. */
+    halfMeetings: integer("half_meetings").notNull().default(0),
+    halfMeetingRateCents: integer("half_meeting_rate_cents").notNull().default(0),
     meetingCommissionCents: integer("meeting_commission_cents").notNull(),
     totalCents: integer("total_cents").notNull(),
     pickupsPerBonus: integer("pickups_per_bonus").notNull(),
@@ -1247,7 +1251,7 @@ export const callDemoAttendance = pgTable(
      */
     status: text("status")
       .notNull()
-      .$type<"showed_up" | "no_show" | "invalid">(),
+      .$type<"showed_up" | "no_show" | "invalid" | "half_fee">(),
     markedAt: timestamp("marked_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

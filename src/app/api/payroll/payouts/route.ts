@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { PICKUP } from "@/lib/call-stats";
 import {
   MEETING_CENTS,
+  HALF_MEETING_CENTS,
   PICKUPS_PER_BONUS,
   PICKUP_BONUS_CENTS,
   payWeekStart,
@@ -145,18 +146,22 @@ export async function POST(request: Request) {
       // with the same predicate could pick up one marked in between and pay
       // for a meeting the admin was never shown.
       const owed = (await tx.execute(sql`
-        select a.id
+        select a.id, a.status
         from call_demo_attendance a
         join "call" ac on ac.id = a.call_id
         where ac.user_id = ${userId}
-          and a.status = 'showed_up'
+          and a.status in ('showed_up', 'half_fee')
           and a.payout_id is null
         for update of a
       `)) as Record<string, unknown>[];
 
       const pickups = Number(counts?.pickups ?? 0);
       const banked = Number(counts?.banked ?? 0);
-      const meetings = owed.length;
+      // Full fees and half fees are counted apart (2026-10-03): `meetings` is
+      // full fees only, `halfMeetings` the case-by-case ones, and the payout
+      // row's commission is the sum of the two at the rates in force now.
+      const meetings = owed.filter((o) => o.status === "showed_up").length;
+      const halfMeetings = owed.filter((o) => o.status === "half_fee").length;
 
       // Nothing owed is not an error worth a stack trace, but it must not
       // write a row: a $0 payout would move the period boundary and throw away
@@ -174,10 +179,10 @@ export async function POST(request: Request) {
       if (paysPickups && !paysMeetings && !pickupsOwed) {
         return { error: "No pickups to pay for.", status: 409 } as const;
       }
-      if (paysMeetings && !paysPickups && meetings === 0) {
+      if (paysMeetings && !paysPickups && meetings + halfMeetings === 0) {
         return { error: "No meetings to pay for.", status: 409 } as const;
       }
-      if (!pickupsOwed && meetings === 0) {
+      if (!pickupsOwed && meetings + halfMeetings === 0) {
         return { error: "Nothing owed.", status: 409 } as const;
       }
 
@@ -187,15 +192,18 @@ export async function POST(request: Request) {
       const bonus = paysPickups ? pickupBonusCents(pickups) : 0;
       const bankedPaid = paysPickups ? banked : 0;
       const paidMeetings = paysMeetings ? meetings : 0;
-      const commission = paidMeetings * MEETING_CENTS;
+      const paidHalf = paysMeetings ? halfMeetings : 0;
+      const commission =
+        paidMeetings * MEETING_CENTS + paidHalf * HALF_MEETING_CENTS;
       const kind = covers === "all" ? "payment" : covers;
 
       const [row] = (await tx.execute(sql`
         insert into payout (
           user_id, kind, period_start, period_end, week_start,
           pickups, pickup_bonus_cents, banked_bonus_cents,
-          meetings, meeting_commission_cents, total_cents,
+          meetings, half_meetings, meeting_commission_cents, total_cents,
           pickups_per_bonus, pickup_bonus_rate_cents, meeting_rate_cents,
+          half_meeting_rate_cents,
           note, created_by_user_id
         ) values (
           ${userId}, ${kind},
@@ -206,8 +214,9 @@ export async function POST(request: Request) {
           -- only place that question is ever answered from.
           ${paysPickups ? sql`${periodStart}` : sql`now()`}, now(), ${weekStart},
           ${paidPickups}, ${bonus}, ${bankedPaid},
-          ${paidMeetings}, ${commission}, ${bonus + bankedPaid + commission},
+          ${paidMeetings}, ${paidHalf}, ${commission}, ${bonus + bankedPaid + commission},
           ${PICKUPS_PER_BONUS}, ${PICKUP_BONUS_CENTS}, ${MEETING_CENTS},
+          ${HALF_MEETING_CENTS},
           ${note}, ${me.id}
         )
         returning id, total_cents
@@ -215,7 +224,7 @@ export async function POST(request: Request) {
 
       const payoutId = Number(row.id);
 
-      if (paidMeetings > 0) {
+      if (paidMeetings + paidHalf > 0) {
         const ids = owed.map((o) => Number(o.id));
         await tx.execute(sql`
           update call_demo_attendance
@@ -234,6 +243,7 @@ export async function POST(request: Request) {
         name: String(person.name),
         pickups: paidPickups,
         meetings: paidMeetings,
+        halfMeetings: paidHalf,
         bankedCents: bankedPaid,
         totalCents: bonus + bankedPaid + commission,
       };

@@ -353,3 +353,39 @@ show them).
   recordings (there is nothing to join them through).
 - Not changed: who is listed (`getDemosToConfirm`), the answers, or what any of
   them pays.
+
+## Half fee: a fourth answer, paid case by case (2026-10-03)
+
+Asked for as "pay them half of the $30 demo fee if it is a unique situation, case
+by case, for example call back in multiple months". `HALF_MEETING_CENTS` (half of
+`MEETING_CENTS`, so it follows the rate) in `lib/payroll-rates.ts`.
+
+- **A new `call_demo_attendance.status`, `half_fee`**
+  (`2026-10-03-half-fee.sql`, **applied before the deploy**: the CHECK is widened
+  and `payout` gains `half_meetings` and `half_meeting_rate_cents`, both default 0
+  so nothing past moves). It is **not a show and not a no-show**: stats, cost per
+  demo and the "showed up" counts ignore it, and nobody is rung back to rebook on
+  its strength. It is only money.
+- **Founders only, from Payroll's "Meetings to confirm"** (a "Half fee" button
+  beside Not valid). A **written reason is required** (the route refuses without
+  one) and is saved as the attendance note, so the payout can be explained later.
+  It stays available on a not-due-yet row, since "call me in a few months" is
+  known before the demo time. The Meetings screen only displays it ("Half fee
+  (paid case by case)", filterable under Past meetings); the answer cannot be set
+  from there.
+- **It pays a caller, so it needs the booking call.** A meeting with no call
+  behind it is refused. It is **once per business and not alongside a full
+  fee**: a business that already has a full or half fee on another booking is
+  refused, with the reason. (Not blocked the other way: a business with a half fee
+  whose later booking really does show up can still be marked showed up and earn
+  the full fee on top. That is a founder's judgement call, left open.)
+- **Accounting.** `meetings` on a payout stays the count of full fees,
+  `half_meetings` the half ones, and `meeting_commission_cents` is the sum at the
+  rates in force, with both rates snapshotted on the row. Owed, "Pay meetings",
+  "Pay all" and the confirmation dialog all count both, the dialog names the
+  half ones, and the payout history marks which businesses were paid half. One
+  payout claims both kinds together (same `payout_id` stamp).
+- **Spend** counts half fees in the floor pay estimate (`countHalfFeeDemos`) but
+  not in "demos that happened" or cost per demo.
+- Not tested against a real payout: checked by typecheck and by running every new
+  query locally. Try one half fee, then Pay meetings, before relying on it.

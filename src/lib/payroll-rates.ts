@@ -23,6 +23,10 @@ export const PICKUP_BONUS_CENTS = 1_000;
  *  turning up means picking up at the booked time and staying on while the
  *  agent is brought in (founders' rule, 2026-09-15). */
 export const MEETING_CENTS = 3_000;
+/** Half of that, paid case by case for a booking that earned the fee in spirit
+ *  but not in fact (for example a prospect who asked to be called back in
+ *  months). A founder marks it on Payroll with a reason (2026-10-03). */
+export const HALF_MEETING_CENTS = MEETING_CENTS / 2;
 
 /**
  * Whole dollars where they are whole, which at these rates they always are.
