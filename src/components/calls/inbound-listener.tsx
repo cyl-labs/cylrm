@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronUp, Merge, Mic, MicOff, PhoneCall, PhoneOff } from "lucide-react";
+import { ChevronUp, Merge, Mic, MicOff, PhoneCall, PhoneOff, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -117,17 +117,31 @@ function OngoingCallBar({
             Only while there is a second leg and it is not already merged:
             with nothing to join this is a button that does nothing. */}
         {line.second ? (
-          !line.merged && (
+          <>
+            {!line.merged && (
+              <button
+                type="button"
+                onClick={line.merge}
+                disabled={line.merging}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+              >
+                <Merge className="size-3.5" strokeWidth={2.4} />
+                {line.merging ? "Merging…" : "Merge"}
+              </button>
+            )}
+            {/* Drop the agent and keep the person (2026-10-04). The bar had
+                Merge and one hang up, and that hang up ends both calls, so once
+                the agent was in there was no way to take it out without losing
+                the prospect. */}
             <button
               type="button"
-              onClick={line.merge}
-              disabled={line.merging}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+              onClick={line.hangupSecond}
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors hover:bg-muted"
             >
-              <Merge className="size-3.5" strokeWidth={2.4} />
-              {line.merging ? "Merging…" : "Merge"}
+              <X className="size-3.5" strokeWidth={2.4} />
+              Drop agent
             </button>
-          )
+          </>
         ) : (
           // Nothing dialled yet, so offer the lines worth a button — the same
           // set the dial card offers, which in practice is the voice agent.
