@@ -5,50 +5,6 @@ audience: admins
 title: Closing the Demo
 ---
 
-**Founders and closers only.** This is the demo call, not the cold call.
-Everything here happens after a caller has booked the meeting and handed it
-over. **Every plan is month to month**, whoever closes it: there is no
-discount for paying further ahead, and the contract dialog only drafts month
-to month. This page is restricted
-for one reason: a caller is paid $30 when a booked demo shows up,
-and nothing on this page changes what earns that. If any of it starts leaking
-into the cold call, callers stop booking and start closing, and the way they
-are paid no longer matches the job.
-
-The shape is adapted from the mentor's v3 framework; **the terms are ours, not
-his.** He quotes $199 a month and a $1 trial because he is established and can
-hold that price. We quote the packages below and fall back to the 30-day trial
-the callers already offer on both objection sheets.
-
-**The calculator below reads its prices from `src/lib/packages.ts`, which is
-what the contracts are actually drafted from**, so the package price you quote
-mid-demo and the price on the agreement cannot disagree. The Price objection
-on each caller sheet still names a
-monthly figure by hand, so that one has to move when the file does.
-
-<details>
-<summary>The call from start to finish: what we normally do (about 15 to 20 minutes)</summary>
-
-Built from real demo calls. **The order matters more than the exact words.** The first four steps take about five minutes, the middle is a conversation, and the doc goes out before you hang up. The sections below this box cover each step in detail.
-
-1. **Open, in the first minute.** Ring on the minute. Say who you are and remind them they were expecting you. Don't say the company name.
-   > **You say** Hey, this is [name]. My guy told you I'd be calling around this time. Does that ring a bell?
-2. **Set it up, about a minute.** Tell them what is about to happen: you will add the voice agent to the call and they just listen. Say it is the generic version, and that a real one is built from their business.
-   > **You say** I'm going to add it in. You just listen to it for now, and when I hang up, let me know what you think.
-3. **Play the customer, 2 to 3 minutes.** Press **Add call**, pick the demo line, then **Merge calls** while it is still ringing. Talk to it like a normal customer who wants a quote or a booking. They hear their own front desk being answered.
-4. **Ask what they thought, straight after.** Compare it to their real calls.
-   > **You say** How does that sound? Is it very different from how your calls normally go?
-5. **Explain how it fits, 2 to 3 minutes.** It can answer every call, or only the ones they miss. Suggest the missed calls only for the first month, so they see it work first. It is better than voicemail because it books the job, and they get a summary by email afterwards.
-6. **Get their numbers, 2 to 5 minutes.** How many calls they miss a week, what an average job is worth, when they close, and whether they are listed as open 24 hours on Google. Type the numbers into the calculator below as they say them.
-7. **Name the package.** It is a monthly price, with no setup fee, and minutes included. Start with the cheapest one that fits (the calculator marks it). If they hesitate after the price, offer the 30-day trial.
-8. **Answer what comes up.** On real calls it is usually one of these: they would rather talk to a real person, they would rather have texts than calls, they want to think about it, or they ask where we are based (a remote team). Ask what is behind it before you answer, then use the answers on the left.
-9. **Send the doc while you are still on the call, 3 to 7 minutes.** Say it is already filled in. Go through it with them: what it covers, that they can cancel any time, and when payment starts (on the real calls: the payment link only goes out after they have heard and approved the mock-up). Help them sign if they get stuck. They can draw their name or type it.
-10. **Book the next call before you hang up.** Offer two times on two different days. The next call is to show them the finished agent, usually in two or three days. Never end on "I'll follow up".
-
-**If they won't take it today:** that is fine. Keep it friendly, say there is no pressure, tell them you will send the info by email, and write what happened on the meeting. A calm ending is how a "maybe" comes back later.
-
-</details>
-
 ## Ring them at the scheduled time, never before
 
 **Don't call early to check they're ready.** It hands them an easy "actually,
@@ -75,6 +31,61 @@ closing it drops both calls.
 Set expectations first, or a generic demo gets judged as the finished product.
 
 > **You say** Before I bring it in, I just want to let you know this is a generic version of what I'd build for you. Normally we'd put together a custom knowledge base based on your business. This is more so you can hear what it sounds like and how the booking flow works. I'm going to conference it in and ask it a few questions, and when I hang up, let me know what you think.
+
+<details>
+<summary>What you say to the agent once it is on the line (the usual 2 minute call)</summary>
+
+Once it is merged, the owner stays on mute and just listens. You play a customer who wants a quote. Keep it casual and short: a little "um" is fine, and a call that sounds too polished sounds staged. The agent leads. You only answer what it asks, in this order:
+
+> **You say** Hey, I'd like to get some junk removed, please.
+
+_(it greets you with their business name and asks if you want a quote or a booking)_
+
+> **You say** I'm trying to move houses, so I need to get rid of some stuff. Can I book it for tomorrow?
+
+_(it asks for the pickup address)_
+
+> **You say** 21 Main Street.
+
+_(it asks how the crew gets to the items: curbside, elevator or walk up)_
+
+> **You say** It's curbside.
+
+_(it asks what is being picked up)_
+
+> **You say** Just a sofa and a TV.
+
+_(it quotes a price)_
+
+> **You say** Sounds good. Tomorrow would be great.
+
+_(it offers times)_
+
+> **You say** Twelve would be perfect.
+
+_(it asks for your name, then your email, and may spell it back)_
+
+> **You say** It's Mark, with a k. Email is cyllabsdigital@gmail.com. *(spell it out clearly)*
+
+_(it reads the whole booking back)_
+
+> **You say** Yep, that's right.
+
+_(it asks if you need anything else)_
+
+> **You say** Nope, that's it.
+
+Then drop the agent, ask the owner to unmute, and ask what they thought:
+
+> **You say** So how does that sound? Is it very different from your usual call?
+
+**Tell them what happens after a real call.** The agent sends an email summary of everything that happened, to the owner and to the customer.
+
+**Short on time?** On a quick demo, stop after the address and the items and say: "So that's how it's going to sound. At the end it confirms the name and email, and then it sends a summary of the call to you and to the customer." The full call above is better, because they hear it book a job from start to finish.
+
+**Want it to sound like their business?** Use their own most common job instead of junk removal. The Demo Call Scripts page has a template for that, and a worked example, plus the curveball questions to ask.
+
+</details>
 
 ## Straight after the demo, get their numbers
 

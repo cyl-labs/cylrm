@@ -353,3 +353,18 @@ rough minutes seen on those calls.
   which the page says we do not do.
 - No em dashes (the page is read by people). If the flow changes, change the sections below
   it too; they carry the wording for each step.
+
+**Corrected the same day (2026-10-04): the call flow box was the wrong thing.** The ten-step
+"call from start to finish" box described the whole meeting, which Closing the Demo already
+covers section by section, so it was removed, **along with the whole top chunk** (the
+"Founders and closers only..." paragraphs and the pricing and mentor notes) at the founders'
+request. What was meant was **the demo call itself: what you say to the agent once it is
+conferenced in.** That is now a collapsible box under "Before you dial the agent in": the
+customer lines in the order the agent asks for them (a junk removal quote, 21 Main Street,
+curbside, a sofa and a TV, tomorrow at twelve, Mark with a k, the demo email), what to say
+after, and what the agent sends afterwards. It is taken from how the founders ran it on real
+calls (Kazam, FM Junk Removal); the **demo email is the SOP's** (`cyllabsdigital@gmail.com`),
+not the one used on a real call. The page now starts at "Ring them at the scheduled time", so
+the rule that the page is restricted because callers are paid $30 per showed up demo, and
+that every plan is month to month, no longer appears on it. Both are still in this file's
+history and in `docs/payroll.md`.
