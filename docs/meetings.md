@@ -2819,3 +2819,43 @@ for reading aloud by `spokenNumber` (the Founders account's is +1 332 234 9532).
 anyone with a line, so a caller sees theirs too; nothing for a login with none.
 Not checked in a browser: the scroll container is `data-page-body`, which sits below the
 header, so the bar should stick to the top of the list and not under the header.
+
+### The briefing reads the whole call, explains itself, and checks itself (2026-10-04)
+
+Feedback on a real briefing: no reason given for "fine to ring early", "decides alone" next to
+a quote about having to "endorse it to them" (who is them?), "so 50 is the last, right? / I
+think so" with no idea what it meant, and "the summary should give me all the context without
+opening the transcript... if there are terms that aren't common sense, tell me." The call was
+Grange Debris Box (28 minutes): a **price negotiation**. The owner would not pay over $50 a
+month, our caller said he'd pass that cap on, and "them" was 8x8, his phone provider, whom he
+could introduce us to later. None of that was in the summary, and the briefing had been
+reading only the **last 14,000 characters** of a 29,000 character call.
+
+Changes in `lib/meeting-brief.ts` and `components/calls/brief-line.tsx`:
+
+- **A second, editor pass** reads the call and the draft together and corrects it (`EDITOR`):
+  evidence that does not match its headline, two lines that disagree, a "they/them/it" left
+  unexplained, an In short that misses the price talk, any claim about interest or timing the
+  prospect did not say. A failed editor pass falls back to the draft. Costs about two
+  requests per briefing on `gpt-4.1` (a few cents).
+- **New lines**: **In short** (3 to 5 plain sentences telling the whole story first, including
+  price talk and anything our caller offered), **Price**, **Terms** (names and jargon explained
+  in plain words, marked "(general knowledge)" when the meaning is not from the call, e.g.
+  "8x8: a company that provides business phone systems over the internet") and **Watch out**
+  (lines that disagree, an unexplained "them", what to ask). In short, Terms and Watch out carry
+  no quotes (`NO_QUOTES` in `verifiedBrief`); the display draws In short as a paragraph and
+  Watch out as an amber panel (`BriefList`).
+- **Every other line is headline, then `Because:` (one plain sentence of reasoning, no quote
+  marks), then `Details:` (the Asked/Said evidence behind a Why).** The Time line's Because is
+  the answer to "why is it fine to ring early". A "Because" missing its colon is repaired; old
+  "Flexible"/"Firm" headlines are mapped to the new wording.
+- **The whole call is read** (`MAX_TRANSCRIPT_CHARS` 45,000, about 11k tokens). A 429 from OpenAI
+  waits for the time it names and retries up to three times, and the batch route runs two
+  briefings at a time instead of four: **the account's gpt-4.1 limit was 30,000 tokens a minute
+  when measured**, and one 28 minute call with two passes uses most of it. If briefings fail
+  often under load, the OpenAI account's rate limit tier is the thing to raise.
+- Checked on the Grange call and four others. Grange now opens "This was mostly a price
+  negotiation..." with the $50 cap, the 8x8 explanation and the follow ups. Mission Based's In
+  short first said "not interested right now" (not said); the editor rule now makes it say what
+  she said, that she had thought about a voice agent. **The In short and Because sentences are
+  written by the model and are not quote-checked**, which is why the editor and the Why exist.

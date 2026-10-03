@@ -38,7 +38,7 @@ import {
 /** How many to write at once. Fourteen sequential calls is half a minute of
  *  somebody watching a spinner; fourteen at once is a burst OpenAI may rate
  *  limit and a failure mode that looks like the feature being broken. */
-const CONCURRENCY = 4;
+const CONCURRENCY = 2;
 
 export async function POST(request: Request) {
   const me = await getCurrentUser();
