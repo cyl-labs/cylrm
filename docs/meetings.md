@@ -2733,3 +2733,23 @@ show their old "one thing to change" box.
   formula: grade **3.9** (35 sentences, 12.5 words each), so close to, not exactly, third
   grade. The briefing and call summaries are written for founders and were not changed.
 - Still founders only. The step labels come from `demo-review-rubric.ts`.
+
+### "No answer" on a follow-up is a reminder, not a call (2026-10-04)
+
+Toro Dumpsters: a founder logged **No answer** on its follow-up and "nothing happened".
+It had saved, as a real `call` row, and two things were wrong. The row did not change, and
+**`no_answer` is a retry outcome** (`TERMINAL` in `lib/calls.ts` leaves it out), so a lead in
+the middle of a sale went back into the callers' cold queue to be dialled again. The call
+back section above already warns of this ("Do not log Voicemail or No answer on the lead's
+dial card for these"); the follow-up logger broke that rule.
+
+- **For a founder, picking "No answer, ring them back" in either follow-up menu now opens
+  the call back prompt** (`pickFollowUp` in `meetings-list.tsx`) and writes **no call**. With
+  no call back open it adds one (`POST /api/founder-calls`, mode `new`, note "No answer on the
+  follow-up call."); with one open it counts one more try on it (`no_answer`, "Tried 2 times
+  with no answer" on the row). Tomorrow is the default time, with Pick a day for sooner.
+- Following up, Trial, Won and Lost are unchanged and still log a call. The menus say so.
+- **A closer's No answer still logs a call**, since the call back route is founders only. If
+  closers use this, give them the same reminder.
+- The earlier call from this case (call 8212, a Founders `no_answer`) stays in the log. The
+  lead was marked Lost by hand, which takes it out of the queue.
