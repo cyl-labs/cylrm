@@ -987,3 +987,24 @@ calls on the swap. Not a flagged number. Founders (+13322349532) and Aaron
   classifier); a founder runs it.
 - Recordings only resolve 3 of Akshansh's 105 blank calls, so they cannot be used
   to recover the number.
+
+## A teammate's number reads as their name, not "Unknown caller" (2026-10-04)
+
+Akshansh rang a founder from his new number and the Missed calls row said "Unknown caller".
+The row's name came only from a **lead** matching the number, and a teammate's number matches
+none. `getInboundCalls` now also resolves a number our own people hold now (`app_user.
+telnyx_did`) or have dialled from before (`call.dialled_from`), and the row shows **"Akshansh
+(your team)"** (`teamName` on `InboundCall`). Only the missed calls list was changed; the
+incoming-call banner (`IncomingCall`) still calls an unmatched number unknown.
+
+**The same call did not ring the founder at all, and that is a different fault.** Telnyx's
+detail records show both of Akshansh's calls reaching the founders' line (`cylrm-founders`, the
+number correctly pointed at it) and being refused **SUBSCRIBER_ABSENT, "recv_refuse"**, in
+about four seconds: **no browser was registered as the `cylrmfounders` SIP user at that moment**,
+so Telnyx had nobody to ring. A page open and polling (the missed call showed on screen, the
+presence heartbeat was fresh) does not mean the line is registered: only the one tab that wins
+the election in `line-presence.tsx` registers, and a hidden tab is throttled and ranks below a
+visible one. With several CRM tabs open, a tab on a screen that cannot dial, or a background tab,
+can leave nobody holding it. Keep one CRM tab, on a screen that can dial (Meetings, Missed calls,
+Texts, Keypad), reload it, and ring it again. Not reproduced: this was read from Telnyx's
+records after the fact.
