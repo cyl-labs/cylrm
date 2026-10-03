@@ -311,6 +311,15 @@ export type DemoToConfirm = {
    * happened.
    */
   currentOutcome: CallOutcome;
+  /**
+   * The recording of the call that booked it, found without needing a meeting
+   * (2026-10-03). A booking with no meeting on the calendar has nothing else to
+   * hang a recording on, and that is exactly the row somebody has to judge by
+   * listening. Same rule as the Meetings row's cold call: the call's own session
+   * when it ran 20 seconds or more, else the longest call to that number from
+   * that caller ID in the two hours before the booking was logged.
+   */
+  bookingRecording: { recordingId: string; durationMs: number | null } | null;
 };
 
 /**
@@ -432,7 +441,8 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
       cl.name as list_name,
       u.name as caller_name,
       a.status,
-      latest.outcome as current_outcome
+      latest.outcome as current_outcome,
+      brec.recording_id as brec_id, brec.duration_ms as brec_ms
     from "call" c
     join call_lead l on l.id = c.call_lead_id
     join call_list cl on cl.id = l.call_list_id
@@ -441,6 +451,19 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
     -- payroll worklist has no business asking a question with no consequence.
     join app_user u on u.id = c.user_id and u.role in ('caller', 'closer')
     left join call_demo_attendance a on a.call_id = c.id
+    left join lateral (
+      select r.recording_id, r.duration_ms from call_recording r
+      where r.call_session_id = c.telnyx_session_id
+         or (
+           r.to_number = '+' || l.phone_key
+           and r.from_number = coalesce(c.dialled_from, u.telnyx_did)
+           and r.started_at between c.called_at - interval '2 hours' and c.called_at
+         )
+      order by
+        (r.call_session_id = c.telnyx_session_id and coalesce(r.duration_ms, 0) >= 20000) desc,
+        r.duration_ms desc nulls last, r.id
+      limit 1
+    ) brec on true
     -- Where the lead stands now. The same "most recent call wins" rule the
     -- board and the spreadsheet derive a lead's state from, so the chip on a
     -- row and the column it sits in on the board cannot say different things.
@@ -477,6 +500,12 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
     notes: (r.notes as string | null) ?? null,
     status: (r.status as DemoStatus | null) ?? null,
     currentOutcome: r.current_outcome as CallOutcome,
+    bookingRecording: r.brec_id
+      ? {
+          recordingId: String(r.brec_id),
+          durationMs: r.brec_ms === null ? null : n(r.brec_ms),
+        }
+      : null,
   }));
 }
 

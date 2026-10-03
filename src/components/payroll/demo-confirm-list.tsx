@@ -26,6 +26,8 @@ export type DemoView = {
   notes: string | null;
   status: DemoStatus | null;
   currentOutcome: CallOutcome;
+  /** The booking call's recording, for a row with no meeting to find it by. */
+  bookingRecording: { recordingId: string; durationMs: number | null } | null;
   /**
    * What the calendar says about this booking (2026-10-03), so a row can show
    * when the demo is, whether that time has passed, and let the calls be heard
@@ -197,6 +199,17 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
           <p className="mt-0.5 line-clamp-3 text-[11px] text-muted-foreground/80">
             What happened: {d.meeting.attendanceNotes}
           </p>
+        )}
+        {!d.meeting && d.bookingRecording && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <LogRecording
+              recordingId={d.bookingRecording.recordingId}
+              recordingMs={d.bookingRecording.durationMs}
+              company={d.company}
+              callerName={d.callerName ?? "Caller"}
+              label="Booking call"
+            />
+          </div>
         )}
         {d.meeting &&
           (d.meeting.coldCall || d.meeting.demoCalls.length > 0) && (

@@ -391,3 +391,18 @@ by case, for example call back in multiple months". `HALF_MEETING_CENTS` (half o
   not in "demos that happened" or cost per demo.
 - Not tested against a real payout: checked by typecheck and by running every new
   query locally. Try one half fee, then Pay meetings, before relying on it.
+
+**A booking with no meeting still lists its call (2026-10-03).** `getDemosToConfirm`
+now finds the booking call's recording by the Meetings row's own rule (session,
+else the longest call to that number from that caller ID in the two hours before),
+so a row that says "No meeting on the calendar" still has a **Booking call** Listen
+button. Two such rows were checked that day:
+- **A&W Pro-Movers** (Brian): one business booked twice on 17 Sept, two
+  `demo_booked` calls two hours apart. The Cal.com booking linked to the second
+  call, the demo ran 22 Sept and that call was marked showed up and **paid**. The
+  listed row is the first, a duplicate that can never earn: the right answer is
+  Not valid (one fee per business).
+- **Mighty Man Movers** (Akshansh): no meeting row exists for the lead, and no
+  unlinked Cal.com booking either. He logged Demo booked after a 6.5 minute call,
+  then following up, two callbacks and a no answer within the hour. It looks like
+  it was never put on the calendar; decide by listening to the booking call.
