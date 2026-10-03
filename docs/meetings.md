@@ -2653,3 +2653,23 @@ and the long-call summaries fold now read "Generated from the call transcript. C
 anything before repeating it to the prospect." Known weak spot: Warmth is still
 "not said" on a call where the owner said she had thought about a voice agent; the
 model is cautious about it.
+
+### Time says "Accepted", and a Trial line (2026-10-04)
+
+"What do you mean not said whether it can move? I doubt they will literally say we can
+call anytime." Right: nobody does, so "Agreed to the time offered. Not said whether it
+can move." was true on nearly every call and told the reader nothing. The plain
+acceptance now reads **"Time: Accepted the time offered, no conditions or reasons
+given."** with its Asked/Said evidence (`TIME_AGREED`). **Firm** (a reason or the only
+time they are free) and **Flexible** (said they are free at other times) are unchanged,
+and "No time came up on the call." covers a call where none was discussed.
+
+**New line, `Trial:`**, one of the five always-written lines (Time, Decides, Reach,
+Warmth, Trial): whether **our caller** suggested a free or 30 day trial, with the
+caller's words and the prospect's reaction, or "Not suggested on the call.". The
+prospect raising a trial first is not the caller suggesting one and is said in plain
+words. `verifiedBrief` turns "Suggested" into "Not suggested" when the caller's quote
+has no trial, free or try-it wording, and fills the line in when the model leaves it
+out. The long-call summary has a Trial line too, but only when one was suggested.
+Checked on 7 real calls: one caller (Junk Solution, Aaron) offered a month's trial,
+the other six did not. Existing briefings read as out of date and rewrite on open.
