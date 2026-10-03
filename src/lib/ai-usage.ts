@@ -20,7 +20,7 @@ const RATES: Record<string, { input: number; output: number }> = {
   "gpt-4o-mini-transcribe": { input: 1.25, output: 5 },
 };
 
-export type AiFeature = "brief" | "hint" | "hint-audio" | "callback" | "summary";
+export type AiFeature = "brief" | "hint" | "hint-audio" | "callback" | "summary" | "review";
 
 export const AI_FEATURE_LABEL: Record<AiFeature, string> = {
   brief: "Meeting briefings",
@@ -28,6 +28,7 @@ export const AI_FEATURE_LABEL: Record<AiFeature, string> = {
   "hint-audio": "Hearing the prospect (hints)",
   callback: "Reading calls for a call back",
   summary: "Call summaries",
+  review: "Demo call reviews",
 };
 
 /**

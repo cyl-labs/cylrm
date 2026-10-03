@@ -793,7 +793,7 @@ const NO_SHOW_RING_DAYS = 7;
  * `clusterDemoRecordings` below is what keeps an unrelated later call out of
  * the demo's own recording list.
  */
-const DEMO_RECORDING_WHERE = sql`
+export const DEMO_RECORDING_WHERE = sql`
   cr.to_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
   -- A call made from a caller's own number is theirs, not the demo
   -- (2026-10-02). The window is wide on purpose, so every call to the business
