@@ -93,8 +93,17 @@ const SETTLE_MS = 300;
  */
 const ON_CALL = 5;
 const CALLING_VISIBLE = 4;
-const CALLING_HIDDEN = 3;
-const LISTENING_VISIBLE = 2;
+// A tab you can SEE now outranks a calling tab you cannot (2026-10-04). It was
+// the other way round (hidden calling 3, visible listening 2), so a hidden Meetings
+// tab kept the phone against the Stats tab being looked at. A hidden tab is the one
+// the browser throttles, freezes or discards, so the registration it holds can lapse
+// without any tab noticing, and a call to that line is refused SUBSCRIBER_ABSENT
+// (Akshansh ringing a founder with several tabs open: both calls refused in four
+// seconds). Visible first means the phone follows the tab in front. A calling screen
+// still beats a listening one among visible tabs, and a call in progress (ON_CALL)
+// still keeps the line wherever it is.
+const LISTENING_VISIBLE = 3;
+const CALLING_HIDDEN = 2;
 const LISTENING_HIDDEN = 1;
 /**
  * Asked to let go (2026-09-24), below everything until somebody uses this tab

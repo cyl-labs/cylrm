@@ -353,7 +353,9 @@ export function InboundList({
                       <span suppressHydrationWarning>{ago(c.at)}</span>
                       {c.answeredAt
                         ? ` · answered${c.seconds !== null ? `, ${mmss(c.seconds)}` : ""}`
-                        : " · nobody picked up"}
+                        : c.refused
+                          ? " · never rang"
+                          : " · nobody picked up"}
                       {/* Said out loud rather than hidden by the roll-up: a
                           phone system redialling twenty times is worth
                           knowing about, and "rang 17 times" is the readable
@@ -363,6 +365,17 @@ export function InboundList({
                           more than one, so only an admin is told. */}
                       {showWho && c.forName && ` · for ${c.forName}`}
                     </p>
+                    {/* Said plainly, with what to do about it: a call that ended
+                        in under eight seconds was almost always refused because
+                        no browser was signed in on that line, which is the
+                        phone being off rather than somebody not picking up. */}
+                    {c.refused && c.answeredAt === null && (
+                      <p className="mt-1 text-[12px] text-warning-foreground dark:text-warning">
+                        {showWho && c.forName ? `${c.forName}'s` : "Your"} phone was not
+                        connected, so this never rang. Check the Phone light at the top
+                        of the page.
+                      </p>
+                    )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     {c.listName && (

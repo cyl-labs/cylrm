@@ -1008,3 +1008,30 @@ visible one. With several CRM tabs open, a tab on a screen that cannot dial, or 
 can leave nobody holding it. Keep one CRM tab, on a screen that can dial (Meetings, Missed calls,
 Texts, Keypad), reload it, and ring it again. Not reproduced: this was read from Telnyx's
 records after the fact.
+
+### Several tabs open must not mean no phone (2026-10-04)
+
+"That isn't practical, I'll always have multiple tabs open." Right: telling people to keep one
+tab is not a fix. Three changes, none verified against a real inbound call:
+
+- **A tab you can see now outranks a calling tab you cannot** (`line-presence.tsx`: visible
+  calling 4, visible listening 3, hidden calling 2, hidden listening 1; on a call is still 5).
+  It was hidden calling 3 above visible listening 2, so a hidden Meetings tab kept the phone
+  against the Stats tab in front. A hidden tab is the one the browser throttles, freezes or
+  discards, so the registration it holds can lapse with nobody noticing, and a call to that line
+  is refused SUBSCRIBER_ABSENT. **This is the most likely cause, not a proven one**: the failed
+  calls could only be read from Telnyx's records afterwards. The phone now follows the tab in
+  front; the cost is a second or two unregistered each time the front tab changes.
+- **A Phone light in every page header** (`PhoneStatus`, in `PageShell`): "Phone on" (this tab
+  holds it and it is registered), "Phone is in another tab" with **Use it here**, or
+  "Connecting phone..." that becomes "Phone not connected" with a Reload after ten seconds. Drawn
+  only for a login with a browser line. `CallLineValue` gained `enabled` for it.
+- **A missed call that ended in under eight seconds with nobody answering says so**: "never
+  rang" and "Your phone was not connected, so this never rang" (`refused` in
+  `getInboundCalls`). A heuristic on duration, so it can be wrong about the reason.
+
+**Telnyx's `registration_status` on a connection is useless for this**: every active person's
+connection read "Not Registered" while their pages were open, because the browser registers
+through a telephony credential, not the connection's own user. Do not use it to check a line.
+The detail records are the evidence: `GET /v2/detail_records?filter[record_type]=sip-trunking`
+shows `hangup_cause: SUBSCRIBER_ABSENT` for a refused call.

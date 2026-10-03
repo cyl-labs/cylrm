@@ -8,6 +8,7 @@ import { callScope, getCurrentUser } from "@/lib/session";
 import { smsEnabled } from "@/lib/sms";
 import { countUnreadTexts } from "@/lib/texts";
 import { MobileNav } from "@/components/mobile-nav";
+import { PhoneStatus } from "@/components/calls/phone-status";
 import { QuotaBar } from "@/components/calls/quota-bar";
 import { getWeekProgress } from "@/lib/call-stats";
 import { STATS_TZ } from "@/lib/stats-zones";
@@ -66,9 +67,12 @@ export async function PageShell({
         <h1 className="text-lg font-extrabold tracking-[-0.02em] sm:text-xl">
           {title}
         </h1>
-        {actions && (
-          <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
-        )}
+        {/* Whether this browser's phone is connected: nothing else on screen
+            says so, and a refused call leaves no trace until it is lost. */}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <PhoneStatus />
+          {actions}
+        </div>
       </header>
       {week && (
         <QuotaBar

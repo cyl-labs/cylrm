@@ -49,6 +49,9 @@ export type InboundCall = {
   /** The teammate whose number this is, when it is one of ours and matches no
    *  lead. Shown instead of "Unknown caller". */
   teamName: string | null;
+  /** Ended in under eight seconds with nobody answering: very likely refused
+   *  because the phone was not connected in the browser. */
+  refused: boolean;
   listName: string | null;
   /** The niche it sits in, so "Open lead" can land on the dial card for it
    *  rather than on the spreadsheet. Null exactly when `leadId` is. */
@@ -264,6 +267,10 @@ export async function getInboundCalls(
         (select tm2.name from "call" tc join app_user tm2 on tm2.id = tc.user_id
           where tc.dialled_from = ic.from_number order by tc.called_at desc limit 1)
       ) as team_name,
+      -- Over almost at once with nobody answering: the pattern of a call that
+      -- Telnyx refused because no browser was registered on the line.
+      (ic.answered_at is null and ic.ended_at is not null
+        and ic.ended_at - ic.started_at < interval '8 seconds') as refused,
       l.id as lead_id, l.company, l.name as lead_name,
       l.dnc_status, l.dnc_checked_at,
       cl.name as list_name, cl.id as list_id,
@@ -313,6 +320,7 @@ export async function getInboundCalls(
       company: (r.company as string | null) ?? null,
       leadName: (r.lead_name as string | null) ?? null,
       teamName: (r.team_name as string | null) ?? null,
+      refused: r.refused === true,
       listName: (r.list_name as string | null) ?? null,
       listId: r.list_id === null ? null : Number(r.list_id),
       attempts: Number(r.attempts ?? 0),
