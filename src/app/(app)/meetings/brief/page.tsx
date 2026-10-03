@@ -5,6 +5,7 @@ import { PageShell } from "@/components/page-shell";
 import { GenerateBriefing } from "@/components/calls/generate-briefing";
 import { getBriefedMeetings } from "@/lib/meeting-brief";
 import { briefLines } from "@/lib/brief-lines";
+import { BriefLine } from "@/components/calls/brief-line";
 import { getCurrentUser } from "@/lib/session";
 import { readerZone } from "@/lib/users";
 import { prospectZone, theirClock } from "@/lib/call-time";
@@ -162,7 +163,7 @@ export default async function BriefPage() {
                           <span className="select-none text-muted-foreground">
                             &bull;
                           </span>
-                          <span>{line}</span>
+                          <BriefLine line={line} />
                         </li>
                       ))}
                     </ul>

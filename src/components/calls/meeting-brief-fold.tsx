@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ChevronRight, FileText, RefreshCw } from "lucide-react";
 import { briefLines, type StoredBrief } from "@/lib/brief-lines";
+import { BriefLine } from "@/components/calls/brief-line";
 
 /**
  * The demo briefing, folded under a Meetings row (2026-09-24).
@@ -117,7 +118,7 @@ export function MeetingBriefFold({
             {briefLines(brief.summary).map((line, i) => (
               <li key={i} className="flex gap-2 text-[13px] leading-snug">
                 <span className="select-none text-muted-foreground">&bull;</span>
-                <span>{line}</span>
+                <BriefLine line={line} />
               </li>
             ))}
           </ul>
