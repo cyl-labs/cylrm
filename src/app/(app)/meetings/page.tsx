@@ -16,7 +16,8 @@ import { getSavedLines } from "@/lib/calls";
 import { calConfigured } from "@/lib/cal";
 import { UnbookedDemos } from "@/components/calls/unbooked-demos";
 import { getTextsByLead, smsEnabled, type Texting } from "@/lib/sms";
-import { classifyPhone } from "@/lib/phone";
+import { classifyPhone, spokenNumber } from "@/lib/phone";
+import { YourNumber } from "@/components/calls/your-number";
 import { callScope, getCurrentUser } from "@/lib/session";
 import { getMeetingStats } from "@/lib/meeting-stats";
 import {
@@ -303,6 +304,7 @@ export default async function MeetingsPage({
       ? Object.fromEntries(await getStoredReviews(meetings.map((m) => m.id), "booking"))
       : null;
   const bookedByMe: number[] | null = null;
+  const myLineNumber = me ? await callerNumberOf(me.id) : null;
   const closers = me?.role === "admin" ? await listClosers() : [];
   // The last week at a glance (2026-09-25); the breakdown is on Stats. A
   // caller's is the demos they booked, the same scope Stats gives them.
@@ -425,6 +427,20 @@ export default async function MeetingsPage({
       {/* Asked before the list is any use to anybody: the screen only works
           for someone who has been told to look at it. */}
       <PushGate vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
+      {/* The reader's own number, kept at the top of the screen while the list
+          scrolls (2026-10-04). A founder who leaves their number on voicemails
+          needs it to hand while scrolling, so it is a sticky bar, opaque like
+          every fixed or sticky surface here, rather than a card at the top that
+          scrolls away. Hidden for a login with no line of its own. */}
+      {myLineNumber && (
+        <div className="sticky top-0 z-30 border-b bg-background px-4 py-2 sm:px-6">
+          <YourNumber
+            compact
+            className="mx-auto mb-0 max-w-3xl py-2"
+            number={spokenNumber(myLineNumber)}
+          />
+        </div>
+      )}
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 sm:px-6">
         {/* Above the list rather than at the foot of it: the question it
             answers ("where did all this come from and what do I do?") is asked

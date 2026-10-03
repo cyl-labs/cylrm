@@ -2807,3 +2807,15 @@ after hours", "instead of Also said, pick out unique things about the prospect")
   line (keeping its headline) and drops any other line.
 - Existing briefings read as out of date and rewrite when opened. Checked on 5 real calls;
   "About them" is the weakest line and sometimes repeats After hours.
+
+### Your number on the Meetings screen (2026-10-04)
+
+A founder is going to start leaving their number in voicemails, so it has to be in
+reach while scrolling the list. `meetings/page.tsx` draws `YourNumber` (the component the
+dial card and Call lists already use, `compact` so it is just the number and a Copy
+button) in a **sticky bar at the top of the page body**, opaque (`bg-background`) like
+every fixed or sticky surface here. It is the reader's own line: `callerNumberOf`, grouped
+for reading aloud by `spokenNumber` (the Founders account's is +1 332 234 9532). Shown for
+anyone with a line, so a caller sees theirs too; nothing for a login with none.
+Not checked in a browser: the scroll container is `data-page-body`, which sits below the
+header, so the bar should stick to the top of the list and not under the header.

@@ -24,12 +24,16 @@ import { cn } from "@/lib/utils";
 export function YourNumber({
   number,
   className,
+  compact = false,
 }: {
   /** Grouped for reading aloud already — see `spokenNumber`. Null for somebody
    *  who has not been assigned one, which is a state worth showing rather than
    *  hiding: it is the reason their script still says "[your number]". */
   number: string | null;
   className?: string;
+  /** Just the number and Copy, no sentence under it: for a bar that stays on
+   *  screen while a list scrolls (Meetings, 2026-10-04). */
+  compact?: boolean;
 }) {
   const [copied, setCopied] = React.useState(false);
 
@@ -81,10 +85,12 @@ export function YourNumber({
             )}
             {copied ? "Copied" : "Copy"}
           </button>
-          <p className="text-[12px] text-muted-foreground">
-            This is what shows on their phone, and the number to leave on a
-            voicemail. Your script already has it in.
-          </p>
+          {!compact && (
+            <p className="text-[12px] text-muted-foreground">
+              This is what shows on their phone, and the number to leave on a
+              voicemail. Your script already has it in.
+            </p>
+          )}
         </>
       ) : (
         <>
