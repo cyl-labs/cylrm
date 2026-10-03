@@ -91,7 +91,11 @@ export default async function KeypadPage() {
           callerName={me?.name ?? "you"}
           lines={await getSavedLines()}
           book={await getKeypadLines({
-            labelled: row?.is_owner === true,
+            // The labelled demo lines (a client's voice agent, the demo
+            // number) are the founders' and, since 2026-10-04, the closers'
+            // too: a closer runs the demo and rings those lines to check them
+            // and to conference them in.
+            labelled: row?.is_owner === true || me?.role === "closer",
             // Null is "every market", which is the whole condition: a caller
             // handed one market has one number and nothing to choose between.
             plain: row ? row.call_region === null : false,

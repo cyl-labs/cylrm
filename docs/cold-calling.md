@@ -1193,3 +1193,13 @@ the control was missing.
 - A line under the filters says "Showing 28 Sep to 4 Oct, Singapore time" with a way
   back to the last 7 days. Only Stats passes `today`, so Pipeline and Callbacks do not
   get the picker.
+
+### Closers get the demo lines in the Keypad's "Pick a number" (2026-10-04)
+
+The Keypad's number book offered the labelled lines (First Coast Alarm, Junk Removal Demo,
+Next Level Haul Away) only to the founders' accounts (`app_user.is_owner`), so a closer had
+to type a demo line's digits to check it or ring it. `keypad/page.tsx` now passes
+`labelled: is_owner || role === "closer"` to `getKeypadLines`. They see the labelled lines
+only: the plain account numbers still need a login with no market (`call_region` null), as
+before. A pick goes into the pad rather than ringing, as it does for founders. Closers have
+the Keypad (`keypad_access` is on for both). A new demo line still needs a label on Team.
