@@ -2385,3 +2385,11 @@ meeting with no call uses) when the call already carries one pinned to another
 meeting. The Meetings row, after a "Not a real booking", asks once whether to
 mark the business's other unlogged demo bookings the same way. It asks rather
 than assuming: the other booking may be the real one (OH Junk It).
+
+**Removed businesses leave "Not logged yet" (2026-10-03).** Remove from Meetings
+(and logging the sale lost) writes a cancelled row against each meeting but
+never answers "did they turn up", so a removed demo sat under Not logged yet
+for good. `logged` in `lib/meetings.ts` and `unlogged` in `lib/meeting-stats.ts`
+now treat a demo with a cancelled row at its current time as dealt with. The
+pay question is untouched: Payroll's confirm list reads attendance, so a demo
+that really happened is still asked about there.
