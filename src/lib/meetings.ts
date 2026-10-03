@@ -1643,10 +1643,17 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     })(),
     nextFollowUpAt: iso(r.next_follow_up_at),
     leadOutcome: (r.lead_outcome as string | null) ?? null,
+    // A demo taken off Meetings (a cancelled row at its current time, written by
+    // Remove from Meetings and by logging the sale lost) is dealt with as far
+    // as this list goes, 2026-10-03. It used to stay under "Not logged yet"
+    // for good, because removing a business deliberately never answers "did
+    // they turn up". That question is the pay one and stays open on Payroll,
+    // which reads attendance and not this.
     logged:
       r.kind === "follow_up"
         ? r.follow_up_logged === true
-        : r.attendance !== null && r.attendance !== undefined,
+        : (r.attendance !== null && r.attendance !== undefined) ||
+          r.followup_result === "cancelled",
     earlierDemoRecordings: clusterDemoRecordings(
       (
         (r.earlier_demo_recordings as

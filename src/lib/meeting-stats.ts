@@ -155,7 +155,12 @@ export async function getMeetingStats(
         -- Not logged: a demo with no answer, or a follow-up nothing has been
         -- logged against since it began (2026-09-25), the Meetings row's rule.
         count(*) filter (where m.status = 'accepted' and m.start_at <= now() and (
-          (m.kind = 'demo' and att.status is null)
+          (m.kind = 'demo' and att.status is null
+            and not exists (
+              select 1 from call_meeting_followup dfu
+              where dfu.meeting_id = m.id and dfu.for_start_at = m.start_at
+                and dfu.result = 'cancelled'
+            ))
           or (m.kind = 'follow_up'
             and not exists (
               select 1 from "call" fc
