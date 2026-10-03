@@ -347,7 +347,9 @@ show them).
   founder wrote about the demo, **Listen buttons** for the cold call and each
   demo call (the same `LogRecording` sheet as Meetings), and the **call summaries**
   fold (long calls can have one written from here).
-- Data comes from `getMeetings(undefined, tz, { past: true })`, matched on the
+- Data comes from `getMeetings(undefined, tz)` **and** `{ past: true }`, merged (the
+  second alone is only what has already happened: ARR Disposal showed its cancelled
+  October slot and not the live December one, fixed 2026-10-03), matched on the
   booking call (`bookingCallId`); a booking with two meetings takes the live one,
   else the latest. A booking with no meeting still lists, saying so, with no
   recordings (there is nothing to join them through).
