@@ -55,6 +55,13 @@ export function SopProse({
         "[&_h3]:mt-6 [&_h3]:text-[11px] [&_h3]:font-bold [&_h3]:tracking-[0.06em] [&_h3]:text-muted-foreground",
         "[&_h3]:border-l-2 [&_h3]:border-primary/30 [&_h3]:pl-2",
         "[&_p]:mt-3.5",
+        // A collapsible box written as raw `<details>` in the markdown (the
+        // call flow at the top of Closing the Demo, 2026-10-04). Shut until
+        // somebody wants it, with a quiet border so it reads as a control and
+        // not as a speaker block.
+        "[&_details]:mt-4 [&_details]:rounded-lg [&_details]:border [&_details]:bg-muted/30 [&_details]:px-4 [&_details]:py-3",
+        "[&_summary]:cursor-pointer [&_summary]:select-none [&_summary]:text-[15px] [&_summary]:font-extrabold",
+        "[&_details[open]>summary]:mb-1",
         // Stage directions: italic, quiet, never mistaken for a line to read
         // out.
         "[&_em]:text-[13px] [&_em]:text-muted-foreground",
