@@ -180,6 +180,21 @@ function phaseOf(state: string | undefined): CallState | null {
  * and the bridge taps exactly that stream a moment later. Turning the element
  * off to keep the first call private would take the bridge's input with it.
  */
+/**
+ * The microphone settings for a call we place (2026-10-04). Echo cancelling, noise
+ * suppression and automatic gain are asked for by name rather than left to the
+ * browser's default, which is what the conference bridge (`audio-bridge.ts`) already
+ * does. A caller sounded echoey from the CRM and fine on Google Meet: Meet turns all
+ * three on explicitly, and a call that rode the default could end up without them.
+ * Only applies to calls placed from here; an inbound call is answered with the
+ * client's own defaults.
+ */
+const MIC_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
 function setEar(audioId: string, volume: number) {
   const el = document.getElementById(audioId);
   if (el instanceof HTMLAudioElement) el.volume = volume;
@@ -1071,7 +1086,7 @@ export function useTelnyxCall(
           // Without a sink for the far end there is a call and no sound, which
           // presents as "it does not work" rather than as a wiring mistake.
           remoteElement: audioId,
-          audio: true,
+          audio: MIC_CONSTRAINTS,
           video: false,
         });
       } catch (err) {
@@ -1117,7 +1132,7 @@ export function useTelnyxCall(
           destinationNumber: to,
           callerNumber: from,
           remoteElement: secondAudioId,
-          audio: true,
+          audio: MIC_CONSTRAINTS,
           video: false,
         });
       } catch (err) {

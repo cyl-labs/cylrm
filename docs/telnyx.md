@@ -1052,3 +1052,17 @@ missed calls." Two places, two causes:
 
 `hangupSecond` (`dropSecond` in `use-telnyx-call.ts`) hands the first call its microphone and
 earpiece back, so the owner is not left unable to hear. Not tested on a live merged call.
+
+### Echo on calls placed from the CRM (2026-10-04)
+
+A caller sounded echoey when ringing from the CRM and fine on Google Meet. Read off the code and
+Telnyx, not heard: (1) the call asked the browser for `audio: true`, so echo cancelling, noise
+suppression and gain control rode the browser's defaults, while Meet asks for all three
+explicitly; `newCall` now passes them (`MIC_CONSTRAINTS` in `use-telnyx-call.ts`), as the
+conference bridge already did. Inbound calls (`call.answer`) were not changed. (2) The Telnyx
+side has **noise suppression off and the jitter buffer off** on the connections (`GET
+/v2/credential_connections/{id}`: `noise_suppression: "disabled"`); the codecs are G722, G711,
+G729, no Opus, so a browser call is transcoded at Telnyx. None of that makes an echo, which comes
+from the microphone hearing the speakers: **headphones fix it outright**, and Meet masks it with
+heavier processing. Telnyx noise suppression is a per-connection setting and is **not** turned on
+(it may be billed per minute, and it removes background noise, not echo).
