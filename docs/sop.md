@@ -377,3 +377,35 @@ was not changed.)
 **Trimmed (2026-10-04):** the agent-call box no longer has the "Short on time?" and "Want it
 to sound like their business?" paragraphs ("too long"). It is the customer lines, what to
 say after, and the one sentence on what the agent sends afterwards.
+
+### Closing the Demo rewritten in plain words, and the agreement walkthrough (2026-10-04)
+
+"Make the sop page 3rd grade reading level. 'Don't narrate the plumbing' is unnecessarily
+complicated. The doc prefills their name so all we need is the signature. Then say 'since
+we're here, let's walk through it' and explain each section." The whole of
+`procedure-closing-the-demo.md` was rewritten in short everyday sentences (measured with the
+Flesch-Kincaid formula at about grade 4, from about grade 9 before). The structure, the
+placeholders (`[name]`, `[their calls]`, `[their average job]`, `[the package price]`), the
+`[calculator]` and `[contract-walkthrough]` markers and the `## Objection handling | ...`
+branches are unchanged, because code reads them.
+
+- **"Send the doc while you are still on the call" is now "Send the agreement..."**, with no
+  "don't narrate the plumbing". It says: it already has their name on it, all they do is sign,
+  just say it is on its way; then **"Since we're on the phone, let's go through it together"**
+  and a part by part walkthrough for each agreement, in the order a person reads it. Paid: who
+  it is for, what we do (answers missed calls, books jobs, emails about each call), price and
+  minutes (and the overage per minute), how long it lasts (month to month, 7 days' notice),
+  sign. Trial: who it is for, what the trial is (30 days or up to 75 minutes, whichever comes
+  first, missed calls only), what it costs ($1 to start), what happens at the end (keep or
+  stop; extra minutes $1 each), sign.
+- **The parts are written from the CRM's own notes on the agreements** (the fields it fills,
+  and `docs/meetings.md` on the trial's 30 days, 75 minutes and USD 1), **not from the signed
+  document itself, which is on DocuSeal and was not opened.** Compare the order and the wording
+  with the real PDFs, and fix this file if a section has a different name or is in a different
+  order.
+- **Removed**: the step by step "How to send the agreement" list and its troubleshooting notes
+  (no Text them button, no phone number, the questionnaire link, a wrong draft), "it's
+  explained in the video". The section is now one line and the `[contract-walkthrough]`
+  video.
+- **Also removed**: the paragraph that said we do not charge a token $1 on the trial. The trial
+  agreement does say USD 1 up front, so that paragraph contradicted it.
