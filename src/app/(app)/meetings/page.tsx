@@ -10,7 +10,7 @@ import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
 import { getStoredBriefs } from "@/lib/meeting-brief";
-import { getStoredReviews } from "@/lib/demo-review";
+import { bookedBy, getStoredReviews } from "@/lib/demo-review";
 import type { CalendarEvent } from "@/components/calls/meetings-calendar";
 import { getSavedLines } from "@/lib/calls";
 import { calConfigured } from "@/lib/cal";
@@ -302,6 +302,21 @@ export default async function MeetingsPage({
             ),
           )
         : null;
+  // The review of the cold call that booked each demo (2026-10-03): founders
+  // for every meeting, a caller for the ones their own call won.
+  const bookingReviews =
+    me?.role === "admin"
+      ? Object.fromEntries(await getStoredReviews(meetings.map((m) => m.id), "booking"))
+      : me && me.role === "caller"
+        ? Object.fromEntries(
+            await getStoredReviews(
+              await bookedBy(meetings.map((m) => m.id), me.id),
+              "booking",
+            ),
+          )
+        : null;
+  const bookedByMe =
+    me && me.role === "caller" ? await bookedBy(meetings.map((m) => m.id), me.id) : null;
   const closers = me?.role === "admin" ? await listClosers() : [];
   // The last week at a glance (2026-09-25); the breakdown is on Stats. A
   // caller's is the demos they booked, the same scope Stats gives them.
@@ -662,6 +677,8 @@ export default async function MeetingsPage({
           texting={texting}
           briefs={briefs}
           reviews={reviews}
+          bookingReviews={bookingReviews}
+          bookedByMe={bookedByMe}
           // Re-sending an invitation needs the Cal.com API, so an account
           // without a key draws no button rather than one that can only fail.
           // Not gated on role: the caller who typed the address wrong is the

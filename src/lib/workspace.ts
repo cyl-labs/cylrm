@@ -8,6 +8,7 @@ import {
   MailOpen,
   MessageCircle,
   PhoneCall,
+  Lightbulb,
   PhoneForwarded,
   PhoneMissed,
   ScrollText,
@@ -126,6 +127,9 @@ export const WORKSPACES: Workspace[] = [
       // Beside Payroll, which is the other half of the same question: that one
       // is what the people cost, this is what the phones do.
       { href: "/spend", label: "Spend", icon: Receipt, group: "admin" },
+      // Beside Stats' numbers but founders only: Stats says what happened, this
+      // says what to do differently (best hour, which try, voicemails).
+      { href: "/what-works", label: "What works", icon: Lightbulb, group: "results" },
     ],
   },
 ];
@@ -183,6 +187,9 @@ export const ADMIN_ONLY_CALL_PREFIXES = [
   // The account balance and every line's usage — the same material Payroll is
   // closed for, and a screen where one caller can read another's minutes.
   "/spend",
+  // Founders only: it reads every caller's calls together, like Stats' By
+  // person table, and is there to decide how the floor works.
+  "/what-works",
 ];
 
 /**
@@ -270,6 +277,7 @@ const CALL_PREFIXES = [
   "/team",
   "/payroll",
   "/spend",
+  "/what-works",
   "/keypad",
 ];
 

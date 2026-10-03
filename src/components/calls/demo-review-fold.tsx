@@ -28,10 +28,15 @@ const BADGE: Record<StageRating, { text: string; cls: string }> = {
 export function DemoReviewFold({
   meetingId,
   initial,
+  kind = "demo",
 }: {
   meetingId: number;
   initial: StoredReview | null;
+  /** "demo" is the call a founder or closer ran; "booking" is the cold call a
+   *  caller made to win it. */
+  kind?: "demo" | "booking";
 }) {
+  const booking = kind === "booking";
   const [stored, setStored] = React.useState<StoredReview | null>(initial);
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState<string | null>(null);
@@ -44,7 +49,7 @@ export function DemoReviewFold({
       const res = await fetch("/api/meetings/review", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ meetingId, force }),
+        body: JSON.stringify({ meetingId, force, kind }),
       });
       const data = (await res.json().catch(() => null)) as {
         error?: string;
@@ -75,7 +80,7 @@ export function DemoReviewFold({
       <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
         <ClipboardCheck className="size-3.5 shrink-0 text-muted-foreground" />
-        How the demo call went
+        {booking ? "How the booking call went" : "How the demo call went"}
         <span className="font-normal text-muted-foreground" suppressHydrationWarning>
           {stored ? `reviewed ${ago(stored.generatedAt)}` : "not reviewed yet"}
         </span>
@@ -83,22 +88,21 @@ export function DemoReviewFold({
       <div className="space-y-3 border-t px-3 py-2.5 text-[13px] leading-snug">
         {!r ? (
           <p className="text-muted-foreground">
-            This scores the demo call against the sales method your mentor
-            taught (NEPQ and Challenger): what was done well, what was missed
-            and what to say differently. It reads the recording, so it takes
-            up to a minute the first time.
+            {booking
+              ? "This scores the cold call that booked this demo against the calling script and what Gong's research says works on cold calls: what was done well, what was missed and what to say differently. It reads the recording, so it takes up to a minute the first time."
+              : "This scores the demo call against the sales method your mentor taught (NEPQ and Challenger, plus Gong's demo findings): what was done well, what was missed and what to say differently. It reads the recording, so it takes up to a minute the first time."}
           </p>
         ) : (
           <>
             {r.headline && <p className="font-medium">{r.headline}</p>}
             <p className="text-[12px] text-muted-foreground">
-              The closer spoke {r.talk.closerPercent}% of the words and asked{" "}
+              {booking ? "The caller" : "The closer"} spoke {r.talk.closerPercent}% of the words and asked{" "}
               {r.talk.closerQuestions}{" "}
               {r.talk.closerQuestions === 1 ? "question" : "questions"} in{" "}
-              {r.talk.minutes} minutes. In the data Gong studied, winning demos
-              had the seller talking about two thirds of the time, so a high
-              number is normal here. What hurts is long stretches with no back
-              and forth.
+              {r.talk.minutes} minutes.{" "}
+              {booking
+                ? "On cold calls that booked, Gong found the caller talked about 55% of the time, so a share far above that usually means the owner was not given room."
+                : "In the data Gong studied, winning demos had the seller talking about two thirds of the time, so a high number is normal here. What hurts is long stretches with no back and forth."}
             </p>
 
             {r.biggestFix && (
@@ -206,7 +210,9 @@ export function DemoReviewFold({
               ? "Reading the call…"
               : r
                 ? "Review it again"
-                : "Review this demo call"}
+                : booking
+                  ? "Review this booking call"
+                  : "Review this demo call"}
           </button>
           {problem && <span className="text-[12px] text-destructive">{problem}</span>}
         </div>

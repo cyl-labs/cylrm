@@ -8,7 +8,7 @@ export type StageRating = "done" | "partly" | "missed" | "not_reached";
 export type ReviewStage = {
   key: string;
   label: string;
-  method: "NEPQ" | "Challenger" | "Gong";
+  method: "NEPQ" | "Challenger" | "Gong" | "Script";
   rating: StageRating;
   /** Exact words from the call that back the rating, or null. */
   evidence: string | null;

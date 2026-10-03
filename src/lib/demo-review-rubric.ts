@@ -152,3 +152,106 @@ export const RUBRIC_TEXT = [
   "",
   "GONG DATA ON DEMOS AND CLOSING (correlation from recorded sales calls, mostly software, so a guide and not a law). Talk time: in a winning demo the seller talks about 65% of the time, versus about half on a discovery call. Do not mark a demo down for the closer talking a lot, but a long monologue with no back and forth is a weakness. Demos that keep a conversation (frequent switching of speakers, the owner asking questions) do better. Start with the use case the owner cared about most, keep the opening overview short, and do not feature dump. Next steps: agreeing what happens next on the call itself is one of the strongest signs of a deal closing. Price: bring it up later in the call, say it plainly, never say 'list price', 'typical price' or 'standard price', and do not lead with a discount. Risk reversal (trial, month to month, cancel any time) goes with higher close rates. 'I need to think about it' is common and does not mean the deal is dead, but it should be met with a question. Gong's objection steps: pause and do not pounce, clarify by asking what is behind it (avoid asking 'why'), say it is a fair concern, check nothing else is holding them back, ask permission with something like 'Can I bounce a few thoughts off you?' (not 'Can I make a suggestion?'), reframe, then ask what part still feels unaddressed instead of 'does that resolve it?' which invites a fake yes.",
 ].join("\n");
+
+/**
+ * The steps a caller's booking call (the cold call that wins the demo) is
+ * scored on (2026-10-03). Built from the cold calling script
+ * (`content/sop/script-us.md`), which callers are told to follow, plus the cold
+ * calling findings in the "Gong Files" PDF. The script's own lines are NOT
+ * marked down for being questions or for not matching the textbook: the script
+ * is the house method here.
+ */
+export const BOOKING_STAGES: {
+  key: string;
+  label: string;
+  method: "NEPQ" | "Challenger" | "Gong" | "Script";
+  means: string;
+}[] = [
+  {
+    key: "reason",
+    label: "Saying why they were calling",
+    method: "Gong",
+    means:
+      "Gave a clear, honest reason for the call, in words like 'I was calling to see how you handle your after hours calls'. Only asking what time they close does not count as a reason, so rate that partly. started with their problem and not with the company name, and did not use the weak openers 'how's your day going' or 'did I catch you at a bad time'. A clear reason makes a call over twice as likely to go somewhere.",
+  },
+  {
+    key: "asked",
+    label: "Asking the script's questions",
+    method: "Script",
+    means:
+      "Asked what time they close, what happens to calls after that (voicemail, someone answers, the owner answers, and whether someone is paid to be on call), and whether they had considered a voice agent, and let the owner answer each one.",
+  },
+  {
+    key: "listened",
+    label: "Letting them do the talking",
+    method: "NEPQ",
+    means:
+      "Asked and then actually listened: did not talk over the owner, did not answer their own question, and did not explain what a voice agent is unless the owner asked.",
+  },
+  {
+    key: "problem",
+    label: "Talking about their problem, not our product",
+    method: "Gong",
+    means:
+      "Described the owner's pain in plain, specific words (missed calls after hours, losing the job to whoever answered first) instead of buzzwords. Only asking script questions without ever naming the problem is partly at best. Plain problem language beat jargon about three to one in Gong's data.",
+  },
+  {
+    key: "gatekeeper",
+    label: "Getting past a gatekeeper",
+    method: "Gong",
+    means:
+      "If someone other than the owner answered, the caller politely asked for the owner or whoever decides, and did not give the whole pitch to the wrong person. Not reached when the owner answered.",
+  },
+  {
+    key: "stayed",
+    label: "Staying in after a first no",
+    method: "Gong",
+    means:
+      "When the owner said 'not interested', 'we are fine' or similar, the caller did not argue and did not just give up. They acknowledged it and asked one question (for example whether they are trying to capture more leads, or what makes them say that). A call that books usually gets past at least two objections. Not reached if there was no objection.",
+  },
+  {
+    key: "close",
+    label: "Offering the demo the right way",
+    method: "Script",
+    means:
+      "Used the script's close: not here to sell anything today, a demo was built for their business, the team will call and put the agent on the line so they can hear it. Did not say 'I'm not selling', did not offer to run the demo now, and did not offer to 'check if someone is free'. Not reached if the call never got that far.",
+  },
+  {
+    key: "decider",
+    label: "Knowing who decides",
+    method: "Gong",
+    means:
+      "Made sure the person agreeing to the demo can actually decide (asked, or the person clearly said they run the business), or got the owner's name, so the demo is not booked with someone who cannot say yes. Someone simply saying yes does not count: if nobody checked, rate it missed. Not reached if there was no booking.",
+  },
+  {
+    key: "timezone",
+    label: "Asking their time zone before offering times",
+    method: "Script",
+    means:
+      "Asked what time zone they are in BEFORE offering any times. Asking it after they have already named a time does not count. Not reached if no times were discussed.",
+  },
+  {
+    key: "times",
+    label: "Offering two times on two days",
+    method: "Script",
+    means:
+      "Offered two specific times on two different days and asked which works better, instead of asking an open 'when are you free?'. Not reached if no booking was attempted.",
+  },
+  {
+    key: "readback",
+    label: "Saying the day and time back with AM or PM",
+    method: "Script",
+    means:
+      "Repeated the booked day and time back with morning or evening spoken out loud, and read the email back letter by letter. Not reached if no booking was made.",
+  },
+];
+
+export const BOOKING_RUBRIC_TEXT = [
+  "REFERENCE: how a cold call that books a demo should go. Two sources.",
+  "",
+  "THE HOUSE SCRIPT is the method callers are trained on and it overrides any textbook. It opens by asking what time they close, then what happens to calls after that, then whether they have considered a voice agent, letting the owner answer each. It only explains what a voice agent is if the owner asks. The close says the caller is not trying to sell anything today, that a demo was built for the owner's business, and that the team will call and put the agent on the line. If the owner says 'you're selling me something' the caller agrees ('fair enough, this is what I do') and shrinks the promise, and never says 'I'm not selling'. If the owner wants to do it right now, the caller sounds pleased and says no (the team books ahead). Once the owner says yes: get name and email and read the email back, ask their time zone BEFORE offering any times, offer two times on two different days (never an open question), say the time back with AM or PM, and book it while they are on the phone. On 'not interested' the caller says 'that's fair, can I ask one thing' and asks if they are trying to capture more leads. Calls that are voicemails, wrong numbers, or hang-ups early have nothing to score: mark the steps not_reached.",
+  "",
+  "GONG DATA ON COLD CALLS (correlation from hundreds of millions of recorded calls, mostly software sellers, so a guide and not a law). A clear reason for the call makes success about twice as likely. 'Did I catch you at a bad time?' and 'how's your day going?' were the worst openers (they hand the owner an exit or sound like a telemarketer). Describing the prospect's pain in specific, plain words booked about three times as often as buzzwords and jargon. Successful cold calls last about six minutes versus three for failed ones, and a call that books usually survives at least two objections: folding at the first 'not interested' loses it. Most objections ('not interested', 'not for us', 'no budget', 'not my job') are reflexes at being interrupted, not real positions: do not argue, acknowledge and ask. Reaching a gatekeeper instead of the owner cuts the chance of booking by about 39%. On successful cold calls the caller talks about 55% of the time.",
+  "",
+  "NEPQ for 'not interested': 'No problem. Just curious, is that because you've already got this handled?' For 'we already have someone': 'What do you like about them? If you could change one thing, what would it be?' Never argue; clarify, then ask.",
+].join("\n");

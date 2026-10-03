@@ -316,6 +316,8 @@ export function MeetingsList({
   canInvite = false,
   briefs = null,
   reviews = null,
+  bookingReviews = null,
+  bookedByMe = null,
   closerId = null,
   closers = [],
 }: {
@@ -363,6 +365,10 @@ export function MeetingsList({
   briefs?: Record<number, StoredBrief> | null;
   /** Demo call reviews, founders and the meeting's closer only. */
   reviews?: Record<number, StoredReview> | null;
+  /** Reviews of the cold call that booked each demo: founders for all, a caller for their own. */
+  bookingReviews?: Record<number, StoredReview> | null;
+  /** For a caller, the meetings their own call booked (they may review only those). */
+  bookedByMe?: number[] | null;
   /** The reader's own id when they are a closer, else null. A row they were
    *  handed (`closerUserId`) gets the closing controls a founder has. */
   closerId?: number | null;
@@ -2629,6 +2635,20 @@ export function MeetingsList({
                 initial={reviews[m.id] ?? null}
               />
             )}
+
+            {/* How the cold call that booked this demo went (2026-10-03). A
+                founder on any booking with a recording, a caller only on the
+                ones their own call won. */}
+            {bookingReviews &&
+              !cancelled &&
+              m.recordingId &&
+              (bookedByMe === null || bookedByMe.includes(m.id)) && (
+                <DemoReviewFold
+                  kind="booking"
+                  meetingId={m.id}
+                  initial={bookingReviews[m.id] ?? null}
+                />
+              )}
 
             {/* The long calls' summaries in a fold of their own, under the
                 briefing (2026-10-02). Shown on a cancelled booking too: its

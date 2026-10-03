@@ -2486,3 +2486,53 @@ tips from recorded sales calls, mostly software, so correlation and a guide.
 - Not built, discussed: scoring the callers' booking calls against Gong's opener
   and objection data, and a Stats view of connect rate by hour and attempt from
   our own calls.
+
+### Booking call review for callers (2026-10-03)
+
+The same review as the demo's, pointed at the cold call that won the meeting, so
+callers can see what they did well and what to change. Fold "How the booking call
+went" on a Meetings row with a booking recording. Founders see it on every
+meeting; a **caller only on the meetings their own call booked** (`bookedBy`),
+checked in `POST /api/meetings/review` (`kind: "booking"`) as well as the page.
+Own table `call_booking_review` (`2026-10-03-booking-review.sql`, **applied
+before the deploy**).
+
+- **Scored on `BOOKING_STAGES`** in `lib/demo-review-rubric.ts`: eleven steps
+  built from `content/sop/script-us.md` (the house method, which overrides the
+  textbook) plus the Gong cold calling findings: a clear reason for the call,
+  asking the script's questions, letting them talk, naming their problem, getting
+  past a gatekeeper, staying in after a first no, the script's close, knowing who
+  decides, time zone asked before times are offered (the 2026-09-18 review scored
+  that 0 of 4), two times on two days, and the time read back with AM or PM.
+  Steps the call never reached are `not_reached`, not missed.
+- **Source** is the same booking-call transcript the briefing reads
+  (`briefSources`), including the redial rule; transcribed on the press if need
+  be. No minimum length (booking calls are short); talk figures are counted from
+  the transcript lines.
+- One route, one fold component (`DemoReviewFold` takes `kind`), one generator
+  (`writeReview(source, kind)`). Metered under "Demo call reviews" on Spend.
+- Tested on a made-up call: caught the time zone never asked, one time offered
+  instead of two, no read back. First pass was too generous on "reason" and
+  "decider", so both got stricter wording. **Not yet run on a real call.**
+- Not scored: tone of voice, and anything the transcript cannot show.
+
+## What works: our own numbers against Gong's tips (2026-10-03)
+
+`/what-works`, founders only (`ADMIN_ONLY_CALL_PREFIXES`), under Results.
+`lib/call-insights.ts`. The mentor's "Gong Files" PDF says call 9 to 11 AM, stop
+after about five tries, and voicemails lower later pickups, from software
+companies; this answers the same three questions on this floor's calls (30, 60 or
+90 days).
+
+- **Counted like Stats**: a pickup is `PICKUP`, wrong numbers are out of every
+  denominator, only calls where a phone rang (`RANG`) count, and the hour is the
+  **owner's** local hour via `leadZone` (toll-free numbers drop out of the hour
+  table only).
+- **Which try** counts every earlier call to that business, not only the ones in
+  the window. **After a miss** looks at the next call within 14 days.
+- A row under 50 calls is greyed; the sentence answer only says one hour beats
+  another when the gap is 5 points or more and each has 100+ calls. Plain
+  language throughout, with what each card counted written under its heading.
+- **First look at prod (60 days, area code only): pickup was flat at 33 to 36%
+  from 9 AM to 6 PM their time, and fell with tries: 36.6% first, 29.8% second,
+  27.7% third.** So hour of day is not what decides it on this floor.

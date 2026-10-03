@@ -1591,6 +1591,31 @@ export const callMeetingReview = pgTable(
   (t) => [index("call_meeting_review_meeting_idx").on(t.meetingId)],
 );
 
+/** A written review of the cold call that booked the demo (2026-10-03), for the
+ *  callers. Same shape as `callMeetingReview`, its own table so one meeting can
+ *  carry both. */
+export const callBookingReview = pgTable(
+  "call_booking_review",
+  {
+    id: serial("id").primaryKey(),
+    meetingId: integer("meeting_id")
+      .notNull()
+      .unique()
+      .references(() => callMeeting.id, { onDelete: "cascade" }),
+    review: jsonb("review").notNull(),
+    sourceFingerprint: text("source_fingerprint"),
+    model: text("model"),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    generatedByUserId: integer("generated_by_user_id").references(
+      () => appUser.id,
+      { onDelete: "set null" },
+    ),
+  },
+  (t) => [index("call_booking_review_meeting_idx").on(t.meetingId)],
+);
+
 /**
  * `fieldValues` is a snapshot for the same reason `payout` snapshots its rates.
  * Raising a price must not rewrite what an agreement said on the day it was
