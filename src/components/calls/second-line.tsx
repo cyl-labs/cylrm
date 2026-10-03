@@ -64,13 +64,17 @@ export function LineRow({
         {status}
       </span>
       {onEnd && (
+        // A word, not a bare cross (2026-10-04): a founder could not find how to
+        // take the agent off the call and keep the owner, and a 14px X beside a
+        // timer reads as decoration. This drops only this line.
         <button
           type="button"
           aria-label={`Hang up ${label}`}
           onClick={onEnd}
-          className="-mr-1 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="-mr-1 inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <X className="size-3.5" />
+          Drop
         </button>
       )}
     </div>

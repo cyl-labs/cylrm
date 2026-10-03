@@ -1035,3 +1035,20 @@ connection read "Not Registered" while their pages were open, because the browse
 through a telephony credential, not the connection's own user. Do not use it to check a line.
 The detail records are the evidence: `GET /v2/detail_records?filter[record_type]=sip-trunking`
 shows `hangup_cause: SUBSCRIBER_ABSENT` for a refused call.
+
+### Dropping the agent without hanging up on the person (2026-10-04)
+
+"I can't disconnect the agent when I conference it in from the Keypad or when picking up
+missed calls." Two places, two causes:
+
+- **The call bar** (`inbound-listener.tsx`, drawn on every screen that does not draw the call
+  itself: a call answered from the banner, a Missed calls or Texts ring back) had Merge, Mute and
+  **one** hang up, which ends both calls. Once the agent was in there was no way to remove it and
+  keep the prospect. It now shows **Drop agent** whenever a second leg exists (`line.hangupSecond`),
+  before and after the merge.
+- **The Keypad, the dial card and a Meetings row** (`LinePair` in `second-line.tsx`) did have a way,
+  a 14px ✕ on the second line's row, which read as decoration. It is now a bordered **Drop**
+  button. It drops only that line; the red button still hangs up both.
+
+`hangupSecond` (`dropSecond` in `use-telnyx-call.ts`) hands the first call its microphone and
+earpiece back, so the owner is not left unable to hear. Not tested on a live merged call.
