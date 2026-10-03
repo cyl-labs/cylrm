@@ -324,3 +324,32 @@ row, and **Reset all** for payday.
   row showed "+$20 banked" with a total of $20, paying it wrote a `payment`
   row carrying `banked_bonus_cents` 2000 and `total_cents` 2000, and the
   counter came back at nought owing nothing. Checked at 1280px and 390px.
+
+## Meetings to confirm: calls, summaries and the demo's time on each row (2026-10-03)
+
+"11 unanswered" on Payroll against "2 not logged" on Meetings looked like one of
+them was wrong. Neither was: Payroll's list is **every booking by a caller or
+closer that nobody has answered, however old and whether or not the demo has
+happened**, while Meetings' "not logged" counts demos from the **last seven
+days whose time has already passed** and are accepted. Measured that day: of the
+11, **9 were demos still to come** (days ahead), 1 had a cancelled booking beside
+a live one, and 2 had **no meeting row at all** (A&W Pro-Movers, Mighty Man
+Movers: a booking call the Cal.com sync never matched, so nothing on Meetings can
+show them).
+
+- **Rows split by whether the demo can have happened.** "Need an answer now" (time
+  passed, cancelled, or no meeting) is the worklist; "Not due yet" folds away
+  below it. Showed up and No-show are hidden on a not-due row ("Answer after the
+  demo"); **Not valid stays**, since a duplicate or test is known before the
+  time. The header chip says both counts.
+- **Each row shows** the demo's day and time in the reader's zone (`readerZone`),
+  a state badge, "outcome now" (always, not only once it has moved on), what the
+  founder wrote about the demo, **Listen buttons** for the cold call and each
+  demo call (the same `LogRecording` sheet as Meetings), and the **call summaries**
+  fold (long calls can have one written from here).
+- Data comes from `getMeetings(undefined, tz, { past: true })`, matched on the
+  booking call (`bookingCallId`); a booking with two meetings takes the live one,
+  else the latest. A booking with no meeting still lists, saying so, with no
+  recordings (there is nothing to join them through).
+- Not changed: who is listed (`getDemosToConfirm`), the answers, or what any of
+  them pays.

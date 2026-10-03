@@ -10,6 +10,12 @@ import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import type { CallOutcome } from "@/lib/calls";
 import type { DemoStatus } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
+import { LogRecording } from "@/components/calls/log-recording";
+import {
+  CallSummariesFold,
+  LONG_CALL_MS,
+  type CallSummaryItem,
+} from "@/components/calls/call-summaries-fold";
 
 export type DemoView = {
   callId: number;
@@ -20,6 +26,25 @@ export type DemoView = {
   notes: string | null;
   status: DemoStatus | null;
   currentOutcome: CallOutcome;
+  /**
+   * What the calendar says about this booking (2026-10-03), so a row can show
+   * when the demo is, whether that time has passed, and let the calls be heard
+   * and read from here. Null when the booking has no meeting behind it, which
+   * is the case for bookings the Cal.com sync never matched.
+   */
+  meeting: {
+    startLabel: string;
+    state: "upcoming" | "passed" | "cancelled";
+    coldCall: { recordingId: string; durationMs: number | null; summary: string | null } | null;
+    demoCalls: {
+      recordingId: string;
+      durationMs: number | null;
+      startedLabel: string | null;
+      summary: string | null;
+    }[];
+    /** What the founder wrote about the demo itself. */
+    attendanceNotes: string | null;
+  } | null;
 };
 
 /**
@@ -75,8 +100,14 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
   //
   // Neither is lost by folding: a showed-up demo is already money on the
   // "Owed now" table above, which is where an amount belongs.
-  const unanswered = demos.filter((d) => d.status === null);
+  const unansweredAll = demos.filter((d) => d.status === null);
+  // Split by whether the demo can have happened yet. Nine of eleven "unanswered"
+  // rows on 2026-10-03 were demos still in the future, which cannot be answered
+  // and made the list read as eleven pieces of overdue work.
+  const unanswered = unansweredAll.filter((d) => d.meeting?.state !== "upcoming");
+  const notDue = unansweredAll.filter((d) => d.meeting?.state === "upcoming");
   const answered = demos.filter((d) => d.status !== null);
+  const [showNotDue, setShowNotDue] = React.useState(false);
 
   if (demos.length === 0) {
     return (
@@ -120,6 +151,73 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
             {d.notes}
           </p>
         )}
+        {/* When the demo is, and whether that time has come. */}
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          {d.meeting ? (
+            <>
+              Demo{" "}
+              <span className="font-semibold text-foreground/70">
+                {d.meeting.startLabel}
+              </span>
+              {" "}
+              <span
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-[10px] font-bold",
+                  d.meeting.state === "upcoming"
+                    ? "bg-muted text-muted-foreground"
+                    : d.meeting.state === "cancelled"
+                      ? "bg-destructive/10 text-destructive"
+                      : "bg-primary/12 text-primary",
+                )}
+              >
+                {d.meeting.state === "upcoming"
+                  ? "Not due yet"
+                  : d.meeting.state === "cancelled"
+                    ? "Booking cancelled"
+                    : "Time has passed"}
+              </span>
+            </>
+          ) : (
+            <span className="font-semibold text-foreground/70">
+              No meeting on the calendar for this booking
+            </span>
+          )}
+          {" "}&middot; outcome now{" "}
+          <span className="font-semibold text-foreground/70">
+            {OUTCOME_LABELS[d.currentOutcome]}
+          </span>
+        </p>
+        {d.meeting?.attendanceNotes && (
+          <p className="mt-0.5 line-clamp-3 text-[11px] text-muted-foreground/80">
+            What happened: {d.meeting.attendanceNotes}
+          </p>
+        )}
+        {d.meeting &&
+          (d.meeting.coldCall || d.meeting.demoCalls.length > 0) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {d.meeting.coldCall && (
+                <LogRecording
+                  recordingId={d.meeting.coldCall.recordingId}
+                  recordingMs={d.meeting.coldCall.durationMs}
+                  company={d.company}
+                  callerName={d.callerName ?? "Caller"}
+                  label="Cold call"
+                />
+              )}
+              {d.meeting.demoCalls.map((rec, i) => (
+                <LogRecording
+                  key={rec.recordingId}
+                  recordingId={rec.recordingId}
+                  recordingMs={rec.durationMs}
+                  startedAt={rec.startedLabel}
+                  company={d.company}
+                  callerName="Founders"
+                  label={i === 0 ? "Demo call" : `Demo call ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        {d.meeting && <SummaryFold d={d} />}
       </div>
 
       {d.status !== null && (
@@ -148,9 +246,15 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
           no-show: a no-show says a real booking was missed, which is a fact
           about the prospect, while this says the row is not a question — a
           duplicate, a test, or a booking logged against the wrong lead. */}
-      <div className="flex shrink-0 flex-wrap gap-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+        {d.status === null && d.meeting?.state === "upcoming" && (
+          <span className="text-[11px] text-muted-foreground">
+            Answer after the demo
+          </span>
+        )}
         <Button
           size="sm"
+          className={cn(d.status === null && d.meeting?.state === "upcoming" && "hidden")}
           variant={d.status === "showed_up" ? "default" : "outline"}
           disabled={busy === d.callId}
           onClick={() => mark(d.callId, "showed_up")}
@@ -161,6 +265,7 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
         </Button>
         <Button
           size="sm"
+          className={cn(d.status === null && d.meeting?.state === "upcoming" && "hidden")}
           variant={d.status === "no_show" ? "secondary" : "outline"}
           disabled={busy === d.callId}
           onClick={() => mark(d.callId, "no_show")}
@@ -188,8 +293,38 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
         <ul className="divide-y divide-border/60">{unanswered.map(row)}</ul>
       ) : (
         <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">
-          Nothing waiting for an answer.
+          {notDue.length > 0
+            ? "Nothing to answer right now. The demos below have not happened yet."
+            : "Nothing waiting for an answer."}
         </p>
+      )}
+
+      {notDue.length > 0 && (
+        <div className="border-t border-border/60">
+          <button
+            type="button"
+            onClick={() => setShowNotDue((v) => !v)}
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[12px] text-muted-foreground transition-colors hover:bg-muted/40 sm:px-5"
+          >
+            <ChevronRight
+              className={cn("size-3.5 transition-transform", showNotDue && "rotate-90")}
+              strokeWidth={2.5}
+            />
+            <span className="font-semibold">
+              {notDue.length} not due yet
+            </span>
+            <span className="text-muted-foreground/70">
+              {showNotDue
+                ? "hide"
+                : "demos that have not happened, so there is nothing to answer"}
+            </span>
+          </button>
+          {showNotDue && (
+            <ul className="divide-y divide-border/60 border-t border-border/60">
+              {notDue.map(row)}
+            </ul>
+          )}
+        </div>
       )}
 
       {answered.length > 0 && (
@@ -222,4 +357,34 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
       )}
     </>
   );
+}
+
+/** The written summaries of this booking's calls, the same fold the Meetings row
+ *  uses. A long call with no summary says so and can write one. */
+function SummaryFold({ d }: { d: DemoView }) {
+  const m = d.meeting;
+  if (!m) return null;
+  const items: CallSummaryItem[] = [
+    ...(m.coldCall
+      ? [
+          {
+            key: `cold-${m.coldCall.recordingId}`,
+            recordingId: m.coldCall.recordingId,
+            label: "Cold call",
+            durationMs: m.coldCall.durationMs,
+            text: m.coldCall.summary ?? "",
+          },
+        ]
+      : []),
+    ...m.demoCalls.map((r, i) => ({
+      key: r.recordingId,
+      recordingId: r.recordingId,
+      label: i === 0 ? "Demo call" : `Demo call ${i + 1}`,
+      durationMs: r.durationMs,
+      text: r.summary ?? "",
+    })),
+  ].filter(
+    (x) => x.text.trim() !== "" || (x.durationMs ?? 0) >= LONG_CALL_MS,
+  );
+  return <CallSummariesFold items={items} />;
 }
