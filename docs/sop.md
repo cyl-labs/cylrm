@@ -373,3 +373,7 @@ history and in `docs/payroll.md`.
 your own name and make up any email, spelled out clearly, instead of "Mark" and
 `cyllabsdigital@gmail.com`. (The Demo Call Scripts page still uses Mark and that email; it
 was not changed.)
+
+**Trimmed (2026-10-04):** the agent-call box no longer has the "Short on time?" and "Want it
+to sound like their business?" paragraphs ("too long"). It is the customer lines, what to
+say after, and the one sentence on what the agent sends afterwards.
