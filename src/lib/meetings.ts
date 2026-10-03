@@ -805,7 +805,20 @@ export const DEMO_RECORDING_WHERE = sql`
     select 1 from app_user u
     where u.role <> 'admin'
       and u.id is distinct from m.closer_user_id
-      and u.telnyx_did in (cr.from_number, cr.to_number)
+      and (
+        u.telnyx_did in (cr.from_number, cr.to_number)
+        -- Or a number they used to hold (2026-10-03). The test was the caller's
+        -- CURRENT number only, so the day Akshansh was given a new one his
+        -- whole history on the old one stopped being "a caller's call" and
+        -- every voicemail he had left read as the founders' Demo call (SIDCO
+        -- Junk Removal). the call log (dialled_from) remembers which number each call
+        -- was placed from, swapped or not.
+        or exists (
+          select 1 from "call" cx
+          where cx.user_id = u.id
+            and cx.dialled_from in (cr.from_number, cr.to_number)
+        )
+      )
   )
   -- Never before the call that booked it (its row is written as the call
   -- ends, after the recording started), or a demo booked the same day
@@ -1029,7 +1042,12 @@ const meetingSelect = sql`
           (select u.name from app_user u
             where u.telnyx_did in (cr.from_number, cr.to_number) limit 1),
           (select u2.name from "call" c2 join app_user u2 on u2.id = c2.user_id
-            where c2.telnyx_session_id = cr.call_session_id limit 1)
+            where c2.telnyx_session_id = cr.call_session_id limit 1),
+          -- A number they used to hold, so a swapped number does not strip
+          -- the name off their old calls (2026-10-03).
+          (select u3.name from "call" c3 join app_user u3 on u3.id = c3.user_id
+            where c3.dialled_from in (cr.from_number, cr.to_number)
+            order by c3.called_at desc limit 1)
         ) as "byName",
         case when cr.from_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
           then 'in' else 'out' end as direction
@@ -1131,7 +1149,17 @@ const meetingSelect = sql`
         select 1 from app_user u
         where u.role <> 'admin'
           and u.id is distinct from m.closer_user_id
-          and u.telnyx_did in (cr.from_number, cr.to_number)
+          and (
+            u.telnyx_did in (cr.from_number, cr.to_number)
+            -- A number they used to hold (2026-10-03): swapping somebody's
+            -- number left their old calls belonging to nobody, so a caller's
+            -- voicemail from the old line was labelled the founders' demo.
+            or exists (
+              select 1 from "call" cx
+              where cx.user_id = u.id
+                and cx.dialled_from in (cr.from_number, cr.to_number)
+            )
+          )
       )
       and cr.started_at >= greatest(
         pd.start_at - interval '12 hours',

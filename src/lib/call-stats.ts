@@ -894,7 +894,16 @@ export async function getCallLog(
       r.recording_id, r.duration_ms as recording_ms
     from call_recording r
     join app_user u
-      on u.role = 'admin' and u.telnyx_did in (r.from_number, r.to_number)
+      on u.role = 'admin' and (
+        u.telnyx_did in (r.from_number, r.to_number)
+        -- Or a number the founder used to hold, so a swap does not drop their
+        -- earlier demo calls from this list (2026-10-03).
+        or exists (
+          select 1 from "call" cx
+          where cx.user_id = u.id
+            and cx.dialled_from in (r.from_number, r.to_number)
+        )
+      )
     join lateral (
       select m.call_lead_id from call_meeting m
       join call_lead ml on ml.id = m.call_lead_id

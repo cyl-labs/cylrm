@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ChevronRight, ClipboardCheck, RefreshCw } from "lucide-react";
-import type { StageRating, StoredReview } from "@/lib/demo-review-types";
+import type { ReviewCall, StageRating, StoredReview } from "@/lib/demo-review-types";
 
 /**
  * The review of a demo call, folded under a Meetings row (2026-10-03).
@@ -29,14 +29,30 @@ export function DemoReviewFold({
   meetingId,
   initial,
   kind = "demo",
+  calls = [],
+  defaultIds = [],
 }: {
   meetingId: number;
   initial: StoredReview | null;
   /** "demo" is the call a founder or closer ran; "booking" is the cold call a
    *  caller made to win it. */
   kind?: "demo" | "booking";
+  /** Demo reviews: every recording of this business that could be the demo, so
+   *  the reviewer chooses which to analyse (2026-10-03). The automatic pick is a
+   *  guess, and a demo that drops is several recordings. */
+  calls?: ReviewCall[];
+  /** Ticked to begin with when nothing has been reviewed yet. */
+  defaultIds?: string[];
 }) {
   const booking = kind === "booking";
+  const [picked, setPicked] = React.useState<string[]>(
+    initial?.review.recordingIds && initial.review.recordingIds.length > 0
+      ? initial.review.recordingIds
+      : defaultIds,
+  );
+  const toggle = (id: string) =>
+    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const choosing = !booking && calls.length > 0;
   const [stored, setStored] = React.useState<StoredReview | null>(initial);
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState<string | null>(null);
@@ -49,7 +65,7 @@ export function DemoReviewFold({
       const res = await fetch("/api/meetings/review", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ meetingId, force, kind }),
+        body: JSON.stringify(booking ? { meetingId, force, kind } : { meetingId, force, kind, recordingIds: picked }),
       });
       const data = (await res.json().catch(() => null)) as {
         error?: string;
@@ -198,21 +214,63 @@ export function DemoReviewFold({
           </>
         )}
 
+        {choosing && (
+          <div className="rounded-md border bg-card px-2.5 py-2">
+            <p className="text-[12px] font-semibold">Which calls should be reviewed?</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Tick the call that was the real demo. If it dropped and was
+              redialled, tick every part. Anything that was only a voicemail or a
+              missed call should be left unticked.
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {calls.map((c) => (
+                <li key={c.recordingId}>
+                  <label className="flex cursor-pointer items-center gap-2 text-[12px]">
+                    <input
+                      type="checkbox"
+                      checked={picked.includes(c.recordingId)}
+                      onChange={() => toggle(c.recordingId)}
+                      className="size-3.5"
+                    />
+                    <span className="font-medium">{c.label}</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {fmtDuration(c.durationMs)}
+                    </span>
+                    {c.startedLabel && (
+                      <span className="text-muted-foreground">{c.startedLabel}</span>
+                    )}
+                  </label>
+                </li>
+              ))}
+            </ul>
+            {r?.recordingIds && r.recordingIds.length > 0 && (
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                The review above was written from {r.recordingIds.length}{" "}
+                {r.recordingIds.length === 1 ? "call" : "calls"}.
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || (choosing && picked.length === 0)}
             onClick={() => void run(Boolean(r))}
             className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-[12px] font-semibold hover:bg-muted disabled:opacity-60"
           >
             {busy && <RefreshCw className="size-3 animate-spin" />}
             {busy
               ? "Reading the call…"
-              : r
-                ? "Review it again"
-                : booking
-                  ? "Review this booking call"
-                  : "Review this demo call"}
+              : choosing
+                ? r
+                  ? "Review again with the ticked calls"
+                  : "Review the ticked calls"
+                : r
+                  ? "Review it again"
+                  : booking
+                    ? "Review this booking call"
+                    : "Review this demo call"}
           </button>
           {problem && <span className="text-[12px] text-destructive">{problem}</span>}
         </div>
@@ -246,6 +304,11 @@ function Bullet({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+const fmtDuration = (ms: number | null) =>
+  ms === null
+    ? ""
+    : `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, "0")}`;
 
 function ago(iso: string): string {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
