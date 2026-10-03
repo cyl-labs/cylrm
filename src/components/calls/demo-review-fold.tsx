@@ -89,8 +89,8 @@ export function DemoReviewFold({
         {!r ? (
           <p className="text-muted-foreground">
             {booking
-              ? "This scores the cold call that booked this demo against the calling script and what Gong's research says works on cold calls: what was done well, what was missed and what to say differently. It reads the recording, so it takes up to a minute the first time."
-              : "This scores the demo call against the sales method your mentor taught (NEPQ and Challenger, plus Gong's demo findings): what was done well, what was missed and what to say differently. It reads the recording, so it takes up to a minute the first time."}
+              ? "A structured review of the cold call that booked this demo, measured against our calling script and Gong's cold-call research. It covers what worked, what to tighten and suggested wording. The first review takes up to a minute while the recording is analysed."
+              : "A structured review of this demo against our sales framework (NEPQ and Challenger, with Gong's demo research). It covers what worked, what to tighten and suggested wording. The first review takes up to a minute while the recording is analysed."}
           </p>
         ) : (
           <>
@@ -101,8 +101,8 @@ export function DemoReviewFold({
               {r.talk.closerQuestions === 1 ? "question" : "questions"} in{" "}
               {r.talk.minutes} minutes.{" "}
               {booking
-                ? "On cold calls that booked, Gong found the caller talked about 55% of the time, so a share far above that usually means the owner was not given room."
-                : "In the data Gong studied, winning demos had the seller talking about two thirds of the time, so a high number is normal here. What hurts is long stretches with no back and forth."}
+                ? "Gong's research puts the caller at about 55% of the conversation on cold calls that book. A share well above that often means the owner was not given room to respond."
+                : "Gong's research puts the seller at about two thirds of the conversation on winning demos, so a higher share is expected here. Long stretches without any exchange are what to watch for."}
             </p>
 
             {r.biggestFix && (
@@ -218,8 +218,8 @@ export function DemoReviewFold({
         </div>
         {r && (
           <p className="text-[12px] text-muted-foreground">
-            Written by a machine from the recording, so use it as a guide, not a
-            final mark. Tone of voice cannot be judged from text.
+            Generated from the call transcript. Treat it as coaching guidance
+            rather than a formal evaluation. Tone and delivery are not assessed.
           </p>
         )}
       </div>
