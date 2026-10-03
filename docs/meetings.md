@@ -2673,3 +2673,14 @@ has no trial, free or try-it wording, and fills the line in when the model leave
 out. The long-call summary has a Trial line too, but only when one was suggested.
 Checked on 7 real calls: one caller (Junk Solution, Aaron) offered a month's trial,
 the other six did not. Existing briefings read as out of date and rewrite on open.
+
+**"No time came up on the call" is gone (2026-10-04).** "What does this mean? It's
+not really explanatory." It meant the recording the briefing reads has no stretch where
+a time was discussed, which usually means the time was agreed somewhere else: a
+redialled call (only one recording is read), a text, or a link. The line now says that
+and what the calendar holds: **"Time: The recording does not show a time being agreed.
+The meeting is booked for Mon, Oct 5, 10:00 AM CDT (their time)."** The slot comes from
+`call_meeting.start_at`, formatted in the prospect's zone (`leadZone`, else the booking's
+own zone, else Eastern and said so) by `slotLabel`, and goes into the fingerprint so a
+reschedule rewrites the briefing. The code writes it, not the model, which is why
+`briefSources` gained `bookedFor` and a `leadZone` join.

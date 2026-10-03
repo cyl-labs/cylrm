@@ -48,6 +48,28 @@ const API = "https://api.openai.com/v1/chat/completions";
 // cents a month. The live objection hints stay on the mini, where speed matters.
 export const BRIEF_MODEL = "gpt-4.1";
 
+/** "Mon, Oct 5, 10:00 AM CDT (their time)" for the booked slot. */
+function slotLabel(at: Date, tz: string | null): string {
+  const text = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz ?? "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(at);
+  return tz ? `${text} (their time)` : `${text} (we could not tell their zone)`;
+}
+
+/** The Time line when the recording has no time being agreed in it. Says what
+ *  the calendar holds instead, because "no time came up" read as a gap in the
+ *  briefing rather than a fact about the recording. */
+const noTimeLine = (s: BriefSource) =>
+  s.bookedFor
+    ? `- Time: The recording does not show a time being agreed. The meeting is booked for ${s.bookedFor}.`
+    : "- Time: The recording does not show a time being agreed.";
+
 /** What a bare agreement to the time offered reads as: it is not Firm and not
  *  Flexible, and "not said" alone reads as if nobody mentioned the time. */
 const TIME_AGREED = "Time: Accepted the time offered, no conditions or reasons given.";
@@ -95,6 +117,10 @@ export type BriefSource = {
    * looking for a fault that does not exist.
    */
   hasRecording: boolean;
+  /** When the meeting is booked for, in the prospect's own clock, already
+   *  formatted (2026-10-04). For the one case the call cannot answer: a booking
+   *  whose time was agreed somewhere the recording does not cover. */
+  bookedFor: string | null;
   /** The lead's call outcomes, oldest first — "what has happened to this
    *  business so far", which a transcript of one call cannot say. */
   history: string[];
@@ -118,6 +144,7 @@ export function fingerprint(s: BriefSource): string {
         s.niche,
         s.notes ?? "",
         s.transcript ?? "",
+        s.bookedFor,
         s.history,
       ]),
     )
@@ -154,12 +181,15 @@ export async function briefSources(
       cr.transcript_text as transcript_text,
       cr.recording_id as recording_id,
       cr.duration_ms as duration_ms,
+      m.start_at as start_at,
+      coalesce(z.tz, m.attendee_tz) as slot_tz,
       m.call_lead_id as lead_id
     from call_meeting m
     left join call_lead l on l.id = m.call_lead_id
     left join call_list cl on cl.id = l.call_list_id
     left join "call" bc on bc.id = m.call_id
     left join app_user bu on bu.id = bc.user_id
+    ${leadZone}
     -- The conversation that won the meeting: the booking call's own recording
     -- when it ran 20 seconds or more, else the longest call to the same number
     -- from the same caller ID in the two hours before (a redial logged the
@@ -232,6 +262,7 @@ export async function briefSources(
       transcript,
       transcriptMinutes: ms === null ? null : Math.round((ms / 60_000) * 10) / 10,
       hasRecording: Boolean(r.recording_id),
+      bookedFor: r.start_at ? slotLabel(new Date(r.start_at as string), (r.slot_tz as string | null) ?? null) : null,
       history: history.get(id) ?? [],
     });
   }
@@ -744,6 +775,7 @@ export function verifiedBrief(text: string, source: BriefSource): string {
         const at = line.search(/Asked:|Said:/);
         return `- ${TIME_AGREED}${at >= 0 ? " " + line.slice(at) : ""}`;
       }
+      if (/^\s*-?\s*Time:\s*No time came up/i.test(line)) return noTimeLine(source);
       // "Trial: Suggested by our caller" only stands when the caller's own words
       // actually mention a trial (2026-10-04); otherwise it is the model reading
       // a trial into a pitch about a demo.
@@ -761,7 +793,7 @@ export function verifiedBrief(text: string, source: BriefSource): string {
         // Only these four are written when there is nothing to say; a label
         // like "Also said: not said on the call" is noise.
         if (!/^\s*-?\s*(Time|Decides|Reach|Warmth|Trial):/i.test(line)) return false;
-        return /not said on the call|^\s*-?\s*Time:\s*(Accepted the time offered|No time came up)|^\s*-?\s*Trial:\s*Not suggested/i.test(line);
+        return /not said on the call|^\s*-?\s*Time:\s*(Accepted the time offered|The recording does not show a time)|^\s*-?\s*Trial:\s*Not suggested/i.test(line);
       }
       return quotes.every(found) && attributed(line);
     });
@@ -778,7 +810,7 @@ export function verifiedBrief(text: string, source: BriefSource): string {
   // reads as "nobody looked" where "not said on the call" says it was checked.
   const labelOf = (l: string) => /^\s*-?\s*(Time|Decides|Reach|Warmth|Trial):/i.exec(l)?.[1]?.toLowerCase();
   const fixed: Record<string, string> = {
-    time: "- Time: No time came up on the call.",
+    time: noTimeLine(source),
     decides: "- Decides: not said on the call",
     reach: "- Reach: not said on the call",
     warmth: "- Warmth: not said on the call",
