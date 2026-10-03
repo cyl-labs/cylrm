@@ -9,7 +9,7 @@ import { PhoneCall } from "lucide-react";
  * label and a country:
  *
  * - **The labelled lines** — a demo number, a client's voice agent — offered to
- *   the founders' accounts (`app_user.is_owner`). Ringing one is how you check
+ *   the founders' accounts (`app_user.is_owner`) and to closers (2026-10-04). Ringing one is how you check
  *   it answers, and it is the reason this exists: the alternative was reading
  *   eleven digits off the Team screen and keying them in.
  * - **The plain account numbers**, offered to anyone whose market is *every*
