@@ -968,3 +968,22 @@ and up to five lines of the briefing, else the call summary.
   even when no lead carries that number. A caller never gets the number path
   (their access is through a lead on their own niches).
 - Not browser-tested: the SQL was run against a seeded local lead and booking.
+
+## A new number was flagged five minutes after it was given (2026-10-03)
+
+The Team spam alert fired for +13322418746, a number Akshansh had held for under
+five minutes ("6 of 100 calls got through"). Cause: `number-health.ts` reads a
+call's number as `coalesce(dialled_from, caller's current telnyx_did)`, and
+calls from the old number with no `dialled_from` all became the new number's
+calls on the swap. Not a flagged number. Founders (+13322349532) and Aaron
+(+13324559716) carried their old numbers' blank calls the same way.
+
+- **Fix at the source**: `PATCH /api/users/[id]` now writes the old number onto
+  that person's calls with no `dialled_from` whenever their number is swapped or
+  cleared, while it is still known. Fills blanks only.
+- **Swaps made before this fix still need a one-off backfill** of those blank
+  calls: Akshansh +16232698357, Founders +18722778445, Aaron +17162510076. Not
+  applied by the assistant (a production write was refused by the permission
+  classifier); a founder runs it.
+- Recordings only resolve 3 of Akshansh's 105 blank calls, so they cannot be used
+  to recover the number.
