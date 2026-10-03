@@ -329,3 +329,27 @@ do we make it more visible without being annoying to experienced callers".
 - **No "Help" item in the nav.** Fifteen Call CRM screens already fold on a
   phone, and a sixteenth that is only useful in week one is the annoying
   version of this.
+
+### Closing the Demo opens with the call flow, in a collapsible box (2026-10-04)
+
+"Add the actual call flow into the closing the demo SOP, make it collapsible. Use what we
+normally do." The ten steps at the top of `procedure-closing-the-demo.md` (inside a raw
+`<details>`, shut by default) come from reading three real founder demos (Kazam, FM Junk
+Removal and Santa Fe Junk Removal, 18 to 19 minutes each) phase by phase, plus what the
+page already said: open on the minute, set it up as the generic version, add the agent and
+play the customer, ask what they thought, explain how it fits (all calls or only missed
+ones, start with missed for the first month), get their numbers, name the package, answer
+what comes up, send the doc and walk through it, book the next call. Each step carries the
+rough minutes seen on those calls.
+
+- **Raw `<details>` in the markdown works** because `marked` passes HTML through and
+  `SopProse` renders it with `dangerouslySetInnerHTML`; `SopProse` now styles
+  `details`/`summary` (a bordered, shut box). Leave a blank line after `<summary>` and
+  before `</details>`, or the markdown inside is not parsed. It sits in the intro, before the
+  first `##`, so it is not a section and does not appear in the contents list.
+- **What the real calls did that the SOP does not say**: a founder told one owner the payment
+  link only goes out after the mock-up is approved, and one mentioned a $1 setup for a phone
+  number. The flow says the first, attributed to the real calls, and **leaves out the $1**,
+  which the page says we do not do.
+- No em dashes (the page is read by people). If the flow changes, change the sections below
+  it too; they carry the wording for each step.

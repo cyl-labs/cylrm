@@ -26,6 +26,29 @@ mid-demo and the price on the agreement cannot disagree. The Price objection
 on each caller sheet still names a
 monthly figure by hand, so that one has to move when the file does.
 
+<details>
+<summary>The call from start to finish: what we normally do (about 15 to 20 minutes)</summary>
+
+Built from real demo calls. **The order matters more than the exact words.** The first four steps take about five minutes, the middle is a conversation, and the doc goes out before you hang up. The sections below this box cover each step in detail.
+
+1. **Open, in the first minute.** Ring on the minute. Say who you are and remind them they were expecting you. Don't say the company name.
+   > **You say** Hey, this is [name]. My guy told you I'd be calling around this time. Does that ring a bell?
+2. **Set it up, about a minute.** Tell them what is about to happen: you will add the voice agent to the call and they just listen. Say it is the generic version, and that a real one is built from their business.
+   > **You say** I'm going to add it in. You just listen to it for now, and when I hang up, let me know what you think.
+3. **Play the customer, 2 to 3 minutes.** Press **Add call**, pick the demo line, then **Merge calls** while it is still ringing. Talk to it like a normal customer who wants a quote or a booking. They hear their own front desk being answered.
+4. **Ask what they thought, straight after.** Compare it to their real calls.
+   > **You say** How does that sound? Is it very different from how your calls normally go?
+5. **Explain how it fits, 2 to 3 minutes.** It can answer every call, or only the ones they miss. Suggest the missed calls only for the first month, so they see it work first. It is better than voicemail because it books the job, and they get a summary by email afterwards.
+6. **Get their numbers, 2 to 5 minutes.** How many calls they miss a week, what an average job is worth, when they close, and whether they are listed as open 24 hours on Google. Type the numbers into the calculator below as they say them.
+7. **Name the package.** It is a monthly price, with no setup fee, and minutes included. Start with the cheapest one that fits (the calculator marks it). If they hesitate after the price, offer the 30-day trial.
+8. **Answer what comes up.** On real calls it is usually one of these: they would rather talk to a real person, they would rather have texts than calls, they want to think about it, or they ask where we are based (a remote team). Ask what is behind it before you answer, then use the answers on the left.
+9. **Send the doc while you are still on the call, 3 to 7 minutes.** Say it is already filled in. Go through it with them: what it covers, that they can cancel any time, and when payment starts (on the real calls: the payment link only goes out after they have heard and approved the mock-up). Help them sign if they get stuck. They can draw their name or type it.
+10. **Book the next call before you hang up.** Offer two times on two different days. The next call is to show them the finished agent, usually in two or three days. Never end on "I'll follow up".
+
+**If they won't take it today:** that is fine. Keep it friendly, say there is no pressure, tell them you will send the info by email, and write what happened on the meeting. A calm ending is how a "maybe" comes back later.
+
+</details>
+
 ## Ring them at the scheduled time, never before
 
 **Don't call early to check they're ready.** It hands them an easy "actually,
