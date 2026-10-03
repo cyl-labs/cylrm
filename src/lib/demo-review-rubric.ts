@@ -7,6 +7,13 @@
  * at the founders' request. If the PDF is updated, change it here; the review's
  * fingerprint includes this text, so stored reviews then read as out of date.
  *
+ * A third set of checks comes from the "Gong Files" PDF (Dial Club, Oct 2026):
+ * what hundreds of thousands of recorded demos say about next steps, price and
+ * talk time. It is correlation from mostly B2B software, so it is used as a
+ * guide. ROI is deliberately NOT scored: Gong found presenting ROI lowers
+ * close rates, but the "Closing the Demo" page is built around it, and which
+ * way to go is a founders' decision.
+ *
  * Tone of voice (curious, confused, concerned) is in the PDF but cannot be
  * heard in a transcript, so it is not scored.
  */
@@ -14,7 +21,7 @@
 export const REVIEW_STAGES: {
   key: string;
   label: string;
-  method: "NEPQ" | "Challenger";
+  method: "NEPQ" | "Challenger" | "Gong";
   means: string;
 }[] = [
   {
@@ -101,6 +108,34 @@ export const REVIEW_STAGES: {
     means:
       "Stayed in charge without being pushy: talked about price openly, kept momentum, and ended with a clear next step instead of letting it drift.",
   },
+  {
+    key: "nextsteps",
+    label: "Agreeing the next step before hanging up",
+    method: "Gong",
+    means:
+      "Before the call ended, a concrete next step was agreed (a start date, a time to set it up, a time to talk again), not left as 'I'll send you something'. Deals where next steps were not discussed on the call closed far less often.",
+  },
+  {
+    key: "price",
+    label: "How price was handled",
+    method: "Gong",
+    means:
+      "Price came up in the later part of the call, not as the opening, and was stated plainly. The closer did not call it the 'list price', 'typical price' or 'standard price' (those invite haggling) and did not lead with a discount. If the price was the very first thing said, or came before the owner had said what the problem is, rate it partly at best.",
+  },
+  {
+    key: "easyout",
+    label: "Offering an easy way out",
+    method: "Gong",
+    means:
+      "Lowered the owner's risk, for example a free trial, month to month with no contract, or cancel any time, and only offered what we can honour.",
+  },
+  {
+    key: "usecase",
+    label: "Starting the demo with what they care about",
+    method: "Gong",
+    means:
+      "The demo opened short and started with the problem or call type the owner talked about most, kept it a back and forth, and did not dump every feature.",
+  },
 ];
 
 /** Passed to the model as the reference. */
@@ -114,4 +149,6 @@ export const RUBRIC_TEXT = [
   "CHALLENGER. Top performers teach the buyer something new about their business, tailor it to the person, and take control of the sale. Teach: a surprising, relevant insight that leads back to what we do uniquely well. The teaching sequence is: (1) show you understand their world, (2) reframe ('most people think the problem is X, it is actually Y'), (3) back it with data that quantifies the cost, (4) a short story about a business like theirs, (5) describe the better way in general terms before naming the product, (6) then the solution. Tailor: match the message to this person's priorities (an owner hears growth and control, an operations person hears time and workload, finance hears cost and risk). Take control: assertive, not aggressive. Talk about money openly, keep the deal moving, push back on stalls instead of discounting, and end with a clear next step. Risk: teaching turns into lecturing.",
   "",
   "The two blend: teach to create the gap, then ask questions so the prospect puts a number on it in their own words.",
+  "",
+  "GONG DATA ON DEMOS AND CLOSING (correlation from recorded sales calls, mostly software, so a guide and not a law). Talk time: in a winning demo the seller talks about 65% of the time, versus about half on a discovery call. Do not mark a demo down for the closer talking a lot, but a long monologue with no back and forth is a weakness. Demos that keep a conversation (frequent switching of speakers, the owner asking questions) do better. Start with the use case the owner cared about most, keep the opening overview short, and do not feature dump. Next steps: agreeing what happens next on the call itself is one of the strongest signs of a deal closing. Price: bring it up later in the call, say it plainly, never say 'list price', 'typical price' or 'standard price', and do not lead with a discount. Risk reversal (trial, month to month, cancel any time) goes with higher close rates. 'I need to think about it' is common and does not mean the deal is dead, but it should be met with a question. Gong's objection steps: pause and do not pounce, clarify by asking what is behind it (avoid asking 'why'), say it is a fair concern, check nothing else is holding them back, ask permission with something like 'Can I bounce a few thoughts off you?' (not 'Can I make a suggestion?'), reframe, then ask what part still feels unaddressed instead of 'does that resolve it?' which invites a fake yes.",
 ].join("\n");

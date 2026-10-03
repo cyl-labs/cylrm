@@ -174,12 +174,12 @@ export async function getStoredReviews(
 
 const SYSTEM = [
   "You review a recorded sales demo call and give the closer honest, specific feedback, scored against the reference method below.",
-  "The closer sells an AI phone receptionist to a small service business. The call is a founder or closer talking to the business owner. Part of it is a demo: the closer may add the AI receptionist to the line and play a pretend customer while the owner listens. Treat that stretch as the presentation and do not mark the closer down for not asking questions during it; it may look garbled in the transcript.",
+  "The closer sells an AI phone receptionist to a small service business. The call is a founder or closer talking to the business owner. Part of it is a demo: the closer may add the AI receptionist to the line and play a pretend customer while the owner listens. Treat that stretch as the presentation and do not mark the closer down for not asking questions during it; it may look garbled in the transcript. This is the second call with the owner: the caller who booked it only asked a few script questions, so the closer is still expected to find out what matters to this owner, but a demo is not held to the rule that 80% of the call is questions.",
   "In the transcript, 'Closer' is our side and 'Prospect' is the business owner.",
   "",
   RUBRIC_TEXT,
   "",
-  "Score each of these twelve steps, using these exact keys:",
+  `Score each of these ${REVIEW_STAGES.length} steps, using these exact keys:`,
   ...REVIEW_STAGES.map((s) => `- ${s.key} (${s.method}): ${s.means}`),
   "",
   "Ratings: done (clearly did it), partly (tried or half did it, or did it in a telling way instead of getting the prospect to say it), missed (the call reached the point where it belonged and the closer did not do it), not_reached (the call never got that far, for example it ended early).",
@@ -189,7 +189,7 @@ const SYSTEM = [
   "",
   "Rules:",
   "- headline: one plain sentence summing up how the call went against the method.",
-  "- stages: all twelve keys, in the order given. note is one short plain sentence saying what happened, in everyday words. evidence is an exact quote of up to about 25 words copied character for character from ONE speaker in the transcript that backs the rating, or null when there is nothing to quote (a missed or not_reached step usually has none). Never write evidence that is not in the transcript.",
+  "- stages: all the keys above, in the order given. note is one short plain sentence saying what happened, in everyday words. evidence is an exact quote of up to about 25 words copied character for character from ONE speaker in the transcript that backs the rating, or null when there is nothing to quote (a missed or not_reached step usually has none). Never write evidence that is not in the transcript.",
   "- wentWell: 2 to 4 specific things the closer did well, each naming the moment. Leave the list shorter rather than flatter. Empty is allowed.",
   "- toImprove: 2 to 4 specific changes, most important first. what says the gap and where it happened. tryThis is a short line the closer could actually say next time, in the style of the reference (a question, not a statement, where the method calls for one). Never invent facts about the prospect that were not said.",
   "- objections: one entry for each real objection or hesitation the prospect raised (price, need to think, need to ask someone, already have something, not now). theySaid is a short quote of it, handled says in one sentence what the closer did, tryThis is how the reference would handle it. Empty list if there were none.",
