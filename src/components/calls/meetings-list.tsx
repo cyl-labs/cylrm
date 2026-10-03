@@ -770,6 +770,44 @@ export function MeetingsList({
       toast.success(
         `${ATTENDANCE_LABEL[status]}: ${meeting.company ?? meeting.attendeeName ?? "meeting"}`,
       );
+      // A business booked twice has two cards, and each is answered on its own,
+      // so writing one off left its twin sitting under "not logged" (KR
+      // Services, 2026-10-03). Ask once rather than assuming: the other booking
+      // may be the real one.
+      if (status === "invalid") {
+        const twins = meetings.filter(
+          (x) =>
+            x.id !== meeting.id &&
+            x.leadId === meeting.leadId &&
+            x.kind === "demo" &&
+            x.status !== "cancelled" &&
+            x.attendance === null,
+        );
+        const who = meeting.company ?? meeting.attendeeName ?? "this business";
+        if (
+          twins.length > 0 &&
+          window.confirm(
+            `${who} has ${twins.length === 1 ? "another booking" : `${twins.length} other bookings`} that ${twins.length === 1 ? "is" : "are"} not logged yet. Mark ${twins.length === 1 ? "it" : "them"} as not a real booking too?`,
+          )
+        ) {
+          for (const t of twins) {
+            const r = await fetch("/api/payroll/attendance", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                callId: t.bookingCallId,
+                meetingId: t.id,
+                status: "invalid",
+                notes: notes.trim(),
+              }),
+            });
+            if (!r.ok) {
+              toast.error("Could not mark the other booking. Do it on its own card.");
+              break;
+            }
+          }
+        }
+      }
       // A no-show is followed up by the founders, every time (2026-09-24), and
       // the decision is asked for now: a call back on their calendar, or dead.
       // A closer's no-show goes to the founders the same way a caller's does.
