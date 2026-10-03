@@ -216,6 +216,9 @@ type CallLineValue = {
   /** Whether a line exists at all: a browser dialler with a number of their
    *  own, in the tab that won the election. */
   live: boolean;
+  /** This login has a browser line, whichever tab holds it (2026-10-04), for the
+   *  phone status light. */
+  enabled: boolean;
   /** Called by the Keypad as it dials, so the leg can be filed when it ends
    *  wherever the caller happens to be by then. */
   startLeg: (meta: LegMeta) => void;
@@ -450,6 +453,7 @@ export function CallLineProvider({
     () => ({
       line,
       live: enabled && leader,
+      enabled,
       activeLeadId,
       activeRowKey,
       lastLeadId,
