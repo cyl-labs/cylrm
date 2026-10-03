@@ -10,7 +10,7 @@ import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
 import { getStoredBriefs } from "@/lib/meeting-brief";
-import { bookedBy, getStoredReviews } from "@/lib/demo-review";
+import { getStoredReviews } from "@/lib/demo-review";
 import type { CalendarEvent } from "@/components/calls/meetings-calendar";
 import { getSavedLines } from "@/lib/calls";
 import { calConfigured } from "@/lib/cal";
@@ -290,33 +290,19 @@ export default async function MeetingsPage({
             ),
           )
         : null;
-  // The review of each demo call (2026-10-03), for the same people as the
-  // briefs: founders for every meeting, a closer for the ones handed to them.
+  // The reviews of the demo call and of the call that booked it (2026-10-03).
+  // Founders only, on a need to know basis: first built for closers and callers
+  // too, then withdrawn the same day at the founders' request. Everyone else
+  // gets null, so no fold is drawn and nothing is fetched.
   const reviews =
     me?.role === "admin"
       ? Object.fromEntries(await getStoredReviews(meetings.map((m) => m.id)))
-      : closerId !== null
-        ? Object.fromEntries(
-            await getStoredReviews(
-              meetings.filter((m) => m.closerUserId === closerId).map((m) => m.id),
-            ),
-          )
-        : null;
-  // The review of the cold call that booked each demo (2026-10-03): founders
-  // for every meeting, a caller for the ones their own call won.
+      : null;
   const bookingReviews =
     me?.role === "admin"
       ? Object.fromEntries(await getStoredReviews(meetings.map((m) => m.id), "booking"))
-      : me && me.role === "caller"
-        ? Object.fromEntries(
-            await getStoredReviews(
-              await bookedBy(meetings.map((m) => m.id), me.id),
-              "booking",
-            ),
-          )
-        : null;
-  const bookedByMe =
-    me && me.role === "caller" ? await bookedBy(meetings.map((m) => m.id), me.id) : null;
+      : null;
+  const bookedByMe: number[] | null = null;
   const closers = me?.role === "admin" ? await listClosers() : [];
   // The last week at a glance (2026-09-25); the breakdown is on Stats. A
   // caller's is the demos they booked, the same scope Stats gives them.

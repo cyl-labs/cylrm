@@ -4,7 +4,6 @@ import { getCurrentUser } from "@/lib/session";
 import { ensureTranscripts, transcribeRecordings } from "@/lib/meeting-brief";
 import {
   REVIEW_MIN_MINUTES,
-  bookedBy,
   bookingSource,
   getStoredReviews,
   reviewConfigured,
@@ -57,32 +56,14 @@ export async function POST(request: Request) {
           .slice(0, 10)
       : [];
 
-  if (kind === "demo") {
-    if (me.role !== "admin" && me.role !== "closer") {
-      return Response.json(
-        { error: "Only a founder or closer can review a demo call." },
-        { status: 403 },
-      );
-    }
-    if (me.role === "closer") {
-      const mine = (await db.execute(sql`
-        select 1 from call_meeting
-        where id = ${meetingId} and closer_user_id = ${me.id}
-      `)) as unknown as unknown[];
-      if (mine.length === 0) {
-        return Response.json(
-          { error: "You can only review the demos you were given to close." },
-          { status: 403 },
-        );
-      }
-    }
-  } else if (me.role !== "admin") {
-    if ((await bookedBy([meetingId], me.id)).length === 0) {
-      return Response.json(
-        { error: "You can only review the calls you made." },
-        { status: 403 },
-      );
-    }
+  // Founders only, both kinds (2026-10-03): the reviews are a need to know
+  // thing. It was open to a closer on their own meetings and a caller on their
+  // own bookings until the founders withdrew that the same day.
+  if (me.role !== "admin") {
+    return Response.json(
+      { error: "Only a founder can run a call review." },
+      { status: 403 },
+    );
   }
 
   let source: ReviewSource | null;
