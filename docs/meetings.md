@@ -2536,3 +2536,11 @@ companies; this answers the same three questions on this floor's calls (30, 60 o
 - **First look at prod (60 days, area code only): pickup was flat at 33 to 36%
   from 9 AM to 6 PM their time, and fell with tries: 36.6% first, 29.8% second,
   27.7% third.** So hour of day is not what decides it on this floor.
+
+**Review wording is written for closers, not for us (2026-10-03).** The fold's
+intro, talk-share note and footer in `demo-review-fold.tsx` were first written in
+the founders' own voice ("the sales method your mentor taught", "written by a
+machine") and read as amateurish to the closers who will use it. They now speak
+neutrally about "our sales framework" and "coaching guidance". Keep new copy in
+that voice: no references to who taught the method, no apologies for being
+automated.
