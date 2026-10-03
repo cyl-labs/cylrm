@@ -4,6 +4,7 @@ import type { CallOutcome } from "@/lib/calls";
 import { PICKUP, STATS_TZ, todayInStatsTz } from "@/lib/call-stats";
 import {
   MEETING_CENTS,
+  HALF_MEETING_CENTS,
   pickupBonusCents,
 } from "@/lib/payroll-rates";
 
@@ -18,6 +19,7 @@ const n = (v: unknown) => Number(v ?? 0);
  */
 export {
   MEETING_CENTS,
+  HALF_MEETING_CENTS,
   PICKUPS_PER_BONUS,
   PICKUP_BONUS_CENTS,
   formatMoney,
@@ -89,7 +91,10 @@ export type PayrollRow = {
    * pressed, and the count starts again at nought.
    */
   bankedBonusCents: number;
+  /** Full-fee demos owed. Half-fee ones are `halfMeetings`, and
+   *  `meetingCommissionCents` includes both. */
   meetings: number;
+  halfMeetings: number;
   meetingCommissionCents: number;
   totalCents: number;
   /** How they prefer to be paid. Free text; may be a link. */
@@ -163,7 +168,17 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
         where ac.user_id = u.id
           and a.status = 'showed_up'
           and a.payout_id is null
-      ) as meetings
+      ) as meetings,
+      (
+        -- Half fees (2026-10-03): a founder's case-by-case answer, owed until a
+        -- payout claims it, exactly like a full one.
+        select count(*)
+        from call_demo_attendance a
+        join "call" ac on ac.id = a.call_id
+        where ac.user_id = u.id
+          and a.status = 'half_fee'
+          and a.payout_id is null
+      ) as half_meetings
     from app_user u
     -- The counter's boundary: the last row that settled or banked pickups. A
     -- reset moves it exactly as a payment does. A meetings-only payout must
@@ -207,7 +222,8 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
     const meetings = n(r.meetings);
     const bonus = pickupBonusCents(pickups);
     const banked = n(r.banked_bonus_cents);
-    const commission = meetings * MEETING_CENTS;
+    const halfMeetings = n(r.half_meetings);
+    const commission = meetings * MEETING_CENTS + halfMeetings * HALF_MEETING_CENTS;
     return {
       userId: n(r.id),
       name: String(r.name),
@@ -223,6 +239,7 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
       pickupBonusCents: bonus,
       bankedBonusCents: banked,
       meetings,
+      halfMeetings,
       meetingCommissionCents: commission,
       totalCents: bonus + banked + commission,
       paymentMethod: (r.payment_method as string | null) ?? null,
@@ -268,7 +285,7 @@ export async function getPayroll(): Promise<PayrollRow[]> {
  * booking logged against the wrong lead. Conflating them put rows on the
  * worklist that looked like somebody's near miss.
  */
-export type DemoStatus = "showed_up" | "no_show" | "invalid";
+export type DemoStatus = "showed_up" | "no_show" | "invalid" | "half_fee";
 
 export type DemoToConfirm = {
   callId: number;
@@ -344,6 +361,8 @@ export type UnpaidMeeting = {
   meetingNotes: string | null;
   /** The caller's notes from the call that booked it. */
   bookingNotes: string | null;
+  /** Paid at half the fee, case by case (2026-10-03). */
+  half: boolean;
 };
 
 /**
@@ -361,7 +380,7 @@ export async function getUnpaidMeetings(): Promise<UnpaidMeeting[]> {
     select ac.user_id, l.id as lead_id, l.company, l.name as lead_name,
       cl.name as list_name, ac.called_at, a.marked_at,
       ac.notes as booking_notes, a.notes as meeting_notes,
-      m.attendee_name
+      m.attendee_name, a.status as att_status
     from call_demo_attendance a
     join "call" ac on ac.id = a.call_id
     join call_lead l on l.id = ac.call_lead_id
@@ -376,7 +395,7 @@ export async function getUnpaidMeetings(): Promise<UnpaidMeeting[]> {
       order by (cm.id = a.meeting_id) desc nulls last, cm.start_at desc
       limit 1
     ) m on true
-    where a.status = 'showed_up'
+    where a.status in ('showed_up', 'half_fee')
       and a.payout_id is null
     order by ac.called_at asc
   `)) as Row[];
@@ -397,6 +416,7 @@ export async function getUnpaidMeetings(): Promise<UnpaidMeeting[]> {
         : text(r.attendee_name),
     meetingNotes: text(r.meeting_notes),
     bookingNotes: text(r.booking_notes),
+    half: r.att_status === "half_fee",
   }));
 }
 
@@ -433,7 +453,7 @@ export async function getDemosToConfirm(): Promise<DemoToConfirm[]> {
     where c.outcome = 'demo_booked'
       and (
         a.id is null
-        or (a.status = 'showed_up' and a.payout_id is null)
+        or (a.status in ('showed_up', 'half_fee') and a.payout_id is null)
         or (
           a.status in ('no_show', 'invalid')
           and a.marked_at > now() - make_interval(days => ${NO_SHOW_CORRECTION_DAYS})
@@ -481,11 +501,14 @@ export type PayoutRecord = {
   pickups: number;
   pickupBonusCents: number;
   meetings: number;
+  /** Half-fee demos in this payout; `meetings` counts full fees only. */
+  halfMeetings: number;
   meetingCommissionCents: number;
   totalCents: number;
   /** The businesses whose attended demos this payment covered. Empty on a
-   *  reset, and on a payment that was pickup bonus alone. */
-  demos: { company: string; bookedAt: string }[];
+   *  reset, and on a payment that was pickup bonus alone. `half` marks the ones
+   *  paid at half the fee. */
+  demos: { company: string; bookedAt: string; half: boolean }[];
 };
 
 /**
@@ -500,7 +523,7 @@ export async function getPayoutHistory(limit = 200): Promise<PayoutRecord[]> {
     select p.id, p.user_id, u.name, p.kind, p.paid_at, p.week_start,
       p.period_start, p.period_end,
       p.pickups, p.pickup_bonus_cents,
-      p.meetings, p.meeting_commission_cents, p.total_cents,
+      p.meetings, p.half_meetings, p.meeting_commission_cents, p.total_cents,
       -- Which businesses this payment's commission was for.
       --
       -- Answerable only because paying stamps payout_id on the attendance
@@ -517,13 +540,14 @@ export async function getPayoutHistory(limit = 200): Promise<PayoutRecord[]> {
         select json_agg(
           json_build_object(
             'company', coalesce(l.company, l.name, l.phone, 'Unnamed business'),
-            'bookedAt', ac.called_at
+            'bookedAt', ac.called_at,
+            'half', (a.status = 'half_fee')
           ) order by ac.called_at
         )
         from call_demo_attendance a
         join "call" ac on ac.id = a.call_id
         left join call_lead l on l.id = a.call_lead_id
-        where a.payout_id = p.id and a.status = 'showed_up'
+        where a.payout_id = p.id and a.status in ('showed_up', 'half_fee')
       ) as demos
     from payout p
     join app_user u on u.id = p.user_id
@@ -545,13 +569,15 @@ export async function getPayoutHistory(limit = 200): Promise<PayoutRecord[]> {
     pickups: n(r.pickups),
     pickupBonusCents: n(r.pickup_bonus_cents),
     meetings: n(r.meetings),
+    halfMeetings: n(r.half_meetings),
     meetingCommissionCents: n(r.meeting_commission_cents),
     totalCents: n(r.total_cents),
     // `json_agg` over no rows is null, not an empty array.
     demos: Array.isArray(r.demos)
-      ? (r.demos as { company: string; bookedAt: string }[]).map((d) => ({
+      ? (r.demos as { company: string; bookedAt: string; half?: boolean }[]).map((d) => ({
           company: String(d.company),
           bookedAt: new Date(d.bookedAt).toISOString(),
+          half: d.half === true,
         }))
       : [],
   }));
@@ -596,6 +622,22 @@ export async function countShowedUpDemos(days: number): Promise<number> {
     from call_demo_attendance a
     join "call" c on c.id = a.call_id
     where a.status = 'showed_up'
+      and c.called_at >= now() - make_interval(days => ${days}::int)
+  `)) as Record<string, unknown>[];
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Half-fee demos in a window, for the Spend screen's floor pay (2026-10-03).
+ * Not counted as a demo that happened (`countShowedUpDemos` ignores them) but
+ * they are money paid, so floor pay has to include them.
+ */
+export async function countHalfFeeDemos(days: number): Promise<number> {
+  const [row] = (await db.execute(sql`
+    select count(*) as n
+    from call_demo_attendance a
+    join "call" c on c.id = a.call_id
+    where a.status = 'half_fee'
       and c.called_at >= now() - make_interval(days => ${days}::int)
   `)) as Record<string, unknown>[];
   return Number(row?.n ?? 0);

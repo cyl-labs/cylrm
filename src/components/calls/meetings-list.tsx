@@ -103,6 +103,7 @@ const ATTENDANCE_LABEL = {
   showed_up: "They showed up",
   no_show: "No show",
   invalid: "Not a real booking",
+  half_fee: "Half fee (paid case by case)",
 } as const;
 
 

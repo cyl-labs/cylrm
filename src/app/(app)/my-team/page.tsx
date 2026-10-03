@@ -179,7 +179,11 @@ export default async function MyTeamPage() {
                       {owed.get(r.id)!.bankedBonusCents > 0 ? ", plus banked bonus" : ""}
                       , {owed.get(r.id)!.meetings}{" "}
                       {owed.get(r.id)!.meetings === 1 ? "meeting" : "meetings"}{" "}
-                      that showed up). Paid to you to pass on.
+                      that showed up
+                      {(owed.get(r.id)!.halfMeetings ?? 0) > 0
+                        ? `, plus ${owed.get(r.id)!.halfMeetings} half fee`
+                        : ""}
+                      ). Paid to you to pass on.
                     </span>
                   </p>
                 )}

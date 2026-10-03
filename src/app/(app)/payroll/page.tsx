@@ -4,6 +4,7 @@ import { PageShell } from "@/components/page-shell";
 import { getCurrentUser } from "@/lib/session";
 import {
   MEETING_CENTS,
+  HALF_MEETING_CENTS,
   PICKUPS_PER_BONUS,
   PICKUP_BONUS_CENTS,
   byWeek,
@@ -65,7 +66,7 @@ export default async function PayrollPage() {
     0,
   );
   const owedMeetings = rows.reduce((sum, r) => sum + r.meetingCommissionCents, 0);
-  const owedMeetingCount = rows.reduce((sum, r) => sum + r.meetings, 0);
+  const owedMeetingCount = rows.reduce((sum, r) => sum + r.meetings + r.halfMeetings, 0);
   const pickupPeople = rows.filter(
     (r) => r.pickupBonusCents + r.bankedBonusCents > 0,
   ).length;
@@ -151,6 +152,7 @@ export default async function PayrollPage() {
         contact: m.contact,
         meetingNotes: m.meetingNotes,
         bookingNotes: m.bookingNotes,
+        half: m.half,
       })),
   }));
   const demosWithLabels = demos.map((d) => {
@@ -416,6 +418,11 @@ export default async function PayrollPage() {
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                             {p.kind === "reset" ? "-" : p.meetings}
+                            {p.kind !== "reset" && p.halfMeetings > 0 && (
+                              <span className="block text-[11px] font-semibold text-success">
+                                +{p.halfMeetings} half
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums">
                             {p.kind === "reset" ? "-" : formatMoney(p.meetingCommissionCents)}
@@ -449,8 +456,21 @@ export default async function PayrollPage() {
                                 {formatMoney(MEETING_CENTS)} each for
                               </span>{" "}
                               {p.demos
+                                .filter((d) => !d.half)
                                 .map((d) => `${d.company} (booked ${formatPayDay(d.bookedAt)})`)
                                 .join(", ")}
+                              {p.demos.some((d) => d.half) && (
+                                <>
+                                  {p.demos.some((d) => !d.half) ? ". " : ""}
+                                  <span className="font-semibold">
+                                    {formatMoney(HALF_MEETING_CENTS)} (half fee) for
+                                  </span>{" "}
+                                  {p.demos
+                                    .filter((d) => d.half)
+                                    .map((d) => `${d.company} (booked ${formatPayDay(d.bookedAt)})`)
+                                    .join(", ")}
+                                </>
+                              )}
                             </td>
                           </tr>
                         )}

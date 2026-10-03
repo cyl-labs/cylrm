@@ -27,6 +27,7 @@ const STATUS_OPTIONS = [
   { value: "showed_up", label: "Showed up" },
   { value: "no_show", label: "No show" },
   { value: "invalid", label: "Not a real booking" },
+  { value: "half_fee", label: "Half fee" },
   { value: "cancelled", label: "Cancelled" },
 ];
 

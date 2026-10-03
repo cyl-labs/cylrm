@@ -496,7 +496,7 @@ export type Meeting = {
    * is finished business, and a row that looks identical to an unanswered one
    * reads as work still owed.
    */
-  attendance: "showed_up" | "no_show" | "invalid" | null;
+  attendance: "showed_up" | "no_show" | "invalid" | "half_fee" | null;
   /**
    * What happened at the demo, in words.
    *

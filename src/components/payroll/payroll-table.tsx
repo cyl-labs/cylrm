@@ -43,6 +43,8 @@ export type PayrollRowView = {
     contact: string | null;
     meetingNotes: string | null;
     bookingNotes: string | null;
+    /** Paid at half the fee, case by case. */
+    half: boolean;
   }[];
   pickups: number;
   pickupBonusCents: number;
@@ -52,6 +54,8 @@ export type PayrollRowView = {
    *  waiting. */
   bankedBonusCents: number;
   meetings: number;
+  /** Half-fee demos, owed on top of `meetings`. */
+  halfMeetings: number;
   meetingCommissionCents: number;
   totalCents: number;
   /** How they prefer to be paid. Free text, and may be a link. */
@@ -303,6 +307,11 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                   {r.meetings}
+                  {r.halfMeetings > 0 && (
+                    <span className="block text-[11px] font-semibold text-success">
+                      +{r.halfMeetings} half
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums">
                   {formatMoney(r.meetingCommissionCents)}
@@ -328,7 +337,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={r.meetings === 0}
+                      disabled={r.meetings + r.halfMeetings === 0}
                       onClick={() => setConfirming({ row: r, covers: "meetings" })}
                     >
                       Pay meetings
@@ -347,7 +356,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                     <Button
                       size="sm"
                       disabled={
-                        r.meetings === 0 ||
+                        r.meetings + r.halfMeetings === 0 ||
                         (r.pickups === 0 && r.bankedBonusCents === 0)
                       }
                       onClick={() => setConfirming({ row: r, covers: "all" })}
@@ -491,6 +500,8 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                     <div className="flex justify-between gap-4 py-0.5">
                       <dt className="text-muted-foreground">
                         Meetings &middot; {confirming.row.meetings} showed up
+                        {confirming.row.halfMeetings > 0 &&
+                          `, ${confirming.row.halfMeetings} half fee`}
                       </dt>
                       <dd className="font-semibold tabular-nums">
                         {formatMoney(confirming.row.meetingCommissionCents)}
@@ -519,8 +530,9 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                               )}
                             </p>
                             <p className="text-[12px] text-muted-foreground">
-                              Booked {m.bookedLabel} &middot; marked showed up{" "}
-                              {m.markedLabel} &middot; {m.listName}
+                              Booked {m.bookedLabel} &middot; marked{" "}
+                              {m.half ? "half fee" : "showed up"} {m.markedLabel}{" "}
+                              &middot; {m.listName}
                             </p>
                             {m.meetingNotes && (
                               <p className="mt-1.5 line-clamp-4 whitespace-pre-wrap text-[12px]">
@@ -566,15 +578,15 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                   </p>
                 )}
               {confirming.covers === "pickups" &&
-                confirming.row.meetings > 0 && (
+                confirming.row.meetings + confirming.row.halfMeetings > 0 && (
                   <p className="rounded-lg border bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
                     Their{" "}
                     <span className="font-semibold text-foreground">
-                      {confirming.row.meetings}
+                      {confirming.row.meetings + confirming.row.halfMeetings}
                     </span>{" "}
                     unpaid{" "}
-                    {confirming.row.meetings === 1 ? "meeting" : "meetings"}{" "}
-                    {confirming.row.meetings === 1 ? "is" : "are"} not part of
+                    {confirming.row.meetings + confirming.row.halfMeetings === 1 ? "meeting" : "meetings"}{" "}
+                    {confirming.row.meetings + confirming.row.halfMeetings === 1 ? "is" : "are"} not part of
                     this and stay owed.
                   </p>
                 )}
@@ -607,8 +619,8 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
               <p className="text-[12px] text-muted-foreground">
                 {paysMeetings(confirming.covers) && (
                   <>
-                    The {confirming.row.meetings}{" "}
-                    {confirming.row.meetings === 1 ? "meeting" : "meetings"}{" "}
+                    The {confirming.row.meetings + confirming.row.halfMeetings}{" "}
+                    {confirming.row.meetings + confirming.row.halfMeetings === 1 ? "meeting" : "meetings"}{" "}
                     will be locked to this payout and can no longer be
                     re-marked.{" "}
                   </>

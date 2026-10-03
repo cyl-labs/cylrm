@@ -21,10 +21,11 @@ import {
   type SpendDays,
 } from "@/lib/telnyx-usage";
 import { getCallTotals } from "@/lib/call-stats";
-import { countShowedUpDemos } from "@/lib/payroll";
+import { countHalfFeeDemos, countShowedUpDemos } from "@/lib/payroll";
 import { usdToSgd } from "@/lib/fx";
 import {
   MEETING_CENTS,
+  HALF_MEETING_CENTS,
   PICKUPS_PER_BONUS,
   PICKUP_BONUS_CENTS,
   pickupBonusCents,
@@ -182,10 +183,11 @@ export default async function SpendPage({
 
   // The rate is fetched whichever currency is showing: a bill entered in
   // Singapore dollars has to be turned into USD to be added to the rest.
-  const [spend, totals, showedUp, fx] = await Promise.all([
+  const [spend, totals, showedUp, halfFees, fx] = await Promise.all([
     getSpend(days),
     getCallTotals({ kind: "rolling", days }),
     countShowedUpDemos(days),
+    countHalfFeeDemos(days),
     usdToSgd(),
   ]);
   const [subs, eleven, top, ai] = await Promise.all([
@@ -232,7 +234,9 @@ export default async function SpendPage({
   const demoFee = MEETING_CENTS / 100;
   // The attended demos are what the fee is paid on, whichever basis the chip
   // above is set to: a booked demo nobody turned up to pays nothing.
-  const demoPay = showedUp * demoFee;
+  // Half fees are money paid for a booking that did not happen as booked, so
+  // they count here and nowhere in the demos-that-happened figures.
+  const demoPay = showedUp * demoFee + halfFees * (HALF_MEETING_CENTS / 100);
   const floorPay = pickupPay + demoPay;
   const allIn = spend.total + floorPay;
   const allInPerCall = totals.calls > 0 ? allIn / totals.calls : 0;

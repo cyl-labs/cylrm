@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Ban, Check, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { MEETING_CENTS, formatMoney } from "@/lib/payroll-rates";
+import { HALF_MEETING_CENTS, MEETING_CENTS, formatMoney } from "@/lib/payroll-rates";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
 import type { CallOutcome } from "@/lib/calls";
 import type { DemoStatus } from "@/lib/payroll";
@@ -69,13 +69,17 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
   const [busy, setBusy] = React.useState<number | null>(null);
   const [showAnswered, setShowAnswered] = React.useState(false);
 
-  async function mark(callId: number, status: DemoStatus) {
+  // The half-fee box open on one row at a time, with the reason being typed.
+  const [halfFor, setHalfFor] = React.useState<number | null>(null);
+  const [reason, setReason] = React.useState("");
+
+  async function mark(callId: number, status: DemoStatus, notes?: string) {
     setBusy(callId);
     try {
       const res = await fetch("/api/payroll/attendance", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ callId, status }),
+        body: JSON.stringify(notes === undefined ? { callId, status } : { callId, status, notes }),
       });
       const data = (await res.json().catch(() => null)) as {
         error?: string;
@@ -84,6 +88,8 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
         toast.error(data?.error ?? "Could not save that.");
         return;
       }
+      setHalfFor(null);
+      setReason("");
       router.refresh();
     } catch {
       toast.error("Could not save that.");
@@ -224,16 +230,18 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
         <span
           className={cn(
             "rounded-full px-2.5 py-1 text-[11px] font-bold",
-            d.status === "showed_up"
+            d.status === "showed_up" || d.status === "half_fee"
               ? "bg-primary/12 text-primary"
               : "bg-muted text-muted-foreground",
           )}
         >
           {d.status === "showed_up"
             ? `Showed up · ${formatMoney(MEETING_CENTS)}`
-            : d.status === "no_show"
-              ? "No-show"
-              : "Not valid"}
+            : d.status === "half_fee"
+              ? `Half fee · ${formatMoney(HALF_MEETING_CENTS)}`
+              : d.status === "no_show"
+                ? "No-show"
+                : "Not valid"}
         </span>
       )}
 
@@ -283,7 +291,55 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
           <Ban className="size-3.5" strokeWidth={2.5} />
           Not valid
         </Button>
+        {/* Case by case (2026-10-03): half of the fee for a booking that did not
+            happen as booked, for example an owner who asked to be called back
+            in several months. Needs a written reason, which is what the payout
+            is explained from later. */}
+        <Button
+          size="sm"
+          variant={d.status === "half_fee" || halfFor === d.callId ? "default" : "outline"}
+          disabled={busy === d.callId}
+          onClick={() => {
+            setHalfFor(halfFor === d.callId ? null : d.callId);
+            setReason(d.meeting?.attendanceNotes ?? "");
+          }}
+          title={`Pay half of the fee (${formatMoney(HALF_MEETING_CENTS)}) for an unusual case, with a reason`}
+        >
+          Half fee
+        </Button>
       </div>
+      {halfFor === d.callId && (
+        <div className="basis-full rounded-md border bg-muted/30 p-3">
+          <p className="text-[12px] font-semibold">
+            Pay {formatMoney(HALF_MEETING_CENTS)} (half of {formatMoney(MEETING_CENTS)}) for{" "}
+            {d.company}
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            For a one-off, such as an owner who asked to be rung back in a few
+            months so the demo will not happen soon. Say why. It is saved with the
+            answer and shown when you pay.
+          </p>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            placeholder="Why does this earn a half fee?"
+            className="mt-2 w-full rounded-md border bg-background px-2.5 py-1.5 text-[13px]"
+          />
+          <div className="mt-2 flex gap-2">
+            <Button
+              size="sm"
+              disabled={busy === d.callId || reason.trim() === ""}
+              onClick={() => mark(d.callId, "half_fee", reason.trim())}
+            >
+              Save half fee
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setHalfFor(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </li>
   );
 
