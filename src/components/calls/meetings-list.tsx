@@ -2620,9 +2620,13 @@ export function MeetingsList({
                 recordings are still there to read about. */}
             <CallSummariesFold
               items={[
-                // Not when the briefing above is showing: it is written from
-                // this same call, so the fold repeated it (2026-10-03).
-                ...(m.recordingSummary && !(briefs && !cancelled)
+                // Not when a briefing is written for it above: that is made
+                // from this same call, so the fold repeated it (2026-10-03).
+                // Only once one exists: with the briefing fold present but
+                // still "not written yet", this was the row's only summary
+                // and hiding it left the row blank (2026-10-03, Just Junk It
+                // 432, Junk Solution, Holzfaller).
+                ...(m.recordingSummary && !(briefs && !cancelled && briefs[m.id])
                   ? [
                       {
                         key: "cold",
