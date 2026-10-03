@@ -146,6 +146,25 @@ export async function POST(request: Request) {
   const trimmed = given ? (body.notes as string).trim() : "";
   const notes = trimmed === "" ? null : trimmed;
 
+  // One business booked twice off the same call has two meetings and one
+  // booking call, and an answer is keyed on that call: a second "not a real
+  // booking" upserted over the first, so answering one meeting re-opened the
+  // other and the list never emptied (KR Services, 2026-10-03). When this call
+  // already carries an invalid answer pinned to a different meeting, this one
+  // is kept against its own meeting, the way a meeting with no call is.
+  if (!meetingOnly && status === "invalid" && pin && callId !== null) {
+    const [other] = (await db.execute(sql`
+      select a.id, m.call_lead_id
+      from call_demo_attendance a, call_meeting m
+      where a.call_id = ${callId} and m.id = ${pin.id}
+        and a.meeting_id is not null and a.meeting_id <> ${pin.id}
+        and a.status = 'invalid'
+    `)) as { id: number; call_lead_id: number | null }[];
+    if (other && other.call_lead_id !== null) {
+      meetingOnly = { id: pin.id, leadId: Number(other.call_lead_id) };
+    }
+  }
+
   if (meetingOnly) {
     // One answer per such meeting: updated if it exists, inserted if not. No
     // payout can have claimed it and no fee rule applies, so neither check

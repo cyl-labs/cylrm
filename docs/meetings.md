@@ -2373,3 +2373,15 @@ which I could not reproduce locally.
 slot is still ahead, sat above everything that had really just taken place. The
 key is `start_at` if past, else the time Cal.com held (`cal_start_at`) if that
 is past, else `created_at`.
+
+## One business booked twice: "Not a real booking" on both cards (2026-10-03)
+
+KR Services had two bookings off one booking call, and marking one "Not a real
+booking" left the other under "not logged". Attendance is keyed on the booking
+call (`on conflict (call_id)`), so a second answer on the same call would have
+upserted over the first and re-opened it. The attendance route now keeps a
+second invalid answer against its own meeting (the same meeting-only row a
+meeting with no call uses) when the call already carries one pinned to another
+meeting. The Meetings row, after a "Not a real booking", asks once whether to
+mark the business's other unlogged demo bookings the same way. It asks rather
+than assuming: the other booking may be the real one (OH Junk It).
