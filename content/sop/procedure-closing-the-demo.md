@@ -65,7 +65,7 @@ _(it offers times)_
 
 _(it asks for your name, then your email, and may spell it back)_
 
-> **You say** It's Mark, with a k. Email is cyllabsdigital@gmail.com. *(spell it out clearly)*
+> **You say** Sure, it's [say your own name]. Email is [make up any email]. *(spell it out clearly)*
 
 _(it reads the whole booking back)_
 

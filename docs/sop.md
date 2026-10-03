@@ -368,3 +368,8 @@ not the one used on a real call. The page now starts at "Ring them at the schedu
 the rule that the page is restricted because callers are paid $30 per showed up demo, and
 that every plan is month to month, no longer appears on it. Both are still in this file's
 history and in `docs/payroll.md`.
+
+**Name and email in the agent call (2026-10-04):** the lines for the agent now say to give
+your own name and make up any email, spelled out clearly, instead of "Mark" and
+`cyllabsdigital@gmail.com`. (The Demo Call Scripts page still uses Mark and that email; it
+was not changed.)
