@@ -1,5 +1,5 @@
 import { toRole } from "@/lib/roles";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser } from "@/db/schema";
 import { getCurrentUser, getSession } from "@/lib/session";
@@ -437,6 +437,28 @@ export async function PATCH(
         telnyxWarning =
           "Switched off and their number freed, but Telnyx did not confirm their phone line was removed. Check it on Telnyx.";
       }
+    }
+  }
+
+  // Calls logged with no number recorded were read as coming from whatever
+  // number their caller holds today. That is right until the number changes,
+  // and then every old call lands on the new number: the spam alert fired on a
+  // number five minutes old (2026-10-03) because 105 of Akshansh's calls from his
+  // old one had no `dialled_from`. So when a number is swapped or cleared, the
+  // old one is written onto their unlabelled calls while it is still known.
+  // Only fills blanks, never rewrites a recorded number.
+  if (
+    "telnyxDid" in body &&
+    target.telnyxDid &&
+    (values.telnyxDid ?? null) !== target.telnyxDid
+  ) {
+    try {
+      await db.execute(sql`
+        update "call" set dialled_from = ${target.telnyxDid}
+        where user_id = ${target.id} and dialled_from is null
+      `);
+    } catch (err) {
+      console.error("[team] labelling their earlier calls failed", err);
     }
   }
 
