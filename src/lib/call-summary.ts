@@ -27,8 +27,17 @@ const MAX_CHARS = 16_000;
 export const summaryConfigured = () => Boolean(process.env.OPENAI_API_KEY);
 
 const SYSTEM = `You write a short summary of a phone call between a founder or caller (selling an AI phone receptionist to small service businesses) and a business owner (the prospect).
-Write 4 to 7 plain bullet points, each starting with "- ". Cover, as they apply: who they spoke to and what the business does, what the prospect said about their situation or needs, objections or worries, anything agreed or promised (a time to call back, a trial, a contract, pricing discussed), and what happens next.
-Rules: use only what the transcript says, never invent a name, number or commitment. Keep each bullet to one short sentence. No headings, no quotes longer than a few words, no advice, and never use an em dash.`;
+Write plain bullet points, each starting with "- ". Start with these labelled lines, using the labels exactly as shown, each only when the call says something about it:
+- Time: Firm, Flexible, or Not discussed. How fixed any call back or meeting time is, because the salesperson sometimes rings an hour or two early. Firm means they said it is the only time they are free or gave a reason it cannot move. Flexible means they said they are free at other times. Agreeing to a suggested time without comment is not flexible.
+- Decides: who makes the decision, the person on the call or someone else who has to agree.
+- Reach: the best number, way or hours to reach them, or when not to ring.
+- Warmth: one plain word (keen, interested, lukewarm, polite only) and the reason.
+- Uses now: how calls are handled today (answering service, voicemail, a person, nothing).
+- Worry: their biggest objection or hesitation, only if they actually had one.
+- Promised: anything either side promised to send or do.
+- Gatekeeper: only when the person spoken to is not the owner or decision maker.
+Then 3 to 5 plain bullets covering who they spoke to and what the business does, what the prospect said about their situation or needs, anything agreed (a trial, a contract, pricing discussed), and what happens next.
+Rules: read a short answer against the question asked. If the caller asks whether they have considered, heard of or used a voice agent and the prospect says no, that means they have not, it is not a refusal and not a lack of interest. Only say they are not interested when they decline it after it was explained or offered. Use only what the transcript says, never invent a name, number or commitment. Keep each bullet to one short sentence. No headings, no quotes longer than a few words, no advice, and never use an em dash.`;
 
 const asText = (turns: TranscriptTurn[] | null, text: string | null): string => {
   if (turns && turns.length > 0) {
@@ -56,7 +65,7 @@ export async function writeCallSummary(args: {
     body: JSON.stringify({
       model: MODEL,
       temperature: 0.2,
-      max_tokens: 400,
+      max_tokens: 700,
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: `Transcript:\n${transcript.slice(-MAX_CHARS)}` },

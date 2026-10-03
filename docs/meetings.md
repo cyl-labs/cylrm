@@ -2400,3 +2400,19 @@ was on the row, including when no briefing had been written. Three upcoming
 meetings had a summary of the booking call and nothing else on the row, so it
 read as summaries only appearing inside the call. The entry is now skipped only
 when `briefs[m.id]` exists.
+
+## Summaries carry labelled lines, and read a "no" against its question (2026-10-03)
+
+"It's not really custom for us", wanting to know how fixed the booked time is
+(to ring an hour or two early). The briefing (`SYSTEM` in `lib/meeting-brief.ts`)
+and the long-call summary (`lib/call-summary.ts`) now lead with labelled lines:
+**Time** (Firm, Flexible, or not said), **Decides**, **Reach**, **Warmth**, then
+Business, Problem, **Uses now**, **Worry**, **Promised**, **Gatekeeper**. In the
+briefing every line still needs a verbatim quote or "not said on the call", and
+`verifiedBrief` drops the rest, so Time is never a guess. Agreeing to a time the
+caller suggested is "not said", never Flexible. Both prompts also say a bare
+"no" to "have you considered / heard of / used a voice agent" means they have
+not, not that they refused: the summary had been turning it into "not
+interested". The briefing's fingerprint includes the prompt, so old briefs show
+as out of date and are rewritten when their fold is opened. Stored long-call
+summaries are not rewritten.
