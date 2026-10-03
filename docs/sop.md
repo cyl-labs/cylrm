@@ -384,7 +384,8 @@ say after, and the one sentence on what the agent sends afterwards.
 complicated. The doc prefills their name so all we need is the signature. Then say 'since
 we're here, let's walk through it' and explain each section." The whole of
 `procedure-closing-the-demo.md` was rewritten in short everyday sentences (measured with the
-Flesch-Kincaid formula at about grade 4, from about grade 9 before). The structure, the
+Flesch-Kincaid formula: grade 2.3, 9 words a sentence, from 4.6 and 13 words before; the
+formula flatters very short sentences, so read it as "around grade 3"). The structure, the
 placeholders (`[name]`, `[their calls]`, `[their average job]`, `[the package price]`), the
 `[calculator]` and `[contract-walkthrough]` markers and the `## Objection handling | ...`
 branches are unchanged, because code reads them.
