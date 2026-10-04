@@ -266,35 +266,77 @@ export function TeamManager({
    */
   const [showOff, setShowOff] = React.useState(false);
   const off = team.filter((m) => !m.active).length;
-  const shown = showOff ? team : team.filter((m) => m.active);
+  const [query, setQuery] = React.useState("");
+  const q = query.trim().toLowerCase();
+  // Name, sign-in name or number, so a number read off Telnyx finds its holder.
+  // Digits only on the number side: "(872) 277-8445" should still match.
+  const qDigits = q.replace(/\D/g, "");
+  const matches = (m: TeamMember) =>
+    !q ||
+    m.name.toLowerCase().includes(q) ||
+    m.username.toLowerCase().includes(q) ||
+    (qDigits.length > 0 && (m.telnyxDid ?? "").replace(/\D/g, "").includes(qDigits));
+  const shown = (showOff ? team : team.filter((m) => m.active)).filter(matches);
   /**
    * Managers and the people who report to them (2026-10-04). A manager is whoever
    * somebody else's `managerId` points at (see `lib/managers.ts`), and the shape
    * is one level deep, so a plain two-pass grouping is enough. Each manager's
    * people sit directly under them and fold away behind a chevron. Anyone whose
-   * manager is not on screen (switched off and hidden) stays at the top level
-   * rather than vanishing with them.
+   * manager is not on screen (switched off and hidden, or filtered out by the
+   * search) stays at the top level rather than vanishing with them.
+   *
+   * Admins sit in their own block above the callers (2026-10-05): the Founders
+   * login carries the number that texts prospects, and it was lost among the
+   * callers it has nothing in common with.
    */
   const [folded, setFolded] = React.useState<Set<number>>(new Set());
-  const shownIds = new Set(shown.map((t) => t.id));
-  const reportsByManager = new Map<number, TeamMember[]>();
-  for (const t of shown) {
-    if (t.managerId !== null && shownIds.has(t.managerId)) {
-      reportsByManager.set(t.managerId, [
-        ...(reportsByManager.get(t.managerId) ?? []),
-        t,
-      ]);
+  type Row =
+    | { m: TeamMember; kind: "solo" | "manager" | "member"; count: number }
+    | { heading: string; note: string };
+  const buildRows = (people: TeamMember[]): Row[] => {
+    const ids = new Set(people.map((t) => t.id));
+    const reportsByManager = new Map<number, TeamMember[]>();
+    for (const t of people) {
+      if (t.managerId !== null && ids.has(t.managerId)) {
+        reportsByManager.set(t.managerId, [
+          ...(reportsByManager.get(t.managerId) ?? []),
+          t,
+        ]);
+      }
     }
-  }
-  const rows: { m: TeamMember; kind: "solo" | "manager" | "member"; count: number }[] = [];
-  for (const m of shown) {
-    if (m.managerId !== null && shownIds.has(m.managerId)) continue;
-    const reports = reportsByManager.get(m.id) ?? [];
-    rows.push({ m, kind: reports.length > 0 ? "manager" : "solo", count: reports.length });
-    if (!folded.has(m.id)) {
-      for (const r of reports) rows.push({ m: r, kind: "member", count: 0 });
+    const out: Row[] = [];
+    for (const m of people) {
+      if (m.managerId !== null && ids.has(m.managerId)) continue;
+      const reports = reportsByManager.get(m.id) ?? [];
+      out.push({ m, kind: reports.length > 0 ? "manager" : "solo", count: reports.length });
+      if (!folded.has(m.id)) {
+        for (const r of reports) out.push({ m: r, kind: "member", count: 0 });
+      }
     }
-  }
+    return out;
+  };
+  const adminPeople = shown.filter((m) => m.role === "admin");
+  const callerPeople = shown.filter((m) => m.role !== "admin");
+  const rows: Row[] = [
+    ...(adminPeople.length > 0
+      ? [
+          {
+            heading: "Founders and admins",
+            note: "Their numbers, texting and logins. Not part of the calling floor.",
+          },
+          ...buildRows(adminPeople),
+        ]
+      : []),
+    ...(callerPeople.length > 0
+      ? [
+          {
+            heading: "Callers",
+            note: "The calling floor and the people managing it.",
+          },
+          ...buildRows(callerPeople),
+        ]
+      : []),
+  ];
   const toggleFold = (id: number) =>
     setFolded((prev) => {
       const next = new Set(prev);
@@ -397,6 +439,14 @@ export function TeamManager({
           recorded against them. Switching someone off stops them signing in
           and leaves their calls in the numbers.
         </p>
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search name, username or number"
+          aria-label="Search the team by name, username or number"
+          className="w-full sm:w-72"
+        />
         {canManage && (
           <Button
             className="w-full shrink-0 sm:w-auto"
@@ -450,17 +500,35 @@ export function TeamManager({
               </tr>
             </thead>
             <tbody>
-              {team.length === 0 ? (
+              {team.length === 0 || rows.length === 0 ? (
                 <tr>
                   <td
                     colSpan={COLUMNS.length}
                     className="px-4 py-10 text-center text-muted-foreground"
                   >
-                    Nobody yet.
+                    {team.length === 0
+                      ? "Nobody yet."
+                      : `Nobody matches "${query.trim()}". Clear the search to see everyone.`}
                   </td>
                 </tr>
               ) : (
-                rows.map(({ m, kind, count }) => (
+                rows.map((entry) => {
+                  if ("heading" in entry) {
+                    return (
+                      <tr key={`heading-${entry.heading}`} className="border-b bg-muted">
+                        <td colSpan={COLUMNS.length} className="px-4 py-2">
+                          <span className="text-[11px] font-bold uppercase tracking-[0.04em]">
+                            {entry.heading}
+                          </span>
+                          <span className="ml-2 text-[12px] text-muted-foreground">
+                            {entry.note}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const { m, kind, count } = entry;
+                  return (
                   <tr
                     key={m.id}
                     className={cn(
@@ -986,7 +1054,8 @@ export function TeamManager({
                       )}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
               {off > 0 && (
                 <tr>
