@@ -43,6 +43,31 @@ import { SameBusinessList, TickAll } from "@/components/calls/same-business-rows
  * list therefore costs nothing and leaves nothing behind.
  */
 
+const READ_TIMEOUT_MS = 90_000;
+
+/** The wait while a file is read, counting up so it never looks frozen. */
+function ReadingNote({ size }: { size: number }) {
+  const [seconds, setSeconds] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setSeconds((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const mb = Math.max(0.1, size / 1_000_000).toFixed(1);
+  return (
+    <div className="mt-0.5 text-[13px] text-muted-foreground">
+      <p className="flex items-center gap-1.5">
+        <Loader2 className="size-3 animate-spin" />
+        Reading… {seconds}s
+      </p>
+      <p className="mt-0.5 text-[12px]">
+        Checking this {mb} MB file against every business already in the CRM.
+        A big file can take up to a minute. Nothing is saved until you press
+        Import.
+      </p>
+    </div>
+  );
+}
+
 type Scan = {
   usable: number;
   /** Usable rows whose number the CRM already holds, anywhere. */
@@ -246,8 +271,17 @@ export function CallImportDialog({
       body.append("file", file);
       body.append("dryRun", "1");
       if (region !== "none") body.append("region", region);
+      // A reading that never comes back used to spin for ever with nothing to
+      // press. The server takes a few seconds on a big scrape, so a minute and
+      // a half means something is wrong and the person should be told.
+      const controller = new AbortController();
+      const giveUp = setTimeout(() => controller.abort(), READ_TIMEOUT_MS);
       try {
-        const res = await fetch("/api/call-lists", { method: "POST", body });
+        const res = await fetch("/api/call-lists", {
+          method: "POST",
+          body,
+          signal: controller.signal,
+        });
         const data = await res.json().catch(() => ({}));
         setStaged((prev) =>
           prev.map((s) =>
@@ -258,14 +292,23 @@ export function CallImportDialog({
               : s,
           ),
         );
-      } catch {
+      } catch (err) {
+        const timedOut = err instanceof DOMException && err.name === "AbortError";
         setStaged((prev) =>
           prev.map((s) =>
             s.key === key
-              ? { ...s, scan: null, error: "Could not read it." }
+              ? {
+                  ...s,
+                  scan: null,
+                  error: timedOut
+                    ? "This is taking too long, so we stopped waiting. Remove the file and add it again. If it keeps happening, check your connection or tell a founder."
+                    : "Could not read it.",
+                }
               : s,
           ),
         );
+      } finally {
+        clearTimeout(giveUp);
       }
     },
     [],
@@ -636,10 +679,7 @@ export function CallImportDialog({
                               )}
                             </>
                           ) : (
-                            <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                              <Loader2 className="size-3 animate-spin" />
-                              Reading…
-                            </p>
+                            <ReadingNote size={s.file.size} />
                           )}
                         </div>
                         <button
