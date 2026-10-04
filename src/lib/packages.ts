@@ -35,14 +35,14 @@ export const PACKAGES: readonly Package[] = [
     id: "ring_rookie",
     name: "Ring Rookie",
     minutes: 75,
-    monthlyCents: 100_00,
+    monthlyCents: 99_00,
     overageCents: 100,
   },
   {
     id: "phone_professional",
     name: "Phone Professional",
     minutes: 225,
-    monthlyCents: 250_00,
+    monthlyCents: 249_00,
     overageCents: 60,
   },
   {

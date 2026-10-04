@@ -1543,8 +1543,10 @@ client, `src/lib/contracts.ts` the drafting, `src/lib/packages.ts` the prices,
       asked for one, and one price is simpler to sell. `TERMS` keeps its
       single `monthly` entry so the route and `call_contract.term_id` did not
       change; no contract had ever been drafted on a longer term.
-  - Unresolved and flagged rather than quietly changed: both objection sheets
-    still answer "how much" with **"as low as $99 a month"** while Ring Rookie is
+  - Resolved 2026-10-05: prices moved to match what the floor says (Ring Rookie
+    $99, Phone Professional $249, Call Commander unchanged at $2,000). This was
+    flagged as unresolved: both objection sheets
+    still answer "how much" with **"as low as $99 a month"** while Ring Rookie was
     $100. It is what the floor has been saying for months, so it is a pricing
     decision rather than a typo to fix in passing.
 - **The unlimited plan bills overage at $0.00, not a dash.** Its clause reads
