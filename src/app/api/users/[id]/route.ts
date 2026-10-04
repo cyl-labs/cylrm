@@ -331,6 +331,28 @@ export async function PATCH(
             did,
           );
           values.telnyxConnectionId = line.connectionId;
+
+          // Sending needs the number on the 10DLC campaign, and `provisionLine`
+          // only puts it on the receive-side texting profile. Before this a
+          // swapped number could be rung and texted but every send was refused
+          // ("texting isn't approved for your number yet", Founders, 2026-10-05),
+          // because the campaign link only ran when the Texting toggle flipped.
+          // Admins always have texting, so they count whatever the column says.
+          // Best effort and reported, not refused: the line already works.
+          const canText =
+            (("textAccess" in body ? body.textAccess : target.textAccess) as boolean) ||
+            (("role" in body ? toRole(body.role) : target.role) === "admin");
+          if (canText) {
+            try {
+              await linkTextingCampaign(did);
+            } catch (err) {
+              if (!(err instanceof TelnyxNotConfiguredError)) {
+                console.error("[team] 10DLC campaign link failed", err);
+                telnyxWarning =
+                  "Number saved, but Telnyx didn't confirm the texting campaign link, so texts from it may keep failing. Pick the number again to retry.";
+              }
+            }
+          }
         } catch (err) {
           if (!(err instanceof TelnyxNotConfiguredError)) {
             console.error("[team] line setup failed", err);
@@ -470,7 +492,7 @@ export async function PATCH(
       await unpointNumber({
         did: giveUp,
         connectionId: target.telnyxConnectionId,
-        texting: target.textAccess,
+        texting: target.textAccess || target.role === "admin",
       });
     } catch (err) {
       if (!(err instanceof TelnyxNotConfiguredError)) {

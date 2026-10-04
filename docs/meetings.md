@@ -1251,6 +1251,15 @@ receipts at `POST /api/texts/read`. Schema in `2026-09-15-call-sms-read.sql`.
     they are easy to swap by mistake. Unset skips linking entirely, so an
     unconfigured install still saves the permission and simply leaves every
     number receive-only, same as before this existed.
+    **Assigning or swapping a number now links it too** (2026-10-05, Founders).
+    The link used to run only when the Texting toggle flipped, so a swapped
+    number (or any admin's, since admins have texting with no toggle) could
+    receive but every send failed with 40010. `PATCH /api/users/[id]` links
+    the new number after `provisionLine` when the person is an admin or has
+    `text_access`, and `POST /api/users` does the same for a new admin; a
+    failure is a warning, not a refusal. Re-picking the *same* number does
+    nothing, so a number already stranded needs a manual
+    `PUT /10dlc/phone_number_campaigns/{number}`.
     **Linking is not instant and unlinking is not either** — Telnyx refuses a
     re-link attempted seconds after an unlink with "resource is being
     processed" (10036) until the removal finishes clearing, which took several

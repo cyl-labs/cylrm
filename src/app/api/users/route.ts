@@ -12,6 +12,7 @@ import { createUser, findByUsername } from "@/lib/users";
 import {
   LineSetupError,
   TelnyxNotConfiguredError,
+  linkTextingCampaign,
   provisionLine,
 } from "@/lib/telnyx";
 import { isMarket, numberProblem } from "@/lib/team-numbers";
@@ -133,6 +134,15 @@ export async function POST(request: Request) {
         .set({ telnyxDid: did, telnyxConnectionId: line.connectionId })
         .where(eq(appUser.id, created.id));
       number = did;
+      // A new person starts without texting, except an admin, who always has
+      // it: their number needs the campaign link to send, same as on Team.
+      if (role === "admin") {
+        await linkTextingCampaign(did).catch((err) => {
+          console.error("[team] 10DLC campaign link failed for a new admin", err);
+          lineWarning =
+            "Their number is set up, but Telnyx didn't confirm the texting campaign link, so texts from it may fail. Pick the number again on their row to retry.";
+        });
+      }
     } catch (err) {
       if (err instanceof TelnyxNotConfiguredError) {
         // No Telnyx here, so there is no line to build: the number is still
