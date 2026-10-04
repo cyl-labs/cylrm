@@ -2890,3 +2890,29 @@ Changes in `lib/meeting-brief.ts` and `components/calls/brief-line.tsx`:
   short first said "not interested right now" (not said); the editor rule now makes it say what
   she said, that she had thought about a voice agent. **The In short and Because sentences are
   written by the model and are not quote-checked**, which is why the editor and the Why exist.
+
+## Fixing a name typed wrong, and the review's verdict (2026-10-05)
+
+- **"Fix name" on a meeting row** (`PATCH /api/meetings/[id]/name`,
+  `call_meeting.attendee_name_edited`, `2026-10-05-meeting-name-edited.sql`, additive,
+  **apply before deploying**; applied to prod 2026-10-05). A caller types the prospect's
+  name wrong on the booking form ("Arwin" for Irvin) and it opens every text and goes
+  onto the contract. Cal.com cannot edit an attendee, so the fix is ours: the name is
+  stored on the meeting with the flag, and the sync's upsert keeps it
+  (`attendee_name = case when attendee_name_edited ...`). **The "only write when
+  something changed" clause had to learn the flag too**, or an edited meeting would be
+  rewritten every five minutes. Also written to `call_lead.name`, so the next booking
+  prefills right. Open to the caller who made the booking, scoped through `callScope`
+  like the guest-email route. **Cal.com's own emails keep the old spelling**, and the
+  box says so. Verified in a rolled-back transaction: a normal booking still takes
+  Cal.com's name, an edited one keeps its own.
+- **The demo review opens with a grade** (`verdictOf` in `demo-review-fold.tsx`): good,
+  mixed, needs work, or "too short to grade" under five minutes, from the steps it rated,
+  so older reviews get it too. The talk-time line now says what the number means. It
+  used to print "48% of the words" and a general rule, which did not say whether that
+  was good.
+- **The review prompt checks the closer's own lines before suggesting anything**
+  (`buildSystem` in `demo-review.ts`). A closer asked "is there any specific info you
+  want when I text you" and the review then told him to say exactly that. `tryThis` is
+  empty when it was already done, and nextSteps may not repeat what happened on the call.
+  Only reviews written after this change follow it: press "Review it again".

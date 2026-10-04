@@ -2,7 +2,12 @@
 
 import * as React from "react";
 import { ChevronRight, ClipboardCheck, RefreshCw } from "lucide-react";
-import type { ReviewCall, StageRating, StoredReview } from "@/lib/demo-review-types";
+import type {
+  DemoReview,
+  ReviewCall,
+  StageRating,
+  StoredReview,
+} from "@/lib/demo-review-types";
 
 /**
  * The review of a demo call, folded under a Meetings row (2026-10-03).
@@ -24,6 +29,76 @@ const BADGE: Record<StageRating, { text: string; cls: string }> = {
   missed: { text: "Missed", cls: "bg-destructive/15 text-destructive" },
   not_reached: { text: "Not reached", cls: "bg-muted text-muted-foreground" },
 };
+
+type Verdict = {
+  tone: "good" | "mixed" | "weak" | "short";
+  title: string;
+  line: string;
+};
+
+const VERDICT_STYLE: Record<Verdict["tone"], string> = {
+  good: "border-success/40 bg-success/10 text-success",
+  mixed: "border-warning/50 bg-warning/15 text-warning-foreground dark:text-warning",
+  weak: "border-destructive/40 bg-destructive/10 text-destructive",
+  short: "border-border bg-muted text-muted-foreground",
+};
+
+/**
+ * One plain answer to "did that go well?", worked out from the steps the review
+ * already rated, so it also reads for reviews written before this existed.
+ *
+ * A demo shorter than five minutes is called too short to grade rather than
+ * scored: a closer who only fixed a time with a busy owner has not had the
+ * chance to do most of the steps, and a low score there blames the wrong thing.
+ */
+function verdictOf(r: DemoReview, booking: boolean): Verdict {
+  const total = r.stages.length;
+  const reached = r.stages.filter((s) => s.rating !== "not_reached");
+  const done = reached.filter((s) => s.rating === "done").length;
+  const partly = reached.filter((s) => s.rating === "partly").length;
+  const missed = reached.filter((s) => s.rating === "missed").length;
+  const steps = `The call got to ${reached.length} of ${total} steps. Of those, ${done} went well, ${partly} partly and ${missed} were missed.`;
+  if (!booking && (r.talk.minutes < 5 || reached.length < 3)) {
+    return {
+      tone: "short",
+      title: "Too short to grade",
+      line: `The call ran only ${r.talk.minutes} minutes, so it never got far enough to be judged as a demo. ${steps}`,
+    };
+  }
+  if (reached.length === 0) {
+    return {
+      tone: "short",
+      title: "Too short to grade",
+      line: "None of the steps came up on this call, so there is nothing to grade.",
+    };
+  }
+  const score = (done + partly / 2) / reached.length;
+  if (score >= 0.7) return { tone: "good", title: "Good call", line: steps };
+  if (score >= 0.4) {
+    return { tone: "mixed", title: "Mixed: some of it worked", line: steps };
+  }
+  return { tone: "weak", title: "Needs work", line: steps };
+}
+
+/** What the talk share means, in a sentence, so the number is not left to be
+ *  guessed at. Demos aim for about two thirds, cold calls for about half. */
+function talkRead(r: DemoReview, booking: boolean): string {
+  const pct = r.talk.closerPercent;
+  const [low, high] = booking ? [35, 65] : [50, 75];
+  const target = booking ? "about half" : "about two thirds";
+  const who = booking ? "the caller" : "the closer";
+  const read =
+    pct < low
+      ? `That is less than usual, so the owner did most of the talking. That is fine if they were telling you their problems, but not if ${who} was meant to be explaining.`
+      : pct > high
+        ? `That is more than usual. Stop and let the owner answer more often.`
+        : `That is about right.`;
+  const short =
+    !booking && r.talk.minutes < 5
+      ? " The call was short, so this number says little."
+      : "";
+  return `Good ${booking ? "cold calls" : "demos"} have ${who} talking ${target} of the time. ${read}${short}`;
+}
 
 export function DemoReviewFold({
   meetingId,
@@ -110,15 +185,21 @@ export function DemoReviewFold({
           </p>
         ) : (
           <>
+            {(() => {
+              const v = verdictOf(r, booking);
+              return (
+                <div className={`rounded-md border px-2.5 py-2 ${VERDICT_STYLE[v.tone]}`}>
+                  <p className="text-[14px] font-bold">{v.title}</p>
+                  <p className="mt-0.5 text-[13px] text-foreground">{v.line}</p>
+                </div>
+              );
+            })()}
             {r.headline && <p className="font-medium">{r.headline}</p>}
             <p className="text-[12px] text-muted-foreground">
-              {booking ? "The caller" : "The closer"} spoke {r.talk.closerPercent}% of the words and asked{" "}
+              {booking ? "The caller" : "The closer"} spoke {r.talk.closerPercent}% of the time and asked{" "}
               {r.talk.closerQuestions}{" "}
               {r.talk.closerQuestions === 1 ? "question" : "questions"} in{" "}
-              {r.talk.minutes} minutes.{" "}
-              {booking
-                ? "On cold calls that book a demo, the caller talks about half the time. If the caller talks much more, the owner may not get a turn."
-                : "In good demos, the seller talks about two thirds of the time. So a lot of talking is fine. Long stretches with no back and forth are not."}
+              {r.talk.minutes} minutes. {talkRead(r, booking)}
             </p>
 
             {r.nextSteps && r.nextSteps.length > 0 ? (

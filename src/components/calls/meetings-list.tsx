@@ -487,6 +487,44 @@ export function MeetingsList({
     email: string;
   } | null>(null);
 
+  /** Which meeting's contact name is being corrected, and what is typed. */
+  const [renaming, setRenaming] = React.useState<{
+    meetingId: number;
+    name: string;
+  } | null>(null);
+
+  /**
+   * Correct the name on a booking a caller typed wrong. It is kept on our copy
+   * only: Cal.com cannot change an attendee, so its own emails keep the old
+   * spelling, which the screen says rather than leaving it to be discovered.
+   */
+  async function saveName(meeting: Meeting, name: string) {
+    setBusy(meeting.id);
+    try {
+      const res = await fetch(`/api/meetings/${meeting.id}/name`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not save the name.");
+        return;
+      }
+      setRenaming(null);
+      toast.success(
+        data.savedToLead
+          ? `Name changed to ${data.name}, here and on the business`
+          : `Name changed to ${data.name}`,
+      );
+      router.refresh();
+    } catch {
+      toast.error("Could not reach the server. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   /**
    * Send this booking's invitation to another address.
    *
@@ -1111,11 +1149,66 @@ export function MeetingsList({
                 <p className="font-bold tracking-[-0.01em]">
                   {m.company ?? m.attendeeName ?? "Unlinked booking"}
                 </p>
-                <p className="truncate text-[13px] text-muted-foreground">
-                  {[m.attendeeName, m.attendeeEmail]
-                    .filter(Boolean)
-                    .join(" · ") || "No contact on the booking"}
-                </p>
+                {renaming?.meetingId === m.id ? (
+                  <div className="py-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        autoFocus
+                        value={renaming.name}
+                        maxLength={80}
+                        autoComplete="off"
+                        aria-label="The contact's name"
+                        placeholder="Their name"
+                        onChange={(e) =>
+                          setRenaming({ ...renaming, name: e.target.value })
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && renaming.name.trim())
+                            void saveName(m, renaming.name);
+                          if (e.key === "Escape") setRenaming(null);
+                        }}
+                        className="h-8 w-full sm:w-56"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={busy === m.id || !renaming.name.trim()}
+                        onClick={() => void saveName(m, renaming.name)}
+                      >
+                        {busy === m.id ? "Saving…" : "Save name"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy === m.id}
+                        onClick={() => setRenaming(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-[12px] text-muted-foreground">
+                      Texts and contracts will use this name, and it is saved on
+                      the business too. Cal.com&apos;s own emails keep the old
+                      spelling.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 truncate text-[13px] text-muted-foreground">
+                      {[m.attendeeName, m.attendeeEmail]
+                        .filter(Boolean)
+                        .join(" · ") || "No contact on the booking"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRenaming({ meetingId: m.id, name: m.attendeeName ?? "" })
+                      }
+                      className="shrink-0 text-[12px] font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    >
+                      {m.attendeeName ? "Fix name" : "Add name"}
+                    </button>
+                  </div>
+                )}
                 {/* The booking's address against the one the CRM holds, when
                     they disagree. The booking's copy is frozen the moment the
                     Cal.com link is opened and can never be edited after; the

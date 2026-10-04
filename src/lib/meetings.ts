@@ -339,7 +339,10 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         cal_start_at = excluded.cal_start_at,
         status = excluded.status,
         title = excluded.title,
-        attendee_name = excluded.attendee_name,
+        -- A name corrected by hand stays corrected (2026-10-05). Cal.com cannot
+        -- be told, so the booking keeps sending its old spelling every tick.
+        attendee_name = case when call_meeting.attendee_name_edited
+          then call_meeting.attendee_name else excluded.attendee_name end,
         attendee_email = excluded.attendee_email,
         -- coalesce: a payload without the field must not blank a number the
         -- prospect gave, the same rule the recording numbers follow.
@@ -359,7 +362,8 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         or call_meeting.cal_start_at is distinct from excluded.cal_start_at
         or call_meeting.status is distinct from excluded.status
         or call_meeting.title is distinct from excluded.title
-        or call_meeting.attendee_name is distinct from excluded.attendee_name
+        or (not call_meeting.attendee_name_edited
+          and call_meeting.attendee_name is distinct from excluded.attendee_name)
         or call_meeting.attendee_email is distinct from excluded.attendee_email
         or call_meeting.attendee_tz is distinct from excluded.attendee_tz
         or call_meeting.meeting_url is distinct from excluded.meeting_url

@@ -1388,6 +1388,9 @@ export const callMeeting = pgTable(
     status: text("status").notNull().default("accepted"),
     title: text("title"),
     attendeeName: text("attendee_name"),
+    /** The name was corrected by hand (2026-10-05), so the Cal.com sync leaves
+     *  it alone. Cal.com cannot be told, and its own emails keep the old one. */
+    attendeeNameEdited: boolean("attendee_name_edited").notNull().default(false),
     attendeeEmail: text("attendee_email"),
     /** Cal.com's "Best number to call you on" — the number the prospect asked
      *  to be rung on, which is often a mobile where the lead carries the
