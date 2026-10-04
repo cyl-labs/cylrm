@@ -1,0 +1,87 @@
+# Deploy to the droplet from GitHub (2026-10-04), for when there is no laptop:
+# Actions tab, "Deploy to droplet", Run workflow. Also from the GitHub phone app.
+#
+# Builds here (the droplet is 1 vCPU / 2 GB and cannot), ships the result over an
+# SSH key that can ONLY upload to the staging folder and run the three steps in
+# scripts/deploy-gate.sh, and the droplet then WAITS FOR A GAP BETWEEN CALLS
+# before it restarts, exactly as scripts/deploy.sh does. Manual trigger only:
+# merging to main must not restart the app.
+#
+# Needs, in the repo settings:
+#   secret   DEPLOY_SSH_KEY                  private half of the restricted key
+#   variable DEPLOY_HOST_KEY                 the droplet's line for known_hosts
+#   variable NEXT_PUBLIC_VAPID_PUBLIC_KEY    public web-push key, baked into the browser code
+name: Deploy to droplet
+
+on:
+  workflow_dispatch:
+    inputs:
+      wait_seconds:
+        description: "How long to wait for a gap between calls before giving up (seconds, max 3600)"
+        default: "600"
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      HOST: root@178.128.28.158
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+        run: |
+          export CYLRM_BUILD_ID="$(date -u +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
+          echo "build $CYLRM_BUILD_ID"
+          npm run build
+
+      - name: SSH key
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOSTKEY: ${{ vars.DEPLOY_HOST_KEY }}
+        run: |
+          test -n "$KEY" || { echo "DEPLOY_SSH_KEY is not set"; exit 1; }
+          test -n "$HOSTKEY" || { echo "DEPLOY_HOST_KEY is not set"; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$HOSTKEY" > ~/.ssh/known_hosts
+
+      - name: Ship to the staging folder
+        run: |
+          SSH="ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          $SSH "$HOST" prepare
+          # Same excludes as scripts/deploy.sh. They MUST stay anchored
+          # (/node_modules): an unanchored exclude strips Turbopack's external
+          # package stubs from .next/node_modules.
+          rsync -rlptDz --delete -e "$SSH" \
+            --exclude /node_modules --exclude .git --exclude .github \
+            --exclude ".env*" --exclude .claude --exclude /media --exclude /.next/dev --exclude /.next/cache \
+            ./ "$HOST:/"
+
+      - name: Seed, wait for a gap between calls, restart
+        env:
+          WAIT: ${{ inputs.wait_seconds }}
+        run: |
+          SSH="ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ServerAliveInterval=30"
+          case "$WAIT" in (*[!0-9]*|"") WAIT=600 ;; esac
+          [ "$WAIT" -le 3600 ] || WAIT=3600
+          $SSH "$HOST" "finish $WAIT"
