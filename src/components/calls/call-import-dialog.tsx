@@ -45,22 +45,48 @@ import { SameBusinessList, TickAll } from "@/components/calls/same-business-rows
 
 const READ_TIMEOUT_MS = 90_000;
 
-/** The wait while a file is read, counting up so it never looks frozen. */
-function ReadingNote({ size }: { size: number }) {
+/**
+ * The wait while a file is read: a bar that fills as the file reaches the
+ * server, which is a measured figure, then a moving bar while the server
+ * checks it, because how far that check has got is not something it reports.
+ */
+function ReadingNote({ size, uploaded }: { size: number; uploaded: number }) {
   const [seconds, setSeconds] = React.useState(0);
   React.useEffect(() => {
     const id = setInterval(() => setSeconds((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
   const mb = Math.max(0.1, size / 1_000_000).toFixed(1);
+  const sent = uploaded >= 1;
   return (
     <div className="mt-0.5 text-[13px] text-muted-foreground">
-      <p className="flex items-center gap-1.5">
-        <Loader2 className="size-3 animate-spin" />
-        Reading… {seconds}s
+      <p className="flex items-center justify-between gap-2">
+        <span>
+          {sent
+            ? "Step 2 of 2: checking it against every business already in the CRM"
+            : `Step 1 of 2: sending the file (${mb} MB)`}
+        </span>
+        <span className="tabular-nums">
+          {sent ? `${seconds}s` : `${Math.round(uploaded * 100)}%`}
+        </span>
       </p>
-      <p className="mt-0.5 text-[12px]">
-        Checking this {mb} MB file against every business already in the CRM.
+      <div
+        className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-label={sent ? "Checking the file" : "Sending the file"}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={sent ? undefined : Math.round(uploaded * 100)}
+      >
+        <div
+          className={cn(
+            "h-full rounded-full bg-primary",
+            sent ? "w-1/3 animate-pulse" : "transition-[width] duration-200",
+          )}
+          style={sent ? undefined : { width: `${Math.round(uploaded * 100)}%` }}
+        />
+      </div>
+      <p className="mt-1 text-[12px]">
         A big file can take up to a minute. Nothing is saved until you press
         Import.
       </p>
@@ -102,6 +128,8 @@ type Staged = {
    *  Empty to begin with: nothing is treated as a copy until somebody says. */
   sameBusiness: string[];
   scan: Scan | null;
+  /** How much of the file has reached the server while it is being read, 0 to 1. */
+  uploaded: number;
   /** Why this file cannot be imported, from the server's own parser. */
   error: string | null;
 };
@@ -266,36 +294,63 @@ export function CallImportDialog({
       // numbers differently, and the keys they were given by with them.
       setStaged((prev) =>
         prev.map((s) =>
-          s.key === key ? { ...s, scan: null, error: null, sameBusiness: [] } : s,
+          s.key === key
+            ? { ...s, scan: null, error: null, sameBusiness: [], uploaded: 0 }
+            : s,
         ),
       );
       const body = new FormData();
       body.append("file", file);
       body.append("dryRun", "1");
       if (region !== "none") body.append("region", region);
+      // XMLHttpRequest rather than fetch, because it is the one that reports
+      // how many bytes of the file have actually left the browser. That makes
+      // the first half of the wait a real percentage, and when a reading hangs
+      // it shows whether the file never arrived or the checking never ended.
+      //
       // A reading that never comes back used to spin for ever with nothing to
       // press. The server takes a few seconds on a big scrape, so a minute and
       // a half means something is wrong and the person should be told.
-      const controller = new AbortController();
-      const giveUp = setTimeout(() => controller.abort(), READ_TIMEOUT_MS);
+      const setUploaded = (uploaded: number) =>
+        setStaged((prev) =>
+          prev.map((s) => (s.key === key ? { ...s, uploaded } : s)),
+        );
       try {
-        const res = await fetch("/api/call-lists", {
-          method: "POST",
-          body,
-          signal: controller.signal,
+        const { ok, data } = await new Promise<{
+          ok: boolean;
+          data: { error?: string };
+        }>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/call-lists");
+          xhr.timeout = READ_TIMEOUT_MS;
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && e.total > 0) setUploaded(e.loaded / e.total);
+          };
+          xhr.upload.onload = () => setUploaded(1);
+          xhr.onload = () => {
+            let parsed: { error?: string } = {};
+            try {
+              parsed = JSON.parse(xhr.responseText);
+            } catch {
+              // Not JSON: left empty, the caller says "Could not read it".
+            }
+            resolve({ ok: xhr.status >= 200 && xhr.status < 300, data: parsed });
+          };
+          xhr.onerror = () => reject(new Error("network"));
+          xhr.ontimeout = () => reject(new Error("timeout"));
+          xhr.send(body);
         });
-        const data = await res.json().catch(() => ({}));
         setStaged((prev) =>
           prev.map((s) =>
             s.key === key
-              ? res.ok
-                ? { ...s, scan: data as Scan, error: null }
+              ? ok
+                ? { ...s, scan: data as unknown as Scan, error: null }
                 : { ...s, scan: null, error: data.error ?? "Could not read it." }
               : s,
           ),
         );
       } catch (err) {
-        const timedOut = err instanceof DOMException && err.name === "AbortError";
+        const timedOut = err instanceof Error && err.message === "timeout";
         setStaged((prev) =>
           prev.map((s) =>
             s.key === key
@@ -303,14 +358,14 @@ export function CallImportDialog({
                   ...s,
                   scan: null,
                   error: timedOut
-                    ? "This is taking too long, so we stopped waiting. Remove the file and add it again. If it keeps happening, check your connection or tell a founder."
+                    ? s.uploaded < 1
+                      ? `The file only got ${Math.round(s.uploaded * 100)}% of the way to the server before we stopped waiting. Check your connection, then remove the file and add it again.`
+                      : "The file arrived, but the server did not finish checking it, so we stopped waiting. Remove the file and add it again. If it keeps happening, tell a founder."
                     : "Could not read it.",
                 }
               : s,
           ),
         );
-      } finally {
-        clearTimeout(giveUp);
       }
     },
     [],
@@ -335,6 +390,7 @@ export function CallImportDialog({
         partOwnerIds: [],
         sameBusiness: [],
         scan: null,
+        uploaded: 0,
         error: null,
       };
     });
@@ -681,7 +737,7 @@ export function CallImportDialog({
                               )}
                             </>
                           ) : (
-                            <ReadingNote size={s.file.size} />
+                            <ReadingNote size={s.file.size} uploaded={s.uploaded} />
                           )}
                         </div>
                         <button
