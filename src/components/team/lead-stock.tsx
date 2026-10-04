@@ -53,7 +53,7 @@ function Rows({
     <table className="w-full text-[13px]">
       <thead>
         <tr className="border-b text-left">
-          {["Niche", "How far through", "Never rung", "Waiting for a caller", "Runs out in"].map(
+          {["Niche", "Businesses rung", "Never rung", "Waiting for a caller", "Runs out in"].map(
             (h) => (
               <th
                 key={h}
@@ -90,13 +90,22 @@ function Rows({
                 </p>
               ) : (
                 <>
-                  <Bar fraction={r.fraction} />
+                  {/* Rung at least once, which is what "Never rung" and "Runs
+                      out in" count. It used to be "done", which also counted
+                      retries still owed, so a niche with every business already
+                      rung read as half through and still said "under a day". */}
+                  <Bar fraction={(r.total - r.uncalled) / r.total} />
                   <p className="mt-1 whitespace-nowrap text-[12px] tabular-nums text-muted-foreground">
                     <span className="font-semibold text-foreground">
-                      {Math.round(r.fraction * 100)}%
+                      {Math.round(((r.total - r.uncalled) / r.total) * 100)}%
                     </span>{" "}
-                    · {n(r.done)} of {n(r.total)} done
+                    · {n(r.total - r.uncalled)} of {n(r.total)} rung at least once
                   </p>
+                  {r.leftToCall - r.uncalled > 0 && (
+                    <p className="whitespace-nowrap text-[12px] tabular-nums text-muted-foreground">
+                      {n(r.leftToCall - r.uncalled)} due a second try or callback
+                    </p>
+                  )}
                 </>
               )}
             </td>
@@ -182,9 +191,11 @@ export function LeadStock({
         </p>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
           Lists with the same name are one niche, so Junk Removal 5.1, 5.2 and
-          2.1 are all Junk Removal. What runs out is leads nobody has rung yet:
-          a second try is work, but only a fresh one is a business you have not
-          spoken to. Order the next scrape before a niche is inside a week.
+          2.1 are all Junk Removal. The bar shows how many businesses have been
+          rung at least once. Second tries are still work for the callers, but
+          they are not new businesses, so &ldquo;Never rung&rdquo; and &ldquo;Runs
+          out in&rdquo; count only leads nobody has dialled yet. Order the next
+          scrape before a niche is inside a week.
         </p>
         {soonest && (
           <p className="mt-2 text-[13px]">
