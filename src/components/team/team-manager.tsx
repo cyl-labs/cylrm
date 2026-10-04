@@ -4,6 +4,9 @@ import { isFloor, ROLE_LABEL, type Role } from "@/lib/roles";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  ChevronDown,
+  ChevronRight,
+  CornerDownRight,
   Handshake,
   KeyRound,
   Pencil,
@@ -264,6 +267,41 @@ export function TeamManager({
   const [showOff, setShowOff] = React.useState(false);
   const off = team.filter((m) => !m.active).length;
   const shown = showOff ? team : team.filter((m) => m.active);
+  /**
+   * Managers and the people who report to them (2026-10-04). A manager is whoever
+   * somebody else's `managerId` points at (see `lib/managers.ts`), and the shape
+   * is one level deep, so a plain two-pass grouping is enough. Each manager's
+   * people sit directly under them and fold away behind a chevron. Anyone whose
+   * manager is not on screen (switched off and hidden) stays at the top level
+   * rather than vanishing with them.
+   */
+  const [folded, setFolded] = React.useState<Set<number>>(new Set());
+  const shownIds = new Set(shown.map((t) => t.id));
+  const reportsByManager = new Map<number, TeamMember[]>();
+  for (const t of shown) {
+    if (t.managerId !== null && shownIds.has(t.managerId)) {
+      reportsByManager.set(t.managerId, [
+        ...(reportsByManager.get(t.managerId) ?? []),
+        t,
+      ]);
+    }
+  }
+  const rows: { m: TeamMember; kind: "solo" | "manager" | "member"; count: number }[] = [];
+  for (const m of shown) {
+    if (m.managerId !== null && shownIds.has(m.managerId)) continue;
+    const reports = reportsByManager.get(m.id) ?? [];
+    rows.push({ m, kind: reports.length > 0 ? "manager" : "solo", count: reports.length });
+    if (!folded.has(m.id)) {
+      for (const r of reports) rows.push({ m: r, kind: "member", count: 0 });
+    }
+  }
+  const toggleFold = (id: number) =>
+    setFolded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const numbers = accountNumbers
     .filter((n) => n.available)
     .map((n) => n.phoneNumber);
@@ -422,11 +460,14 @@ export function TeamManager({
                   </td>
                 </tr>
               ) : (
-                shown.map((m) => (
+                rows.map(({ m, kind, count }) => (
                   <tr
                     key={m.id}
                     className={cn(
                       "border-b last:border-0",
+                      // A manager starts a new group: a heavier rule above it,
+                      // so the people listed beneath read as theirs.
+                      kind === "manager" && "border-t-2 border-t-primary/30",
                       // Every cell to the top of the row, not the middle. A
                       // caller holding five lists makes a row four hundred
                       // pixels tall, and centred controls left the market
@@ -443,8 +484,38 @@ export function TeamManager({
                         sticky cell without it has the row showing through it.
                         `opacity-55` on a switched-off row applies to the whole
                         <tr>, so this stays consistent with it. */}
-                    <td className="sticky left-0 z-10 whitespace-nowrap border-b bg-card px-4 py-2.5 align-top font-semibold">
+                    <td
+                      className={cn(
+                        "sticky left-0 z-10 whitespace-nowrap border-b bg-card px-4 py-2.5 align-top font-semibold",
+                        // The people under a manager are set in and barred on
+                        // the left, which is what separates them from the
+                        // manager above without a second table.
+                        kind === "member" && "border-l-4 border-l-primary/30 pl-8",
+                      )}
+                    >
                       <span className="flex items-center gap-1.5">
+                        {kind === "manager" && (
+                          <button
+                            type="button"
+                            onClick={() => toggleFold(m.id)}
+                            aria-expanded={!folded.has(m.id)}
+                            aria-label={
+                              folded.has(m.id)
+                                ? `Show the ${count} reporting to ${m.name}`
+                                : `Hide the ${count} reporting to ${m.name}`
+                            }
+                            className="-ml-1 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            {folded.has(m.id) ? (
+                              <ChevronRight className="size-4" />
+                            ) : (
+                              <ChevronDown className="size-4" />
+                            )}
+                          </button>
+                        )}
+                        {kind === "member" && (
+                          <CornerDownRight className="size-3.5 shrink-0 text-muted-foreground" />
+                        )}
                         {m.role === "admin" ? (
                           <ShieldCheck className="size-3.5 shrink-0 text-primary" />
                         ) : (
@@ -459,6 +530,11 @@ export function TeamManager({
                         {m.isOwner && (
                           <Badge variant="outline" className="shrink-0">
                             Founder
+                          </Badge>
+                        )}
+                        {kind === "manager" && (
+                          <Badge variant="secondary" className="shrink-0 text-[10px]">
+                            Manager &middot; {count} {count === 1 ? "person" : "people"}
                           </Badge>
                         )}
                       </span>
