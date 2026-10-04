@@ -70,6 +70,8 @@ function ReadingNote({ size }: { size: number }) {
 
 type Scan = {
   usable: number;
+  /** Numbers with no "+" in the file: the only ones the folder can change. */
+  withoutCountryCode: number;
   /** Usable rows whose number the CRM already holds, anywhere. */
   duplicatesInCrm: number;
   /** Where those copies sit, biggest first — the answer to "already where?". */
@@ -715,8 +717,13 @@ export function CallImportDialog({
                                 update(s.key, { region: next });
                                 // The count is only true for one market, so it
                                 // is re-read rather than left saying what the
-                                // previous folder found.
-                                void scanFile(s.key, s.file, next);
+                                // previous folder found. Unless every number
+                                // already carries its country code: then no
+                                // folder reads it differently, and reading a
+                                // big file again is a wait for the same answer.
+                                if (s.scan?.withoutCountryCode !== 0) {
+                                  void scanFile(s.key, s.file, next);
+                                }
                               }}
                             >
                               <SelectTrigger

@@ -472,9 +472,15 @@ export async function POST(request: Request) {
   let skippedRepeatedInFile = 0;
   const skippedBadNumber: { company: string; phone: string }[] = [];
   const seenInFile = new Set<string>();
+  // Numbers written without a "+". Only these depend on the folder, because an
+  // explicit country code is never second-guessed by it (see classifyPhone), so
+  // a file with none reads the same in every folder and the screen can skip
+  // reading it again when the folder changes.
+  let withoutCountryCode = 0;
 
   for (const rec of records) {
     const phone = pickPhone(rec, phoneCols, parseRegion) ?? "";
+    if (phone !== "" && !phone.trim().startsWith("+")) withoutCountryCode++;
     const key = phoneKey(phone, parseRegion);
     const kind = classifyPhone(phone, parseRegion);
 
@@ -665,6 +671,7 @@ export async function POST(request: Request) {
       sameBusiness,
       dryRun: true,
       usable: rows.length,
+      withoutCountryCode,
       duplicatesInCrm,
       duplicateLists: top.map(([id, count]) => ({
         name: nameById.get(id) ?? "a deleted list",
