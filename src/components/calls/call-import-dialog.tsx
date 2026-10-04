@@ -46,6 +46,35 @@ import { SameBusinessList, TickAll } from "@/components/calls/same-business-rows
 const READ_TIMEOUT_MS = 90_000;
 
 /**
+ * The file as it should travel: gzipped when the browser can, since a scrape is
+ * mostly empty columns and shrinks to about a fifth (a 3.3 MB file became 0.66).
+ * On a slow upload that is the whole difference, and the file goes twice, once
+ * to be checked and once to be imported, so the packed copy is kept. Falls back
+ * to the original anywhere that cannot compress, and when packing does not help.
+ */
+const packed = new WeakMap<File, Promise<File>>();
+function packForUpload(file: File): Promise<File> {
+  let p = packed.get(file);
+  if (!p) {
+    p = (async () => {
+      if (typeof CompressionStream === "undefined") return file;
+      try {
+        const blob = await new Response(
+          file.stream().pipeThrough(new CompressionStream("gzip")),
+        ).blob();
+        return blob.size < file.size
+          ? new File([blob], `${file.name}.gz`, { type: "application/gzip" })
+          : file;
+      } catch {
+        return file;
+      }
+    })();
+    packed.set(file, p);
+  }
+  return p;
+}
+
+/**
  * The wait while a file is read: a bar that fills as the file reaches the
  * server, which is a measured figure, then a moving bar while the server
  * checks it, because how far that check has got is not something it reports.
@@ -64,7 +93,7 @@ function ReadingNote({ size, uploaded }: { size: number; uploaded: number }) {
         <span>
           {sent
             ? "Step 2 of 2: checking it against every business already in the CRM"
-            : `Step 1 of 2: sending the file (${mb} MB)`}
+            : `Step 1 of 2: sending the file (${mb} MB, sent compressed)`}
         </span>
         <span className="tabular-nums">
           {sent ? `${seconds}s` : `${Math.round(uploaded * 100)}%`}
@@ -300,7 +329,7 @@ export function CallImportDialog({
         ),
       );
       const body = new FormData();
-      body.append("file", file);
+      body.append("file", await packForUpload(file));
       body.append("dryRun", "1");
       if (region !== "none") body.append("region", region);
       // XMLHttpRequest rather than fetch, because it is the one that reports
@@ -448,7 +477,7 @@ export function CallImportDialog({
       // the ones already created stay created.
       for (const s of importable) {
         const body = new FormData();
-        body.append("file", s.file);
+        body.append("file", await packForUpload(s.file));
         if (s.dropDuplicates) body.append("dropDuplicates", "1");
         for (const key of s.sameBusiness) body.append("sameBusiness", key);
         if (appending) {

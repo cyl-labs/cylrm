@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { appUser, callLead, callList } from "@/db/schema";
@@ -22,6 +23,23 @@ import {
 } from "@/lib/same-business";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+/**
+ * The CSV's text. The import screen sends a file gzipped (named `*.gz`) because
+ * a scrape is mostly empty columns and shrinks to about a fifth, and a slow
+ * upload is what made a 3 MB file take minutes. A file that is not `.gz` is read
+ * as it always was. The unpacked size is capped, so a small upload cannot expand
+ * into something that fills the memory of a 2 GB box shared with other apps.
+ */
+async function readCsvText(file: File): Promise<string> {
+  if (!file.name.toLowerCase().endsWith(".gz")) return file.text();
+  const bytes = gunzipSync(Buffer.from(await file.arrayBuffer()), {
+    maxOutputLength: MAX_UPLOAD_BYTES * 10,
+  });
+  // `File.text()` drops a byte order mark; unpacking by hand has to as well, or
+  // the first column's name starts with an invisible character and is not found.
+  return bytes.toString("utf8").replace(/^\uFEFF/, "");
+}
 const INSERT_CHUNK = 500;
 
 /** How many ways one file may be split. Only there so a typo cannot ask for
@@ -423,7 +441,16 @@ export async function POST(request: Request) {
   // that niche was rather than the way this request happens to be labelled.
   const parseRegion = existingList ? existingList.region : region;
 
-  const { headers, records } = csvToRecords(await file.text());
+  let csvText: string;
+  try {
+    csvText = await readCsvText(file);
+  } catch {
+    return Response.json(
+      { error: "Could not unpack that file. Add it again." },
+      { status: 400 },
+    );
+  }
+  const { headers, records } = csvToRecords(csvText);
   if (records.length === 0) {
     return Response.json({ error: "CSV has no data rows." }, { status: 400 });
   }
