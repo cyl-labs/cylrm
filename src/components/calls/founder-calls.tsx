@@ -40,8 +40,8 @@ import { cn } from "@/lib/utils";
  * intervals, make it tomorrow by default, but let me change it to a specific
  * day as well". Each interval keeps the time of day the meeting was at (the
  * demo, or the call back before), in the prospect's zone: a slot they once
- * agreed to is the best guess at when they pick up. "Pick a day" opens a date
- * and a time.
+ * agreed to is the best guess at when they pick up. The time box under them is
+ * always editable; "Pick a day" adds a date box beside it.
  */
 
 /**
@@ -144,8 +144,10 @@ export function CallBackPrompt({
   const [notes, setNotes] = React.useState(initialNotes);
   const [saving, setSaving] = React.useState<null | "save" | "dead">(null);
 
-  const wall =
-    choice === "pick" ? `${pickDate}T${pickTime}` : `${dayIn(zone, choice)}T${timeOfDay}`;
+  // The time box is always on screen and always wins: the intervals only
+  // choose the day. It used to appear with "Pick a day" alone, so "Tomorrow"
+  // looked fixed at the old time of day with no way to change it (2026-10-05).
+  const wall = `${choice === "pick" ? pickDate : dayIn(zone, choice)}T${pickTime}`;
   const at = wallClockIn(wall, zone);
   const fmt = (tz: string) =>
     at
@@ -276,8 +278,8 @@ export function CallBackPrompt({
             </button>
           </div>
 
-          {choice === "pick" && (
-            <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            {choice === "pick" && (
               <div className="space-y-1.5">
                 <Label htmlFor="call-back-day">Day</Label>
                 <Input
@@ -288,19 +290,19 @@ export function CallBackPrompt({
                   onChange={(e) => setPickDate(e.target.value)}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="call-back-time">
-                  Time ({theirTz ? "their time" : "your clock"})
-                </Label>
-                <Input
-                  id="call-back-time"
-                  type="time"
-                  value={pickTime}
-                  onChange={(e) => setPickTime(e.target.value)}
-                />
-              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="call-back-time">
+                Time ({theirTz ? "their time" : "your clock"})
+              </Label>
+              <Input
+                id="call-back-time"
+                type="time"
+                value={pickTime}
+                onChange={(e) => setPickTime(e.target.value)}
+              />
             </div>
-          )}
+          </div>
 
           {/* The answer, in both clocks, before anything is saved. */}
           <p className="rounded-lg bg-muted/50 px-3 py-2 text-[13px]">
