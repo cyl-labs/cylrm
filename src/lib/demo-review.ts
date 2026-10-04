@@ -242,7 +242,7 @@ function buildSystem(kind: ReviewKind): string {
   "Ratings: done (clearly did it), partly (tried or half did it, or did it in a telling way instead of getting the prospect to say it), missed (the call reached the point where it belonged and the closer did not do it), not_reached (the call never got that far, for example it ended early).",
   "",
   "Reply with one JSON object and nothing else, in exactly this shape:",
-  '{"headline": string, "nextSteps": [{"when": string, "do": string, "say": string}], "stages": [{"key": string, "rating": "done"|"partly"|"missed"|"not_reached", "evidence": string|null, "note": string}], "wentWell": [string], "objections": [{"theySaid": string, "handled": string, "tryThis": string}]}',
+  `{"headline": string, "nextSteps": [{"when": string, "do": string, "say": string}], "stages": [{"key": string, "rating": "done"|"partly"|"missed"|"not_reached", "evidence": string|null, "note": string}], "wentWell": [string], "objections": [{"theySaid": string, "handled": string, "tryThis": string}]${kind === "demo" ? ', "ownerMoments": [{"quote": string, "feeling": string, "closerNext": string}]' : ""}}`,
   "",
   "Rules:",
   "- READING LEVEL: write everything the reader sees at a third grade reading level. Use short everyday words. Keep sentences under 12 words, one idea each. Never use sales words such as discovery, qualify, consequence, reframe, transition, objection, rapport, insight, framework, leverage, value proposition, or pain point. Say what to do, not what to explore. Say owner, not prospect.",
@@ -251,6 +251,11 @@ function buildSystem(kind: ReviewKind): string {
   "- stages: all the keys above, in the order given. note is one short plain sentence saying what happened. evidence is an exact quote of up to about 25 words copied character for character from ONE speaker in the transcript. Every done, partly and missed step needs one: for done and partly it is the line that shows what was done; for missed it is the line where the step should have happened (for example the caller offering times before any time zone was asked). Use null only for not_reached. The quote must prove the note, so never quote an unrelated line (an email address does not prove a time was read back). Never write evidence that is not in the transcript. The note must agree with the rating and with the quote: do not write a note that says the step was done fully when the rating is partly.",
   "- wentWell: 2 to 4 specific things done well, each naming the moment. Leave the list shorter rather than flatter. Empty is allowed.",
   "- objections: one entry for each time the owner pushed back or hesitated (price, need to think, need to ask someone, already have something, not now). theySaid is a short exact quote of it, picked so it reads clearly: speech to text garbles money (for example '90 $9' for $99), so choose a clearer line from the same push back instead of showing a garbled number, handled says in one sentence what was done, tryThis is what to say instead, in plain words. Empty list if there were none.",
+  ...(kind === "demo"
+    ? [
+        "- ownerMoments: 0 to 6 lines where the OWNER (the Prospect) showed a strong feeling or changed course. This is about the owner, not about how the closer did, so do not score anything here. Look for: refusing something, saying the same complaint again, a personal stake (years in the trade, a time they need to be somewhere), blaming or doubting the closer, saying the call is a waste of their time, and a sudden spark of interest. Pick the lines that are unusual and tell us the most. Skip polite filler and plain facts. quote is an exact quote of up to about 25 words copied character for character from the Prospect's lines only, never from the Closer. feeling is one short plain sentence on what the owner felt. closerNext is one short plain sentence on what the closer did right after. Put them in the order they happened. Empty list if the owner showed nothing strong.",
+      ]
+    : []),
   "- Be fair and specific. Do not praise a step that was not done, and do not mark a step missed when it was done in different words. Judge the method, not the outcome: a sale that was lost can still be a well run call.",
   "- Never use an em dash.",
 ].join("\n");
@@ -289,7 +294,7 @@ export async function writeReview(
     body: JSON.stringify({
       model: MODEL,
       temperature: 0.2,
-      max_tokens: 3200,
+      max_tokens: 3800,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEMS[kind] },
@@ -326,6 +331,35 @@ export async function writeReview(
     const pieces = q.split(/\.\.\.|…/).map(normalise).filter(Boolean);
     return pieces.length > 0 && pieces.every((p) => ` ${hay} `.includes(` ${p} `));
   };
+
+  // The owner's own lines only: a quote of the closer is not an owner moment.
+  const ownerHay = normalise(
+    s.transcript
+      .split("\n")
+      .filter((l) => l.startsWith("Prospect: "))
+      .map((l) => l.slice(10))
+      .join(" "),
+  );
+  const ownerSaid = (q: string) => {
+    // Without speaker labels (an old text-only transcript) fall back to the whole call.
+    if (!ownerHay) return inCall(q);
+    const pieces = q.split(/\.\.\.|…/).map(normalise).filter(Boolean);
+    return pieces.length > 0 && pieces.every((p) => ` ${ownerHay} `.includes(` ${p} `));
+  };
+  const ownerMoments =
+    kind === "demo"
+      ? list(raw.ownerMoments)
+          .map((x) => {
+            const o = x as { quote?: unknown; feeling?: unknown; closerNext?: unknown };
+            return {
+              quote: clean(o.quote),
+              feeling: clean(o.feeling),
+              closerNext: clean(o.closerNext),
+            };
+          })
+          .filter((x) => x.quote && x.feeling && ownerSaid(x.quote))
+          .slice(0, 6)
+      : [];
 
   const byKey = new Map(
     list(raw.stages).map((x) => [String((x as { key?: unknown }).key), x as Record<string, unknown>]),
@@ -383,6 +417,7 @@ export async function writeReview(
       .filter((x) => x.theySaid)
       .slice(0, 6),
     biggestFix: nextSteps[0]?.do ?? "",
+    ownerMoments: ownerMoments.length > 0 ? ownerMoments : undefined,
     talk: s.talk,
     recordingIds: s.recordingIds.length > 0 ? s.recordingIds : undefined,
   };
