@@ -15,3 +15,15 @@ export function hasCronAuth(header: string | null): boolean {
   const wanted = Buffer.from(`Bearer ${secret}`);
   return given.length === wanted.length && timingSafeEqual(given, wanted);
 }
+
+/**
+ * Does this Authorization header carry `secret`, compared in constant time?
+ * The general form of `hasCronAuth`, for a route with a secret of its own
+ * (`/api/readonly-sql`). An empty or missing secret never matches.
+ */
+export function hasBearer(header: string | null, secret: string | undefined): boolean {
+  if (!secret || !header) return false;
+  const given = Buffer.from(header);
+  const wanted = Buffer.from(`Bearer ${secret}`);
+  return given.length === wanted.length && timingSafeEqual(given, wanted);
+}

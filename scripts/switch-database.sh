@@ -75,6 +75,7 @@ RESET="drop schema if exists public cascade; create schema public;"
 if [ "$TO" = local ]; then
   docker exec cylrm-db psql -U cylrm -d cylrm -q -c "$RESET" 2>&1 | grep -v NOTICE || true
   docker exec cylrm-db pg_dump "$FROM_URL" -n public --no-owner --no-privileges | docker exec -i cylrm-db psql -U cylrm -d cylrm -q -v ON_ERROR_STOP=0 2>&1 | grep -v 'already exists' || true
+  printf '%s' "$RO_SQL" | docker exec -i cylrm-db psql -U cylrm -d cylrm -q 2>&1 | grep -v NOTICE || true
 else
   docker exec cylrm-db psql "$TO_URL" -q -c "$RESET" 2>&1 | grep -v NOTICE || true
   docker exec cylrm-db pg_dump -U cylrm -d cylrm -n public --no-owner --no-privileges | docker exec -i cylrm-db psql "$TO_URL" -q -v ON_ERROR_STOP=0 2>&1 | grep -v 'already exists' || true
@@ -95,6 +96,12 @@ NEWURL="$TO_URL"; [ "$TO" = local ] && NEWURL="$LOCAL_URL"
 # keep both URLs on file; only DATABASE_URL is the live one
 grep -q '^DATABASE_URL_LOCAL=' "$ENV" || echo "DATABASE_URL_LOCAL=$LOCAL_URL" >> "$ENV"
 sed -i "s#^DATABASE_URL=.*#DATABASE_URL=$NEWURL#" "$ENV"
+# /api/readonly-sql (cloud sessions) must read the database that is now live,
+# not the one just left, or it answers with stale data and nothing says so.
+NEWRO="$(getv READONLY_DATABASE_URL_$( [ "$TO" = local ] && echo LOCAL || echo SUPABASE ))"
+if [ -n "$NEWRO" ] && grep -q '^READONLY_DATABASE_URL=' "$ENV"; then
+  sed -i "s#^READONLY_DATABASE_URL=.*#READONLY_DATABASE_URL=$NEWRO#" "$ENV"
+fi
 trap - ERR
 pm2 start crm crm-worker --update-env >/dev/null
 sleep 6

@@ -67,3 +67,28 @@ since would be left behind.
   `cloud_ro` until that file runs again.** The older route, a tunnel into the
   local container (`cloud_ro` / `cloudro` on the droplet), reads the **local**
   database, which stops receiving writes the moment the app switches to Supabase.
+
+## Live data for cloud sessions: `/api/readonly-sql` (2026-10-04)
+
+A Claude Code cloud session's egress proxy lets HTTPS through and **times out
+database ports** (tested: 5432 to Supabase hangs, a web request to it answers).
+So neither an SSH tunnel nor a direct connection can work from the cloud. The one
+door is `POST /api/readonly-sql` (`src/app/api/readonly-sql/route.ts`):
+
+```sh
+curl -s -X POST https://crm.cyllabs.com/api/readonly-sql \
+  -H "Authorization: Bearer $READONLY_SQL_TOKEN" -H "Content-Type: application/json" \
+  -d '{"sql":"select count(*) from call_meeting"}'
+```
+
+- Runs as `cloud_ro` through `READONLY_DATABASE_URL`: select only, no secrets (see
+  above). One statement, `select`/`with`/`values`/`show`/`explain` only, inside a
+  READ ONLY transaction, 30 seconds, 5,000 rows (`truncated: true` past that).
+- Gated by `READONLY_SQL_TOKEN`, separate from `CRON_SECRET`, constant-time,
+  wrong tokens throttled per address. `/api` is outside the middleware, so that
+  check is the whole gate. **Rotate by changing the token on the droplet and in
+  the cloud environment; unset either setting and the route answers 404.**
+- `switch-database.sh` repoints `READONLY_DATABASE_URL` at the live database from
+  `READONLY_DATABASE_URL_LOCAL` / `_SUPABASE`, and re-applies `cloud_ro`'s grants
+  after any copy (either direction recreates the schema and erases them).
+- Every call is logged as `[readonly-sql]` with its first 160 characters of SQL.
