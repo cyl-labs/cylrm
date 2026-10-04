@@ -21,8 +21,12 @@ set -euo pipefail
 
 HOST="root@178.128.28.158"
 ACTION="${1:-status}"
+cd "$(dirname "$0")/.."
+# Re-applied after every copy into Supabase: the copy recreates the public
+# schema, which erases the cloud sessions' read-only role. See the file.
+RO_SQL="$(cat scripts/supabase-readonly-grants.sql)"
 
-remote() { ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=10 "$HOST" ACTION="$ACTION" bash -s; }
+remote() { ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=10 "$HOST" ACTION="$ACTION" RO_SQL="$(printf %q "$RO_SQL")" bash -s; }
 
 remote <<'REMOTE'
 set -euo pipefail
@@ -76,6 +80,7 @@ else
   docker exec cylrm-db pg_dump -U cylrm -d cylrm -n public --no-owner --no-privileges | docker exec -i cylrm-db psql "$TO_URL" -q -v ON_ERROR_STOP=0 2>&1 | grep -v 'already exists' || true
   # Supabase publishes the public schema through a web API; keep it shut (see docs)
   docker exec cylrm-db psql "$TO_URL" -q -c "do \$\$ declare t text; begin for t in select tablename from pg_tables where schemaname='public' loop execute format('alter table public.%I enable row level security', t); end loop; end \$\$; revoke all on all tables in schema public from anon, authenticated; revoke all on all sequences in schema public from anon, authenticated; alter default privileges in schema public revoke all on tables from anon, authenticated; alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;"
+  printf '%s' "$RO_SQL" | docker exec -i cylrm-db psql "$TO_URL" -q 2>&1 | grep -v NOTICE || true
 fi
 
 echo "== 4/5 checking every table has the same number of rows"

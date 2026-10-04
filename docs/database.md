@@ -55,7 +55,15 @@ since would be left behind.
   the droplet's one shared CPU was the bottleneck, not the network. Every other
   region is 59 to 246 ms away from the droplet: **Singapore is the only region
   this works in.**
-- **Cloud sessions read live data through the read-only role** and an SSH
-  tunnel into the local container (`cloud_ro` / `cloudro`, see the cloud
-  environment's setup script). That path reads the **local** database, so after
-  a switch to Supabase it goes stale unless it is pointed at Supabase too.
+- **Cloud sessions read live data through `cloud_ro`.** On Supabase it is a
+  role that can only select, with a select policy per table (row level security
+  is on, so a grant alone shows nothing) and no access to `push_subscription`,
+  `app_user.password_hash` / `.payment_method` or the `sending_account`
+  credentials. The cloud environment holds `PROD_READONLY_URL` pointing at the
+  session pooler as `cloud_ro.<project ref>`: **no SSH, no tunnel, no key**.
+  `scripts/supabase-readonly-grants.sql` re-applies it, and `switch-database.sh`
+  runs it after every copy into Supabase, because the copy recreates the schema
+  and would otherwise erase it silently. **A new table is invisible to
+  `cloud_ro` until that file runs again.** The older route, a tunnel into the
+  local container (`cloud_ro` / `cloudro` on the droplet), reads the **local**
+  database, which stops receiving writes the moment the app switches to Supabase.
