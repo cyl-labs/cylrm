@@ -26,6 +26,28 @@ cd "$(dirname "$0")/.."
 
 say() { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
 
+# Who is on a call, or has hung up and not yet saved the outcome. One query,
+# used by both checks below. Freshness window must match PRESENCE_TTL_SECONDS in
+# src/lib/users.ts.
+GUARD_SQL="select coalesce(string_agg(name || case when on_call_since is not null and on_call_at > now() - interval '45 seconds' then ' (' || extract(epoch from (now() - on_call_since))::int || 's)' else ' (logging an outcome)' end, ', '), '') from app_user where (on_call_since is not null and on_call_at > now() - interval '45 seconds') or wrap_up_at > now() - interval '45 seconds'"
+
+# Runs on the droplet. Asks whichever database the app is configured for, so the
+# guard keeps working when DATABASE_URL moves between the local container and a
+# hosted Postgres (2026-10-04): a guard pinned to `docker exec cylrm-db psql`
+# would read the OLD database after a move, see nobody on a call, and restart
+# into a live one. A local URL goes through the container as before; any other
+# host is reached with the container's own psql client (the droplet has none).
+# Fails open, as it always has: no answer means "nobody", with a warning.
+DB_GUARD_FN='
+dbq() {
+  local url
+  url="$(grep -m1 "^DATABASE_URL=" /root/crm/.env | cut -d= -f2- | tr -d "\"'"'"'")"
+  case "$url" in
+    ""|*@localhost:*|*@127.0.0.1:*) docker exec cylrm-db psql -U cylrm cylrm -tAc "$1" ;;
+    *) docker exec cylrm-db psql "$url" -tAc "$1" ;;
+  esac
+}'
+
 say "Checking working tree"
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "WARNING: uncommitted changes — you are about to deploy code that is not committed."
@@ -60,7 +82,11 @@ fi
 # /api/presence, so no shell script needs a credential. Freshness window must
 # match PRESENCE_TTL_SECONDS in src/lib/users.ts.
 say "Checking whether anyone is on a call"
-LIVE="$(ssh "$HOST" "docker exec cylrm-db psql -U cylrm cylrm -tAc \"select string_agg(name || case when on_call_since is not null and on_call_at > now() - interval '45 seconds' then ' (' || extract(epoch from (now() - on_call_since))::int || 's)' else ' (logging an outcome)' end, ', ') from app_user where (on_call_since is not null and on_call_at > now() - interval '45 seconds') or wrap_up_at > now() - interval '45 seconds'\"" 2>/dev/null || true)"
+LIVE="$(ssh "$HOST" GUARD_SQL="$(printf %q "$GUARD_SQL")" DB_GUARD_FN="$(printf %q "$DB_GUARD_FN")" bash -s 2>/dev/null <<'REMOTE' || true
+eval "$DB_GUARD_FN"
+dbq "$GUARD_SQL"
+REMOTE
+)"
 if [[ -n "${LIVE//[[:space:]]/}" ]]; then
   echo "on a call right now — $LIVE"
   echo "Building and shipping anyway; the restart waits for a clear moment."
@@ -161,10 +187,14 @@ ssh "$HOST" "cd $STAGE && node --env-file=.env scripts/seed-area-codes.mjs"
 # open, exactly as the one above does: if psql cannot be reached the app is in
 # worse trouble than a restart.
 restart_when_clear() {
-  ssh "$HOST" FORCE="${FORCE_DEPLOY:-}" STAGE_DIR="$STAGE" LIVE_DIR="$REMOTE" bash -s <<'REMOTE'
+  ssh "$HOST" FORCE="${FORCE_DEPLOY:-}" STAGE_DIR="$STAGE" LIVE_DIR="$REMOTE" GUARD_SQL="$(printf %q "$GUARD_SQL")" DB_GUARD_FN="$(printf %q "$DB_GUARD_FN")" bash -s <<'REMOTE'
 set -uo pipefail
+eval "$DB_GUARD_FN"
 if [ "${FORCE:-}" != "1" ]; then
-  live="$(docker exec cylrm-db psql -U cylrm cylrm -tAc "select coalesce(string_agg(name || case when on_call_since is not null and on_call_at > now() - interval '45 seconds' then ' (' || extract(epoch from (now() - on_call_since))::int || 's)' else ' (logging an outcome)' end, ', '), '') from app_user where (on_call_since is not null and on_call_at > now() - interval '45 seconds') or wrap_up_at > now() - interval '45 seconds'" 2>/dev/null || echo "")"
+  live="$(dbq "$GUARD_SQL" 2>/dev/null)" || {
+    echo "WARNING: could not read the database, restarting without the call guard" >&2
+    live=""
+  }
   if [ -n "${live//[[:space:]]/}" ]; then
     echo "BUSY $live"
     exit 9

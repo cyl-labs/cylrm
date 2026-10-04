@@ -32,6 +32,7 @@ fixed bug comes back.
 | The weekly call quota and the strip under the header | `docs/quota-bar.md` |
 | US DNC screening — built, verified and deliberately switched off | `docs/dnc.md` |
 | Telegram alerts when a genuine reply lands (email side) | `docs/reply-alerts.md` |
+| Which database the app is on (local container or Supabase), switching and rolling back, the Supabase public-API trap | `docs/database.md` |
 | How the build got here: phases 0-7, what is done, what the prod wipe kept | `docs/status.md` |
 
 Two rules survive that split and are repeated here because they bite from
