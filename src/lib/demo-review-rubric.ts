@@ -207,7 +207,7 @@ export const BOOKING_STAGES: {
     label: "Staying in after a first no",
     method: "Gong",
     means:
-      "When the owner said 'not interested', 'we are fine' or similar, the caller did not argue and did not just give up. They acknowledged it and asked one question (for example whether they are trying to capture more leads, or what makes them say that). A call that books usually gets past at least two objections. Not reached if there was no objection.",
+      "When the owner said 'not interested', 'we are fine' or similar, the caller did not argue and did not just give up. They acknowledged it and asked one question. Agreeing with the owner's no, or saying they would refuse the offer themselves, is partly at most (for example whether they are trying to capture more leads, or what makes them say that). A call that books usually gets past at least two objections. Not reached if there was no objection.",
   },
   {
     key: "close",
@@ -235,21 +235,21 @@ export const BOOKING_STAGES: {
     label: "Offering two times on two days",
     method: "Script",
     means:
-      "Offered two specific times on two different days and asked which works better, instead of asking an open 'when are you free?'. Not reached if no booking was attempted.",
+      "Offered two specific times on two different days and asked which works better, instead of asking an open 'when are you free?'. Two times on the SAME day is partly, and it is not done however many times were offered that day. Read the day each time was offered for; do not assume the days differed. Not reached if no booking was attempted.",
   },
   {
     key: "readback",
     label: "Saying the day and time back with AM or PM",
     method: "Script",
     means:
-      "Repeated the booked day and time back with morning or evening spoken out loud, and read the email back letter by letter. Not reached if no booking was made.",
+      "Repeated the booked day and time back with AM or PM (morning or afternoon) spoken out loud in the read back itself, and read the email back letter by letter. Saying AM or PM only when first offering the times does not count for the read back. Reading back only the email, or only 'tomorrow, one thirty', is partly. Not reached if no booking was made.",
   },
 ];
 
 export const BOOKING_RUBRIC_TEXT = [
   "REFERENCE: how a cold call that books a demo should go. Two sources.",
   "",
-  "THE HOUSE SCRIPT is the method callers are trained on and it overrides any textbook. It opens by asking what time they close, then what happens to calls after that, then whether they have considered a voice agent, letting the owner answer each. It only explains what a voice agent is if the owner asks. The close says the caller is not trying to sell anything today, that a demo was built for the owner's business, and that the team will call and put the agent on the line. If the owner says 'you're selling me something' the caller agrees ('fair enough, this is what I do') and shrinks the promise, and never says 'I'm not selling'. If the owner wants to do it right now, the caller sounds pleased and says no (the team books ahead). Once the owner says yes: get name and email and read the email back, ask their time zone BEFORE offering any times, offer two times on two different days (never an open question), say the time back with AM or PM, and book it while they are on the phone. On 'not interested' the caller says 'that's fair, can I ask one thing' and asks if they are trying to capture more leads. Calls that are voicemails, wrong numbers, or hang-ups early have nothing to score: mark the steps not_reached.",
+  "THE HOUSE SCRIPT is the method callers are trained on and it overrides any textbook. It opens by asking what time they close, then what happens to calls after that, then whether they have considered a voice agent, letting the owner answer each. It only explains what a voice agent is if the owner asks. The close says the caller is not trying to sell anything today, that a demo was built for the owner's business, and that the team will call and put the agent on the line. If the owner says 'you're selling me something' the caller agrees ('fair enough, this is what I do') and shrinks the promise, and never says 'I'm not selling'. If the owner wants to do it right now, the caller sounds pleased and says no (the team books ahead). Once the owner says yes: get name and email and read the email back, ask their time zone BEFORE offering any times, offer two times on two different days (never an open question), say the time back with AM or PM, and book it while they are on the phone. The caller never offers or hints at a price below the $99 list price, never promises the owner an answer on price, and never says they would turn the offer down themselves: a demo is booked, and price is for the team call. Doing any of these is the first thing to fix, ahead of every other step. On 'not interested' the caller says 'that's fair, can I ask one thing' and asks if they are trying to capture more leads. Calls that are voicemails, wrong numbers, or hang-ups early have nothing to score: mark the steps not_reached.",
   "",
   "GONG DATA ON COLD CALLS (correlation from hundreds of millions of recorded calls, mostly software sellers, so a guide and not a law). A clear reason for the call makes success about twice as likely. 'Did I catch you at a bad time?' and 'how's your day going?' were the worst openers (they hand the owner an exit or sound like a telemarketer). Describing the prospect's pain in specific, plain words booked about three times as often as buzzwords and jargon. Successful cold calls last about six minutes versus three for failed ones, and a call that books usually survives at least two objections: folding at the first 'not interested' loses it. Most objections ('not interested', 'not for us', 'no budget', 'not my job') are reflexes at being interrupted, not real positions: do not argue, acknowledge and ask. Reaching a gatekeeper instead of the owner cuts the chance of booking by about 39%. On successful cold calls the caller talks about 55% of the time.",
   "",
