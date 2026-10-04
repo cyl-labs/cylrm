@@ -38,6 +38,15 @@ since would be left behind.
   every copy to Supabase. **After a migration that adds a table, run the same
   two statements**, or the new table is readable from the internet. Tables made
   by `drizzle-kit push` are not safe either.
+- **The session pooler allows 15 connections in all, and the app used to take
+  every one** (2026-10-04). Production built `src/db/index.ts` into several
+  chunks that each opened their own pool, so `max: 10` meant 15 held. Every other
+  client (deploy scripts, the readonly endpoint, a laptop) then got
+  `EMAXCONNSESSION`. The client is now one per process on `globalThis`, capped by
+  `DB_POOL_MAX` (8 on the droplet) and releasing idle connections after 30s. If a
+  script fails with that error, something is holding the slots: count them with
+  `ss -tn state established '( dport = :5432 )'` on the droplet. Raising the pool
+  size in the Supabase dashboard (Database, Connection pooling) gives headroom.
 - **Use the session pooler, not the transaction pooler (port 6543).** The
   transaction pooler has no prepared statements, which postgres.js uses.
 - **`deploy.sh`'s call guard asks whichever database `DATABASE_URL` names.** It
