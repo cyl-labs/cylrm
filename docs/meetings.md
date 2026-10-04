@@ -2463,6 +2463,17 @@ generates, `call_meeting_review` stores (`2026-10-03-meeting-review.sql`,
 - Tested on a made-up pitch-first transcript (12 steps scored, quotes verified,
   objection picked out). **Not yet checked in a browser against a real demo.**
 
+### Demo review: Challenger removed from scoring (2026-10-04)
+
+The three Challenger steps (teach, tailor, take control) and the Challenger reference text
+are gone from `lib/demo-review-rubric.ts`, so a demo is scored on thirteen steps: nine NEPQ
+and four Gong. Founders' reasons: our product is the same every time and Challenger suits
+custom, complex sales; and it contradicts NEPQ on who leads, so the same closer was marked
+down in both directions on one call (Grange, 2026-10-03: "steering price" partly for letting
+the owner lead, "letting them decide" missed). Next step agreed stays in the scoring. Stored
+reviews carry the old sixteen steps until "Review it again" is pressed, since the fingerprint
+includes the rubric.
+
 ### Demo review, second pass: the Gong Files checks (2026-10-03)
 
 A second PDF from the mentor, "The Gong Files" (Dial Club, Oct 2026), was folded
