@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Upload, X } from "lucide-react";
+import { Upload, X } from "lucide-react";
 import { FileDrop } from "@/components/file-drop";
 import type { CallRegion } from "@/lib/calls";
 import { REGION_LABELS, REGION_ORDER } from "@/components/calls/region";
