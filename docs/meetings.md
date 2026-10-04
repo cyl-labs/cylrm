@@ -2463,6 +2463,37 @@ generates, `call_meeting_review` stores (`2026-10-03-meeting-review.sql`,
 - Tested on a made-up pitch-first transcript (12 steps scored, quotes verified,
   objection picked out). **Not yet checked in a browser against a real demo.**
 
+### Demo review: Challenger removed from scoring (2026-10-04)
+
+The three Challenger steps (teach, tailor, take control) and the Challenger reference text
+are gone from `lib/demo-review-rubric.ts`, so a demo is scored on thirteen steps: nine NEPQ
+and four Gong. Founders' reasons: our product is the same every time and Challenger suits
+custom, complex sales; and it contradicts NEPQ on who leads, so the same closer was marked
+down in both directions on one call (Grange, 2026-10-03: "steering price" partly for letting
+the owner lead, "letting them decide" missed). Next step agreed stays in the scoring. Stored
+reviews carry the old sixteen steps until "Review it again" is pressed, since the fingerprint
+includes the rubric.
+
+### Demo review: "What the owner felt strongly about" (2026-10-04)
+
+Asked for after nobody noticed from the summary that Grange's owner said the call was "a
+waste of time" about five times, the first before any pitch. The demo review now also
+returns `ownerMoments`: up to six of the owner's own lines where they showed a strong
+feeling or changed course, each with what they felt and what the closer did next. It is
+drawn above "How each step went" and says it is not a grade. **It is not scored and feeds
+no rating.**
+
+- Same OpenAI call as the review, so no new spend line and no migration (it lives in the
+  review's jsonb). Demo reviews only, not booking reviews.
+- **The quote is checked against the Prospect's lines only**, so a line the closer said can
+  never appear as an owner moment. An old text-only transcript with no speaker labels falls
+  back to the whole call.
+- It cannot hear tone, only words: a polite owner reads as calm, and two runs can pick
+  slightly different lines.
+- **Not yet run against a real transcript**: the session that wrote it had no OpenAI key.
+  The first thing to do after deploying is press "Review it again" on Grange (meeting
+  112318) and check it finds the "waste of time" lines.
+
 ### Demo review, second pass: the Gong Files checks (2026-10-03)
 
 A second PDF from the mentor, "The Gong Files" (Dial Club, Oct 2026), was folded

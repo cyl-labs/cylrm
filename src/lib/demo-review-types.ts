@@ -8,7 +8,7 @@ export type StageRating = "done" | "partly" | "missed" | "not_reached";
 export type ReviewStage = {
   key: string;
   label: string;
-  method: "NEPQ" | "Challenger" | "Gong" | "Script";
+  method: "NEPQ" | "Gong" | "Script";
   rating: StageRating;
   /** Exact words from the call that back the rating, or null. */
   evidence: string | null;
@@ -26,6 +26,10 @@ export type DemoReview = {
   toImprove: { what: string; tryThis: string }[];
   objections: { theySaid: string; handled: string; tryThis: string }[];
   biggestFix: string;
+  /** The owner's own strongest lines (2026-10-04), kept apart from the scoring:
+   *  what they felt, not how the closer did. `quote` is verified against the
+   *  owner's lines in the transcript. Demo reviews only; absent on older ones. */
+  ownerMoments?: { quote: string; feeling: string; closerNext: string }[];
   /** Counted from the transcript, never written by the model. */
   talk: { closerPercent: number; closerQuestions: number; minutes: number };
   /** The recordings this review was written from, so the fold can show which

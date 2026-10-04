@@ -197,6 +197,29 @@ export function DemoReviewFold({
               </Section>
             )}
 
+            {r.ownerMoments && r.ownerMoments.length > 0 && (
+              <div>
+                <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  What the owner felt strongly about
+                </p>
+                <p className="mb-1 text-[12px] text-muted-foreground">
+                  The owner&apos;s own words, in the order they said them. This is
+                  about the owner, not a grade for the closer.
+                </p>
+                <ul className="space-y-1.5">
+                  {r.ownerMoments.map((m, i) => (
+                    <li key={i} className="rounded-md border bg-card px-2.5 py-1.5">
+                      <p className="font-medium">&ldquo;{m.quote}&rdquo;</p>
+                      <p className="mt-0.5">{m.feeling}</p>
+                      <p className="mt-0.5 text-[12px] text-muted-foreground">
+                        Then: {m.closerNext}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div>
               <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
                 How each step went
