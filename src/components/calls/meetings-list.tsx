@@ -64,6 +64,7 @@ import { DemoReviewFold } from "@/components/calls/demo-review-fold";
 import type { StoredReview } from "@/lib/demo-review-types";
 import {
   CallSummariesFold,
+  LONG_CALL_MS,
 } from "@/components/calls/call-summaries-fold";
 import {
   CallBackPrompt,
@@ -2803,35 +2804,56 @@ export function MeetingsList({
                 briefing (2026-10-02). Shown on a cancelled booking too: its
                 recordings are still there to read about. */}
             <CallSummariesFold
-              items={(() => {
-                // The same calls as the chips above, in the same order, each
-                // with its summary where one is written (2026-10-05: every
-                // call, not only long ones). The cold call's summary is left
-                // out when a briefing is written for it above: that is made
+              items={[
+                // Not when a briefing is written for it above: that is made
                 // from this same call, so the fold repeated it (2026-10-03).
-                const written = new Map<string, string>();
-                for (const r of [
-                  ...m.demoRecordings,
-                  ...m.earlierDemoRecordings,
-                  ...m.otherRecordings,
-                ]) {
-                  if (r.summary) written.set(r.recordingId, r.summary);
-                }
-                const briefed = !!(briefs && !cancelled && briefs[m.id]);
-                return chips
-                  .filter((c) => !(c.key === "cold" && briefed))
-                  .map((c) => ({
-                    key: c.key,
-                    recordingId: c.recordingId,
-                    label: c.label,
-                    durationMs: c.ms,
-                    text:
-                      c.key === "cold"
-                        ? (m.recordingSummary ?? "")
-                        : (written.get(c.recordingId) ?? ""),
-                    kind: recordingKinds[c.recordingId] ?? ("unknown" as const),
-                  }));
-              })()}
+                // Only once one exists: with the briefing fold present but
+                // still "not written yet", this was the row's only summary
+                // and hiding it left the row blank (2026-10-03, Just Junk It
+                // 432, Junk Solution, Holzfaller).
+                ...(m.recordingSummary && !(briefs && !cancelled && briefs[m.id])
+                  ? [
+                      {
+                        key: "cold",
+                        label: "Cold call",
+                        durationMs: m.recordingMs,
+                        text: m.recordingSummary,
+                      },
+                    ]
+                  : []),
+                ...earlierDemo.map((r, i) => ({
+                  key: r.recordingId,
+                  recordingId: r.recordingId,
+                  label: i === 0 ? "Demo call" : `Demo call ${i + 1}`,
+                  durationMs: r.durationMs,
+                  text: r.summary ?? "",
+                })),
+                ...ownRecordings.map((r, i) => {
+                  const name = m.kind === "follow_up" ? "Follow-up call" : "Demo call";
+                  return {
+                    key: r.recordingId,
+                    recordingId: r.recordingId,
+                    label: i === 0 ? name : `${name} ${i + 1}`,
+                    durationMs: r.durationMs,
+                    text: r.summary ?? "",
+                  };
+                }),
+                ...otherCalls.map((r) => ({
+                  key: r.recordingId,
+                  recordingId: r.recordingId,
+                  label: r.byName
+                    ? `${r.direction === "in" ? "They called" : "Call"} (${r.byName})`
+                    : "Other call",
+                  durationMs: r.durationMs,
+                  text: r.summary ?? "",
+                })),
+              ].filter(
+                // A long call is listed even before its summary is written,
+                // with a button to write it.
+                (x) =>
+                  x.text.trim() !== "" ||
+                  ("recordingId" in x && (x.durationMs ?? 0) >= LONG_CALL_MS),
+              )}
             />
 
             {lead && lead.texts.length > 0 && (

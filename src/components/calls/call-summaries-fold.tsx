@@ -5,14 +5,15 @@ import { ChevronRight, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { briefLines } from "@/lib/brief-lines";
-import type { RecordingKind } from "@/lib/recording-kinds";
+
+/** A call this long is worth a summary. The same five minutes the server uses
+ *  (`SUMMARY_MIN_MS` in lib/call-summary, which cannot be imported here: it
+ *  reaches the database). */
+export const LONG_CALL_MS = 5 * 60_000;
 
 /**
- * The written summaries of a business's calls, folded under the briefing on a
- * Meetings row (2026-10-02). Every call is listed with a button to write one
- * (2026-10-05); it was long calls only, which left a two minute conversation
- * with no way to get a summary at all. The cron still writes the long ones by
- * itself; a short one is only ever written on a press.
+ * The written summaries of a business's long calls, folded under the briefing
+ * on a Meetings row (2026-10-02).
  *
  * The briefing above it is written from the call that booked the meeting. A
  * demo that ran seventeen minutes, or a follow-up that ran twenty, had nothing
@@ -31,9 +32,6 @@ export type CallSummaryItem = {
   label: string;
   durationMs: number | null;
   text: string;
-  /** Voicemail, no answer, spoke to someone: so a greeting is not mistaken for
-   *  a conversation worth summarising. */
-  kind?: RecordingKind;
 };
 
 const mmss = (ms: number | null) =>
@@ -93,7 +91,7 @@ export function CallSummariesFold({ items }: { items: CallSummaryItem[] }) {
       <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
         <ScrollText className="size-3.5 shrink-0 text-muted-foreground" />
-        Call summaries
+        Summaries of long calls
         <span className="font-normal text-muted-foreground">{items.length}</span>
       </summary>
       <div className="space-y-3 border-t px-3 py-2.5">
@@ -107,18 +105,11 @@ export function CallSummariesFold({ items }: { items: CallSummaryItem[] }) {
                   {mmss(x.durationMs)}
                 </span>
               )}
-              {(x.kind === "voicemail" || x.kind === "no_answer") && (
-                <span className="ml-1.5 rounded bg-warning/25 px-1.5 py-0.5 text-[10px] font-bold text-warning-foreground dark:text-warning">
-                  {x.kind === "voicemail" ? "Voicemail" : "No answer"}
-                </span>
-              )}
             </p>
             {!(written[x.key] ?? x.text) && (
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="text-[13px] text-muted-foreground">
-                  {x.kind === "voicemail" || x.kind === "no_answer"
-                    ? "Nobody spoke, so there is probably nothing to summarise."
-                    : "No summary written yet."}
+                  No summary written yet.
                 </span>
                 {x.recordingId && (
                   <Button

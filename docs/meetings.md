@@ -2945,24 +2945,24 @@ was won, so it comes first). Each chip carries a tag from `lib/recording-kinds.t
 - Calls nobody logged and nobody transcribed read "Not checked": transcripts are made on
   request, so a founder's call with no outcome is often unknown.
 
-## A summary on any call, not only long ones (2026-10-05)
+## A summary on any call, on request (2026-10-05)
 
-Asked for after a 3:33 demo had no way to get one. The five-minute rule was enforced in
-four places and is now in one: **`SUMMARY_MIN_MS` (5 min) decides only what the cron
-writes by itself** (`meeting-calls.ts`, recent calls). Everything on request is open:
-`POST /api/recordings/[id]/summary` no longer refuses short calls, the recording sheet
-offers "Write a summary" on any call with a transcript, and the "Call summaries" fold
-(was "Summaries of long calls") lists every call on the row with the button, in the same
-oldest-first order as the chips. `LONG_CALL_MS` is gone.
+Asked for after a 3:33 demo had no way to get one: the summary button only appeared on
+calls over five minutes. **Now it is on every call with a transcript, and only ever on a
+press**: click the recording chip, then "Summarize this call" in the sheet. Nothing is
+written for a short call by itself; the founders were explicit ("don't auto write").
 
-- **Still needs the transcript**, so a press on a call with none transcribes it first (the
-  fold does this for you); that is billed per minute, which is why it only ever happens on
-  a press. A transcript under 200 characters answers "Not enough was said on this call to
-  summarise", so a voicemail with nothing in it costs no summary.
-- **A call tagged voicemail or no answer says so in the fold** ("Nobody spoke, so there is
-  probably nothing to summarise") and the button is still there, in case the tag is wrong.
+- **`SUMMARY_MIN_MS` (5 min) still decides only what the cron writes by itself**
+  (`meeting-calls.ts`, recent long calls), which is unchanged. `POST
+  /api/recordings/[id]/summary` no longer refuses a short call, and the recording sheet no
+  longer hides the button under five minutes.
+- **A first version also put a "Write summary" button on every call in the "Summaries of
+  long calls" fold on the row. Reverted the same day**: the request was to click into the
+  call, and a fold full of buttons (one per voicemail) was the wrong shape. The fold, and
+  the payroll list that reuses it, are as they were.
+- **Needs the transcript**, so a call with none shows the sheet's own "get the transcript"
+  step first (billed per minute, which is why it is a press). A transcript under 200
+  characters answers "Not enough was said on this call to summarise".
 - The summary prompt is written around the cold-call script (hours, after hours, voice
   agent, demo) and reports "no time came up" where nothing did. On a short call it simply
   has fewer lines. A prompt tuned for short calls is a separate piece of work.
-- The cold call's entry is still left out when a briefing is written for it above, since
-  that is the same call.

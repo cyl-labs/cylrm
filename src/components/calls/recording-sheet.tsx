@@ -244,7 +244,7 @@ export function RecordingSheet({
               <div className="mb-4">
                 <Button size="sm" variant="outline" onClick={writeSummary} disabled={summarising}>
                   {summarising && <Loader2 className="size-4 animate-spin" />}
-                  {summarising ? "Writing…" : "Write a summary"}
+                  {summarising ? "Summarizing…" : "Summarize this call"}
                 </Button>
               </div>
             )
