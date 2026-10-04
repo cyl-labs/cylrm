@@ -33,6 +33,7 @@ fixed bug comes back.
 | US DNC screening — built, verified and deliberately switched off | `docs/dnc.md` |
 | Telegram alerts when a genuine reply lands (email side) | `docs/reply-alerts.md` |
 | Which database the app is on (local container or Supabase), switching and rolling back, the Supabase public-API trap | `docs/database.md` |
+| Deploying from GitHub with no laptop, the restricted deploy key and what it cannot do | `docs/deploy-from-github.md` |
 | How the build got here: phases 0-7, what is done, what the prod wipe kept | `docs/status.md` |
 
 Two rules survive that split and are repeated here because they bite from
@@ -225,7 +226,7 @@ npm run dev
 
 DigitalOcean droplet `178.128.28.158` (host `wilnor`, shared with n8n/swee/docuseal — 1 vCPU, 2GB; do NOT run `next build` there, build locally and rsync `.next`):
 
-- **Deploy with `./scripts/deploy.sh`** (or the `/deploy` slash command; `--dry-run` to preview). It warns on uncommitted/unpushed work, checks SSH, builds locally, rsyncs, reinstalls deps on the droplet only when `package-lock.json` changed, restarts PM2, and smoke-tests the login page. There is no CI and no git checkout on the droplet — deploys are push-from-laptop and only happen when a person asks.
+- **Deploy with `./scripts/deploy.sh`** (or the `/deploy` slash command; `--dry-run` to preview). **With no laptop** (a Claude Code cloud session cannot SSH out), run the GitHub workflow "Deploy to droplet"; see `docs/deploy-from-github.md`. It warns on uncommitted/unpushed work, checks SSH, builds locally, rsyncs, reinstalls deps on the droplet only when `package-lock.json` changed, restarts PM2, and smoke-tests the login page. There is no CI and no git checkout on the droplet — deploys are push-from-laptop and only happen when a person asks.
 - **The restart waits for a gap between calls, and the check lives in the same
   remote shell as `pm2 restart`.** A restart does not drop a call — the audio
   runs browser-to-Telnyx — but it can lose the outcome logged at the end of one,
