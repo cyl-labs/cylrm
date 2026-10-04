@@ -11,12 +11,14 @@
 # request over in SSH_ORIGINAL_COMMAND. Three requests are understood and
 # anything else is refused, so a leaked key cannot open a shell, read a file or
 # touch the database; the worst it can do is deploy what it is given, and a
-# deploy only goes live in a gap between calls.
+# deploy or a restart only happens in a gap between calls.
 #
 #   rsync --server ...   upload into /root/crm-stage only (rrsync -wo: write-only, so
 #                        the key cannot read anything back out, and `..` is refused)
 #   prepare              make the staging folder ready for an upload
 #   finish [seconds]     seed, wait for a gap between calls, restart, smoke test
+#   restart [seconds]    wait for a gap between calls, restart what is already live
+#                        (no upload, no staging): for an app that is stuck
 #
 # The steps mirror scripts/deploy.sh (the laptop route), and the call guard is
 # the same query: **if the rule for "is anyone on a call" changes, change it in
@@ -53,6 +55,39 @@ prepare() {
   echo "staging folder ready"
 }
 
+# The guard and the restart in the same breath, as in deploy.sh: a restart
+# costs a call's outcome if it lands while somebody is saving it. Fails open
+# (nobody) if the database cannot be read, with a warning, as it always has.
+# $2 = "copy" also moves the staged files over the live folder first.
+restart_when_clear() {
+  local wait_seconds="$1" mode="${2:-}" deadline tick=0 live
+  deadline=$((SECONDS + wait_seconds))
+  while true; do
+    live="$(dbq "$GUARD_SQL" 2>/dev/null)" || { echo "WARNING: could not read the database, restarting without the call guard"; live=""; }
+    if [ -z "${live//[[:space:]]/}" ]; then
+      if [ "$mode" = copy ]; then
+        rsync -a --delete --exclude /node_modules --exclude ".env*" --exclude .claude --exclude .git "$STAGE/" "$LIVE/" || { echo "ERROR: copy failed"; return 1; }
+      fi
+      pm2 restart crm crm-worker || return 1
+      return 0
+    fi
+    if (( SECONDS >= deadline )); then
+      echo "ERROR: still on a call after ${wait_seconds}s: $live"
+      echo "Did not restart. The live app is untouched; nothing is half-done. Run it again to finish."
+      return 9
+    fi
+    if (( tick % 6 == 0 )); then echo "waiting for a clear line: $live ($(( (deadline - SECONDS) / 60 ))m left)"; fi
+    tick=$((tick + 1)); sleep 5
+  done
+}
+
+smoke() {
+  local code
+  sleep 5
+  code="$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:3005/login || echo 000)"
+  if [ "$code" = "200" ]; then echo "login page returned 200: deploy looks good."; else echo "ERROR: login page returned $code"; return 1; fi
+}
+
 finish() {
   local wait_seconds="$1"
   exec 9>/root/.deploy.lock
@@ -72,30 +107,16 @@ finish() {
   echo "publishing area codes"
   (cd "$STAGE" && node --env-file=.env scripts/seed-area-codes.mjs) || return 1
 
-  # The guard and the restart in the same breath, as in deploy.sh: a restart
-  # costs a call's outcome if it lands while somebody is saving it. Fails open
-  # (nobody) if the database cannot be read, with a warning, as it always has.
-  local deadline=$((SECONDS + wait_seconds)) tick=0 live
-  while true; do
-    live="$(dbq "$GUARD_SQL" 2>/dev/null)" || { echo "WARNING: could not read the database, restarting without the call guard"; live=""; }
-    if [ -z "${live//[[:space:]]/}" ]; then
-      rsync -a --delete --exclude /node_modules --exclude ".env*" --exclude .claude --exclude .git "$STAGE/" "$LIVE/" || { echo "ERROR: copy failed"; return 1; }
-      pm2 restart crm crm-worker || return 1
-      break
-    fi
-    if (( SECONDS >= deadline )); then
-      echo "ERROR: still on a call after ${wait_seconds}s: $live"
-      echo "Did not restart. The new files are staged but the live app is untouched; nothing is half-done. Run the deploy again to finish."
-      return 9
-    fi
-    if (( tick % 6 == 0 )); then echo "waiting for a clear line: $live ($(( (deadline - SECONDS) / 60 ))m left)"; fi
-    tick=$((tick + 1)); sleep 5
-  done
+  restart_when_clear "$wait_seconds" copy || return $?
 
-  sleep 5
-  local code
-  code="$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:3005/login || echo 000)"
-  if [ "$code" = "200" ]; then echo "login page returned 200: deploy looks good."; else echo "ERROR: login page returned $code"; return 1; fi
+  smoke
+}
+
+restart_only() {
+  exec 9>/root/.deploy.lock
+  flock -n 9 || { echo "ERROR: a deploy or restart is already running"; return 3; }
+  restart_when_clear "$1" || return $?
+  smoke
 }
 
 if [[ "$cmd" == "rsync --server"* ]]; then
@@ -104,6 +125,8 @@ elif [[ "$cmd" == "prepare" ]]; then
   prepare; exit $?
 elif [[ "$cmd" =~ ^finish(\ ([0-9]{1,4}))?$ ]]; then
   finish "${BASH_REMATCH[2]:-600}"; exit $?
+elif [[ "$cmd" =~ ^restart(\ ([0-9]{1,4}))?$ ]]; then
+  restart_only "${BASH_REMATCH[2]:-600}"; exit $?
 else
   echo "not allowed" >&2
   exit 2

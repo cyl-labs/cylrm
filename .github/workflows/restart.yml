@@ -1,0 +1,51 @@
+# Restart the app on the droplet, nothing else (2026-10-04): for an app that is
+# stuck, when there is no new code to ship. Actions tab, "Restart app", Run
+# workflow, or the GitHub phone app.
+#
+# It asks the droplet to restart and the droplet WAITS FOR A GAP BETWEEN CALLS
+# first, the same check a deploy uses. There is no force option: a restart in the
+# middle of a call loses the outcome being saved. Uses the same restricted key and
+# settings as "Deploy to droplet" (see docs/deploy-from-github.md); needs no build.
+name: Restart app
+
+on:
+  workflow_dispatch:
+    inputs:
+      wait_seconds:
+        description: "How long to wait for a gap between calls before giving up (seconds, max 3600)"
+        default: "600"
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      HOST: root@178.128.28.158
+    steps:
+      - name: SSH key
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOSTKEY: ${{ vars.DEPLOY_HOST_KEY }}
+        run: |
+          test -n "$KEY" || { echo "DEPLOY_SSH_KEY is not set"; exit 1; }
+          test -n "$HOSTKEY" || { echo "DEPLOY_HOST_KEY is not set"; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$HOSTKEY" > ~/.ssh/known_hosts
+
+      - name: Wait for a gap between calls, restart
+        env:
+          WAIT: ${{ inputs.wait_seconds }}
+        run: |
+          SSH="ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ServerAliveInterval=30"
+          case "$WAIT" in (*[!0-9]*|"") WAIT=600 ;; esac
+          [ "$WAIT" -le 3600 ] || WAIT=3600
+          $SSH "$HOST" "restart $WAIT"

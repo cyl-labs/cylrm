@@ -9,7 +9,14 @@ Actions, **beside** the first one, which is unchanged.
 the GitHub phone app). Manual trigger only: merging to `main` must not restart
 the app. Set "wait_seconds" higher if the floor is busy (default 600, max 3600).
 
-What it does: builds `main` on GitHub (the droplet is 1 vCPU / 2 GB), uploads the
+**Two buttons, same key and settings:**
+- **Deploy to droplet**: new code. Builds, uploads, seeds, waits for a gap, restarts.
+- **Restart app**: no new code, for an app that is stuck (`.github/workflows/restart.yml`).
+  Asks the droplet to restart what is already live, and the droplet waits for a
+  gap between calls first, exactly as a deploy does. No build, so it takes seconds
+  once the line is clear. Both share one concurrency group, so they never overlap.
+
+What the deploy does: builds `main` on GitHub (the droplet is 1 vCPU / 2 GB), uploads the
 result to the droplet's **staging folder**, then runs `finish` on the droplet,
 which seeds, **waits for a gap between calls**, copies staging over the live
 folder, restarts, and checks the login page. The call check is the same query as
@@ -22,9 +29,9 @@ callback on 2026-10-03, and nobody should be able to skip the wait from a phone.
 The workflow connects as root with a key whose entry in
 `/root/.ssh/authorized_keys` is `command="/root/deploy-gate.sh",restrict ...`.
 sshd then runs the gate whatever the client asked for, and the gate understands
-exactly three requests: `rsync --server ...` (handed to `rrsync -wo`, which
-confines it to `/root/crm-stage`, write only, no `..`), `prepare`, and
-`finish [seconds]`. Anything else prints "not allowed". `restrict` also turns off
+exactly four requests: `rsync --server ...` (handed to `rrsync -wo`, which
+confines it to `/root/crm-stage`, write only, no `..`), `prepare`,
+`finish [seconds]` and `restart [seconds]`. Anything else prints "not allowed". `restrict` also turns off
 shells, port forwarding and agent forwarding. Tested 2026-10-04: `id`,
 `cat /etc/shadow`, a shell, `finish; id`, a port forward to the CRM, reading the
 staging folder back out, and a `..` upload all fail.
@@ -58,5 +65,9 @@ staging folder back out, and a `..` upload all fail.
   has 3.2.7, the same as Ubuntu 24.04), not with the Mac's.
 - **The `--exclude` flags never reach the server**; they are applied on the
   client, so `rrsync` only ever sees `rsync --server ... --delete . /`.
+- **Tested with a positive control, 2026-10-04:** with the admin marked "logging an
+  outcome", `restart 12` waited, gave up with exit 9 and did NOT restart (the app's
+  start time was unchanged). A guard that only ever says "nobody" would look the
+  same on a quiet floor, so a restart route is not proven until it has refused once.
 - Duplicated on purpose, so change both together: the call-guard SQL and the
   restart steps live in `scripts/deploy.sh` and `scripts/deploy-gate.sh`.
