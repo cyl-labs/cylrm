@@ -2944,3 +2944,25 @@ was won, so it comes first). Each chip carries a tag from `lib/recording-kinds.t
   as a conversation, never the other way round.
 - Calls nobody logged and nobody transcribed read "Not checked": transcripts are made on
   request, so a founder's call with no outcome is often unknown.
+
+## A summary on any call, not only long ones (2026-10-05)
+
+Asked for after a 3:33 demo had no way to get one. The five-minute rule was enforced in
+four places and is now in one: **`SUMMARY_MIN_MS` (5 min) decides only what the cron
+writes by itself** (`meeting-calls.ts`, recent calls). Everything on request is open:
+`POST /api/recordings/[id]/summary` no longer refuses short calls, the recording sheet
+offers "Write a summary" on any call with a transcript, and the "Call summaries" fold
+(was "Summaries of long calls") lists every call on the row with the button, in the same
+oldest-first order as the chips. `LONG_CALL_MS` is gone.
+
+- **Still needs the transcript**, so a press on a call with none transcribes it first (the
+  fold does this for you); that is billed per minute, which is why it only ever happens on
+  a press. A transcript under 200 characters answers "Not enough was said on this call to
+  summarise", so a voicemail with nothing in it costs no summary.
+- **A call tagged voicemail or no answer says so in the fold** ("Nobody spoke, so there is
+  probably nothing to summarise") and the button is still there, in case the tag is wrong.
+- The summary prompt is written around the cold-call script (hours, after hours, voice
+  agent, demo) and reports "no time came up" where nothing did. On a short call it simply
+  has fewer lines. A prompt tuned for short calls is a separate piece of work.
+- The cold call's entry is still left out when a briefing is written for it above, since
+  that is the same call.

@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
 import {
   CallSummariesFold,
-  LONG_CALL_MS,
   type CallSummaryItem,
 } from "@/components/calls/call-summaries-fold";
 
@@ -452,8 +451,6 @@ function SummaryFold({ d }: { d: DemoView }) {
       durationMs: r.durationMs,
       text: r.summary ?? "",
     })),
-  ].filter(
-    (x) => x.text.trim() !== "" || (x.durationMs ?? 0) >= LONG_CALL_MS,
-  );
+  ];
   return <CallSummariesFold items={items} />;
 }

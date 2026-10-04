@@ -68,10 +68,9 @@ export function RecordingSheet({
   const router = useRouter();
   const [turns, setTurns] = React.useState<TranscriptTurn[] | null>(null);
   const [text, setText] = React.useState<string | null>(null);
-  // The written summary of a call over five minutes, and how long the call
-  // was, which decides whether to offer to write one.
+  // The written summary of a call, and how long the call was. The button is
+  // offered on any call with a transcript (2026-10-05), not only long ones.
   const [summary, setSummary] = React.useState<string | null>(null);
-  const [durationMs, setDurationMs] = React.useState<number | null>(null);
   const [summarising, setSummarising] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   // Whether the "is there one already" question has been answered yet. Without
@@ -92,7 +91,6 @@ export function RecordingSheet({
     setTurns(null);
     setText(null);
     setSummary(null);
-    setDurationMs(null);
     setLoaded(false);
     setAt(0);
   }
@@ -109,7 +107,6 @@ export function RecordingSheet({
         text: string | null;
         turns: TranscriptTurn[] | null;
         summary?: string | null;
-        durationMs?: number | null;
       } | null) => {
         if (stale) return;
         if (data?.turns) {
@@ -117,7 +114,6 @@ export function RecordingSheet({
           setText(data.text);
         }
         setSummary(data?.summary?.trim() ? data.summary : null);
-        setDurationMs(data?.durationMs ?? null);
         setLoaded(true);
       })
       .catch(() => !stale && setLoaded(true));
@@ -244,8 +240,7 @@ export function RecordingSheet({
           ) : (
             loaded &&
             turns !== null &&
-            turns.length > 0 &&
-            (durationMs ?? 0) >= 5 * 60_000 && (
+            turns.length > 0 && (
               <div className="mb-4">
                 <Button size="sm" variant="outline" onClick={writeSummary} disabled={summarising}>
                   {summarising && <Loader2 className="size-4 animate-spin" />}
