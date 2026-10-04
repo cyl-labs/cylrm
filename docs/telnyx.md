@@ -869,6 +869,30 @@ Alex's 74% reach and Brian's 22 calls come out as watch and too few. The cutoffs
 travel with the data (`NumberHealth.limits`) so the wording on the page cannot
 drift from the rules.
 
+## Starting a number's spam check over (2026-10-04)
+
+The estimate reads the last 7 days, so a number marked "Probably flagged" for a
+habit that has since been fixed keeps the mark for a week. Asked for after Aaron
+was told to stop dropping calls inside 8 seconds, which the detector reads as a
+carrier refusal. **"Fixed the cause? Start its spam check over"** under each
+number on Team (`PATCH /api/call-dids` with `healthReset: true`, false undoes it).
+
+- **`call_number.health_reset_at`** (`2026-10-04-number-health-reset.sql`, additive,
+  **apply before deploying**: every Team page load selects it; applied to prod
+  2026-10-04). Every query in `lib/number-health.ts` ignores calls from before it,
+  through a `left join call_number`: logged calls, the daily fall, hangups, volume,
+  recording lengths and redials. **A new signal added there needs the same join**, or
+  it will quietly keep reading the old week.
+- The number then says "Too few calls to tell" until 60 are logged from the reset
+  (`HEALTH_MIN_CALLS`). A reset number with no calls since still gets an empty row, so
+  its note and undo button stay on the panel.
+- **The alert memory is wiped too** (`number_alert.last_status` back to `few`, the
+  cooldowns cleared). The Telegram alert fires on a *change* to flagged, so without
+  that a number last seen flagged would stay silent if it flagged again.
+- **It does not prove the cause.** If the number really is burned, the same pattern
+  returns inside a day or two and it flags again. Fast drops and low reach are what a
+  refusing carrier looks like as well as what an early hang-up looks like.
+
 ## Taking a number off someone also takes it off their line (2026-10-03)
 
 "When I deactivate a team member their Telnyx room is still associated with the

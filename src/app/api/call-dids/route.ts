@@ -96,6 +96,9 @@ export async function PATCH(request: Request) {
     /** What a phone showed, to record that this number was seen labelled as
      *  spam; null clears it. */
     spamSeen?: unknown;
+    /** true starts the number's spam check over from now, false counts every
+     *  call again. */
+    healthReset?: unknown;
   } | null;
   if (!body || typeof body.phoneNumber !== "string") {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
@@ -109,7 +112,8 @@ export async function PATCH(request: Request) {
   const setAvailable = typeof body.available === "boolean";
   const hasLabel = "label" in body;
   const hasSpamSeen = "spamSeen" in body;
-  if (!setAvailable && !hasLabel && !hasSpamSeen) {
+  const hasHealthReset = typeof body.healthReset === "boolean";
+  if (!setAvailable && !hasLabel && !hasSpamSeen && !hasHealthReset) {
     return Response.json(
       { error: "Nothing to change." },
       { status: 400 },
@@ -179,8 +183,33 @@ export async function PATCH(request: Request) {
     );
   }
 
+  if (hasHealthReset) {
+    // Starting over: the check ignores calls from before now, and the alert
+    // memory is wiped with it. Without that, a number last seen "flagged"
+    // would stay quiet if it flagged again, because the alert only fires on
+    // a change of status. Undoing leaves the alert memory alone: it is a
+    // reading of what the numbers say, and the next tick rewrites it.
+    await db.execute(
+      body.healthReset === true
+        ? sql`
+            update call_number set health_reset_at = now(), updated_at = now()
+            where phone_number = ${body.phoneNumber}`
+        : sql`
+            update call_number set health_reset_at = null, updated_at = now()
+            where phone_number = ${body.phoneNumber}`,
+    );
+    if (body.healthReset === true) {
+      await db.execute(sql`
+        update number_alert
+        set last_status = 'few', alerted_at = null, fell_alerted_at = null
+        where phone_number = ${body.phoneNumber}
+      `);
+    }
+  }
+
   return Response.json({
     phoneNumber: body.phoneNumber,
+    ...(hasHealthReset ? { healthReset: body.healthReset } : {}),
     ...(hasSpamSeen ? { spamSeen: body.spamSeen === null ? null : spamSeen } : {}),
     ...(setAvailable ? { available: body.available } : {}),
     ...(hasLabel ? { label } : {}),

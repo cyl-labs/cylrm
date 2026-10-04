@@ -110,8 +110,9 @@ function HealthLine({ h }: { h: NumberHealth }) {
       dot: "bg-muted-foreground/40",
       text: "text-muted-foreground",
       title: "Too few calls to tell",
-      says:
-        h.total > h.calls
+      says: h.resetAt
+        ? `Started over. Calls before the reset are ignored, and it takes ${h.limits.minCalls} logged calls from now to judge. ${h.calls} so far.`
+        : h.total > h.calls
           ? `${h.total} calls this week, but only ${h.calls} were logged with an outcome. It takes ${h.limits.minCalls} logged calls to judge.`
           : `${h.calls} call${h.calls === 1 ? "" : "s"} this week. It takes ${h.limits.minCalls} to judge.`,
     },
@@ -218,6 +219,29 @@ export function TelnyxNumbers({
       else next[phoneNumber] = { at: new Date().toISOString(), note: note.trim() || null };
       return next;
     });
+    router.refresh();
+  }
+
+  // Which number is being asked "start its spam check over?".
+  const [resetting, setResetting] = React.useState<string | null>(null);
+
+  async function saveReset(phoneNumber: string, reset: boolean) {
+    setResetting(null);
+    const res = await fetch("/api/call-dids", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phoneNumber, healthReset: reset }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => ({}));
+      toast.error(data?.error ?? "Could not save that.");
+      return;
+    }
+    toast.success(
+      reset
+        ? "Started over. Only calls from now on are counted."
+        : "Counting every call again.",
+    );
     router.refresh();
   }
 
@@ -480,6 +504,54 @@ export function TelnyxNumbers({
                     </button>
                   )}
                 </div>
+                {/* Start the check over (2026-10-04). The estimate reads the
+                    last 7 days, so a number marked down for a habit that has
+                    since been fixed (callers hanging up inside 8 seconds)
+                    keeps the mark for a week. This makes it judge only what
+                    happens from now. */}
+                {health[n.phoneNumber] && (
+                  <div className="basis-full text-[12px]">
+                    {resetting === n.phoneNumber ? (
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-muted-foreground">
+                          Forget every call so far? It will say &ldquo;Too few
+                          calls to tell&rdquo; until {health[n.phoneNumber].limits.minCalls}{" "}
+                          calls are logged from now.
+                        </span>
+                        <Button
+                          size="sm"
+                          className="h-7"
+                          onClick={() => void saveReset(n.phoneNumber, true)}
+                        >
+                          Start over
+                        </Button>
+                        <button
+                          type="button"
+                          className="font-semibold text-muted-foreground hover:text-foreground"
+                          onClick={() => setResetting(null)}
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                    ) : health[n.phoneNumber].resetAt ? (
+                      <button
+                        type="button"
+                        className="font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                        onClick={() => void saveReset(n.phoneNumber, false)}
+                      >
+                        Count its earlier calls again
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                        onClick={() => setResetting(n.phoneNumber)}
+                      >
+                        Fixed the cause? Start its spam check over
+                      </button>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}

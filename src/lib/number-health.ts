@@ -64,6 +64,9 @@ export type NumberHealth = {
   daily: DailyReach | null;
   /** When a call was first placed from this number. */
   inUseSince: string | null;
+  /** Set when a founder started the check over: calls from before this are
+   *  ignored everywhere in this file. Null when nothing has been reset. */
+  resetAt: string | null;
   /** How long its recorded calls last, when there are enough to say. The
    *  second signal, for a number whose calls mostly carry no logged outcome. */
   lengths: CallLengths | null;
@@ -206,9 +209,11 @@ async function getDailyReach(): Promise<Map<string, DailyReach>> {
         and (c.outcome in ${PICKUP} or c.outcome = 'voicemail'))::int as u_reached
     from "call" c
     join app_user u on u.id = c.user_id
+    left join call_number rn on rn.phone_number = coalesce(c.dialled_from, u.telnyx_did)
     where c.called_at > now() - interval '8 days'
       and c.outcome <> 'bad_number'
       and coalesce(c.dialled_from, u.telnyx_did) is not null
+      and (rn.health_reset_at is null or c.called_at >= rn.health_reset_at)
     group by 1
   `)) as { num: string; t_calls: number; t_reached: number; u_calls: number; u_reached: number }[];
   const out = new Map<string, DailyReach>();
@@ -230,7 +235,9 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
         c.called_at, c.outcome::text as outcome, c.duration_seconds as secs
       from "call" c
       join app_user u on u.id = c.user_id
+      left join call_number rn on rn.phone_number = coalesce(c.dialled_from, u.telnyx_did)
       where coalesce(c.dialled_from, u.telnyx_did) is not null
+        and (rn.health_reset_at is null or c.called_at >= rn.health_reset_at)
     )
     select num,
       count(*) filter (where called_at > now() - interval '7 days'
@@ -272,12 +279,13 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
   // table only fills from the day it was added, so it says nothing for the
   // first days and takes over from the fast-drop estimate as it grows.
   const hangups = (await db.execute(sql`
-    select from_number as num,
-      count(*) filter (where created_at > now() - interval '7 days')::int as n,
-      count(*) filter (where created_at > now() - interval '7 days'
-        and hangup_cause = 'call_rejected')::int as refused
-    from call_hangup
-    where created_at > now() - interval '7 days'
+    select h.from_number as num,
+      count(*)::int as n,
+      count(*) filter (where h.hangup_cause = 'call_rejected')::int as refused
+    from call_hangup h
+    left join call_number rn on rn.phone_number = h.from_number
+    where h.created_at > now() - interval '7 days'
+      and (rn.health_reset_at is null or h.created_at >= rn.health_reset_at)
     group by 1
   `)) as { num: string; n: number; refused: number }[];
   const hangupOf = new Map(hangups.map((h) => [h.num, h]));
@@ -294,15 +302,22 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
         coalesce(c.telnyx_session_id, 'call:' || c.id) as k, c.called_at as at,
         'cold' as kind
       from "call" c join app_user u on u.id = c.user_id
+      left join call_number rn on rn.phone_number = coalesce(c.dialled_from, u.telnyx_did)
       where coalesce(c.dialled_from, u.telnyx_did) is not null
+        and (rn.health_reset_at is null or c.called_at >= rn.health_reset_at)
       union all
       select k.from_did, coalesce(k.telnyx_session_id, 'keypad:' || k.id), k.called_at,
         'other'
-      from keypad_call k where k.from_did is not null
+      from keypad_call k
+      left join call_number rn on rn.phone_number = k.from_did
+      where k.from_did is not null
+        and (rn.health_reset_at is null or k.called_at >= rn.health_reset_at)
       union all
       select cr.from_number, cr.call_session_id, cr.started_at, 'other'
       from call_recording cr
+      left join call_number rn on rn.phone_number = cr.from_number
       where cr.from_number is not null and cr.started_at is not null
+        and (rn.health_reset_at is null or cr.started_at >= rn.health_reset_at)
     ),
     -- A call is cold if any source says so: the same session also appears as a
     -- logged cold call, so it must not be counted again as a meeting call.
@@ -318,6 +333,19 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
     from u group by num
   `)) as { num: string; total: number; cold_n: number; first_at: string | null }[];
   const vol = new Map(volume.map((v) => [v.num, v]));
+  // A number that has been reset and not dialled from since has no calls to
+  // group, so it would vanish from the panel with its undo button. Give it an
+  // empty row: it reads "too few calls to tell", which is true.
+  const resets = (await db.execute(sql`
+    select phone_number as num, health_reset_at as at
+    from call_number where health_reset_at is not null
+  `)) as { num: string; at: string }[];
+  const resetOf = new Map(resets.map((r) => [r.num, new Date(r.at).toISOString()]));
+  for (const r of resets) {
+    if (!volume.some((v) => v.num === r.num)) {
+      volume.push({ num: r.num, total: 0, cold_n: 0, first_at: null });
+    }
+  }
   for (const v of volume) {
     if (!rows.some((r) => r.num === v.num)) {
       rows.push({
@@ -358,8 +386,10 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
       coalesce((percentile_cont(0.5) within group (order by cr.duration_ms)
         filter (where cr.started_at > now() - interval '7 days'))::int, 0) as med_ms
     from call_recording cr
+    left join call_number rn on rn.phone_number = cr.from_number
     where cr.from_number is not null and cr.duration_ms is not null
       and cr.started_at > now() - interval '14 days'
+      and (rn.health_reset_at is null or cr.started_at >= rn.health_reset_at)
     group by 1
   `)) as {
     num: string;
@@ -374,9 +404,11 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
   // business from the same number.
   const redialRows = (await db.execute(sql`
     with r as (
-      select from_number, to_number, started_at from call_recording
-      where from_number is not null and to_number is not null
-        and started_at > now() - interval '7 days'
+      select cr.from_number, cr.to_number, cr.started_at from call_recording cr
+      left join call_number rn on rn.phone_number = cr.from_number
+      where cr.from_number is not null and cr.to_number is not null
+        and cr.started_at > now() - interval '7 days'
+        and (rn.health_reset_at is null or cr.started_at >= rn.health_reset_at)
     )
     select from_number as num,
       count(*)::int as n,
@@ -481,6 +513,7 @@ export async function getNumberHealth(): Promise<Record<string, NumberHealth>> {
       perDay: Math.round(Math.max(v?.total ?? 0, r.calls) / 7),
       coldPerDay: Math.round((v?.cold_n ?? 0) / 7),
       daily: daily.get(r.num) ?? null,
+      resetAt: resetOf.get(r.num) ?? null,
       inUseSince: (() => {
         const first = [r.first_at, v?.first_at]
           .filter((x): x is string => !!x)

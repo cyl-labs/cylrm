@@ -794,6 +794,9 @@ export const callNumber = pgTable("call_number", {
    *  reputation we ever get, so the Team panel shows it above any estimate. */
   spamSeenAt: timestamp("spam_seen_at", { withTimezone: true }),
   spamSeenNote: text("spam_seen_note"),
+  /** The health check ignores calls from before this (2026-10-04), so a number
+   *  can be judged afresh after the cause of a bad run is fixed. */
+  healthResetAt: timestamp("health_reset_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
