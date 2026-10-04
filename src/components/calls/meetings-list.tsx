@@ -53,6 +53,7 @@ import { ConfirmSend } from "@/components/confirm-send";
 import { useClaimLine } from "@/components/calls/line-presence";
 import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
+import type { RecordingKind } from "@/lib/recording-kinds";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
 import { MeetingCallButton } from "@/components/calls/meeting-call-button";
 import { MoveQuietly } from "@/components/calls/move-quietly";
@@ -304,6 +305,7 @@ const SALE_STAGES = new Set<string>(["following_up", "trial", "won", "lost"]);
 
 export function MeetingsList({
   meetings,
+  recordingKinds = {},
   canDial = false,
   tz,
   zoneLabel,
@@ -323,6 +325,9 @@ export function MeetingsList({
   closers = [],
 }: {
   meetings: Meeting[];
+  /** What each recording is, by recording id (voicemail, no answer, spoke to
+   *  someone, not checked). Worked out on the server in `recording-kinds.ts`. */
+  recordingKinds?: Record<string, RecordingKind>;
   /** The screen's clock, chosen on the server. Passed rather than read from
    *  the browser: `toLocaleString(undefined, …)` renders one string on the
    *  droplet's UTC and another on a Singapore laptop, and React throws the
@@ -1029,6 +1034,84 @@ export function MeetingsList({
         const earlierDemo = m.earlierDemoRecordings.filter((r) => keep(r.durationMs));
         const ownRecordings = m.demoRecordings.filter((r) => keep(r.durationMs));
         const otherCalls = m.otherRecordings.filter((r) => keep(r.durationMs));
+        // Every recording on this row as one list, oldest first (2026-10-05).
+        // They used to be drawn group by group (cold call, then the demo, then
+        // other calls), which is not the order anything happened in: a quick
+        // call after the demo sat before it, and a voicemail between two real
+        // calls could not be seen as one.
+        const chips: {
+          key: string;
+          recordingId: string;
+          ms: number | null;
+          /** For ordering only. */
+          at: string | null;
+          /** What the sheet shows, when the time is the call's own. */
+          startedAt: string | null;
+          label: string;
+          callerName: string;
+          company: string;
+        }[] = [];
+        const stamp = (iso: string) => `${format.format(new Date(iso))} ${zoneLabel}`;
+        if (m.recordingId && keep(m.recordingMs)) {
+          chips.push({
+            key: "cold",
+            recordingId: m.recordingId,
+            ms: m.recordingMs,
+            // The booking time stands in for when it was rung: it is the
+            // moment the demo was won, so the cold call sorts before the rest.
+            at: m.bookedAt,
+            startedAt: null,
+            label: "Cold call",
+            callerName: m.bookedBy ?? "Caller",
+            company: m.company ?? m.attendeeName ?? "Booking call",
+          });
+        }
+        earlierDemo.forEach((rec, i) =>
+          chips.push({
+            key: rec.recordingId,
+            recordingId: rec.recordingId,
+            ms: rec.durationMs,
+            at: rec.startedAt,
+            startedAt: rec.startedAt ? stamp(rec.startedAt) : null,
+            label: i === 0 ? "Demo call" : `Demo call ${i + 1}`,
+            callerName: "Founders",
+            company: m.company ?? m.attendeeName ?? "Demo call",
+          }),
+        );
+        ownRecordings.forEach((rec, i) => {
+          // This meeting's own call: the demo on a demo, and on a follow-up
+          // the follow-up call, which is not a demo.
+          const name = m.kind === "follow_up" ? "Follow-up call" : "Demo call";
+          chips.push({
+            key: rec.recordingId,
+            recordingId: rec.recordingId,
+            ms: rec.durationMs,
+            at: rec.startedAt,
+            startedAt: rec.startedAt ? stamp(rec.startedAt) : null,
+            label: i === 0 ? name : `${name} ${i + 1}`,
+            callerName: "Founders",
+            company: m.company ?? m.attendeeName ?? name,
+          });
+        });
+        otherCalls.forEach((rec) =>
+          chips.push({
+            key: rec.recordingId,
+            recordingId: rec.recordingId,
+            ms: rec.durationMs,
+            at: rec.startedAt,
+            startedAt: rec.startedAt ? stamp(rec.startedAt) : null,
+            label: rec.byName
+              ? `${rec.direction === "in" ? "They called" : "Call"} (${rec.byName})`
+              : rec.direction === "in"
+                ? "They called"
+                : "Other call",
+            callerName: rec.byName ?? "Caller",
+            company: m.company ?? m.attendeeName ?? "Other call",
+          }),
+        );
+        // A call with no time sorts first rather than last: the only one
+        // without is the cold call, which came before everything else.
+        chips.sort((a, b) => (a.at ? Date.parse(a.at) : 0) - (b.at ? Date.parse(b.at) : 0));
         const cancelled = m.status === "cancelled";
         // Every recording that could be the demo, for the review's picker
         // (2026-10-03): the automatic pick plus every other call to this
@@ -2330,109 +2413,24 @@ export function MeetingsList({
                   Recordings
                 </span>
                 {/* The same sheet the call log opens: audio, and a transcript
-                    whose turns seek it. Made on request in there, not here. */}
-                {/* "Cold call", not "Listen back": this is the call that won
-                    the booking, read off the `demo_booked` call's session in
-                    `meetings.ts` — the same recording the notes below it came
-                    from. Naming it matters now that the demo itself is also
-                    recorded, because two unlabelled play buttons on one row
-                    would leave a founder guessing which call they were about
-                    to hear. */}
-                {m.recordingId && keep(m.recordingMs) && (
+                    whose turns seek it. Made on request in there, not here.
+                    Oldest first, each tagged voicemail, no answer or spoke to
+                    someone, so a founder does not press play on a greeting to
+                    find out what it was. Named "Cold call" and "Demo call"
+                    because two unlabelled play buttons on one row would leave
+                    a founder guessing which they were about to hear. A demo
+                    that drops and is redialled is two recordings, one chip
+                    each, numbered from the second. */}
+                {chips.map((c) => (
                   <LogRecording
-                    recordingId={m.recordingId}
-                    recordingMs={m.recordingMs}
-                    company={m.company ?? m.attendeeName ?? "Booking call"}
-                    callerName={m.bookedBy ?? "Caller"}
-                    label="Cold call"
-                  />
-                )}
-                {/* The demo itself. Matched by the prospect's number around the
-                    booked time rather than by a session id, because the demo
-                    call usually has no `call` row to carry one — a founder
-                    mid-demo is talking, not tapping an outcome, and a row is
-                    only written when one is logged.
-
-                    `callerName` labels the near side of the transcript, and it
-                    is deliberately not `bookedBy`: that is whoever made the
-                    cold call, which is rarely whoever took the demo. Who ran it
-                    is not recorded anywhere — the missing row again — and demos
-                    are run from the Founders line, so that is the one honest
-                    answer available rather than a name that would be wrong.
-
-                    Every recording in the window gets its own button, oldest
-                    first, not only the longest — asked for 2026-09-23: "for
-                    calls where i call the meeting back multiple times... it
-                    only shows one part." A demo that drops and gets redialled
-                    is two Telnyx sessions, and `demoRecordings` now carries
-                    both rather than the query silently picking the longer one
-                    and discarding what is usually the first half of the real
-                    conversation. Numbered from the second one on — a single
-                    recording still just says "Demo call", since counting a
-                    demo that was never interrupted would be answering a
-                    question nobody asked. */}
-                {/* On a follow-up, the demo it follows (2026-09-25): that
-                    row has left the screen, and this is the call worth hearing
-                    again before ringing them. Before this row's own call. */}
-                {earlierDemo.map((rec, i) => (
-                  <LogRecording
-                    key={rec.recordingId}
-                    recordingId={rec.recordingId}
-                    recordingMs={rec.durationMs}
-                    startedAt={
-                      rec.startedAt
-                        ? `${format.format(new Date(rec.startedAt))} ${zoneLabel}`
-                        : null
-                    }
-                    company={m.company ?? m.attendeeName ?? "Demo call"}
-                    callerName="Founders"
-                    label={i === 0 ? "Demo call" : `Demo call ${i + 1}`}
-                  />
-                ))}
-                {ownRecordings.map((rec, i) => {
-                  // This meeting's own call: the demo on a demo, and on a
-                  // follow-up the follow-up call, which is not a demo.
-                  const name = m.kind === "follow_up" ? "Follow-up call" : "Demo call";
-                  return (
-                    <LogRecording
-                      key={rec.recordingId}
-                      recordingId={rec.recordingId}
-                      recordingMs={rec.durationMs}
-                      startedAt={
-                        rec.startedAt
-                          ? `${format.format(new Date(rec.startedAt))} ${zoneLabel}`
-                          : null
-                      }
-                      company={m.company ?? m.attendeeName ?? name}
-                      callerName="Founders"
-                      label={i === 0 ? name : `${name} ${i + 1}`}
-                    />
-                  );
-                })}
-                {/* Every other call with this number, founders only: ones
-                    nobody logged an outcome on and that fall outside every
-                    meeting's window, like a quick call to rearrange a time.
-                    Oldest first, dated, because without a date several of
-                    them are indistinguishable. */}
-                {otherCalls.map((rec) => (
-                  <LogRecording
-                    key={rec.recordingId}
-                    recordingId={rec.recordingId}
-                    recordingMs={rec.durationMs}
-                    startedAt={
-                      rec.startedAt
-                        ? `${format.format(new Date(rec.startedAt))} ${zoneLabel}`
-                        : null
-                    }
-                    company={m.company ?? m.attendeeName ?? "Other call"}
-                    callerName={rec.byName ?? "Caller"}
-                    label={
-                      rec.byName
-                        ? `${rec.direction === "in" ? "They called" : "Call"} (${rec.byName})`
-                        : rec.direction === "in"
-                          ? "They called"
-                          : "Other call"
-                    }
+                    key={c.key}
+                    recordingId={c.recordingId}
+                    recordingMs={c.ms}
+                    startedAt={c.startedAt}
+                    company={c.company}
+                    callerName={c.callerName}
+                    label={c.label}
+                    kind={recordingKinds[c.recordingId] ?? "unknown"}
                   />
                 ))}
                 {/* Where they asked to be rung back on a call nothing else

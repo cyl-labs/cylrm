@@ -3,6 +3,19 @@
 import * as React from "react";
 import { CirclePlay } from "lucide-react";
 import { RecordingSheet } from "@/components/calls/recording-sheet";
+import type { RecordingKind } from "@/lib/recording-kinds";
+import { cn } from "@/lib/utils";
+
+/** What the recording turned out to be, in the words a caller would use. */
+const KIND_TAG: Record<RecordingKind, { text: string; cls: string }> = {
+  voicemail: {
+    text: "Voicemail",
+    cls: "bg-warning/25 text-warning-foreground dark:text-warning",
+  },
+  no_answer: { text: "No answer", cls: "bg-muted text-muted-foreground" },
+  live: { text: "Spoke to someone", cls: "bg-success/15 text-success" },
+  unknown: { text: "Not checked", cls: "bg-muted text-muted-foreground" },
+};
 
 function mmss(ms: number) {
   const total = Math.round(ms / 1000);
@@ -30,6 +43,7 @@ export function LogRecording({
   callerName,
   mine = false,
   label = "Listen back",
+  kind = null,
 }: {
   recordingId: string;
   recordingMs: number | null;
@@ -59,6 +73,9 @@ export function LogRecording({
    * call it is holding.
    */
   label?: string;
+  /** Voicemail, no answer or a conversation, when the row has worked it out.
+   *  Null on screens that do not (the call log already has its own outcome). */
+  kind?: RecordingKind | null;
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -77,6 +94,16 @@ export function LogRecording({
         {recordingMs && (
           <span className="font-medium text-muted-foreground">
             {mmss(recordingMs)}
+          </span>
+        )}
+        {kind && (
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-bold",
+              KIND_TAG[kind].cls,
+            )}
+          >
+            {KIND_TAG[kind].text}
           </span>
         )}
       </button>

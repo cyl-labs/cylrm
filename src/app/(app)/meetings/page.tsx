@@ -9,6 +9,7 @@ import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
 import { getMeetings } from "@/lib/meetings";
+import { getRecordingKinds } from "@/lib/recording-kinds";
 import { getStoredBriefs } from "@/lib/meeting-brief";
 import { getStoredReviews } from "@/lib/demo-review";
 import type { CalendarEvent } from "@/components/calls/meetings-calendar";
@@ -219,6 +220,18 @@ export default async function MeetingsPage({
     m.callBack ? "call_back" : m.kind;
   const meetings =
     kind === "all" ? filtered : filtered.filter((m) => kindOf(m) === kind);
+  // What each recording on these rows turned out to be (voicemail, no answer,
+  // a conversation), asked once for every chip on the screen.
+  const recordingKinds = await getRecordingKinds(
+    meetings.flatMap((m) =>
+      [
+        m.recordingId,
+        ...m.demoRecordings.map((r) => r.recordingId),
+        ...m.earlierDemoRecordings.map((r) => r.recordingId),
+        ...m.otherRecordings.map((r) => r.recordingId),
+      ].filter((id): id is string => !!id),
+    ),
+  );
   // Read once: it decides both the mergeable lines and whether this tab takes
   // the phone.
   const browserDialler = (await dialMethodOf(me?.id)) === "browser";
@@ -657,6 +670,7 @@ export default async function MeetingsPage({
         {(kind === "all" || meetings.length > 0) && (
         <MeetingsList
           meetings={meetings}
+          recordingKinds={recordingKinds}
           // The voice agent's own number among them, so the demo can be merged
           // in from the row rather than from the lead's dial card. Empty for a
           // handset caller, who has no browser line to merge onto.

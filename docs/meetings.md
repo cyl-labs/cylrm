@@ -2916,3 +2916,31 @@ Changes in `lib/meeting-brief.ts` and `components/calls/brief-line.tsx`:
   want when I text you" and the review then told him to say exactly that. `tryThis` is
   empty when it was already done, and nextSteps may not repeat what happened on the call.
   Only reviews written after this change follow it: press "Review it again".
+
+## Recording chips: oldest first, and what each one was (2026-10-05)
+
+The Recordings line on a Meetings row used to draw four groups in a fixed order (cold
+call, earlier demo, this meeting's calls, other calls), so a quick call after the demo
+sat before it and a voicemail looked like a conversation. `meetings-list.tsx` now builds
+one list and sorts it by start time (the cold call by the booking time, which is when it
+was won, so it comes first). Each chip carries a tag from `lib/recording-kinds.ts`:
+**Voicemail**, **No answer**, **Spoke to someone**, or **Not checked**.
+
+- **Judged in this order**: a caller logged voicemail; a caller logged a real outcome
+  (booked, not interested, gatekeeper...), which is a conversation whatever the words say;
+  the transcript is a mailbox greeting; a caller logged no answer; it was transcribed and
+  is not a mailbox; otherwise nothing to go on. **The length is never used** to decide:
+  a 45 second demo and a 45 second voicemail look the same on a clock.
+- **A transcript only counts as a mailbox in the opening of a call under three minutes**
+  (400 characters, 180 seconds). Tried without that, calls of 816 and 1,142 seconds were
+  tagged voicemail, because a demo of an AI receptionist says "voice mail" all the way
+  through. **A call screener ("record your name and reason for calling") counts only when
+  the call also ends in "not available" or "after the tone"**: when the person picks up,
+  the same greeting is followed by a real conversation.
+- Tuned on 400 recent recordings: 83 voicemail, 154 no answer, 111 spoke to someone, 52
+  not checked. Checked by hand on Deserts Gambit (cold call and demo: spoke to someone;
+  the two 1 Oct founder calls: voicemail). Biased toward not saying "voicemail" when unsure:
+  a mailbox greeting that matches none of the phrases (a business name and a website) reads
+  as a conversation, never the other way round.
+- Calls nobody logged and nobody transcribed read "Not checked": transcripts are made on
+  request, so a founder's call with no outcome is often unknown.
