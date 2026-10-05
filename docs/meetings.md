@@ -3063,3 +3063,16 @@ arrives, which opens to show the archived conversations. `getConversations` (`li
 - `archived` in the list query is now `archived_at is not null`. No migration: `archived_at` stays a time.
 - Archived threads are not in "New texts" (that section reads the live list only), so a reply in one
   never jumps to the top. The Archived number is the only prompt, plus the sidebar badge.
+
+### Demo review: evidence and a fix on every step, a verdict on every owner moment (2026-10-06)
+
+Feedback on a real review: the step cards gave one short quote (sometimes the owner's, sometimes the same
+on two steps) and never said what to do; the owner moments just described what happened. Now, for every
+partly or missed step, `ReviewStage` carries `ownerLine` (what the owner said, checked against the
+Prospect's lines), `closerLine` (what the closer said then, checked against the Closer's lines) and
+`fix: {do, say}`; the fold draws "Owner said / You said / Do this / Say". Each owner moment carries
+`howItWent` (strong, weak, none), a blunt `verdict` sentence and `tryThis` words, red or green in the fold.
+Older reviews show as before until "Review it again". `clean` no longer strips quote marks (the `when`
+pointer parses its own); `unq` does, for fields the screen wraps in marks itself. The moments log is
+built before the stages and the closer-lines check is defined above them: a `const` used before its
+definition threw at runtime in a first draft.

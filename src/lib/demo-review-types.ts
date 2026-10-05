@@ -13,6 +13,14 @@ export type ReviewStage = {
   /** Exact words from the call that back the rating, or null. */
   evidence: string | null;
   note: string;
+  /** What the owner said that this step is about, checked against the owner's
+   *  lines (2026-10-06). New reviews only. */
+  ownerLine?: string;
+  /** What the closer actually said then, checked against the closer's lines.
+   *  Absent when the closer said nothing about it. */
+  closerLine?: string;
+  /** For a partly or missed step: what to do instead, and the words for it. */
+  fix?: { do: string; say: string };
 };
 
 export type DemoReview = {
@@ -29,7 +37,16 @@ export type DemoReview = {
   /** The owner's own strongest lines (2026-10-04), kept apart from the scoring:
    *  what they felt, not how the closer did. `quote` is verified against the
    *  owner's lines in the transcript. Demo reviews only; absent on older ones. */
-  ownerMoments?: { quote: string; feeling: string; closerNext: string }[];
+  ownerMoments?: {
+    quote: string;
+    feeling: string;
+    closerNext: string;
+    /** A blunt read of how the closer handled it, and what to say instead
+     *  (2026-10-06). Absent on older reviews, which showed only closerNext. */
+    howItWent?: "strong" | "weak" | "none";
+    verdict?: string;
+    tryThis?: string;
+  }[];
   /** Counted from the transcript, never written by the model. */
   talk: { closerPercent: number; closerQuestions: number; minutes: number };
   /** The recordings this review was written from, so the fold can show which

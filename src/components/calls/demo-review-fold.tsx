@@ -300,6 +300,23 @@ export function DemoReviewFold({
                       <p className="mt-0.5 text-[12px] text-muted-foreground">
                         Then: {m.closerNext}
                       </p>
+                      {m.verdict && (
+                        <p
+                          className={`mt-1 rounded px-1.5 py-1 font-medium ${
+                            m.howItWent === "strong"
+                              ? "bg-success/10 text-success"
+                              : "bg-destructive/10 text-destructive"
+                          }`}
+                        >
+                          {m.verdict}
+                        </p>
+                      )}
+                      {m.tryThis && (
+                        <p className="mt-1">
+                          <span className="text-muted-foreground">Say instead: </span>
+                          &ldquo;{m.tryThis}&rdquo;
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -325,10 +342,29 @@ export function DemoReviewFold({
                       </span>
                     </div>
                     {s.note && <p className="mt-0.5">{s.note}</p>}
-                    {s.evidence && (
+                    {s.ownerLine && (
+                      <p className="mt-1 text-[12px] text-muted-foreground">
+                        Owner said: &ldquo;{s.ownerLine}&rdquo;
+                      </p>
+                    )}
+                    {s.closerLine && (
+                      <p className="mt-0.5 text-[12px] text-muted-foreground">
+                        You said: &ldquo;{s.closerLine}&rdquo;
+                      </p>
+                    )}
+                    {!s.ownerLine && !s.closerLine && s.evidence && (
                       <p className="mt-0.5 text-[12px] text-muted-foreground">
                         &ldquo;{s.evidence}&rdquo;
                       </p>
+                    )}
+                    {s.fix && (
+                      <div className="mt-1.5 rounded bg-primary/5 px-2 py-1.5">
+                        <p className="font-semibold">Do this: {s.fix.do}</p>
+                        <p>
+                          <span className="text-muted-foreground">Say: </span>
+                          &ldquo;{s.fix.say}&rdquo;
+                        </p>
+                      </div>
                     )}
                   </li>
                 ))}
