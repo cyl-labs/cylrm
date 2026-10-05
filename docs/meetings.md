@@ -3031,3 +3031,20 @@ follow-up result and "taken off" on a meeting, newest first, with who and when.
   made before 2026-10-05 are gone for good.
 - New table, so RLS is on, `anon`/`authenticated` have no grants, and
   `cloud_ro` has a select policy (in the migration).
+
+### Recently booked, and a quieter header (2026-10-06)
+
+`/meetings?booked=1`, built in `meetings/page.tsx` (`recent`, `listOnly`) with the same
+`MeetingsList` rows, so each shows who booked it ("booked by Harry on 14 Sep", name for
+founders only) and its call recordings (booking call and demo call chips).
+
+- **Asked for** as "what the new ones are, booked by who, and view the call recordings". The
+  diary is ordered by when a demo happens, so a booking made this morning for next Friday sat
+  far down it. This view is ordered by `bookedAt`, newest first, last 30 days, at most 50,
+  queue and history read together and de-duplicated. Practice meetings and rows with no booking
+  time are left out. Callers see their own scope, as everywhere on this screen.
+- **No calendar, filters or Show chips on it**: it is a list answering one question.
+- **The header was nine buttons wide.** Recently booked, Recently logged and Briefing now live
+  under a "More" menu (`meetings-more-menu.tsx`), each with a one line hint. Past meetings,
+  List/Calendar, Refresh, Training meeting and the phone and reminder toggles stay on the row.
+  Not checked in a browser at the time of writing: only type checked and linted.

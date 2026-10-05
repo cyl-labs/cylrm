@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, History } from "lucide-react";
+import { History } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
 import { MeetingsList } from "@/components/calls/meetings-list";
@@ -8,6 +8,7 @@ import { PushToggle } from "@/components/calls/push-toggle";
 import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
+import { MeetingsMoreMenu } from "@/components/calls/meetings-more-menu";
 import { TrainingAssign } from "@/components/calls/training-assign";
 import { getMeetings } from "@/lib/meetings";
 import { getRecordingKinds } from "@/lib/recording-kinds";
@@ -78,6 +79,7 @@ export default async function MeetingsPage({
     niche?: string;
     closer?: string;
     contract?: string;
+    booked?: string;
   }>;
 }) {
   const me = await getCurrentUser();
@@ -95,6 +97,7 @@ export default async function MeetingsPage({
     niche: rawNiche,
     closer: rawCloser,
     contract: rawContract,
+    booked: rawBooked,
   } = await searchParams;
   // Which meetings to show (2026-09-24): everything by default, or only demos,
   // only follow-ups, or — for a founder — only their own call backs.
@@ -109,6 +112,12 @@ export default async function MeetingsPage({
   // left to find it was the call log, filtered by outcome, which does not
   // say a call was a no-show rather than a follow-up. See `getMeetings`.
   const past = rawPast === "1";
+  // Newest bookings first (2026-10-06), whenever the demo itself is: the answer
+  // to "what did the callers just win, who booked it and what was said". The
+  // diary is ordered by when a demo happens, so a booking made this morning for
+  // next Friday sits far down it. Its own view, not a filter of the other two.
+  const recent = rawBooked === "1" && !past;
+  const listOnly = past || recent;
   // Both meaningless outside history — the work queue is already narrowed to
   // what is owed, and this reader's own list at that. Defaulted to "all"
   // rather than left undefined so a stale link (someone filtered, then came
@@ -148,15 +157,30 @@ export default async function MeetingsPage({
     [rawCaller, rawNiche, rawCloser, rawContract].some((v) => v && v !== "all") ||
     (rawStatus !== undefined && rawStatus !== "all" && rawStatus !== "upcoming");
   const queue = await getMeetings(callScope(me), zone.tz, { past });
+  // Recently booked reads both the queue and the history, since a booking can
+  // be for tomorrow or already over, then keeps the last 30 days of bookings.
+  const recentRows = recent
+    ? [
+        ...queue,
+        ...(await getMeetings(callScope(me), zone.tz, { past: true })).filter(
+          (h) => !queue.some((m) => m.id === h.id),
+        ),
+      ]
+        .filter((m) => !m.training && m.bookedAt !== null)
+        .filter((m) => Date.parse(m.bookedAt as string) > new Date().getTime() - 30 * 86_400_000)
+        .sort((a, b) => Date.parse(b.bookedAt as string) - Date.parse(a.bookedAt as string))
+        .slice(0, 50)
+    : null;
   const allMeetings =
-    searching && !past
+    recentRows ??
+    (searching && !past
       ? [
           ...queue,
           ...(await getMeetings(callScope(me), zone.tz, { past: true })).filter(
             (h) => !queue.some((m) => m.id === h.id),
           ),
         ]
-      : queue;
+      : queue);
   // The filters (2026-09-25), over the upcoming list and the history alike.
   // Options come off the *unfiltered* rows, so picking "Aaron" does not also
   // narrow the list of callers down to just Aaron. Applied here rather than in
@@ -324,7 +348,7 @@ export default async function MeetingsPage({
   const trainingPeople = me?.role === "admin" ? await listTrainingPeople() : [];
   // The last week at a glance (2026-09-25); the breakdown is on Stats. A
   // caller's is the demos they booked, the same scope Stats gives them.
-  const week = past
+  const week = listOnly
     ? null
     : (
         await getMeetingStats(
@@ -371,17 +395,6 @@ export default async function MeetingsPage({
           {/* Refresh first: it is the one people reach for, right after
               booking something on Cal.com. */}
           <RefreshMeetings />
-          {/* What has been logged, newest first (2026-10-05). Its own screen:
-              Past meetings is ordered by when a meeting happened. */}
-          {me?.role === "admin" && (
-            <Link
-              href="/meetings/log"
-              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
-            >
-              <History className="size-3.5" />
-              Recently logged
-            </Link>
-          )}
           {/* Founders only: hands a new closer a practice meeting. */}
           {me?.role === "admin" && (
             <TrainingAssign
@@ -403,7 +416,7 @@ export default async function MeetingsPage({
               than to this month. The list itself ignores both. Hidden once
               looking at history: a past-only view has no calendar to switch
               to — see the `past` block below. */}
-          {!past && (
+          {!listOnly && (
             <MeetingsView
               view={view}
               query={`${keepTz}${keepKind}&span=${span}&on=${anchor}`}
@@ -417,39 +430,56 @@ export default async function MeetingsPage({
               not be scrolled past each other. */}
           <Link
             href={
-              past
+              listOnly
                 ? `/meetings?view=${view}${keepTz}${keepKind}&span=${span}&on=${anchor}`
                 : `/meetings?past=1${keepTz}${keepKind}`
             }
-            aria-current={past ? "page" : undefined}
+            aria-current={listOnly ? "page" : undefined}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors",
-              past
+              listOnly
                 ? "bg-primary text-primary-foreground"
                 : "hover:bg-muted",
             )}
           >
             <History className="size-3.5" />
-            {past ? "Upcoming" : "Past meetings"}
+            {listOnly ? "Upcoming" : "Past meetings"}
           </Link>
           {/* Who booked it and what happened — only meaningful once looking
               at history, where the rows are no longer already narrowed down
               to what is owed. */}
 
-          {/* Every demo's brief in one document, for reading a run of them or
-              printing. Each row also carries its own brief in a fold since
-              2026-09-24. Founders only, matching the route: writing the briefs
-              costs an OpenAI call each and the people who take demos are the
-              people who need one. */}
-          {me?.role === "admin" && !past && (
-            <Link
-              href="/meetings/brief"
-              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
-            >
-              <FileText className="size-3.5" />
-              Briefing
-            </Link>
-          )}
+          {/* Recently booked, Recently logged and Briefing are folded under
+              More (2026-10-06): the header was nine buttons wide. */}
+          <MeetingsMoreMenu
+            items={[
+              {
+                icon: "booked",
+                label: recent ? "Back to upcoming" : "Recently booked",
+                hint: "Newest bookings first, who booked each, and its call recordings.",
+                href: recent
+                  ? `/meetings?view=${view}${keepTz}${keepKind}&span=${span}&on=${anchor}`
+                  : `/meetings?booked=1${keepTz}`,
+                current: recent,
+              },
+              ...(me?.role === "admin"
+                ? [
+                    {
+                      icon: "logged" as const,
+                      label: "Recently logged",
+                      hint: "Every answer and follow-up that was logged, and by whom.",
+                      href: "/meetings/log",
+                    },
+                    {
+                      icon: "briefing" as const,
+                      label: "Briefing",
+                      hint: "Every demo's briefing in one page, to read or print.",
+                      href: "/meetings/brief",
+                    },
+                  ]
+                : []),
+            ]}
+          />
           {/* Per browser, not per person — see PushToggle. Renders nothing at
               all where push cannot work, rather than a dead button. */}
           <PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
@@ -482,7 +512,7 @@ export default async function MeetingsPage({
             on the way in, and shut by default so it costs one line of height
             to everybody who already knows. Both of these are about the queue,
             not the history, so past mode skips them. */}
-        {!past && (
+        {!listOnly && (
           <>
             <MeetingsExplainer
               zoneName={zone.name}
@@ -540,6 +570,7 @@ export default async function MeetingsPage({
             zone and the view, and survives a page turn and a reload. Each
             chip says how many it holds, so an empty filter is not a surprise.
             A founder's own call backs are a kind of their own. */}
+        {!recent && (
         <MeetingFilters
           values={{ q, caller, status, niche, closer, contract }}
           callers={filterCallers}
@@ -547,12 +578,13 @@ export default async function MeetingsPage({
           closers={filterClosers}
           founders={isFounder}
         />
-        {searching && !past && (
+        )}
+        {searching && !listOnly && (
           <p className="text-[12px] text-muted-foreground">
             Filtering every meeting, upcoming and past.
           </p>
         )}
-        {(() => {
+        {!recent && (() => {
           const showCallBacks = me?.role === "admin" && !past;
           const count = (k: string) =>
             filtered.filter((m) => kindOf(m) === k).length;
@@ -610,7 +642,7 @@ export default async function MeetingsPage({
         })()}
         {/* A filter that leaves nothing says so, with the way back, rather
             than the list's own "no meetings booked", which would be a lie. */}
-        {kind !== "all" && meetings.length === 0 && (
+        {!recent && kind !== "all" && meetings.length === 0 && (
           <p className="rounded-xl border border-dashed px-4 py-8 text-center text-[13px] text-muted-foreground">
             {kind === "call_back"
               ? "No call backs on your calendar."
@@ -626,7 +658,23 @@ export default async function MeetingsPage({
             </Link>
           </p>
         )}
-        {meetings.length > 0 && (
+        {recent && (
+          <p className="text-[13px] text-muted-foreground">
+            {meetings.length === 0 ? (
+              "Nothing has been booked in the last 30 days."
+            ) : (
+              <>
+                <span className="font-bold">
+                  {meetings.length} booked in the last 30 days
+                </span>
+                , newest first. Each one says who booked it and when. Open its
+                call recordings to hear how it was won.
+              </>
+            )}{" "}
+            Meeting times are {zone.name} time.
+          </p>
+        )}
+        {!recent && meetings.length > 0 && (
           <p className="text-[13px] text-muted-foreground">
             {past ? (
               // A count of what happened, not what is owed — the ring-back
@@ -672,7 +720,7 @@ export default async function MeetingsPage({
             {zone.name} time.
           </p>
         )}
-        {!past && view === "calendar" && (
+        {!listOnly && view === "calendar" && (
           <MeetingsCalendar
             span={span}
             anchor={anchor}
@@ -689,7 +737,7 @@ export default async function MeetingsPage({
             The grid answers "which day", and every job on this screen — ring
             them, log what happened, draft a contract — is on a row, so
             switching view must not take the work away. */}
-        {(kind === "all" || meetings.length > 0) && (
+        {(recent ? meetings.length > 0 : kind === "all" || meetings.length > 0) && (
         <MeetingsList
           meetings={meetings}
           recordingKinds={recordingKinds}
