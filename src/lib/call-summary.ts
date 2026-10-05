@@ -13,8 +13,11 @@
  * for anything a person reads; `briefLines` strips any that slip through.
  */
 
+import { sql } from "drizzle-orm";
+import { db } from "@/db";
 import type { TranscriptTurn } from "@/db/schema";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { DEMO_RECORDING_WHERE } from "@/lib/meetings";
 
 const API = "https://api.openai.com/v1/chat/completions";
 // `gpt-4.1` since 2026-10-04 (was `gpt-4.1-mini`). Compared on 7 real calls with
@@ -48,6 +51,41 @@ Write plain bullet points, each starting with "- ". Use these labelled lines exa
 Then up to 3 plain bullets for anything else that matters, such as what was agreed and what happens next.
 Rules: read a short answer against the question asked. If the caller asks whether they have considered, heard of or used a voice agent and the prospect says no, that means they have not, it is not a refusal and not a lack of interest. Only say they are not interested when they decline it after it was explained or offered. Use only what the transcript says, never invent a name, number or commitment. Keep each bullet to one short sentence. No headings, no quotes longer than a few words, no advice, and never use an em dash.`;
 
+// A demo is a different conversation from the cold call that booked it (2026-10-06).
+// The script above is the caller's; a founder running a demo follows none, so the
+// same prompt scored a 80 minute demo on "Hours: not mentioned" and "Gatekeeper:
+// not applicable" and said nothing of what the owner actually thought.
+const DEMO_SYSTEM = `You write a short summary of a recorded sales demo between a founder or closer (selling an AI phone receptionist to small service businesses) and a business owner (the prospect).
+This is the second call with the owner: a caller already booked it, so there is no script to follow and the owner has already heard the offer once. Part of the call may be a live demo, where the AI receptionist is added to the line and the founder plays a pretend customer. Do not summarise that stretch; just note that it was played and how the owner reacted afterwards. Long calls drift into small talk: skip it unless it explains a decision.
+Write plain bullet points, each starting with "- ". Use these labelled lines exactly as shown, each only when the transcript supports it:
+- Outcome: one sentence on where the call ended: bought, agreed a next step, thinking about it, or said no, and the main reason in the owner's words.
+- Their setup: how the owner handles calls now (who answers, forwarding, any tool or service they use), in one or two short sentences.
+- Biggest problem: what the owner said goes wrong or costs them, if anything. If they said nothing hurts, say so.
+- Demo: how the owner reacted to hearing the AI receptionist.
+- Pushback: each reason the owner gave for not going ahead, in their words, and whether the founder answered it. Up to three.
+- Price: what the owner said about the price, only if it came up.
+- Decides: who makes the decision, only if the call says.
+- Next step: what was agreed, with the day and time if one was set. If nothing was agreed, write "Nothing agreed."
+- Promised: anything either side promised to send or do.
+- Also said: up to two lines for anything notable that helps a later call: a competitor or tool they use, a plan, a referral or a person to ask for.
+Rules: use only what the transcript says, never invent a name, number or commitment. Report what the owner said, not what the founder said, except for what was promised or agreed. Keep each bullet to one short sentence. No headings, no advice, no quotes longer than a few words, and never use an em dash.`;
+
+export type SummaryKind = "booking" | "demo";
+
+/** Whether this recording is the demo of a meeting (the founders' call) rather
+ *  than a caller's cold call. Same test as the "Demo call" button on Meetings. */
+export async function summaryKindOf(recordingRowId: number | string, by: "id" | "recording_id" = "id"): Promise<SummaryKind> {
+  const rows = (await db.execute(sql`
+    select 1
+    from call_meeting m
+    left join call_lead l on l.id = m.call_lead_id
+    join call_recording cr on ${DEMO_RECORDING_WHERE}
+    where ${by === "id" ? sql`cr.id = ${recordingRowId}` : sql`cr.recording_id = ${String(recordingRowId)}`}
+    limit 1
+  `)) as unknown as unknown[];
+  return rows.length > 0 ? "demo" : "booking";
+}
+
 const asText = (turns: TranscriptTurn[] | null, text: string | null): string => {
   if (turns && turns.length > 0) {
     return turns
@@ -62,6 +100,7 @@ const asText = (turns: TranscriptTurn[] | null, text: string | null): string => 
 export async function writeCallSummary(args: {
   turns: TranscriptTurn[] | null;
   text: string | null;
+  kind?: SummaryKind;
 }): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
@@ -76,7 +115,7 @@ export async function writeCallSummary(args: {
       temperature: 0.2,
       max_tokens: 900,
       messages: [
-        { role: "system", content: SYSTEM },
+        { role: "system", content: args.kind === "demo" ? DEMO_SYSTEM : SYSTEM },
         { role: "user", content: `Transcript:\n${transcript.slice(-MAX_CHARS)}` },
       ],
     }),

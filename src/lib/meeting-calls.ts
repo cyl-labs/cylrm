@@ -26,7 +26,7 @@ import { db } from "@/db";
 import type { TranscriptTurn } from "@/db/schema";
 import { zoneForLead } from "@/lib/calls";
 import { readCallbackRequest, suggestionConfigured } from "@/lib/callback-suggestion";
-import { SUMMARY_MIN_MS, summaryConfigured, writeCallSummary } from "@/lib/call-summary";
+import { SUMMARY_MIN_MS, summaryConfigured, summaryKindOf, writeCallSummary } from "@/lib/call-summary";
 import { transcribeUrl, transcriptionConfigured } from "@/lib/deepgram";
 import { recordingDownloadUrl } from "@/lib/telnyx";
 
@@ -124,7 +124,7 @@ export async function processMeetingCalls(): Promise<{
         text &&
         Number(r.duration_ms ?? 0) >= SUMMARY_MIN_MS
       ) {
-        const summary = await writeCallSummary({ turns, text });
+        const summary = await writeCallSummary({ turns, text, kind: await summaryKindOf(r.id) });
         if (summary) {
           await db.execute(sql`
             update call_recording set summary = ${summary}, summary_at = now()
@@ -182,6 +182,7 @@ export async function processMeetingCalls(): Promise<{
         const summary = await writeCallSummary({
           turns: p.transcript_turns,
           text: p.transcript_text,
+          kind: await summaryKindOf(p.id),
         });
         // Marked even when there was nothing to say, or the same call would be
         // picked up every five minutes.

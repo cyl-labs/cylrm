@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
 import { findVisibleRecording } from "@/lib/recordings";
-import { summaryConfigured, writeCallSummary } from "@/lib/call-summary";
+import { summaryConfigured, summaryKindOf, writeCallSummary } from "@/lib/call-summary";
 
 /**
  * Write the summary of one call, on request (2026-10-02).
@@ -37,7 +37,11 @@ export async function POST(
 
   let summary: string | null;
   try {
-    summary = await writeCallSummary({ turns: row.transcriptTurns, text: row.transcriptText });
+    summary = await writeCallSummary({
+      turns: row.transcriptTurns,
+      text: row.transcriptText,
+      kind: await summaryKindOf(id, "recording_id"),
+    });
   } catch (error) {
     console.error("[summary] failed", id, error);
     return Response.json({ error: "Could not write that summary." }, { status: 502 });
