@@ -66,6 +66,13 @@ export async function POST(
   if (!meeting) {
     return Response.json({ error: "Meeting not found." }, { status: 404 });
   }
+  // A real DocuSeal submission, which can email a real person.
+  if (meeting.training) {
+    return Response.json(
+      { error: "This is a training meeting. Contracts are not sent for these." },
+      { status: 400 },
+    );
+  }
   if (me.role === "closer" && meeting.closerUserId !== me.id) {
     return Response.json(
       { error: "That meeting has not been given to you to close." },

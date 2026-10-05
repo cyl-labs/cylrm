@@ -183,7 +183,7 @@ export async function getMeetingStats(
       left join call_lead l on l.id = m.call_lead_id
       left join "call" bc on bc.id = m.call_id
       ${ANSWER}
-      where ${inWindow(w, sql`m.start_at`)} ${f}
+      where ${inWindow(w, sql`m.start_at`)} ${f} and not m.training
       group by 1
     `),
     // Calls logged on a lead after a demo it turned up to. The booking call

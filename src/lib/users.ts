@@ -514,3 +514,21 @@ export async function listClosers(): Promise<{ id: number; name: string }[]> {
   `)) as { id: number; name: string }[];
   return rows.map((r) => ({ id: Number(r.id), name: String(r.name) }));
 }
+
+/** Everyone a founder can pick for a practice meeting (2026-10-05): who is
+ *  training, and whose line plays the prospect. A person with no line is listed
+ *  but cannot be the prospect, since there is no number to ring. */
+export async function listTrainingPeople(): Promise<
+  { id: number; name: string; role: string; hasLine: boolean }[]
+> {
+  const rows = (await db.execute(sql`
+    select id, name, role, telnyx_did is not null as has_line from app_user
+    where active order by role, name
+  `)) as { id: number; name: string; role: string; has_line: boolean }[];
+  return rows.map((r) => ({
+    id: Number(r.id),
+    name: String(r.name),
+    role: String(r.role),
+    hasLine: r.has_line === true,
+  }));
+}

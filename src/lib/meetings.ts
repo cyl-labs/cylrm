@@ -521,6 +521,10 @@ export type Meeting = {
    *  may close it: log what happened, draft contracts, log follow-ups. */
   closerUserId: number | null;
   closerName: string | null;
+  /** A practice meeting (2026-10-05): no lead, no fee, no alerts, and its answer
+   *  lives in `trainingOutcome`. See `api/meetings/training`. */
+  training: boolean;
+  trainingOutcome: string | null;
   /** Who logged the `demo_booked` call. Shown to admins only, like the
    *  callbacks diary shows who promised the call. */
   bookedBy: string | null;
@@ -884,6 +888,7 @@ const meetingSelect = sql`
   end as attendee_name,
   m.attendee_email, m.attendee_phone, m.attendee_tz,
   m.meeting_url, m.kind,
+  m.training, m.training_outcome,
   -- Who a founder handed it to close (2026-09-25), or null for their own.
   m.closer_user_id,
   (select u.name from app_user u where u.id = m.closer_user_id) as closer_name,
@@ -1295,6 +1300,7 @@ const ringBackFor = (ownerId?: number) =>
 const UNLOGGED_DAYS = 7;
 const needsLoggingFor = (ownerId?: number) => sql`coalesce(
   m.status = 'accepted'
+  and not m.training
   and m.start_at < now() - interval '1 hour'
   and m.start_at > now() - make_interval(days => ${UNLOGGED_DAYS}::int)
   and case
@@ -1325,6 +1331,7 @@ const hasCallBack = (ownerId?: number) =>
 
 const startingSoon = (tz: string) => sql`
   m.status = 'accepted'
+  and not m.training
   and m.start_at > now()
   -- Already answered ahead of time — a founder writing off a booking that is
   -- not real (2026-09-25) — is nothing coming.
@@ -1620,6 +1627,8 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
         ? null
         : n(r.closer_user_id),
     closerName: (r.closer_name as string | null) ?? null,
+    training: r.training === true,
+    trainingOutcome: (r.training_outcome as string | null) ?? null,
     bookedBy: (r.booked_by as string | null) ?? null,
     bookedAt: iso(r.booked_at),
     bookingNotes: (r.booking_notes as string | null) ?? null,
@@ -2172,7 +2181,7 @@ export async function sendMeetingReminders(
     from call_meeting m
     left join call_lead l on l.id = m.call_lead_id
     left join call_list cl on cl.id = l.call_list_id
-    where m.status = 'accepted'
+    where m.status = 'accepted' and not m.training
       and m.start_at > now()
       and ${notAnsweredYet("m")}
   `)) as Row[];
@@ -2369,7 +2378,7 @@ export async function sendMeetingTelegrams(
     left join call c on c.id = m.call_id
     left join app_user u on u.id = c.user_id
     ${leadZone}
-    where m.status = 'accepted'
+    where m.status = 'accepted' and not m.training
       and ${notAnsweredYet("m")}
       and m.start_at > ${now.toISOString()}::timestamptz
       and m.start_at <= ${now.toISOString()}::timestamptz

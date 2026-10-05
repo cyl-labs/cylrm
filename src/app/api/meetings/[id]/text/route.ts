@@ -68,6 +68,12 @@ export async function POST(
   if (!meeting) {
     return Response.json({ error: "Meeting not found." }, { status: 404 });
   }
+  if (meeting.training) {
+    return Response.json(
+      { error: "This is a training meeting. Texts are not sent for these." },
+      { status: 400 },
+    );
+  }
   if (meeting.leadId === null || !meeting.phone) {
     return Response.json(
       { error: "This booking has no phone number to text." },

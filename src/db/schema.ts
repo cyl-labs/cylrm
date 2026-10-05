@@ -1391,6 +1391,11 @@ export const callMeeting = pgTable(
     /** The name was corrected by hand (2026-10-05), so the Cal.com sync leaves
      *  it alone. Cal.com cannot be told, and its own emails keep the old one. */
     attendeeNameEdited: boolean("attendee_name_edited").notNull().default(false),
+    /** A practice meeting for a new closer (2026-10-05): kept out of every real
+     *  number, alert and fee. Its answer goes in `trainingOutcome`, never in
+     *  `call_demo_attendance`, so payroll cannot see it. */
+    training: boolean("training").notNull().default(false),
+    trainingOutcome: text("training_outcome"),
     attendeeEmail: text("attendee_email"),
     /** Cal.com's "Best number to call you on" — the number the prospect asked
      *  to be rung on, which is often a mobile where the lead carries the

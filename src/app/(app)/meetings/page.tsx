@@ -8,6 +8,7 @@ import { PushToggle } from "@/components/calls/push-toggle";
 import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { SyncOnReturn } from "@/components/calls/sync-on-return";
 import { PushGate } from "@/components/calls/push-gate";
+import { TrainingAssign } from "@/components/calls/training-assign";
 import { getMeetings } from "@/lib/meetings";
 import { getRecordingKinds } from "@/lib/recording-kinds";
 import { getStoredBriefs } from "@/lib/meeting-brief";
@@ -27,6 +28,7 @@ import {
   canSendTexts,
   dialMethodOf,
   listClosers,
+  listTrainingPeople,
   statsRegionOf,
 } from "@/lib/users";
 import {
@@ -319,6 +321,7 @@ export default async function MeetingsPage({
   const bookedByMe: number[] | null = null;
   const myLineNumber = me ? await callerNumberOf(me.id) : null;
   const closers = me?.role === "admin" ? await listClosers() : [];
+  const trainingPeople = me?.role === "admin" ? await listTrainingPeople() : [];
   // The last week at a glance (2026-09-25); the breakdown is on Stats. A
   // caller's is the demos they booked, the same scope Stats gives them.
   const week = past
@@ -368,6 +371,14 @@ export default async function MeetingsPage({
           {/* Refresh first: it is the one people reach for, right after
               booking something on Cal.com. */}
           <RefreshMeetings />
+          {/* Founders only: hands a new closer a practice meeting. */}
+          {me?.role === "admin" && (
+            <TrainingAssign
+              people={trainingPeople}
+              tz={zone.tz}
+              zoneLabel={zone.label}
+            />
+          )}
           {/* Renders nothing. Watches for a trip to Cal.com and pulls the
               calendar when you come back, so moving a demo does not leave
               this screen counting down to a time nobody agreed to. */}

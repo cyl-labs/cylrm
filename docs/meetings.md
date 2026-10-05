@@ -2977,3 +2977,32 @@ written for a short call by itself; the founders were explicit ("don't auto writ
 - The summary prompt is written around the cold-call script (hours, after hours, voice
   agent, demo) and reports "no time came up" where nothing did. On a short call it simply
   has fewer lines. A prompt tuned for short calls is a separate piece of work.
+
+
+### Training meetings (2026-10-05)
+
+A practice meeting a founder hands a new closer, so they can ring a "prospect"
+and merge the voice agent in before a real demo. Asked for as a standing way to
+train closers that "I don't want to make it like a real meeting" and is "easily
+revertible".
+
+- **A flag, not a lead.** `call_meeting.training`, with `crm-style` uid
+  `training-<uuid>`, `matched_by = 'manual'`, no `call_lead_id`, no `call_id`.
+  The prospect is a colleague: `attendee_phone` is their CRM line (`telnyx_did`),
+  so Call them rings their browser. Set up by a founder (`POST
+  /api/meetings/training`, "Training meeting" on Meetings), who picks the
+  closer, the person who plays the prospect (a founder or another closer) and a
+  time on the screen's clock.
+- **The answer is stored on the row** (`training_outcome`, `PATCH
+  /api/meetings/[id]/training`) and never goes through
+  `/api/payroll/attendance`, which is what keeps it out of attendance fees. That
+  route refuses a meeting with no lead anyway; do not "fix" that for training.
+- **`not m.training` is in** the push reminders, Telegram alerts, the 7pm
+  digest, the briefing scope, meeting stats' demo query, the badge
+  (`startingSoon`, `needsLoggingFor`). **A new reader of `call_meeting` that
+  counts or alerts needs the same filter.** Contracts and texts refuse a
+  training meeting (a real DocuSeal submission and a real SMS), and the row
+  does not draw those controls: it is its own component
+  (`training-meeting-row.tsx`) rather than hiding things on the real one.
+- **Reverting is a delete** (`DELETE /api/meetings/[id]/training`, founders):
+  nothing else holds on to the row.

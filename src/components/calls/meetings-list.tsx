@@ -56,6 +56,7 @@ import { LogRecording } from "@/components/calls/log-recording";
 import type { RecordingKind } from "@/lib/recording-kinds";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
 import { MeetingCallButton } from "@/components/calls/meeting-call-button";
+import { TrainingMeetingRow } from "@/components/calls/training-meeting-row";
 import { MoveQuietly } from "@/components/calls/move-quietly";
 import type { SavedLine } from "@/components/calls/second-line";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
@@ -1027,6 +1028,19 @@ export function MeetingsList({
     )}
     <ul className="flex flex-col gap-2">
       {meetings.map((m) => {
+        // A practice meeting has its own, much smaller row: the real one
+        // carries controls that count (attendance, contracts, texts).
+        if (m.training) {
+          return (
+            <TrainingMeetingRow
+              key={m.id}
+              m={m}
+              tz={tz}
+              lines={lines}
+              isFounder={showWho}
+            />
+          );
+        }
         // The recordings this row shows, short ones dropped when the switch
         // above says so, and numbered after dropping so the labels still
         // count 1, 2, 3.

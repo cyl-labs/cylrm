@@ -158,7 +158,7 @@ export async function sendMeetingDigest(
     left join call c on c.id = m.call_id
     left join app_user u on u.id = c.user_id
     ${leadZone}
-    where m.status = 'accepted'
+    where m.status = 'accepted' and not m.training
       and ${notAnsweredYet("m")}
       and m.start_at > ${now.toISOString()}::timestamptz
       and m.start_at <= ${now.toISOString()}::timestamptz

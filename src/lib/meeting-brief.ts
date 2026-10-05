@@ -404,6 +404,7 @@ const UNLOGGED_MINUTES = 60;
  */
 export const briefScope = sql`
   m.status = 'accepted'
+  and not m.training
   and m.start_at > now() - make_interval(mins => ${UNLOGGED_MINUTES}::int)
   -- Gone the moment somebody says what happened, so a demo you have already
   -- dealt with does not sit there for the rest of the hour -- and one a founder
