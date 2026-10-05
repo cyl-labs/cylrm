@@ -21,6 +21,20 @@ export const OUTCOME_LABELS: Record<CallOutcome, string> = {
   bad_number: "Bad number",
 };
 
+/**
+ * What each phone outcome means, in the words of somebody who is not a software
+ * person. "Voicemail" was read as "I left a voicemail" and logged as No answer
+ * (2026-10-06): the CRM means the call went to a machine, message or not. The
+ * dial card shows these under the buttons.
+ */
+export const OUTCOME_HELP: Partial<Record<CallOutcome, string>> = {
+  no_answer: "It rang and nobody picked up. You never heard a voicemail greeting.",
+  voicemail:
+    "You heard a voicemail greeting. Pick this even if you hung up or left a message.",
+  gatekeeper: "Somebody picked up but it was not the owner, and you could not get through.",
+  callback: "Somebody asked you to ring back later.",
+};
+
 /** The ones that happen on the phone. Trial, won and lost land days or weeks
  *  after the call, so the dialler does not offer them — they are set from the
  *  board or the spreadsheet. */
