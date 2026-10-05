@@ -8,7 +8,7 @@ export type StageRating = "done" | "partly" | "missed" | "not_reached";
 export type ReviewStage = {
   key: string;
   label: string;
-  method: "NEPQ" | "Gong" | "Script";
+  method: "NEPQ" | "Gong" | "Script" | "Follow-up";
   rating: StageRating;
   /** Exact words from the call that back the rating, or null. */
   evidence: string | null;
@@ -24,6 +24,8 @@ export type ReviewStage = {
 };
 
 export type DemoReview = {
+  /** Set on a follow-up call's review, which is scored on its own steps. */
+  variant?: "followup";
   headline: string;
   stages: ReviewStage[];
   wentWell: string[];

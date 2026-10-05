@@ -26,6 +26,8 @@ import { briefSources } from "@/lib/meeting-brief";
 import {
   BOOKING_RUBRIC_TEXT,
   BOOKING_STAGES,
+  FOLLOWUP_RUBRIC_TEXT,
+  FOLLOWUP_STAGES,
   REVIEW_STAGES,
   RUBRIC_TEXT,
 } from "@/lib/demo-review-rubric";
@@ -56,6 +58,8 @@ export const reviewConfigured = () => Boolean(process.env.OPENAI_API_KEY);
 
 export type ReviewSource = {
   meetingId: number;
+  /** A follow-up call after the demo is scored on its own steps (2026-10-06). */
+  meetingKind?: "demo" | "follow_up";
   company: string;
   niche: string | null;
   /** Every recording in the demo cluster, in the order they happened. */
@@ -82,7 +86,7 @@ export async function reviewSource(
 ): Promise<ReviewSource | null> {
   const meta = (await db.execute(sql`
     select coalesce(l.company, m.attendee_name, 'Unlinked booking') as company,
-           cl.niche as niche
+           cl.niche as niche, m.kind as meeting_kind
     from call_meeting m
     left join call_lead l on l.id = m.call_lead_id
     left join call_list cl on cl.id = l.call_list_id
@@ -169,6 +173,7 @@ export async function reviewSource(
     meetingId,
     company: String(meta[0].company),
     niche: (meta[0].niche as string | null) ?? null,
+    meetingKind: meta[0].meeting_kind === "follow_up" ? "follow_up" : "demo",
     recordingIds: clustered.map((r) => r.recordingId),
     untranscribedIds,
     minutes,
@@ -187,12 +192,16 @@ export async function reviewSource(
 /** Which call is being reviewed: the demo a founder or closer runs, or the cold
  *  call a caller made to book it. Each has its own table, steps and prompt. */
 export type ReviewKind = "demo" | "booking";
+/** Which yardstick: the demo's, the follow-up call's, or the cold call's. */
+type Variant = "demo" | "followup" | "booking";
+const variantOf = (s: { meetingKind?: string }, kind: ReviewKind): Variant =>
+  kind === "booking" ? "booking" : s.meetingKind === "follow_up" ? "followup" : "demo";
 
 const TABLE = { demo: sql.raw("call_meeting_review"), booking: sql.raw("call_booking_review") };
 
 export function reviewFingerprint(s: ReviewSource, kind: ReviewKind = "demo"): string {
   return createHash("sha256")
-    .update(JSON.stringify([SYSTEMS[kind], s.company, s.transcript ?? ""]))
+    .update(JSON.stringify([SYSTEMS[variantOf(s, kind)], s.company, s.transcript ?? ""]))
     .digest("hex")
     .slice(0, 32);
 }
@@ -220,21 +229,31 @@ export async function getStoredReviews(
   return out;
 }
 
-function buildSystem(kind: ReviewKind): string {
-  const stages = kind === "demo" ? REVIEW_STAGES : BOOKING_STAGES;
+function buildSystem(variant: Variant): string {
+  const kind: ReviewKind = variant === "booking" ? "booking" : "demo";
+  const stages =
+    variant === "followup" ? FOLLOWUP_STAGES : variant === "demo" ? REVIEW_STAGES : BOOKING_STAGES;
   return [
-  ...(kind === "booking"
+  ...(variant === "followup"
+    ? [
+        "You review a recorded follow-up call after a demo and give the closer honest, specific feedback, scored against the reference below.",
+        "The closer sells an AI phone receptionist to a small service business. The owner has already seen the demo and agreed to try it, usually a free trial. This call walks through the agreement, gets it signed and sets the trial up. In the transcript, 'Closer' is our side and 'Prospect' is the business owner. Do not score it like a first demo: do not mark the closer down for not asking about the cost of the problem.",
+        "A slip by the closer counts as a moment too. If the closer says something that weakens trust (complaining about our own tools or bugs, saying they are in another country, promising something they cannot keep), put it in moments with the owner's line before it, rate it weak, and use it as the evidence for the 'credible' step, with closerLine set to the slip itself. In text you write yourself, fix obvious speech to text mistakes (for example 'scanned' when the owner said 'scammed'); quotes stay exact.",
+      ]
+    : [])
+  ,
+  ...(variant === "booking"
     ? [
         "You review a recorded cold call and give the caller honest, specific feedback, scored against the reference below.",
         "The caller phones small service businesses to book a demo of an AI phone receptionist. The call may be short. In the transcript, 'Our caller' is our side and 'Prospect' is whoever answered. Many cold calls never get far: a voicemail, a quick hang up, a wrong person. Do not mark steps missed that the call never reached; use not_reached.",
       ]
-    : [
+    : variant === "followup" ? [] : [
   "You review a recorded sales demo call and give the closer honest, specific feedback, scored against the reference method below.",
   "The closer sells an AI phone receptionist to a small service business. The call is a founder or closer talking to the business owner. Part of it is a demo: the closer may add the AI receptionist to the line and play a pretend customer while the owner listens. Treat that stretch as the presentation and do not mark the closer down for not asking questions during it; it may look garbled in the transcript. This is the second call with the owner: the caller who booked it only asked a few script questions, so the closer is still expected to find out what matters to this owner, but a demo is not held to the rule that 80% of the call is questions.",
   "In the transcript, 'Closer' is our side and 'Prospect' is the business owner.",
     ]),
   "",
-  kind === "demo" ? RUBRIC_TEXT : BOOKING_RUBRIC_TEXT,
+  variant === "followup" ? FOLLOWUP_RUBRIC_TEXT : variant === "demo" ? RUBRIC_TEXT : BOOKING_RUBRIC_TEXT,
   "",
   `Score each of these ${stages.length} steps, using these exact keys:`,
   ...stages.map((s) => `- ${s.key} (${s.method}): ${s.means}`),
@@ -264,8 +283,9 @@ function buildSystem(kind: ReviewKind): string {
 ].join("\n");
 }
 
-const SYSTEMS: Record<ReviewKind, string> = {
+const SYSTEMS: Record<Variant, string> = {
   demo: buildSystem("demo"),
+  followup: buildSystem("followup"),
   booking: buildSystem("booking"),
 };
 
@@ -303,7 +323,7 @@ export async function writeReview(
       max_tokens: 7000,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: SYSTEMS[kind] },
+        { role: "system", content: SYSTEMS[variantOf(s, kind)] },
         { role: "user", content: userPrompt(s, kind) },
       ],
     }),
@@ -398,7 +418,10 @@ export async function writeReview(
   const byKey = new Map(
     list(raw.stages).map((x) => [String((x as { key?: unknown }).key), x as Record<string, unknown>]),
   );
-  const stages: ReviewStage[] = (kind === "demo" ? REVIEW_STAGES : BOOKING_STAGES).map((def) => {
+  const variant = variantOf(s, kind);
+  const stages: ReviewStage[] = (
+    variant === "followup" ? FOLLOWUP_STAGES : kind === "demo" ? REVIEW_STAGES : BOOKING_STAGES
+  ).map((def) => {
     const got = byKey.get(def.key);
     let rating = RATINGS.includes(got?.rating as StageRating)
       ? (got?.rating as StageRating)
@@ -486,6 +509,7 @@ export async function writeReview(
     biggestFix: nextSteps[0]?.do ?? "",
     ownerMoments: ownerMoments.length > 0 ? ownerMoments : undefined,
     talk: s.talk,
+    variant: variant === "followup" ? "followup" : undefined,
     recordingIds: s.recordingIds.length > 0 ? s.recordingIds : undefined,
   };
 }

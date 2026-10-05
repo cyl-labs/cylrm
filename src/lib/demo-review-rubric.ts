@@ -231,3 +231,93 @@ export const BOOKING_RUBRIC_TEXT = [
   "",
   "NEPQ for 'not interested': 'No problem. Just curious, is that because you've already got this handled?' For 'we already have someone': 'What do you like about them? If you could change one thing, what would it be?' Never argue; clarify, then ask.",
 ].join("\n");
+
+/**
+ * The steps a follow-up call after a demo is scored on (2026-10-06).
+ *
+ * Found on a real review: Angel's call was the walkthrough of the trial
+ * agreement, signed while on the phone, and the demo rubric marked it "missed"
+ * on the cost of doing nothing and on whether he could act. By then he had
+ * agreed to a trial. The question on this call is whether the trial will be
+ * set up, kept and judged fairly, so the steps are about trust, the agreement,
+ * the signature, what could stall it and the next call. NEPQ discovery is not
+ * scored here; it is asked on the demo.
+ */
+export const FOLLOWUP_STAGES: {
+  key: string;
+  label: string;
+  method: "NEPQ" | "Gong" | "Script" | "Follow-up";
+  means: string;
+}[] = [
+  {
+    key: "why",
+    label: "Remembering why they said yes",
+    method: "Follow-up",
+    means:
+      "Early on, checked what the owner wants out of the trial (the calls they never want to miss, the hours they want covered) in their own words, before going through the paperwork.",
+  },
+  {
+    key: "trust",
+    label: "Meeting doubts and trust worries",
+    method: "Follow-up",
+    means:
+      "When the owner showed a doubt (been scammed before, does not really need it, wants to talk in person, worried about price), the closer acknowledged it calmly and answered with something concrete, such as no upfront payment, cancel any time, or what happens at the end of the trial. Nothing was brushed past.",
+  },
+  {
+    key: "explain",
+    label: "Explaining the agreement clearly",
+    method: "Follow-up",
+    means:
+      "Went through what the agreement says in plain words (what the agent does, the trial length and limits, what happens if something breaks, what happens at the end, what it costs and when), and checked the owner understood rather than only reading it out.",
+  },
+  {
+    key: "signing",
+    label: "Getting it signed",
+    method: "Follow-up",
+    means:
+      "Had the owner sign on the call, or agreed an exact time and way, and confirmed it went through.",
+  },
+  {
+    key: "ready",
+    label: "Getting the trial ready",
+    method: "Follow-up",
+    means:
+      "Said exactly what happens next and who does what by when: the form, the phone number to use, how long it takes, when the trial clock starts. Asked the things that could hold it up (who sets up the number, what number, who else must be involved).",
+  },
+  {
+    key: "success",
+    label: "Agreeing what a good trial looks like",
+    method: "Follow-up",
+    means:
+      "Agreed with the owner what would make the trial a success (for example never missing calls after closing time), so the end of trial call has something to point at.",
+  },
+  {
+    key: "stall",
+    label: "Catching what could stall it",
+    method: "Follow-up",
+    means:
+      "Noticed signs the trial might stall (the owner says they do not really need it, depends on someone else, is busy, is hard to reach) and asked about them or put a safeguard in place, such as a check in call or a shorter deadline.",
+  },
+  {
+    key: "next",
+    label: "Booking the next call",
+    method: "Follow-up",
+    means:
+      "Agreed the date, time and reason for the next call, in the owner's time zone, before hanging up.",
+  },
+  {
+    key: "credible",
+    label: "Staying professional and credible",
+    method: "Follow-up",
+    means:
+      "Said nothing that weakens trust: no complaining about our own tools or bugs, no oversharing about being abroad or in a different time zone when the owner has just voiced scam worries, no promise that cannot be kept, no wrong statement about the terms.",
+  },
+];
+
+export const FOLLOWUP_RUBRIC_TEXT = [
+  "REFERENCE: how a follow-up call after a demo should go.",
+  "",
+  "By this call the owner has already seen the demo and agreed to try the service, usually a free trial with no payment up front. The call exists to get the agreement understood and signed, to get the trial set up, to keep the owner confident, and to make sure the trial will be judged on what matters to them. It is NOT a discovery call: do not mark the closer down for not asking about the cost of the problem or whether the owner can act, and do not score the NEPQ discovery stages.",
+  "",
+  "What strong looks like: the closer checks what the owner wants from the trial, goes through each part of the agreement in plain words and checks it is clear, answers any doubt with something concrete instead of reassurance, gets the signature while the owner is on the call, says exactly what happens next and who does what by when, spots anything that could stall the trial, and books the next call. What weak looks like: reading the agreement out without checking understanding, 'I hear you' to a doubt and moving on, leaving the owner unsure what happens next, saying things that weaken trust (complaining about our own tools, saying the closer is in another country to someone who just mentioned scams), and letting a reluctant owner drift into a trial nobody is checking on.",
+].join("\n");

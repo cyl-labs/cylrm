@@ -82,7 +82,7 @@ function verdictOf(r: DemoReview, booking: boolean): Verdict {
 
 /** What the talk share means, in a sentence, so the number is not left to be
  *  guessed at. Demos aim for about two thirds, cold calls for about half. */
-function talkRead(r: DemoReview, booking: boolean): string {
+function talkRead(r: DemoReview, booking: boolean, followUp = false): string {
   const pct = r.talk.closerPercent;
   const [low, high] = booking ? [35, 65] : [50, 75];
   const target = booking ? "about half" : "about two thirds";
@@ -97,6 +97,7 @@ function talkRead(r: DemoReview, booking: boolean): string {
     !booking && r.talk.minutes < 5
       ? " The call was short, so this number says little."
       : "";
+  if (followUp) return `${read}`;
   return `Good ${booking ? "cold calls" : "demos"} have ${who} talking ${target} of the time. ${read}${short}`;
 }
 
@@ -104,6 +105,7 @@ export function DemoReviewFold({
   meetingId,
   initial,
   kind = "demo",
+  followUp = false,
   calls = [],
   defaultIds = [],
 }: {
@@ -112,6 +114,8 @@ export function DemoReviewFold({
   /** "demo" is the call a founder or closer ran; "booking" is the cold call a
    *  caller made to win it. */
   kind?: "demo" | "booking";
+  /** The meeting is a follow-up call, which is reviewed on its own steps. */
+  followUp?: boolean;
   /** Demo reviews: every recording of this business that could be the demo, so
    *  the reviewer chooses which to analyse (2026-10-03). The automatic pick is a
    *  guess, and a demo that drops is several recordings. */
@@ -171,7 +175,7 @@ export function DemoReviewFold({
       <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
         <ClipboardCheck className="size-3.5 shrink-0 text-muted-foreground" />
-        {booking ? "How the booking call went" : "How the demo call went"}
+        {booking ? "How the booking call went" : followUp || initial?.review.variant === "followup" ? "How the follow-up call went" : "How the demo call went"}
         <span className="font-normal text-muted-foreground" suppressHydrationWarning>
           {stored ? `reviewed ${ago(stored.generatedAt)}` : "not reviewed yet"}
         </span>
@@ -199,13 +203,13 @@ export function DemoReviewFold({
               {booking ? "The caller" : "The closer"} spoke {r.talk.closerPercent}% of the time and asked{" "}
               {r.talk.closerQuestions}{" "}
               {r.talk.closerQuestions === 1 ? "question" : "questions"} in{" "}
-              {r.talk.minutes} minutes. {talkRead(r, booking)}
+              {r.talk.minutes} minutes. {talkRead(r, booking, r.variant === "followup")}
             </p>
 
             {r.nextSteps && r.nextSteps.length > 0 ? (
               <div className="rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
                 <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {booking ? "Do this on your next call" : "Do this on your next demo"}
+                  {booking || r.variant === "followup" ? "Do this on your next call" : "Do this on your next demo"}
                 </p>
                 <ol className="mt-1.5 space-y-2.5">
                   {r.nextSteps.map((st, i) => (

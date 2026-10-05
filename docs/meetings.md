@@ -3076,3 +3076,24 @@ Older reviews show as before until "Review it again". `clean` no longer strips q
 pointer parses its own); `unq` does, for fields the screen wraps in marks itself. The moments log is
 built before the stages and the closer-lines check is defined above them: a `const` used before its
 definition threw at runtime in a first draft.
+
+### Follow-up calls are reviewed on their own steps (2026-10-06)
+
+`FOLLOWUP_STAGES` and `FOLLOWUP_RUBRIC_TEXT` in `lib/demo-review-rubric.ts`; `variantOf` in
+`lib/demo-review.ts` picks the yardstick from the meeting's kind (`follow_up` from Cal.com's follow-up
+event type). Found on Angel's (Santa Fe Junk Removal) real review: the call was the walkthrough of the trial
+agreement, signed on the phone, and the demo rubric marked it "missed" on the cost of doing nothing and on
+whether he could act. By then he had agreed to the trial.
+
+- **Nine steps**: why they said yes, doubts and trust, explaining the agreement, signing, getting the trial
+  ready, what a good trial looks like, what could stall it, the next call, staying professional. NEPQ discovery
+  is not scored on these.
+- **A closer's own slip is a moment** (complaining about our own tools to a client, saying they are abroad to
+  someone who just said he was scammed). The credible step quotes the slip as `closerLine`.
+- Same table, same fold: the fold reads `meetingKind` from the row (`followUp` prop) and `review.variant`,
+  so the heading says "How the follow-up call went" and the talk-share line drops the demo's two-thirds
+  benchmark. The system prompt is in the fingerprint, so old follow-up reviews read as out of date.
+- Also asked in the prompt: fix obvious speech to text mistakes in text the model writes ("scanned" for
+  "scammed"); quotes stay exact.
+- Checked on a condensed version of the Santa Fe call: it marked doubts handled and signing done, and caught
+  the "I'm in a different country" line and the owner's dependence on "him". Not checked on the full call.

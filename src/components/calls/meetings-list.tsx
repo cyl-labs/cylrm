@@ -2795,6 +2795,7 @@ export function MeetingsList({
               <DemoReviewFold
                 meetingId={m.id}
                 initial={reviews[m.id] ?? null}
+                followUp={m.kind === "follow_up"}
                 calls={reviewCalls}
                 defaultIds={m.demoRecordings.map((r) => r.recordingId)}
               />
