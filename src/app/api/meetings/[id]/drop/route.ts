@@ -1,3 +1,4 @@
+import { logMeetingEvent } from "@/lib/meeting-log";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
@@ -84,6 +85,15 @@ export async function POST(
         select id from call_meeting where call_lead_id = ${m.call_lead_id}
       )
     `);
+  }
+
+  for (const c of closed) {
+    await logMeetingEvent({
+      meetingId: Number(c.meeting_id),
+      userId: me.id,
+      action: "taken_off",
+      detail: note,
+    });
   }
 
   return Response.json({ closed: closed.length });

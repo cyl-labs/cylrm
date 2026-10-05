@@ -3006,3 +3006,24 @@ revertible".
   (`training-meeting-row.tsx`) rather than hiding things on the real one.
 - **Reverting is a delete** (`DELETE /api/meetings/[id]/training`, founders):
   nothing else holds on to the row.
+
+### Recently logged (2026-10-05)
+
+`/meetings/log`, founders only, linked from Meetings. Every answer, undo,
+follow-up result and "taken off" on a meeting, newest first, with who and when.
+
+- **Asked for** after a no show logged on a meeting that had not started could
+  not be found under Past meetings. Past is ordered by when the meeting
+  happened, so an edit never moves it. The log is a different question ("what
+  did we say, and when"), so it is its own screen and Past is untouched.
+- **Its own table, `meeting_log`**, because an undo deletes the
+  `call_demo_attendance` row: the answer cannot show it was ever given. Written
+  by `logMeetingEvent` (`lib/meeting-log.ts`) from the attendance, answer
+  (undo), follow-up and drop routes. **It never throws**: the log must not be
+  able to stop an answer being saved. `meeting_id` has no foreign key and
+  `business` is a snapshot, so an entry outlives its meeting.
+- **A new route that records an answer on a meeting must call it**, or the log
+  quietly has holes. Existing answers and follow-ups were backfilled once; undos
+  made before 2026-10-05 are gone for good.
+- New table, so RLS is on, `anon`/`authenticated` have no grants, and
+  `cloud_ro` has a select policy (in the migration).

@@ -2149,3 +2149,31 @@ export const aiUsage = pgTable(
   },
   (t) => [index("ai_usage_at_idx").on(t.at.desc())],
 );
+
+/**
+ * What was said about meetings, newest first on /meetings/log (2026-10-05).
+ *
+ * Its own table because an undo deletes the attendance row, so the answer
+ * itself cannot show that it was ever given. `meetingId` has no foreign key and
+ * `business` is a snapshot, so an entry outlives the meeting it was about.
+ * Written by `logMeetingEvent`, which never lets a failure here block the
+ * answer it is recording.
+ */
+export const meetingLog = pgTable(
+  "meeting_log",
+  {
+    id: serial("id").primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    userId: integer("user_id").references(() => appUser.id, {
+      onDelete: "set null",
+    }),
+    meetingId: integer("meeting_id"),
+    business: text("business"),
+    meetingStartAt: timestamp("meeting_start_at", { withTimezone: true }),
+    /** `showed_up` | `no_show` | `invalid` | `half_fee` | `undone` |
+     *  `followup_<result>` | `taken_off`. Text, so a new one needs no migration. */
+    action: text("action").notNull(),
+    detail: text("detail"),
+  },
+  (t) => [index("meeting_log_at_idx").on(t.at.desc())],
+);

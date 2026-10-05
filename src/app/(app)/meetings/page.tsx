@@ -371,6 +371,17 @@ export default async function MeetingsPage({
           {/* Refresh first: it is the one people reach for, right after
               booking something on Cal.com. */}
           <RefreshMeetings />
+          {/* What has been logged, newest first (2026-10-05). Its own screen:
+              Past meetings is ordered by when a meeting happened. */}
+          {me?.role === "admin" && (
+            <Link
+              href="/meetings/log"
+              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted"
+            >
+              <History className="size-3.5" />
+              Recently logged
+            </Link>
+          )}
           {/* Founders only: hands a new closer a practice meeting. */}
           {me?.role === "admin" && (
             <TrainingAssign

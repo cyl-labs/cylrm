@@ -1,3 +1,4 @@
+import { logMeetingEvent } from "@/lib/meeting-log";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
@@ -91,6 +92,13 @@ export async function DELETE(
                         and ${row.marked_at}::timestamptz + interval '30 seconds'
     `);
   }
+
+  await logMeetingEvent({
+    meetingId: id,
+    userId: me.id,
+    action: "undone",
+    detail: `Took back: ${row.status}`,
+  });
 
   return Response.json({ ok: true, was: row.status });
 }

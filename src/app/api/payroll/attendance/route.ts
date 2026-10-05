@@ -1,3 +1,4 @@
+import { logMeetingEvent } from "@/lib/meeting-log";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
@@ -374,6 +375,24 @@ export async function POST(request: Request) {
         : sql`(select id from call_meeting where call_id = ${callId})`,
     );
   }
+
+  // The meetings log (2026-10-05). Resolved here rather than earlier: Payroll's
+  // confirm list sends a call and no meeting.
+  const loggedMeeting =
+    pin?.id ??
+    (callId !== null
+      ? ((
+          (await db.execute(
+            sql`select id from call_meeting where call_id = ${callId} limit 1`,
+          )) as { id: number }[]
+        )[0]?.id ?? null)
+      : null);
+  await logMeetingEvent({
+    meetingId: loggedMeeting === null ? null : Number(loggedMeeting),
+    userId: me.id,
+    action: status,
+    detail: typeof body?.notes === "string" && body.notes.trim() ? body.notes.trim() : null,
+  });
 
   return Response.json({ ok: true });
 }
