@@ -229,7 +229,7 @@ export function TeamManager({
   canManage,
   tz,
 }: {
-  numbers: { phoneNumber: string; available: boolean }[];
+  numbers: { phoneNumber: string; available: boolean; label?: string | null }[];
   team: TeamMember[];
   /** Each person's call lists with how far through them they are, keyed by
    *  user id. Built on the server from `getCallLists` rather than carried on
@@ -373,6 +373,12 @@ export function TeamManager({
    * Same lookup `telnyx-numbers.tsx` uses for its own column, so the panel and
    * the dropdown cannot disagree about whose a number is.
    */
+  /** The name a number carries on the numbers panel (2026-10-05): the labelled
+   *  lines are the voice agent demos, which are not for a person to dial from.
+   *  The dropdown said nothing about them, so one looked as free as any other. */
+  const labelOf = (phone: string) =>
+    accountNumbers.find((n) => n.phoneNumber === phone)?.label ?? null;
+
   const holderOf = (phone: string, exceptId: number) =>
     team.find((t) => t.telnyxDid === phone && t.id !== exceptId) ?? null;
 
@@ -380,8 +386,8 @@ export function TeamManager({
    *  it should never be the first thing under the cursor. */
   const offerFor = (region: string | null, exceptId: number) =>
     [...numbersFor(region)].sort((a, b) => {
-      const ta = holderOf(a, exceptId) ? 1 : 0;
-      const tb = holderOf(b, exceptId) ? 1 : 0;
+      const ta = holderOf(a, exceptId) || labelOf(a) ? 1 : 0;
+      const tb = holderOf(b, exceptId) || labelOf(b) ? 1 : 0;
       return ta - tb;
     });
   const [adding, setAdding] = React.useState(false);
@@ -728,6 +734,16 @@ export function TeamManager({
                             // but never by accident, and never without the
                             // inbound half being said out loud. It is the part
                             // that silently breaks.
+                            const demoLine = v === NO_DID ? null : labelOf(v);
+                            if (
+                              demoLine &&
+                              !confirm(
+                                `${v} is the "${demoLine}" demo line, which the voice agent answers.\n\n` +
+                                  `Give it to ${m.name} as their own number? Prospects who ring it back would reach the agent, not them. Pick another number unless you mean to.`,
+                              )
+                            ) {
+                              return;
+                            }
                             const held =
                               v === NO_DID ? null : holderOf(v, m.id);
                             if (
@@ -776,6 +792,11 @@ export function TeamManager({
                                   {held && (
                                     <span className="text-muted-foreground">
                                       in use by {held.name}
+                                    </span>
+                                  )}
+                                  {!held && labelOf(n) && (
+                                    <span className="text-muted-foreground">
+                                      demo line: {labelOf(n)}
                                     </span>
                                   )}
                                 </SelectItem>
@@ -1086,6 +1107,7 @@ export function TeamManager({
         onAdded={() => router.refresh()}
         offer={(region) => offerFor(region, -1)}
         holderName={(phone) => holderOf(phone, -1)?.name ?? null}
+        demoLabel={labelOf}
       />
 
       <ReplaceDialog
@@ -1339,6 +1361,7 @@ function AddPersonDialog({
   onAdded,
   offer,
   holderName,
+  demoLabel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1347,6 +1370,8 @@ function AddPersonDialog({
   offer: (region: string | null) => string[];
   /** Who already rings from a number, if anybody. */
   holderName: (phone: string) => string | null;
+  /** The demo line a number is labelled as, or null. */
+  demoLabel: (phone: string) => string | null;
 }) {
   const fields = useLoginFields(open);
   const [role, setRole] = React.useState<Role>("caller");
@@ -1525,6 +1550,11 @@ function AddPersonDialog({
                             {held && (
                               <span className="text-muted-foreground">
                                 in use by {held}
+                              </span>
+                            )}
+                            {!held && demoLabel(n) && (
+                              <span className="text-muted-foreground">
+                                demo line: {demoLabel(n)}
                               </span>
                             )}
                           </SelectItem>
