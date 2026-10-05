@@ -215,6 +215,11 @@ export function DemoReviewFold({
                       </span>
                       <div className="min-w-0 space-y-0.5">
                         {st.when && <p className="text-muted-foreground">{st.when}</p>}
+                        {st.youDid && (
+                          <p className="text-muted-foreground">
+                            You said: &ldquo;{st.youDid}&rdquo;
+                          </p>
+                        )}
                         <p className="font-semibold">{st.do}</p>
                         <p>
                           <span className="text-muted-foreground">Say: </span>

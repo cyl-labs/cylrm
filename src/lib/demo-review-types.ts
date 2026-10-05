@@ -22,7 +22,7 @@ export type DemoReview = {
   /** Up to three steps for the next call, most important first (2026-10-04).
    *  `when` points at the moment in THIS call, `do` is one thing to do, `say` is
    *  the exact words. Absent on reviews written before this existed. */
-  nextSteps?: { when: string; do: string; say: string }[];
+  nextSteps?: { when: string; do: string; say: string; youDid?: string }[];
   toImprove: { what: string; tryThis: string }[];
   objections: { theySaid: string; handled: string; tryThis: string }[];
   biggestFix: string;

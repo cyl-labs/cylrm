@@ -242,12 +242,15 @@ function buildSystem(kind: ReviewKind): string {
   "Ratings: done (clearly did it), partly (tried or half did it, or did it in a telling way instead of getting the prospect to say it), missed (the call reached the point where it belonged and the closer did not do it), not_reached (the call never got that far, for example it ended early).",
   "",
   "Reply with one JSON object and nothing else, in exactly this shape:",
-  `{"headline": string, "nextSteps": [{"when": string, "do": string, "say": string}], "stages": [{"key": string, "rating": "done"|"partly"|"missed"|"not_reached", "evidence": string|null, "note": string}], "wentWell": [string], "objections": [{"theySaid": string, "handled": string, "tryThis": string}]${kind === "demo" ? ', "ownerMoments": [{"quote": string, "feeling": string, "closerNext": string}]' : ""}}`,
+  `{"moments": [{"ownerSaid": string, "closerReplied": string, "howItWent": "strong"|"weak"|"none", "gap": string}], "headline": string, "nextSteps": [{"moment": number, "when": string, "do": string, "say": string}], "stages": [{"key": string, "rating": "done"|"partly"|"missed"|"not_reached", "evidence": string|null, "note": string}], "wentWell": [string], "objections": [{"theySaid": string, "handled": string, "tryThis": string}]${kind === "demo" ? ', "ownerMoments": [{"quote": string, "feeling": string, "closerNext": string}]' : ""}}`,
   "",
   "Rules:",
   "- READING LEVEL: write everything the reader sees at a third grade reading level. Use short everyday words. Keep sentences under 12 words, one idea each. Never use sales words such as discovery, qualify, consequence, reframe, transition, objection, rapport, insight, framework, leverage, value proposition, or pain point. Say what to do, not what to explore. Say owner, not prospect.",
   "- headline: one plain sentence on how the call went.",
-  "- nextSteps: 1 to 3 steps for the NEXT call, most important first, chosen because they would change the result the most. Never repeat the same lesson twice. If the call went well, give one step that would make it better. Each step has: when, do and say. when points at the moment in THIS call. Start with what the owner said and put a few of their exact words in double quotes, for example: When the owner said \"many people do not like talking to a machine\". do is one thing to do, starting with a verb, in plain words. say is the exact words to say, one or two short sentences, a question where the method calls for one. Never make up facts about the owner. Never tell the closer to do something they already did on this call: check the closer's own lines first, and if they did it, pick a different lesson or give fewer steps.",
+  "- moments: FILL THIS FIRST, before anything else, by reading the whole call in order. A moment is each time the owner raised a worry, a pushback, a problem in their business, a question, or a sign of interest. 3 to 8 moments, in the order they happened, skipping small talk. ownerSaid is an exact quote of up to about 25 words from the Prospect's lines. closerReplied is an exact quote of up to about 30 words of what the Closer said right after, copied from the Closer's lines; look at the next few Closer turns, not just the first, because a follow up question can come a turn later; use an empty string if the Closer said nothing useful back. howItWent: strong = the closer showed they heard it AND either answered it well or asked a follow up that got the owner to say more (what it costs them, how often, how it feels) or moved the call forward; weak = the closer only agreed, sympathised, praised or changed the subject, or asked about the topic but dropped it as soon as the owner answered; none = the closer ignored it. A closer who asks a question about a problem and then does nothing with the answer is weak, not strong. gap is one plain sentence on what a sharper closer would have done at that exact point, using the owner's own details (empty for strong).",
+  "- nextSteps: 1 to 3 steps for the NEXT call, most important first. Each step must be built on ONE moment that you rated weak or none: moment is its number in the moments list, counting from 1. Never build a step on a strong moment, and never tell the closer to do what the Closer lines show they already did. Pick the weak moments that would have changed the result the most, and never use two steps for the same lesson. If every moment was strong, give one step that would make the call better still. when points at that moment: start with what the owner said and put a few of their exact words in double quotes, for example: When the owner said \"many people do not like talking to a machine\". do is one thing to do instead of what the closer did, starting with a verb, in plain words. say is the exact words to say, one or two short sentences, a question where the method calls for one, using the owner's own details. Never make up facts about the owner.",
+  "- Anything in moments rated strong also belongs in wentWell, naming it by what the owner said, never by its number.",
+  "- Before you write a step, check ALL the Closer's later lines too: if the closer asked that question or made that point anywhere later in the call, the step is wrong, so drop it or pick another moment. Prefer moments where the owner revealed real stakes (a crash, lost jobs, lost money, hours of work, a personal cost) and the closer did not turn it into a number or a feeling (how often, what it cost, what it did to the day), because that is what moves an owner to want a fix. Prefer these over a closer who agreed politely.",
   "- stages: all the keys above, in the order given. note is one short plain sentence saying what happened. evidence is an exact quote of up to about 25 words copied character for character from ONE speaker in the transcript. Every done, partly and missed step needs one: for done and partly it is the line that shows what was done; for missed it is the line where the step should have happened (for example the caller offering times before any time zone was asked). Use null only for not_reached. The quote must prove the note, so never quote an unrelated line (an email address does not prove a time was read back). Never write evidence that is not in the transcript. The note must agree with the rating and with the quote: do not write a note that says the step was done fully when the rating is partly.",
   "- wentWell: 2 to 4 specific things done well, each naming the moment. Leave the list shorter rather than flatter. Empty is allowed. If the closer did something the method asks for, such as asking what the owner wants to know, it belongs here with the moment named.",
   "- objections: one entry for each time the owner pushed back or hesitated (price, need to think, need to ask someone, already have something, not now). theySaid is a short exact quote of it, picked so it reads clearly: speech to text garbles money (for example '90 $9' for $99), so choose a clearer line from the same push back instead of showing a garbled number, handled says in one sentence what was done, tryThis is what to say instead, in plain words. Empty list if there were none. BEFORE you write tryThis, read the closer's lines after that push back. If the closer already said or asked what you would suggest, or something close to it, do not suggest it: say in handled that the closer did the right thing and quote a few of their words, and leave tryThis as an empty string. Only write tryThis for something the closer did NOT do.",
@@ -294,7 +297,7 @@ export async function writeReview(
     body: JSON.stringify({
       model: MODEL,
       temperature: 0.2,
-      max_tokens: 3800,
+      max_tokens: 4800,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEMS[kind] },
@@ -383,11 +386,42 @@ export async function writeReview(
     };
   });
 
+  // The closer's own lines, so the claim "you said X" can be checked. Demo
+  // transcripts label them "Closer", booking ones "Our caller".
+  const closerHay = normalise(
+    s.transcript
+      .split("\n")
+      .filter((l) => l.startsWith("Closer: ") || l.startsWith("Our caller: "))
+      .map((l) => l.replace(/^(Closer|Our caller): /, ""))
+      .join(" "),
+  );
+  const saidBy = (hayOf: string, q: string) => {
+    if (!hayOf) return inCall(q);
+    const pieces = q.split(/\.\.\.|…/).map(normalise).filter(Boolean);
+    return pieces.length > 0 && pieces.every((p) => ` ${hayOf} `.includes(` ${p} `));
+  };
+  // What the owner said and what the closer did about it. A quote that is not
+  // in the right speaker's lines is cut, not shown.
+  const moments = list(raw.moments).map((x) => {
+    const o = x as { ownerSaid?: unknown; closerReplied?: unknown; howItWent?: unknown };
+    const ownerSaidQ = clean(o.ownerSaid);
+    const replied = clean(o.closerReplied);
+    return {
+      ownerSaid: ownerSaidQ && ownerSaid(ownerSaidQ) ? ownerSaidQ : "",
+      closerReplied: replied && saidBy(closerHay, replied) ? replied : "",
+      strong: o.howItWent === "strong",
+    };
+  });
+
   // The moment each step points at. Quoted words that are not really in the
   // call are cut out rather than shown, the same rule the evidence follows.
+  // A step must rest on a moment the closer handled weakly or not at all:
+  // advice about something they did well is the bug this guards against.
   const nextSteps = list(raw.nextSteps)
     .map((x) => {
-      const o = x as { when?: unknown; do?: unknown; say?: unknown };
+      const o = x as { moment?: unknown; when?: unknown; do?: unknown; say?: unknown };
+      const m = moments[Number(o.moment) - 1];
+      if (m?.strong) return null;
       const when = clean(o.when).replace(/["“]([^"“”]+)["”]/g, (all, q: string) =>
         inCall(q) ? all : "",
       );
@@ -396,9 +430,9 @@ export async function writeReview(
       // which is worse than no pointer.
       tidy = tidy.replace(/\s+([.,;:])/g, "$1");
       if (/\b(said|asked|told you|answered)[\s:,.]*$/i.test(tidy) || tidy.length < 12) tidy = "";
-      return { when: tidy, do: clean(o.do), say: clean(o.say) };
+      return { when: tidy, do: clean(o.do), say: clean(o.say), youDid: m?.closerReplied || undefined };
     })
-    .filter((x) => x.do && x.say)
+    .filter((x): x is NonNullable<typeof x> => x !== null && Boolean(x.do && x.say))
     .slice(0, 3);
 
   return {
