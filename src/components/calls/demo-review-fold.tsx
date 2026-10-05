@@ -131,7 +131,12 @@ export function DemoReviewFold({
   );
   const toggle = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  const choosing = !booking && calls.length > 0;
+  // The list of calls is behind a link (2026-10-06): it sat open under every
+  // review and was mostly noise, since the automatic pick is usually right.
+  // The review still reads whichever calls are ticked, ticked or not shown.
+  const [picking, setPicking] = React.useState(false);
+  const canChoose = !booking && calls.length > 1;
+  const choosing = canChoose && picking;
   const [stored, setStored] = React.useState<StoredReview | null>(initial);
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState<string | null>(null);
@@ -446,6 +451,24 @@ export function DemoReviewFold({
                     ? "Review this booking call"
                     : "Review this demo call"}
           </button>
+          {canChoose && !picking && (
+            <button
+              type="button"
+              onClick={() => setPicking(true)}
+              className="text-[12px] font-semibold text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            >
+              {r ? "Want to try again with different calls?" : "Wrong call? Choose which calls"}
+            </button>
+          )}
+          {choosing && (
+            <button
+              type="button"
+              onClick={() => setPicking(false)}
+              className="text-[12px] font-semibold text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            >
+              Hide the list
+            </button>
+          )}
           {problem && <span className="text-[12px] text-destructive">{problem}</span>}
         </div>
         {r && (
