@@ -3001,9 +3001,13 @@ revertible".
   digest, the briefing scope, meeting stats' demo query, the badge
   (`startingSoon`, `needsLoggingFor`). **A new reader of `call_meeting` that
   counts or alerts needs the same filter.** Contracts and texts refuse a
-  training meeting (a real DocuSeal submission and a real SMS), and the row
-  does not draw those controls: it is its own component
-  (`training-meeting-row.tsx`) rather than hiding things on the real one.
+  training meeting on the server (a real DocuSeal submission and a real SMS).
+  The row is its own component (`training-meeting-row.tsx`) rather than hiding
+  things on the real one. **Contracts are practised, not removed**: the row
+  mounts the real `PrepareContracts` with `practice`, which fills in the same
+  form and only ticks the agreement off on screen, creating and sending nothing.
+  Shipped a day late: it was first left out, not faked, and closers said they
+  could not draft on a training meeting.
 - **Reverting is a delete** (`DELETE /api/meetings/[id]/training`, founders):
   nothing else holds on to the row.
 

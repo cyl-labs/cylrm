@@ -6,6 +6,7 @@ import { GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import type { Meeting } from "@/lib/meetings";
 import { MeetingCallButton } from "@/components/calls/meeting-call-button";
+import { PrepareContracts } from "@/components/calls/prepare-contracts";
 import type { SavedLine } from "@/components/calls/second-line";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -104,7 +105,7 @@ export function TrainingMeetingRow({
       <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-[13px] text-muted-foreground">
         <li>Press Call them. {who}&apos;s browser rings, so they need the CRM open.</li>
         <li>Run the demo. When it is time, press Add call and merge the voice agent in.</li>
-        <li>Say how it went below. This is practice, so nothing counts toward pay or stats.</li>
+        <li>Fill in the contracts (Prepare contracts), then say how it went. Nothing counts toward pay or stats, and nothing is sent.</li>
       </ol>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <MeetingCallButton
@@ -118,6 +119,8 @@ export function TrainingMeetingRow({
           label="Call them"
           lines={lines}
         />
+        {/* The real form, in practice mode: nothing reaches DocuSeal. */}
+        <PrepareContracts meeting={m} tz={tz} signingBase="" practice />
         {ANSWERS.map((a) => (
           <button
             key={a.value}

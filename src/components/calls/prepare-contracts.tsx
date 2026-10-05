@@ -82,6 +82,7 @@ export function PrepareContracts({
   tz,
   signingBase,
   canDiscard = false,
+  practice = false,
 }: {
   meeting: Meeting;
   /** The screen's clock, so the effective date is the date where the reader
@@ -97,6 +98,10 @@ export function PrepareContracts({
    *  recoverable and this is the recovery, but it takes the CRM's only pointer
    *  to a document with it, and these prices are a founder's call anyway. */
   canDiscard?: boolean;
+  /** A training meeting (2026-10-05): the same form, but pressing the button
+   *  only ticks the agreement off on this screen. Nothing is created in
+   *  DocuSeal, stored or sent, so a new closer can practise the whole step. */
+  practice?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -107,7 +112,11 @@ export function PrepareContracts({
   const [copied, setCopied] = React.useState<ContractKind | null>(null);
 
   const drafted = meeting.contracts;
-  const has = (k: "trial" | "paid") => drafted.some((c) => c.kind === k);
+  /** Practice only: what has been "drafted" on this screen. Lost on a reload,
+   *  which is right, since nothing real was made. */
+  const [practiceDone, setPracticeDone] = React.useState<ContractKind[]>([]);
+  const has = (k: "trial" | "paid") =>
+    drafted.some((c) => c.kind === k) || practiceDone.includes(k);
 
   // Defaults, computed on open rather than at render: the dialog is mounted
   // for every row on the screen and this is only ever read by one of them.
@@ -178,6 +187,14 @@ export function PrepareContracts({
   const meetingDay = dayOf(meeting.startAt, tz);
 
   async function submit() {
+    if (practice) {
+      setPracticeDone((done) => [...new Set([...done, ...chosen])]);
+      toast.success(
+        `Practice only: the ${chosen.join(" and ")} agreement${chosen.length === 2 ? "s are" : " is"} filled in for ${businessName}. Nothing was created or sent.`,
+      );
+      setOpen(false);
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch(`/api/meetings/${meeting.id}/contracts`, {
@@ -379,6 +396,19 @@ export function PrepareContracts({
         </span>
       ))}
 
+      {practiceDone.map((k) => (
+        <span
+          key={k}
+          className="inline-flex items-center gap-1.5 rounded-md border border-dashed px-3 py-1.5 text-[13px] font-semibold text-muted-foreground"
+        >
+          <FileSignature className="size-3.5" />
+          {KIND_LABEL[k]} agreement
+          <span className="rounded-[3px] bg-muted px-1 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]">
+            practice
+          </span>
+        </span>
+      ))}
+
       {(!has("trial") || !has("paid")) && (
         <button
           type="button"
@@ -398,8 +428,9 @@ export function PrepareContracts({
           <DialogHeader>
             <DialogTitle>Prepare contracts</DialogTitle>
             <DialogDescription>
-              Both agreements, filled in and waiting. Nothing is emailed to
-              anyone. You open them when you are ready.
+              {practice
+                ? "Practice: fill it in exactly as you would for a real client. Nothing is created, saved or sent."
+                : "Both agreements, filled in and waiting. Nothing is emailed to anyone. You open them when you are ready."}
             </DialogDescription>
           </DialogHeader>
 
