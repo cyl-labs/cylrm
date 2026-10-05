@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   Archive,
   ArchiveRestore,
+  ChevronDown,
   ArrowUp,
   ChevronLeft,
   ChevronRight,
@@ -303,9 +304,11 @@ export function TextsApp({
   // replies nobody answers. A booked business stays under Booked even once
   // you have replied, so the two sections never hold the same row.
   //
-  // Archived ones sit apart at the bottom, behind a button, and come back on
-  // their own when a new text arrives. A search looks through them too: a
-  // thread you put away is still one you may need to find.
+  // Archived ones sit behind an "Archived" row at the top, like WhatsApp
+  // (2026-10-06). They stay archived when a new text arrives, and the row
+  // carries the number of unread texts inside, so a reply to a thread you put
+  // away is seen without it jumping back into the list. A search looks through
+  // them too: a thread you put away is still one you may need to find.
   const live = shown.filter((c) => !c.archived);
   // A new text from somebody you have not been texting jumps to the top
   // (2026-09-29). It used to sit under "Everyone else" or "Booked a demo", and
@@ -341,6 +344,9 @@ export function TextsApp({
   }
   const archived = shown.filter((c) => c.archived);
   const archivedTotal = conversations.filter((c) => c.archived).length;
+  const archivedUnread = conversations
+    .filter((c) => c.archived)
+    .reduce((n, c) => n + c.unread, 0);
   const openArchive = showArchived || (q !== "" && archived.length > 0);
   const replied = live.filter((c) => c.demo === null && c.replied);
   const booked = live.filter((c) => c.demo !== null && !isFresh(c));
@@ -413,6 +419,40 @@ export function TextsApp({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {!q && archivedTotal > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              aria-expanded={showArchived}
+              className="flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-muted/60"
+            >
+              <Archive className="size-5 text-[var(--imsg-sent)]" />
+              <span className="flex-1 text-[15px] font-semibold">Archived</span>
+              {archivedUnread > 0 && (
+                <span className="min-w-5 rounded-full bg-[var(--imsg-sent)] px-1.5 py-0.5 text-center text-[11px] font-bold leading-none text-white">
+                  {archivedUnread > 99 ? "99+" : archivedUnread}
+                  <span className="sr-only"> unread in archived</span>
+                </span>
+              )}
+              <span className="text-[13px] text-muted-foreground">{archivedTotal}</span>
+              <ChevronDown
+                className={cn(
+                  "size-4 text-muted-foreground transition-transform",
+                  showArchived && "rotate-180",
+                )}
+              />
+            </button>
+          )}
+          {openArchive && archived.length > 0 && (
+            <section aria-labelledby="texts-archived">
+              <SectionHeading
+                id="texts-archived"
+                title="Archived"
+                note="Put away by you. New texts here stay put and show a number on the Archived row."
+              />
+              <ul>{archived.map(row)}</ul>
+            </section>
+          )}
           {conversations.length === 0 ? (
             <div className="px-6 py-14 text-center">
               <p className="text-[15px] font-semibold">No texts yet</p>
@@ -431,8 +471,8 @@ export function TextsApp({
           ) : live.length === 0 ? (
             <p className="px-6 py-10 text-center text-[13px] text-muted-foreground">
               {q
-                ? "Only archived conversations match. They're below."
-                : "You've archived every conversation. A new text brings one back here."}
+                ? "Only archived conversations match. They're above."
+                : "Everything is archived. Open Archived at the top to read it."}
             </p>
           ) : booked.length === 0 && replied.length === 0 && fresh.length === 0 ? (
             <ul>{rest.map(row)}</ul>
@@ -479,29 +519,6 @@ export function TextsApp({
                 </section>
               )}
             </>
-          )}
-          {openArchive && archived.length > 0 && (
-            <section aria-labelledby="texts-archived">
-              <SectionHeading
-                id="texts-archived"
-                title="Archived"
-                note="Put away by you. If they text again, it goes back up top."
-              />
-              <ul>{archived.map(row)}</ul>
-            </section>
-          )}
-          {!q && archivedTotal > 0 && (
-            <div className="px-3 py-4 text-center">
-              <button
-                type="button"
-                onClick={() => setShowArchived((v) => !v)}
-                aria-expanded={showArchived}
-                className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold text-[var(--imsg-sent)] transition-colors hover:bg-muted"
-              >
-                <Archive className="size-4" />
-                {showArchived ? "Hide archived" : `Archived (${archivedTotal})`}
-              </button>
-            </div>
           )}
         </div>
       </aside>
@@ -1131,7 +1148,7 @@ function ArchiveButton({
     setBusy(false);
     if (!ok) return;
     if (next) {
-      toast.success("Archived. If they text again, it comes back.", {
+      toast.success("Archived. New texts from them show on the Archived row at the top.", {
         action: {
           label: "Undo",
           onClick: () => {

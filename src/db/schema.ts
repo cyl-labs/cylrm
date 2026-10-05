@@ -2021,8 +2021,10 @@ export const founderCall = pgTable(
 /**
  * A conversation somebody archived on the Texts screen, for them alone.
  *
- * The time, not a flag: a conversation is archived only while nothing has
- * arrived since `archivedAt`, so a new text brings it back by itself.
+ * Until 2026-10-06 a conversation stayed archived only while nothing had
+ * arrived since `archivedAt`, so a new text brought it back by itself. It now
+ * stays archived until the person unarchives it, and a new text shows as unread
+ * on the Archived row at the top of Texts. `archivedAt` is kept as a time.
  */
 export const callSmsArchive = pgTable(
   "call_sms_archive",

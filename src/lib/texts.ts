@@ -76,8 +76,9 @@ export type Conversation = {
    *  These are the conversations worth reading; most of the rest are automatic
    *  "sorry we missed your call" replies. */
   demo: ConversationDemo | null;
-  /** The signed-in person archived it and nothing has arrived since. Theirs
-   *  alone — see `archiveConversation`. */
+  /** The signed-in person archived it. Stays archived when a new text comes
+   *  in (2026-10-06, like WhatsApp): the text counts as unread on the
+   *  Archived row instead. Theirs alone — see `archiveConversation`. */
   archived: boolean;
 };
 
@@ -160,7 +161,7 @@ export async function getConversations(
       mt.start_at as demo_at, mt.status as demo_status,
       mt.upcoming as demo_upcoming, mt.attendance as demo_attendance,
       d.has_demo,
-      (ar.archived_at is not null and ar.archived_at >= last.created_at) as archived
+      (ar.archived_at is not null) as archived
     from c
     join lateral (
       select body, direction, status, created_at from m

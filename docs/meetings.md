@@ -3048,3 +3048,18 @@ founders only) and its call recordings (booking call and demo call chips).
   under a "More" menu (`meetings-more-menu.tsx`), each with a one line hint. Past meetings,
   List/Calendar, Refresh, Training meeting and the phone and reminder toggles stay on the row.
   Not checked in a browser at the time of writing: only type checked and linted.
+
+### Archived texts stay archived and show their unread count (2026-10-06)
+
+Asked for as "like WhatsApp": an Archived row at the top of Texts with a number when something new
+arrives, which opens to show the archived conversations. `getConversations` (`lib/texts.ts`) and
+`texts-app.tsx`.
+
+- **Reverses the 2026-09-24 rule** that a new text un-archived a conversation by itself. That rule
+  existed so an archive could never swallow a reply, and the reason still holds, so the reply is now
+  made visible a different way: the Archived row at the top carries the unread total, the sidebar badge
+  still counts every unread text (`countUnreadTexts` never looked at archive state), and the thread
+  inside shows its own unread dot. The row is a button that expands the archived threads beneath it.
+- `archived` in the list query is now `archived_at is not null`. No migration: `archived_at` stays a time.
+- Archived threads are not in "New texts" (that section reads the live list only), so a reply in one
+  never jumps to the top. The Archived number is the only prompt, plus the sidebar badge.
