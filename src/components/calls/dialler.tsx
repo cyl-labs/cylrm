@@ -56,7 +56,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { OUTCOME_LABELS, outcomeTone } from "@/components/calls/outcome";
+import {
+  OUTCOME_HELP,
+  OUTCOME_LABELS,
+  outcomeTone,
+} from "@/components/calls/outcome";
 import { dialableNumber, e164 } from "@/lib/phone";
 // From `call-hours`, not `calls`: that one reaches for the database, and this
 // is a client component. Same wall `outcome.ts` and `phone.ts` were built for.
@@ -852,6 +856,20 @@ function CallForm({
           ))}
         </div>
       </div>
+
+      {/* What the four left-hand buttons mean. Voicemail was being read as "I
+          left a message" and logged as No answer, which hides the message from
+          the one-voicemail-per-business rule. */}
+      <dl className="mt-3 space-y-1 rounded-lg bg-muted/50 px-3 py-2 text-[12px] text-muted-foreground">
+        {KEEP.map((o) => (
+          <div key={o}>
+            <dt className="inline font-semibold text-foreground">
+              {OUTCOME_LABELS[o]}:
+            </dt>{" "}
+            <dd className="inline">{OUTCOME_HELP[o]}</dd>
+          </div>
+        ))}
+      </dl>
 
       {/* Nothing is written until this is pressed. Tapping an outcome only
           selects it, so a mis-tap is undone by tapping another — or the same
