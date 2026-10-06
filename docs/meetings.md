@@ -1985,6 +1985,16 @@ missing table is that job throwing every five minutes.
 
 ### Browser push reminders
 
+**Switched off in the UI on 2026-10-06** ("the popups dont even work"; Telegram
+is wanted and untouched). `PushGate` (the "want to be notified?" dialog) and
+`PushToggle` (the header button) are no longer mounted on Meetings, and the
+explainer's "You have to switch reminders on" and browser-reminder paragraphs
+are gone for callers, founders keeping the Telegram one. Both components, the
+server-side sending in `lib/push.ts` and existing subscriptions are left in
+place, so anybody already subscribed still gets pushes. Putting the two
+components back on the page is the whole of turning it on again. What follows is
+how it was built.
+
 A meeting reminder has to reach somebody who has not opened the CRM yet today.
 `src/lib/push.ts` + `public/sw.js` + `components/calls/push-toggle.tsx`, sent
 from the same `/api/cron/meetings` tick. Schema in
