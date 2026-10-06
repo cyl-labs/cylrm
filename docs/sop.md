@@ -330,19 +330,26 @@ do we make it more visible without being annoying to experienced callers".
   phone, and a sixteenth that is only useful in week one is the annoying
   version of this.
 
-### The flow after they sign, under the contract video (2026-10-06)
+### The agreement and the flow after it, under the contract video (2026-10-06)
 
 A founder explained it to the closers on a training call and several asked "what is the flow for
 the next step". A `<details>` fold in `procedure-closing-the-demo.md`, right after
-`[contract-walkthrough]`, shut by default: agreement and signature, then the form (the
-information to build the agent), the build (about 3 to 4 days, so book the follow-up 4 to 5 days
-out), the follow-up call showing the agent for last minute changes, payment asked only once they
-are happy and never on the day they sign, call forwarding instructions the same day (the trial
-starts when they are sent, not when set up), and a call after the 30 days going over bookings,
-minutes used and money made, with no strings and no hidden fees. Two "You say" lines cover the
-payment and cancellation reassurance. **No amount is named**, as with the $1 below.
-**It disagrees with the older "Then the questions" section**, which still says "give me two or
-three days" and "about a week" to go live; left as it was until the founders say which they mean.
+`[contract-walkthrough]`, shut by default, in two parts. **Part 1 is how the agreement is
+explained**, taken from the founder's own demo calls (Amarillo 2 Oct, Jax 25 Sep, Nice and Easy
+25 Sep, Santa Fe 19 Sep): one page against other companies' fifteen, walk through it live so there
+is no confusion, aim to get it signed on the call, then the four sections in plain English in
+the order used on the Jax call. One speaker block. **Part 2 is a plain outline, no scripted
+lines**: agreement and signature, the form (the information to build the agent), the build (about 3
+to 4 days, so book the follow-up 4 to 5 days out), the follow-up call showing the agent for last
+minute changes, payment asked only once they are happy and never on the day they sign, call
+forwarding instructions the same day (the trial starts when they are sent, not when set up), and
+a call after the 30 days on bookings, minutes used and money made, no strings, no hidden fees.
+- **Part 1 does name the $1**, as the founder does on real calls (a phone number has to be bought;
+  not taken until they have seen the finished agent; never a card number). The call flow note
+  below says the page does not do a setup fee; the trial agreement step already says "$1 to
+  start", so this agrees with that and not with the older note.
+- **It disagrees with the older "Then the questions" section**, which still says "give me two or
+  three days" and "about a week" to go live; left as it was until the founders say which they mean.
 
 ### Closing the Demo opens with the call flow, in a collapsible box (2026-10-04)
 
