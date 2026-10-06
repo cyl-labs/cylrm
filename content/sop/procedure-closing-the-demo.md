@@ -207,6 +207,8 @@ Then say what each part means in plain English. This is the usual order:
 - **Section 3: how the trial works.** It lasts 30 days, and it starts when the agent is live, not when they sign, so they get the full month. There is a $1, but it is not a fee and it does not come to us. It is just what the phone number costs, and we have to buy one to attach the agent to. We don't ask for it until they have seen the finished agent, and we never ask for a card number.
 - **Section 4: the end.** After the 30 days we have another call and go through the numbers. If they don't like it, there are no charges and no hidden fees. It is just removed.
 
+**The paid agreement is the same, with one change.** Instead of saying it is only $1, explain how the price works: what it costs them per month, how many minutes that covers, and what an extra minute costs. Use the numbers they see on the page. Then stress that they only pay **after the agent is built and they have fully heard it working**.
+
 It also says we own the agent, so nobody tries to keep it after the trial. Say it as protecting both sides, then end on this: there is no obligation, and if it is not for them, we part ways.
 
 **Part 2. What happens next, in order**
