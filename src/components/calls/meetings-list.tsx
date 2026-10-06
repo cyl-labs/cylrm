@@ -154,12 +154,12 @@ const REPLY_POLL_MS = 15_000;
  * one draft covered both and read wrong for whichever case it wasn't
  * written for.
  */
-function textDraft(m: Meeting): string {
+function textDraft(m: Meeting, sender: string): string {
   const first = m.attendeeName?.trim().split(/\s+/)[0];
   const greeting = first ? `Hey ${first}` : "Hey";
   return m.needsRingBack
     ? `${greeting}, just tried calling you for your demo. I'll call you again now.`
-    : `${greeting}, it's Mark sending over the docs right now, let me know if you have any questions.`;
+    : `${greeting}, it's ${sender} sending over the docs right now, let me know if you have any questions.`;
 }
 
 /**
@@ -324,8 +324,14 @@ export function MeetingsList({
   bookedByMe = null,
   closerId = null,
   closers = [],
+  senderName = "Mark",
 }: {
   meetings: Meeting[];
+  /** Who the prefilled text says it is from: the signed-in person's first
+   *  name, since each of them sends it from their own screen. The founders'
+   *  shared account is called "Founders", which would give the text away as a
+   *  system, so the page falls back to "Mark" for it. */
+  senderName?: string;
   /** What each recording is, by recording id (voicemail, no answer, spoke to
    *  someone, not checked). Worked out on the server in `recording-kinds.ts`. */
   recordingKinds?: Record<string, RecordingKind>;
@@ -1985,7 +1991,7 @@ export function MeetingsList({
                       setComposing(
                         composing?.meetingId === m.id
                           ? null
-                          : { meetingId: m.id, body: textDraft(m) },
+                          : { meetingId: m.id, body: textDraft(m, senderName) },
                       )
                     }
                     className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"

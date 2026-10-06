@@ -116,12 +116,17 @@ export async function POST(request: Request) {
     insert into call_meeting (
       cal_booking_uid, call_lead_id, call_id, matched_by,
       start_at, end_at, status, title,
-      attendee_name, attendee_email, attendee_tz, kind, synced_at
+      attendee_name, attendee_email, attendee_tz, kind, closer_user_id, synced_at
     ) values (
       ${`crm-${randomUUID()}`}, ${leadId}, ${bc?.id ?? null}, 'manual',
       ${startAt.toISOString()}::timestamptz, ${endAt.toISOString()}::timestamptz,
       'accepted', ${title},
-      ${lead.name}, ${lead.email}, ${zone}, 'demo', now()
+      ${lead.name}, ${lead.email}, ${zone}, 'demo',
+      -- A closer closes the meetings they booked (2026-10-06).
+      (select c.user_id from "call" c
+        join app_user u on u.id = c.user_id
+        where c.id = ${bc?.id ?? null}::int and u.role = 'closer' and u.active),
+      now()
     )
     returning id
   `)) as { id: number }[];

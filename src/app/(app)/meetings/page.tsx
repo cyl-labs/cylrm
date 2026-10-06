@@ -752,6 +752,7 @@ export default async function MeetingsPage({
           tz={zone.tz}
           zoneLabel={zone.label}
           showWho={me?.role === "admin"}
+          senderName={textSenderName(me?.name)}
           // The demo's own event type, which is what a demo is moved on. Both
           // links are passed because a row is moved on the page it was booked
           // from: a follow-up rescheduled onto the demo link would come back
@@ -793,4 +794,11 @@ export default async function MeetingsPage({
       </div>
     </PageShell>
   );
+}
+
+/** The first word of the account's name, for the text a person sends from this
+ *  screen. The shared "Founders" login falls back to Mark, as before. */
+function textSenderName(accountName: string | undefined): string {
+  const first = accountName?.trim().split(/\s+/)[0] ?? "";
+  return !first || /^(founders?|unknown)$/i.test(first) ? "Mark" : first;
 }

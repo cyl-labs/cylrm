@@ -293,7 +293,7 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         cal_booking_uid, cal_booking_id, call_lead_id, call_id, matched_by,
         start_at, end_at, cal_start_at, status, title,
         attendee_name, attendee_email, attendee_phone, attendee_tz,
-        meeting_url, kind, synced_at
+        meeting_url, kind, closer_user_id, synced_at
       ) values (
         ${booking.uid}, ${booking.id}, ${lead?.id ?? null},
         ${lead?.callId ?? null}, ${matchedBy},
@@ -302,9 +302,23 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
         ${booking.attendeeName}, ${booking.attendeeEmail}, ${booking.attendeePhone},
         ${booking.attendeeTz}, ${booking.meetingUrl},
         ${followUp && booking.eventTypeSlug === followUp ? "follow_up" : "demo"},
+        -- A closer closes the meetings they booked, with no founder handing
+        -- them over (2026-10-06). Founders still reassign it from the row.
+        (select c.user_id from "call" c
+          join app_user u on u.id = c.user_id
+          where c.id = ${lead?.callId ?? null}::int
+            and u.role = 'closer' and u.active),
         now()
       )
       on conflict (cal_booking_uid) do update set
+        -- Only the moment the booking call is first linked, so a meeting a
+        -- founder took back (null) or gave to somebody else stays put.
+        closer_user_id = case
+          when call_meeting.closer_user_id is null
+            and call_meeting.call_id is null
+            and call_meeting.matched_by is distinct from 'manual'
+            then excluded.closer_user_id
+          else call_meeting.closer_user_id end,
         cal_booking_id = excluded.cal_booking_id,
         -- A link once made is kept. Matching reads a phone number out of a
         -- free-text note, so a prospect or a caller editing that note on the
