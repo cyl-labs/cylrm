@@ -204,6 +204,27 @@ Press play to see the buttons. It is the real screen. Nothing in it sends anythi
 
 [contract-walkthrough]
 
+<details>
+<summary>What happens after they sign (the whole flow, start to finish)</summary>
+
+Some of you asked what the next steps are once the agreement is out. This is the order, all in one place.
+
+1. **We send the agreement and they sign it.** That is the video above.
+2. **As soon as they sign, send them the form.** The form is where we get all the information we need to build their agent.
+3. **We build the agent. It takes about 3 to 4 days.** So book the follow-up call about **4 to 5 days from now**, so the agent is finished before you ring them.
+4. **On the follow-up call, show them the agent.** They can ask for any last minute changes.
+5. **Only when they are happy do we ask for payment.** We never ask on the day they sign. You can tell them that, it puts people at ease.
+6. **The same day they are happy, we send them the call forwarding instructions. That is when the trial starts.** It does not start when they set it up. It starts when we send the instructions.
+7. **After the 30 days, we do one more call.** We go over the numbers: how many bookings it took, how many minutes it used, and how much money it made them. They decide right there whether to carry on or not.
+
+If they ask about paying, or about being locked in:
+
+> **You say** We don't ask for any payment today. You see it working first, we make any changes you want, and only when you're happy with it do we ask for payment.
+
+> **You say** After the 30 days we go through the numbers together, and you decide then and there if you want to continue. If you don't, you just cancel. No strings, and no hidden fees.
+
+</details>
+
 ## Then the questions, and a call to hear it working
 
 Two things come after the signature. The first is the questions you need from them. The second is the day they hear it working. Say the second one second, but it is what makes them answer the first. Nobody fills in questions for fun.
