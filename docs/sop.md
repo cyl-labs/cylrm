@@ -332,6 +332,12 @@ do we make it more visible without being annoying to experienced callers".
 
 ### The agreement and the flow after it, under the contract video (2026-10-06)
 
+**The two "go in this order" lists (paid agreement, trial agreement) that sat above the video in
+"Send the agreement while you are still on the call" were removed the same day** as a duplicate of
+Part 1 below. Part 1 only describes the trial agreement, so what the paid agreement walk-through
+said (monthly price and minutes, month to month, 7 days' notice to stop) is no longer written
+anywhere in the SOP.
+
 A founder explained it to the closers on a training call and several asked "what is the flow for
 the next step". A `<details>` fold in `procedure-closing-the-demo.md`, right after
 `[contract-walkthrough]`, shut by default, in two parts. **Part 1 is how the agreement is
