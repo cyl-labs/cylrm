@@ -19,10 +19,32 @@
  * heard in a transcript, so it is not scored.
  */
 
+/**
+ * What our own SOP teaches for this call (2026-10-07), condensed from
+ * `content/sop/procedure-closing-the-demo.md`. The review was scoring the demo
+ * only against the mentor's NEPQ and Gong checklists, which know nothing about
+ * how this call is meant to run, so it marked the closer down for the sample
+ * coming first and missed the moves the SOP does ask for. It is the guide the
+ * reviewer reads first; where it and the method below disagree, the SOP wins.
+ * **If the SOP changes, change this**: it is part of the fingerprint, so old
+ * reviews read as out of date.
+ */
+export const DEMO_SOP_TEXT = [
+  "OUR OWN SOP FOR THIS CALL. This is how the closer is trained to run the demo. Judge the call against it first. Use the method below only where the SOP says nothing. If they disagree, the SOP wins.",
+  "1. Ring on the minute of the booked time, never early. Talk as if the demo has already started, and do not say the company name.",
+  "2. Before the agent is added, tell the owner it is only a SAMPLE, not built for their business, so they do not judge it as the real thing. Then add the agent to the call and play a pretend customer (a quote or a booking). The owner stays quiet and listens. The sample is generic on purpose.",
+  "3. Straight after the demo, do NOT ask 'did you like it?'. Ask 'What did you think of how the call went? How is it different from your real calls?'. Then ask what a normal job is worth, and about how many calls they miss in a week. Numbers make the owner do the math. Working the cost out loud with their numbers is the SOP's way of summing up the problem before the package, so it counts for the 'checking before pitching' step.",
+  "4. Do the math out loud with THEIR numbers (missed calls times job value) and let the number sit. Say no price yet. Then name the cheapest package that fits how many calls they get. Never sell a bigger one.",
+  "5. Price: no discount, ever. Every plan is month to month. If they say it is too expensive, go back to the numbers they gave. If they say they get few calls, ask if they are listed as open 24 hours on Google. The 30 day trial is a backup only for an owner who heard the price and still hesitates. It is not the opener.",
+  "6. Send the agreement while still on the phone. It already has their name on it. Walk through it together live so there is no confusion. It is short on purpose. The aim is to get it signed on the call.",
+  "7. After it is signed: the form (the questions the agent is built from) and the next call, where they hear the agent working. They only pay after the agent is built and they have heard it. Never end on 'I will follow up': offer two times on two different days and book it.",
+  "Things that are NOT faults on this call: showing the sample before asking the owner anything, the sample not being tied to the owner's words, no summing up before the sample, and the owner saying they only miss a few calls. Real gaps are things the SOP asks for that did not happen, for example never asking what the owner thought of the demo, saying a price before the math, selling a bigger package, offering a discount, or ending without a booked time.",
+].join("\n");
+
 export const REVIEW_STAGES: {
   key: string;
   label: string;
-  method: "NEPQ" | "Gong";
+  method: "NEPQ" | "Gong" | "SOP";
   means: string;
 }[] = [
   {
@@ -72,14 +94,14 @@ export const REVIEW_STAGES: {
     label: "Checking before pitching",
     method: "NEPQ",
     means:
-      "Summed up their problem and goal in their own words, then asked permission to show the fix. Example: 'Based on what you shared, would it help if I showed you how we'd handle that?'",
+      "Before naming the package or price, summed up their problem and goal in their own words and checked it was right. Example: 'Based on what you shared, would it help if I showed you how we'd handle that?' The sample demo at the start of the call is agreed and expected, so it is never marked down here and does not count as the pitch. On this call, working out the cost out loud with the owner's own numbers (calls missed times job value) and then naming the package counts as summing up, so that is done or partly, never missed.",
   },
   {
     key: "presentation",
     label: "Showing the fix tied to their words",
     method: "NEPQ",
     means:
-      "Showed only the parts that solve the problems they named, linking each to something they said. The live stretch where the AI receptionist takes a pretend customer call counts here.",
+      "Showed the parts that solve the problems they named, linking them to something they said (for example how they want to get the call details). The live stretch where the AI receptionist takes a pretend customer call counts here, and a generic sample at the start is not marked down for being generic.",
   },
   {
     key: "committing",
@@ -115,6 +137,27 @@ export const REVIEW_STAGES: {
     method: "Gong",
     means:
       "The demo opened short and started with the problem or call type the owner talked about most, kept it a back and forth, and did not dump every feature.",
+  },
+  {
+    key: "sample",
+    label: "Calling the demo a sample first",
+    method: "SOP",
+    means:
+      "Before the agent was added, told the owner it is only a sample that is not built for their business, so they do not judge it as the real thing.",
+  },
+  {
+    key: "reaction",
+    label: "Asking what they thought of the demo",
+    method: "SOP",
+    means:
+      "Right after the demo, asked the owner what they thought of how the call went or how it was different from their real calls, before moving on to numbers or price. 'Do you want to get started?' does not count. If the closer went straight from the demo to something else without asking, this is missed.",
+  },
+  {
+    key: "agreement",
+    label: "Sending the agreement and walking through it",
+    method: "SOP",
+    means:
+      "While still on the call, sent the agreement and went through it with the owner so there was no confusion, aiming to get it signed on the call. If the call never reached that point, it is not_reached.",
   },
 ];
 
