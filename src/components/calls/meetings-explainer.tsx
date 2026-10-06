@@ -44,8 +44,8 @@ export function MeetingsExplainer({
           <p className="mt-1 text-muted-foreground">
             Every meeting on this page came from Cal.com. The CRM checks it
             every five minutes, so a demo you book now shows up within a few
-            minutes on its own, and so does a cancellation or a change of
-            time. You never have to come here and tell it anything.{" "}
+            minutes on its own, and so does a cancellation or a change of time.
+            You never have to come here and tell it anything.{" "}
             <span className="font-semibold text-foreground">Refresh</span> at
             the top pulls it straight away if you do not want to wait.
           </p>
@@ -60,81 +60,39 @@ export function MeetingsExplainer({
             <span className="font-semibold text-foreground">
               Do not clear that box when you book
             </span>
-            . A booking with the number deleted still appears, but as a
-            meeting attached to nobody, and it will not reach the person whose
-            niche it is.
+            . A booking with the number deleted still appears, but as a meeting
+            attached to nobody, and it will not reach the person whose niche it
+            is.
           </p>
         </section>
 
-        <section>
-          <h3 className="font-bold">When you get reminded</h3>
-          <p className="mt-1 text-muted-foreground">
-            Two notifications per meeting, sent to your browser:
-          </p>
-          <ul className="mt-2 space-y-1.5">
-            <li className="flex gap-2">
-              <span className="font-bold tabular-nums">24 hours</span>
-              <span className="text-muted-foreground">
-                before it starts: the day-before nudge.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="font-bold tabular-nums">4 hours</span>
-              <span className="text-muted-foreground">
-                before it starts, still enough time for them to move
-                their morning around if they had forgotten.
-              </span>
-            </li>
-          </ul>
-          <p className="mt-2 text-muted-foreground">
-            Reminders are only sent between{" "}
-            <span className="font-semibold text-foreground">8am and 7pm</span>{" "}
-            on your own clock ({zoneName}). One that falls due overnight is not
-            thrown away. It waits and arrives once the morning opens.
-          </p>
-          {isAdmin && (
-            <p className="mt-2 text-muted-foreground">
-              Founders also get a{" "}
+        {/* Browser notifications were switched off on 2026-10-06 (the popup
+            never worked), so callers get no reminders to describe. Founders
+            keep Telegram. */}
+        {isAdmin && (
+          <section>
+            <h3 className="font-bold">When you get reminded</h3>
+            <p className="mt-1 text-muted-foreground">
+              You get a{" "}
               <span className="font-semibold text-foreground">Telegram</span>{" "}
               message for every meeting,{" "}
               <span className="font-semibold text-foreground">
                 30 minutes before it starts
               </span>
-              , in the same chat that reports email replies. Those go out at
-              any hour, since the US demos run through the night here.
-              Mute the chat in Telegram to silence them. Before that, a{" "}
+              , in the same chat that reports email replies. Those go out at any
+              hour, since the US demos run through the night here. Mute the chat
+              in Telegram to silence them. Before that, a{" "}
               <span className="font-semibold text-foreground">
                 7pm Singapore
               </span>{" "}
               list of every demo in the next three days, in Singapore time. It
               lands just before the US day opens, and it is three days rather
-              than one because a US afternoon is the small hours here. Those
-              two are the whole of it: a per-meeting alert the day before was
+              than one because a US afternoon is the small hours here. Those two
+              are the whole of it: a per-meeting alert the day before was
               dropped in September, since the list already said so.
             </p>
-          )}
-        </section>
-
-        <section>
-          <h3 className="font-bold">You have to switch reminders on</h3>
-          <p className="mt-1 text-muted-foreground">
-            Press{" "}
-            <span className="font-semibold text-foreground">
-              Turn on reminders
-            </span>{" "}
-            at the top of this screen and say Allow to the browser. It is{" "}
-            <span className="font-semibold text-foreground">per browser</span>,
-            not per person: if you work on a laptop and a phone, press it on
-            both. A test notification arrives straight away so you know it
-            worked.
-          </p>
-          <p className="mt-1 text-muted-foreground">
-            A meeting on your niche goes to you. If you have never turned
-            reminders on, it goes to the founders instead, so nothing is
-            ever missed entirely, but the person whose demo it is is not the one
-            being told.
-          </p>
-        </section>
+          </section>
+        )}
 
         <section>
           <h3 className="font-bold">What you are being asked to do</h3>
@@ -150,12 +108,10 @@ export function MeetingsExplainer({
           <p className="mt-1 text-muted-foreground">
             Once a meeting has started, a founder (or the closer it was given
             to) logs{" "}
-            <span className="font-semibold text-foreground">
-              what happened
-            </span>{" "}
-            on the row: showed up, no show, or not a real booking. That
-            is the same answer Payroll pays on, so it is recorded once. The demo
-            is a phone call, so{" "}
+            <span className="font-semibold text-foreground">what happened</span>{" "}
+            on the row: showed up, no show, or not a real booking. That is the
+            same answer Payroll pays on, so it is recorded once. The demo is a
+            phone call, so{" "}
             <span className="font-semibold text-foreground">
               showed up means they picked up and stayed on while the agent was
               brought in

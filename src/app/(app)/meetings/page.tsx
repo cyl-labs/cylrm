@@ -4,10 +4,8 @@ import { PageShell } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
 import { MeetingsList } from "@/components/calls/meetings-list";
 import { MeetingsExplainer } from "@/components/calls/meetings-explainer";
-import { PushToggle } from "@/components/calls/push-toggle";
 import { RefreshMeetings } from "@/components/calls/refresh-meetings";
 import { SyncOnReturn } from "@/components/calls/sync-on-return";
-import { PushGate } from "@/components/calls/push-gate";
 import { MeetingsMoreMenu } from "@/components/calls/meetings-more-menu";
 import { TrainingAssign } from "@/components/calls/training-assign";
 import { getMeetings } from "@/lib/meetings";
@@ -480,18 +478,16 @@ export default async function MeetingsPage({
                 : []),
             ]}
           />
-          {/* Per browser, not per person — see PushToggle. Renders nothing at
-              all where push cannot work, rather than a dead button. */}
-          <PushToggle vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
           {/* Last, like it is on Stats: the control you set once and leave,
               rather than one you move through while reading. */}
           <TimezonePicker region={region} screen="meetings" />
         </>
       }
     >
-      {/* Asked before the list is any use to anybody: the screen only works
-          for someone who has been told to look at it. */}
-      <PushGate vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
+      {/* The "want to be notified?" popup and the header Turn on reminders
+          button were taken off on 2026-10-06 ("the popups dont even work").
+          Founders still get Telegram. PushGate and PushToggle are left in
+          components/calls, unmounted, to put back. */}
       {/* The reader's own number, kept at the top of the screen while the list
           scrolls (2026-10-04). A founder who leaves their number on voicemails
           needs it to hand while scrolling, so it is a sticky bar, opaque like
