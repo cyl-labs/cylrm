@@ -3153,6 +3153,28 @@ and marked the cost step "missed" though the closer worked the cost out loud. Fo
   empty or longer is ignored. The text added by the second look is short plain templates with quotes
   cut to about 20 words.
 
+- **The review now reads our SOP** (same day: "does the review have context of what my demo call is
+  about? use my sop as a guide"). Before this it knew only the trade, the transcript and the mentor's
+  NEPQ and Gong lists, so it marked the closer down for the sample coming first and could not see the
+  moves the SOP asks for. `DEMO_SOP_TEXT` in `lib/demo-review-rubric.ts` is a condensed copy of
+  `procedure-closing-the-demo.md` (ring on the minute, call it a sample, ask what they thought, numbers
+  and the math out loud, no discount, trial only if they hesitate, agreement on the call, the next call
+  booked with two times) and is read first; where it and the method disagree the SOP wins, and it says
+  plainly that this is the demo the owner agreed to, so showing the sample first is never a fault.
+  **If the SOP changes, change that constant**: it is in the fingerprint, so old reviews read as out of
+  date. Three SOP steps were added to the demo's list (`method: "SOP"`): calling it a sample first,
+  asking what they thought of the demo, and sending the agreement and walking through it. A demo is now
+  scored on sixteen steps.
+- **Every step that is not done now shows a quote and a fix** (`fillStages`). Stopping the agent being
+  quoted as the closer had left steps like "starting the demo" with no quote, which downgraded them to
+  "partly" with nothing to show or do, so a review read as if the closer had done the right thing. One
+  batched call finds the closer's own line for any step without one (a step downgraded only for lack
+  of a quote goes back to "done" if it finds one) and writes a "do this / say" for any partly or missed
+  step that has none. A quote counts only if it is really in the closer's lines. On Deserts Gambit it
+  now correctly flags that the closer never asked what the owner thought of the demo, with the SOP's
+  own question as the fix. "Checking before pitching" counts working the cost out loud with the owner's
+  numbers as summing up.
+
 Still true: two runs can differ, and the reviewer cannot hear tone. On that call it correctly kept one
 point, that the closer did not ask what the owner wanted the other company to do better. "Review it
 again" on a review made before this reads it afresh.

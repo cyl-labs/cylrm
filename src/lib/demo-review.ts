@@ -24,6 +24,7 @@ import { clusterDemoRecordings, DEMO_RECORDING_WHERE } from "@/lib/meetings";
 import { normalise } from "@/lib/meeting-brief";
 import { briefSources } from "@/lib/meeting-brief";
 import {
+  DEMO_SOP_TEXT,
   BOOKING_RUBRIC_TEXT,
   BOOKING_STAGES,
   FOLLOWUP_RUBRIC_TEXT,
@@ -312,10 +313,11 @@ function buildSystem(variant: Variant): string {
       ]
     : variant === "followup" ? [] : [
   "You review a recorded sales demo call and give the closer honest, specific feedback, scored against the reference method below.",
-  "The closer sells an AI phone receptionist to a small service business. The call is a founder or closer talking to the business owner. Part of it is a demo: the closer may add the AI receptionist to the line and play a pretend customer while the owner listens. Treat that stretch as the presentation and do not mark the closer down for not asking questions during it; it may look garbled in the transcript. This is the second call with the owner: the caller who booked it only asked a few script questions, so the closer is still expected to find out what matters to this owner, but a demo is not held to the rule that 80% of the call is questions.",
+  "The closer sells an AI phone receptionist to a small service business. The call is a founder or closer talking to the business owner. Part of it is a demo: the closer may add the AI receptionist to the line and play a pretend customer while the owner listens. Treat that stretch as the presentation and do not mark the closer down for not asking questions during it; it may look garbled in the transcript. This is the second call with the owner: the caller who booked it only asked a few script questions, so the closer is still expected to find out what matters to this owner, but a demo is not held to the rule that 80% of the call is questions. THIS IS THE DEMO CALL THE OWNER ALREADY AGREED TO. They know the closer will add the AI receptionist to the line and that they should just listen. Showing a generic sample first, before asking the owner anything, is how these calls are meant to run. Never mark the closer down for starting with the sample, for not asking questions or summing up before it, or because the sample was not made from the owner's words. Judge those steps on what comes after the sample: the questions, and then the package and price.",
   "In the transcript, 'Closer' is our side and 'Prospect' is the business owner. Lines starting 'Demo' are the live AI receptionist demo, with the closer playing a pretend customer. They are neither the closer's own selling words nor the owner's. Never quote a Demo line as evidence, and never count it for or against the closer.",
     ]),
   "",
+  ...(variant === "demo" ? [DEMO_SOP_TEXT, ""] : []),
   variant === "followup" ? FOLLOWUP_RUBRIC_TEXT : variant === "demo" ? RUBRIC_TEXT : BOOKING_RUBRIC_TEXT,
   "",
   `Score each of these ${stages.length} steps, using these exact keys:`,
@@ -471,6 +473,103 @@ async function closerDealtWith(
   }
 }
 
+/**
+ * Every step that is not "done" must say what happened and what to do, and a
+ * "done" must have a quote (2026-10-07). Since the live agent stopped counting
+ * as the closer, steps about the demo lost their only quote and were downgraded
+ * to "partly" with nothing to show and nothing to do, which read as "you did
+ * the right thing". One batched call finds the closer's own line for those, and
+ * writes a fix for any partly or missed step that has none. A quote only counts
+ * when it is really in the closer's lines; a downgraded step that gets one goes
+ * back to "done".
+ */
+async function fillStages(
+  stages: ReviewStage[],
+  downgraded: Set<string>,
+  s: ReviewSource,
+  key: string,
+  closerHay: string,
+  kind: ReviewKind,
+): Promise<void> {
+  const lacking = stages.filter(
+    (st) =>
+      st.rating !== "not_reached" &&
+      ((!st.evidence && !st.ownerLine && !st.closerLine) ||
+        ((st.rating === "partly" || st.rating === "missed") && !st.fix)),
+  );
+  if (lacking.length === 0 || !s.transcript) return;
+  const closerLines = s.transcript
+    .split("\n")
+    .filter((l) => l.startsWith("Closer: ") || l.startsWith("Our caller: "))
+    .join("\n")
+    .slice(0, 22_000);
+  try {
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 2500,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "You finish a review of a sales call. For each step you are given, reply with the closer's proof and, where needed, a fix. Reply with one JSON object and nothing else: {\"steps\": [{\"key\": string, \"closerQuote\": string, \"fix\": {\"do\": string, \"say\": string} | null}]}. closerQuote is an exact quote of up to 25 words copied from one of the Closer's own lines where the closer actually does that step, not a nearby line, or an empty string if the closer did not do it. Never quote a line that starts with 'Demo'. fix is null if the step was done well. If the step was only partly done or missed, fix.do is one thing to do next time and fix.say is the exact words to say, in plain words. This call is the demo the owner agreed to: showing the sample first is expected and is never a fault. Write at a third grade reading level, short everyday words, sentences under 12 words. Say owner, not prospect. Never use an em dash.",
+          },
+          {
+            role: "user",
+            content: `${kind === "demo" ? "Closer" : "Caller"} lines from the call:\n${closerLines}\n\nSteps:\n${JSON.stringify(
+              lacking.map((st) => ({
+                key: st.key,
+                step: st.label,
+                rating: st.rating,
+                note: st.note,
+                needsFix: (st.rating === "partly" || st.rating === "missed") && !st.fix,
+              })),
+            )}`,
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) return;
+    const body = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    void recordAiUsage({
+      feature: "review",
+      model: MODEL,
+      inputTokens: body.usage?.prompt_tokens,
+      outputTokens: body.usage?.completion_tokens,
+    });
+    const out = (JSON.parse(body.choices?.[0]?.message?.content ?? "{}") as { steps?: unknown })
+      .steps;
+    for (const row of Array.isArray(out) ? out : []) {
+      const r = row as { key?: unknown; closerQuote?: unknown; fix?: unknown };
+      const st = lacking.find((x) => x.key === r.key);
+      if (!st) continue;
+      const quote = unq(r.closerQuote);
+      const pieces = quote.split(/\.\.\.|…/).map(normalise).filter(Boolean);
+      const real = pieces.length > 0 && pieces.every((p) => ` ${closerHay} `.includes(` ${p} `));
+      if (real && !st.evidence && !st.ownerLine && !st.closerLine) {
+        st.evidence = quote;
+        if (downgraded.has(st.key)) st.rating = "done";
+      }
+      const fx = r.fix as { do?: unknown; say?: unknown } | null | undefined;
+      const fixDo = clean(fx?.do);
+      const fixSay = unq(fx?.say);
+      if ((st.rating === "partly" || st.rating === "missed") && !st.fix && fixDo && fixSay) {
+        st.fix = { do: fixDo, say: fixSay };
+      }
+    }
+  } catch {
+    // The review stands as it was.
+  }
+}
+
 /** Write one review, or throw naming the vendor. */
 export async function writeReview(
   s: ReviewSource,
@@ -580,6 +679,12 @@ export async function writeReview(
     });
   }
   const dealtWith = (q: unknown) => dealt.get(normalise(unq(q)));
+  // Only worries the owner raised belong in "what went well", not every owner
+  // line a step happened to point at.
+  const momentKeys = new Set<string>();
+  for (const x of list(raw.moments)) momentKeys.add(normalise(unq((x as { ownerSaid?: unknown }).ownerSaid)));
+  for (const x of list(raw.ownerMoments)) momentKeys.add(normalise(unq((x as { quote?: unknown }).quote)));
+  for (const x of list(raw.objections)) momentKeys.add(normalise(unq((x as { theySaid?: unknown }).theySaid)));
 
   const ownerMoments =
     kind === "demo"
@@ -630,6 +735,7 @@ export async function writeReview(
     list(raw.stages).map((x) => [String((x as { key?: unknown }).key), x as Record<string, unknown>]),
   );
   const variant = variantOf(s, kind);
+  const downgraded = new Set<string>();
   const stages: ReviewStage[] = (
     variant === "followup" ? FOLLOWUP_STAGES : kind === "demo" ? REVIEW_STAGES : BOOKING_STAGES
   ).map((def) => {
@@ -639,8 +745,12 @@ export async function writeReview(
       : "not_reached";
     let evidence = unq(got?.evidence) || null;
     if (evidence && !inCall(evidence)) evidence = null;
-    // A "done" nobody can point to is not done.
-    if (rating === "done" && !evidence) rating = "partly";
+    // A "done" nobody can point to is not done, unless the evidence pass below
+    // finds the closer's words for it.
+    if (rating === "done" && !evidence) {
+      rating = "partly";
+      downgraded.add(def.key);
+    }
     const g = got as { ownerLine?: unknown; closerLine?: unknown; fix?: unknown } | undefined;
     const ownerQ = unq(g?.ownerLine);
     const closerQ = unq(g?.closerLine);
@@ -663,6 +773,8 @@ export async function writeReview(
       fix: gap && !handledLater && fixDo && fixSay ? { do: fixDo, say: fixSay } : undefined,
     };
   });
+
+  await fillStages(stages, downgraded, s, key, closerHay, kind);
 
   // What the owner said and what the closer did about it. A quote that is not
   // in the right speaker's lines is cut, not shown.
@@ -712,7 +824,9 @@ export async function writeReview(
     wentWell: [
       ...list(raw.wentWell).map(clean).filter(Boolean).slice(0, 4),
       // What the second look found the closer did after all.
-      ...[...dealt.values()]
+      ...[...dealt.entries()]
+        .filter(([k]) => momentKeys.has(k))
+        .map(([, d]) => d)
         .filter((d, i, all) => all.findIndex((x) => x.quote === d.quote) === i)
         .slice(0, 2)
         .map((d) => `The owner had a worry. The closer answered it: "${d.quote}"`),

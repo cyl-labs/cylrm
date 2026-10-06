@@ -332,6 +332,10 @@ do we make it more visible without being annoying to experienced callers".
 
 ### The agreement and the flow after it, under the contract video (2026-10-06)
 
+**The demo review reads a condensed copy of this document** (`DEMO_SOP_TEXT` in
+`lib/demo-review-rubric.ts`, added 2026-10-07) and scores the call against it. Changing the demo flow
+here means changing that constant too, or the review will judge against the old flow.
+
 **The two "go in this order" lists (paid agreement, trial agreement) that sat above the video in
 "Send the agreement while you are still on the call" were removed the same day** as a duplicate of
 Part 1 below. Part 1 only describes the trial agreement, so what the paid agreement walk-through
