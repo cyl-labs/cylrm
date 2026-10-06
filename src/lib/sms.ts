@@ -75,6 +75,10 @@ export type Texting = {
   byLead: Record<number, LeadTexts>;
   /** The signed-in admin's own US number, or null when they have none. */
   from: string | null;
+  /** True for somebody without the Team permission to text prospects, who is
+   *  given texting only so a practice meeting can be texted (2026-10-06). The
+   *  screen draws no Text button on a real meeting for them. */
+  practiceOnly?: boolean;
 };
 
 type Row = Record<string, unknown>;

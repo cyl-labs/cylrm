@@ -371,9 +371,15 @@ export default async function MeetingsPage({
   );
 
   let texting: Texting | null = null;
-  if (me && smsEnabled() && (await canSendTexts(me.id, me.role))) {
+  const mayTextProspects = me ? await canSendTexts(me.id, me.role) : false;
+  if (
+    me &&
+    smsEnabled() &&
+    (mayTextProspects || meetings.some((m) => m.training))
+  ) {
     const did = await callerNumberOf(me.id);
     texting = {
+      practiceOnly: !mayTextProspects,
       byLead: await getTextsByLead(
         meetings.flatMap((m) => (m.leadId === null ? [] : [m.leadId])),
         // The same scope the meetings themselves were read with, so a caller

@@ -10,6 +10,7 @@ import {
   CalendarX2,
   ChevronRight,
   ClipboardCheck,
+  GraduationCap,
   Clock,
   Copy,
   ExternalLink,
@@ -56,7 +57,6 @@ import { LogRecording } from "@/components/calls/log-recording";
 import type { RecordingKind } from "@/lib/recording-kinds";
 import { PrepareContracts } from "@/components/calls/prepare-contracts";
 import { MeetingCallButton } from "@/components/calls/meeting-call-button";
-import { TrainingMeetingRow } from "@/components/calls/training-meeting-row";
 import { MoveQuietly } from "@/components/calls/move-quietly";
 import type { SavedLine } from "@/components/calls/second-line";
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
@@ -830,24 +830,32 @@ export function MeetingsList({
     status: DemoStatus,
     notes: string,
   ) {
-    if (meeting.leadId === null) return;
+    if (meeting.leadId === null && !meeting.training) return;
     setBusy(meeting.id);
     try {
-      const res = await fetch("/api/payroll/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // Always sent, even empty: the route reads a missing field as "leave
-        // the note alone" and an empty one as "clear it", and this box has just
-        // shown somebody the note it is about to replace.
-        body: JSON.stringify({
-          callId: meeting.bookingCallId,
-          // Pins the answer to this meeting at its current time, which is what
-          // lets it be given before the meeting starts (2026-09-25).
-          meetingId: meeting.id,
-          status,
-          notes: notes.trim(),
-        }),
-      });
+      // A practice meeting is answered on the row itself and never reaches
+      // payroll, though everything the person sees is the same.
+      const res = meeting.training
+        ? await fetch(`/api/meetings/${meeting.id}/training`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ outcome: status }),
+          })
+        : await fetch("/api/payroll/attendance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            // Always sent, even empty: the route reads a missing field as
+            // "leave the note alone" and an empty one as "clear it", and this
+            // box has just shown somebody the note it is about to replace.
+            body: JSON.stringify({
+              callId: meeting.bookingCallId,
+              // Pins the answer to this meeting at its current time, which is
+              // what lets it be given before the meeting starts (2026-09-25).
+              meetingId: meeting.id,
+              status,
+              notes: notes.trim(),
+            }),
+          });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? "Could not save that.");
@@ -861,7 +869,7 @@ export function MeetingsList({
       // so writing one off left its twin sitting under "not logged" (KR
       // Services, 2026-10-03). Ask once rather than assuming: the other booking
       // may be the real one.
-      if (status === "invalid") {
+      if (status === "invalid" && !meeting.training) {
         const twins = meetings.filter(
           (x) =>
             x.id !== meeting.id &&
@@ -913,12 +921,39 @@ export function MeetingsList({
    * "Rebooked" and "Not rebooking" on a call back: logged at once, nothing to
    * ask. The other two ask when to ring next, through the prompt.
    */
+  /** Founders only. A practice meeting holds nothing else, so this is the
+   *  whole of undoing it. */
+  async function removePractice(meeting: Meeting) {
+    if (!window.confirm("Remove this practice meeting?")) return;
+    setBusy(meeting.id);
+    try {
+      const res = await fetch(`/api/meetings/${meeting.id}/training`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Could not remove it.");
+        return;
+      }
+      toast.success("Practice meeting removed.");
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function undoAnswer(meeting: Meeting) {
     setBusy(meeting.id);
     try {
-      const res = await fetch(`/api/meetings/${meeting.id}/answer`, {
-        method: "DELETE",
-      });
+      const res = meeting.training
+        ? await fetch(`/api/meetings/${meeting.id}/training`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ outcome: null }),
+          })
+        : await fetch(`/api/meetings/${meeting.id}/answer`, {
+            method: "DELETE",
+          });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? "Could not undo that.");
@@ -1034,19 +1069,6 @@ export function MeetingsList({
     )}
     <ul className="flex flex-col gap-2">
       {meetings.map((m) => {
-        // A practice meeting has its own, much smaller row: the real one
-        // carries controls that count (attendance, contracts, texts).
-        if (m.training) {
-          return (
-            <TrainingMeetingRow
-              key={m.id}
-              m={m}
-              tz={tz}
-              lines={lines}
-              isFounder={showWho}
-            />
-          );
-        }
         // The recordings this row shows, short ones dropped when the switch
         // above says so, and numbered after dropping so the labels still
         // count 1, 2, 3.
@@ -1211,12 +1233,16 @@ export function MeetingsList({
         // US numbers only: the campaign registered with the carriers covers
         // nothing else, so a Singapore lead gets no button rather than one
         // that can only refuse.
-        const textable =
-          texting !== null &&
-          m.leadId !== null &&
-          !!m.phone &&
-          !m.dncBlock &&
-          classifyPhone(m.phone) === "us";
+        // A practice meeting is texted too (2026-10-06): a real text, to the
+        // colleague playing the prospect on their own CRM line.
+        const textable = m.training
+          ? !!m.dialTo && classifyPhone(m.dialTo) === "us"
+          : texting !== null &&
+            !texting.practiceOnly &&
+            m.leadId !== null &&
+            !!m.phone &&
+            !m.dncBlock &&
+            classifyPhone(m.phone) === "us";
         const repliedLast =
           lead !== undefined &&
           lead.texts.length > 0 &&
@@ -1251,6 +1277,22 @@ export function MeetingsList({
                     not tell you who you are about to ring. */}
                 <p className="font-bold tracking-[-0.01em]">
                   {m.company ?? m.attendeeName ?? "Unlinked booking"}
+                  {m.training && (
+                    <Badge variant="secondary" className="ml-2 gap-1 align-middle">
+                      <GraduationCap className="size-3" />
+                      Training
+                    </Badge>
+                  )}
+                  {m.training && showWho && (
+                    <button
+                      type="button"
+                      disabled={busy === m.id}
+                      onClick={() => void removePractice(m)}
+                      className="ml-2 align-middle text-[12px] font-semibold text-destructive hover:underline disabled:opacity-60"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </p>
                 {renaming?.meetingId === m.id ? (
                   <div className="py-1">
@@ -1686,7 +1728,7 @@ export function MeetingsList({
               </p>
             )}
 
-            {m.leadId === null && (
+            {m.leadId === null && !m.training && (
               // Never hidden. A booking we could not attach to a lead is the
               // one most likely to be forgotten, and saying so is how it gets
               // fixed rather than quietly dropped.
@@ -1773,8 +1815,9 @@ export function MeetingsList({
                 {/* Any meeting linked to a business (2026-09-25). One booked
                     with no call behind it is answered against the meeting,
                     pays nobody, and is a founder's alone to answer. */}
-                {closes && (showWho || hasStarted) && m.leadId !== null &&
-                  (m.bookingCallId !== null || showWho) &&
+                {closes && (showWho || hasStarted) &&
+                  (m.leadId !== null || m.training) &&
+                  (m.bookingCallId !== null || showWho || m.training) &&
                   m.kind === "demo" && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
@@ -1955,7 +1998,7 @@ export function MeetingsList({
                 {/* A no-show is the founders' to follow up (2026-09-24), so a
                     caller is told there is nothing to do rather than handed
                     a button that rings them. */}
-                {!showWho && m.attendance === "no_show" ? (
+                {!showWho && !m.training && m.attendance === "no_show" ? (
                   <p className="text-[12px] text-muted-foreground">
                     No show. A founder follows these up, so there is nothing
                     for you to do here.
@@ -2337,11 +2380,13 @@ export function MeetingsList({
                     entirely where DocuSeal is not configured, in the same
                     spirit as the push toggle: a dead button on a screen
                     somebody works from is worse than no button. */}
-                {signingBase && closes && (
+                {(signingBase || m.training) && closes && (
                   <PrepareContracts
                     meeting={m}
                     tz={tz}
                     signingBase={signingBase}
+                    // The same form, creating and sending nothing.
+                    practice={m.training}
                     // Same flag the "who booked it" line runs on: an admin.
                     // Drafting is open to a founder and to the closer a
                     // meeting was handed to; undoing a draft is founders only,
@@ -2673,7 +2718,7 @@ export function MeetingsList({
                     </p>
                     <p className="mt-0.5 text-[12px] text-muted-foreground">
                       From your number {spokenNumber(texting.from)} to{" "}
-                      {spokenNumber(m.phone ?? "")}. It goes out exactly as
+                      {spokenNumber(m.phone ?? m.dialTo ?? "")}. It goes out exactly as
                       written, with nothing added.
                     </p>
                     <Textarea
@@ -2756,7 +2801,7 @@ export function MeetingsList({
                     kind="text"
                     to={{
                       name: m.attendeeName ?? m.company,
-                      address: spokenNumber(m.phone ?? ""),
+                      address: spokenNumber(m.phone ?? m.dialTo ?? ""),
                     }}
                     from={spokenNumber(texting.from)}
                     body={composing.body.trim()}

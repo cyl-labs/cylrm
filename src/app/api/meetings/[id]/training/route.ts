@@ -1,8 +1,18 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/session";
+import { logMeetingEvent } from "@/lib/meeting-log";
 
-const OUTCOMES = ["showed_up", "no_show", "not_interested", "booked_follow_up"];
+// The real row's own answers, so a practice meeting is logged the same way a
+// real one is. The last two are what the old practice row offered.
+const OUTCOMES = [
+  "showed_up",
+  "no_show",
+  "invalid",
+  "half_fee",
+  "not_interested",
+  "booked_follow_up",
+];
 
 async function load(id: number) {
   const [m] = (await db.execute(sql`
@@ -47,6 +57,14 @@ export async function PATCH(
   await db.execute(sql`
     update call_meeting set training_outcome = ${outcome} where id = ${id} and training
   `);
+  // Shows on Recently logged like any other answer, marked as practice, so
+  // "logging" is practised end to end. Never throws.
+  await logMeetingEvent({
+    meetingId: id,
+    userId: me.id,
+    action: typeof outcome === "string" ? outcome : "undone",
+    detail: "Practice meeting",
+  });
   return Response.json({ ok: true });
 }
 
