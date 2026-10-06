@@ -1614,7 +1614,16 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
     listedPhone: booked && listed && e164(booked) !== e164(listed) ? listed : null,
     attendeePhone: booked,
     website: (r.website as string | null) ?? null,
-    attendance: (r.attendance as Meeting["attendance"]) ?? null,
+    // A practice meeting keeps its answer on the row (`training_outcome`) but
+    // reads exactly like a real one: same chip, same "Change it".
+    attendance:
+      r.training === true
+        ? (["showed_up", "no_show", "invalid", "half_fee"].includes(
+            String(r.training_outcome),
+          )
+            ? (r.training_outcome as Meeting["attendance"])
+            : null)
+        : ((r.attendance as Meeting["attendance"]) ?? null),
     attendanceNotes: (r.attendance_notes as string | null) ?? null,
     attendancePaid: r.attendance_paid === true,
     listId: r.list_id === null || r.list_id === undefined ? null : n(r.list_id),

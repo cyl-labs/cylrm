@@ -3033,6 +3033,21 @@ revertible".
   form and only ticks the agreement off on screen, creating and sending nothing.
   Shipped a day late: it was first left out, not faked, and closers said they
   could not draft on a training meeting.
+- **Now drawn by the real row** (2026-10-06, "make the training meeting look
+  exactly like a real meeting, with texting on and logging as well").
+  `training-meeting-row.tsx` is gone; `MeetingsList` draws a practice meeting
+  like any other, with a "Training" tag and, for founders, Remove. The pieces
+  that needed a lead were opened up for it: **Log what happened** is the real
+  menu and writes `training_outcome` through `PATCH /api/meetings/[id]/training`
+  (now `showed_up`, `no_show`, `invalid`, `half_fee`, plus the two old values;
+  `getMeetings` maps it into `attendance`, so the chip and "Change it" read as
+  on a real row; Undo sends `null`) and appears on Recently logged marked
+  "Practice meeting". **Text them** sends a real text from the closer's own
+  number to the colleague's CRM line (`POST /api/meetings/[id]/text`, practice
+  branch: a founder or the closer it was handed to, no Team permission needed,
+  stored with no lead and no meeting). For a closer without that permission
+  `Texting.practiceOnly` gives them the composer on practice meetings only.
+  Contracts are still the practice form. Never through `/api/payroll/attendance`.
 - **Reverting is a delete** (`DELETE /api/meetings/[id]/training`, founders):
   nothing else holds on to the row.
 

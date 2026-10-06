@@ -38,12 +38,7 @@ export async function POST(
   }
   // Admins always, plus any caller granted it on Team. The number is still
   // their own, so a permission granted here cannot text as somebody else.
-  if (!(await canSendTexts(me.id, me.role))) {
-    return Response.json(
-      { error: "You have not been given permission to send texts." },
-      { status: 403 },
-    );
-  }
+  const mayText = await canSendTexts(me.id, me.role);
 
   const id = Number((await params).id);
   if (!Number.isInteger(id)) {
@@ -69,9 +64,55 @@ export async function POST(
     return Response.json({ error: "Meeting not found." }, { status: 404 });
   }
   if (meeting.training) {
+    // A practice meeting (2026-10-06): a real text, from the closer's own
+    // number to the colleague playing the prospect on their CRM line. Open to
+    // a founder and the closer it was handed to without the Team permission,
+    // since it never reaches a business. Nothing is tied to a lead.
+    if (me.role !== "admin" && meeting.closerUserId !== me.id) {
+      return Response.json({ error: "That meeting is not yours." }, { status: 403 });
+    }
+    const practiceTo = meeting.dialTo;
+    const practiceFrom = await callerNumberOf(me.id);
+    if (!practiceTo || classifyPhone(practiceTo) !== "us") {
+      return Response.json(
+        { error: "The practice prospect has no US number to text." },
+        { status: 400 },
+      );
+    }
+    if (!practiceFrom || classifyPhone(practiceFrom) !== "us") {
+      return Response.json(
+        { error: "You need a US number to text from. Give your account one on Team." },
+        { status: 400 },
+      );
+    }
+    const practiceSent = await sendSms(practiceFrom, practiceTo, text);
+    if (!practiceSent.ok) {
+      return Response.json(
+        {
+          error:
+            practiceSent.code === "unreachable"
+              ? "Couldn't get an answer from Telnyx, so the text may or may not have gone. Check before sending it again."
+              : explainTextError(practiceSent.code, practiceSent.detail),
+        },
+        { status: practiceSent.code === "unreachable" ? 502 : 422 },
+      );
+    }
+    await recordOutbound({
+      telnyxId: practiceSent.id,
+      from: practiceFrom,
+      to: practiceTo,
+      body: text,
+      status: practiceSent.status,
+      meetingId: null,
+      leadId: null,
+      userId: me.id,
+    });
+    return Response.json({ ok: true });
+  }
+  if (!mayText) {
     return Response.json(
-      { error: "This is a training meeting. Texts are not sent for these." },
-      { status: 400 },
+      { error: "You have not been given permission to send texts." },
+      { status: 403 },
     );
   }
   if (meeting.leadId === null || !meeting.phone) {
