@@ -207,7 +207,7 @@ export function DemoConfirmList({ demos }: { demos: DemoView[] }) {
               recordingMs={d.bookingRecording.durationMs}
               company={d.company}
               callerName={d.callerName ?? "Caller"}
-              label="Booking call"
+              label="Cold call"
             />
           </div>
         )}

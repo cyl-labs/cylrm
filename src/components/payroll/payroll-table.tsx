@@ -543,7 +543,7 @@ export function PayrollTable({ rows }: { rows: PayrollRowView[] }) {
                             {m.bookingNotes && (
                               <p className="mt-1.5 line-clamp-4 whitespace-pre-wrap text-[12px]">
                                 <span className="font-semibold">
-                                  From the booking call:{" "}
+                                  From the cold call:{" "}
                                 </span>
                                 {m.bookingNotes}
                               </p>

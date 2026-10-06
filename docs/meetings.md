@@ -3175,6 +3175,14 @@ and marked the cost step "missed" though the closer worked the cost out loud. Fo
   own question as the fix. "Checking before pitching" counts working the cost out loud with the owner's
   numbers as summing up.
 
+- **"Booking call" now reads "cold call"** on the screen (2026-10-07: the two folds were too alike): the
+  review fold, the briefing fold ("Summary of the cold call"), "Notes from the cold call", the review
+  button and errors, and Payroll's "Cold call" labels. The briefing's own prompt and its fingerprint
+  were left alone, since changing them would mark every stored briefing out of date.
+- **A bug in the second look skipped it for quotes that open "Let me..."**: the owner's line was cut at
+  the first ellipsis, left two words and the check gave up, so Irvin's "let me think about this" showed
+  as the closer never asking about the partner again. It now matches on any run of words in the quote.
+
 Still true: two runs can differ, and the reviewer cannot hear tone. On that call it correctly kept one
 point, that the closer did not ask what the owner wanted the other company to do better. "Review it
 again" on a review made before this reads it afresh.

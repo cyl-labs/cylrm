@@ -180,7 +180,7 @@ export function DemoReviewFold({
       <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
         <ClipboardCheck className="size-3.5 shrink-0 text-muted-foreground" />
-        {booking ? "How the booking call went" : followUp || initial?.review.variant === "followup" ? "How the follow-up call went" : "How the demo call went"}
+        {booking ? "How the cold call went" : followUp || initial?.review.variant === "followup" ? "How the follow-up call went" : "How the demo call went"}
         <span className="font-normal text-muted-foreground" suppressHydrationWarning>
           {stored ? `reviewed ${ago(stored.generatedAt)}` : "not reviewed yet"}
         </span>
@@ -448,7 +448,7 @@ export function DemoReviewFold({
                 : r
                   ? "Review it again"
                   : booking
-                    ? "Review this booking call"
+                    ? "Review this cold call"
                     : "Review this demo call"}
           </button>
           {canChoose && !picking && (

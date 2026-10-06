@@ -1105,7 +1105,7 @@ export function MeetingsList({
             startedAt: null,
             label: "Cold call",
             callerName: m.bookedBy ?? "Caller",
-            company: m.company ?? m.attendeeName ?? "Booking call",
+            company: m.company ?? m.attendeeName ?? "Cold call",
           });
         }
         earlierDemo.forEach((rec, i) =>
@@ -3013,7 +3013,7 @@ export function MeetingsList({
               <details className="group mt-3 rounded-lg border bg-muted/30">
                 <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">
                   <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-                  Notes from the booking call
+                  Notes from the cold call
                   {m.bookedAt && (
                     <span
                       className="font-normal text-muted-foreground"
