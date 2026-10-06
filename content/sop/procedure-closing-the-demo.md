@@ -178,22 +178,6 @@ Then walk them through it. Don't ask them to read it alone. You are on the phone
 
 _(let them answer)_
 
-**For the paid agreement, go in this order.** Use the number they see on the page for each part.
-
-1. **Who it is for.** "This part is you and us. It has your business name. It is already filled in."
-2. **What we do.** "We answer the calls you miss. We book the jobs. You get an email about each call."
-3. **Price and minutes.** "This is your monthly price. It covers this many minutes of calls each month. If you go over, each extra minute costs this much."
-4. **How long it lasts.** "It goes month to month. There is no long contract. You can stop any time. We just need 7 days' notice."
-5. **Sign.** "Draw your name with your finger, or type it. That's all."
-
-**For the trial agreement, go in this order.**
-
-1. **Who it is for.** Same as above.
-2. **What the trial is.** "You get 30 days, or up to 75 minutes of calls, whichever comes first. It only covers the calls you miss."
-3. **What it costs.** "It is $1 to start."
-4. **What happens at the end.** "After that, you decide. Keep it, or stop. If you want more minutes, they are $1 each."
-5. **Sign.** "Draw your name or type it. That's all."
-
 If they want to read it on their own first, that is fine. Don't push. You have the next call booked anyway.
 
 > **You say** No problem. It's yours to keep. Read it over and send it back when you're ready.
