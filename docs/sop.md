@@ -330,6 +330,20 @@ do we make it more visible without being annoying to experienced callers".
   phone, and a sixteenth that is only useful in week one is the annoying
   version of this.
 
+### The flow after they sign, under the contract video (2026-10-06)
+
+A founder explained it to the closers on a training call and several asked "what is the flow for
+the next step". A `<details>` fold in `procedure-closing-the-demo.md`, right after
+`[contract-walkthrough]`, shut by default: agreement and signature, then the form (the
+information to build the agent), the build (about 3 to 4 days, so book the follow-up 4 to 5 days
+out), the follow-up call showing the agent for last minute changes, payment asked only once they
+are happy and never on the day they sign, call forwarding instructions the same day (the trial
+starts when they are sent, not when set up), and a call after the 30 days going over bookings,
+minutes used and money made, with no strings and no hidden fees. Two "You say" lines cover the
+payment and cancellation reassurance. **No amount is named**, as with the $1 below.
+**It disagrees with the older "Then the questions" section**, which still says "give me two or
+three days" and "about a week" to go live; left as it was until the founders say which they mean.
+
 ### Closing the Demo opens with the call flow, in a collapsible box (2026-10-04)
 
 "Add the actual call flow into the closing the demo SOP, make it collapsible. Use what we
