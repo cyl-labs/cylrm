@@ -2115,6 +2115,21 @@ and the sidebar badge read the new columns on every page).
   They also read `procedure-closing-the-demo` (`CLOSER_SOP_SLUGS` — named one by
   one, so the next `audience: admins` document does not leak to them). Undoing
   a contract, no-show call backs, Team, Payroll and Stats stay founders only.
+- **A closer closes the meetings they booked by default** (2026-10-06, "let all
+  closers close their own meetings by default"). No handing over needed:
+  `closer_user_id` is set to the booking call's caller when it is a closer, in
+  the Cal.com sync (on insert, and in the update that first links the booking
+  call, `call_id` still null) and in `POST /api/meetings`. Only that first
+  link, so a meeting a founder took back (null) or gave to somebody else is
+  never overwritten by the next tick. Backfilled for the 43 meetings Aaron and
+  Akshansh had already booked (`2026-10-06-closer-own-meetings.sql`, data
+  only, safe to rerun). A caller promoted to closer later gets it on future
+  bookings only. **A closer can now log "showed up" on a meeting they booked
+  themselves, which is the $30 attendance fee for themselves**; nothing in
+  code stops it, and a founder can change the answer.
+- **The "sending over the docs" text signs as the sender's first name**
+  (`senderName` on `MeetingsList`), falling back to Mark for the shared
+  Founders login, which would give the text away as a system.
 - **Founders hand meetings out** from the "Closing it:" control on each row
   (only drawn once somebody is a closer). Only an active closer can be named.
   Closers get the push reminders for their meetings alongside the niche owner.
