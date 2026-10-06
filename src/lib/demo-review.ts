@@ -69,7 +69,58 @@ export type ReviewSource = {
   minutes: number;
   transcript: string | null;
   talk: DemoReview["talk"] | null;
+  /** Every question the closer asked, in order, so "the closer never asked
+   *  X" can be checked against all of them rather than the lines near the
+   *  moment (2026-10-07). Empty for a transcript with no speaker labels. */
+  closerQuestions?: string[];
 };
+
+/**
+ * Which of our side's turns are the live agent demo (2026-10-07).
+ *
+ * The agent joins the closer's own channel, so its greeting, its questions and
+ * the closer playing the pretend customer all arrive as "Closer" lines. That
+ * put ten of Irvin's 46 "closer questions" on the agent and let the review
+ * quote the agent's greeting as something the closer said. The stretch runs
+ * from the agent's greeting to its sign off ("anything else I can help you
+ * with") plus the short "Nope, thank you" after it. Both ends have to be found
+ * and it must be under eight minutes, or nothing is marked: hiding the real
+ * call is worse than counting the agent as the closer.
+ */
+export function demoStretch(turns: TranscriptTurn[]): Set<number> {
+  const marked = new Set<number>();
+  const start = turns.findIndex(
+    (t) =>
+      t.speaker === "caller" &&
+      /(are you looking to get a (quote|booking)|thank you for calling|thanks for calling|you'?ve reached|you have reached)/i.test(
+        t.text,
+      ),
+  );
+  if (start < 0) return marked;
+  let end = -1;
+  for (let i = start; i < turns.length; i += 1) {
+    if (
+      turns[i].speaker === "caller" &&
+      /(anything else i can help|is there anything else|have a (great|good|wonderful) day)/i.test(turns[i].text)
+    ) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0 || turns[end].start - turns[start].start > 8 * 60) return marked;
+  // The pretend customer's "Nope. Thank you." after the sign off.
+  while (
+    end + 1 < turns.length &&
+    turns[end + 1].speaker === "caller" &&
+    turns[end + 1].text.split(/\s+/).length <= 6
+  ) {
+    end += 1;
+  }
+  for (let i = start; i <= end; i += 1) {
+    if (turns[i].speaker === "caller") marked.add(i);
+  }
+  return marked;
+}
 
 /**
  * The demo's recordings (a redial keeps both halves), transcribed or not.
@@ -141,22 +192,33 @@ export async function reviewSource(
 
   const words = { closer: 0, all: 0 };
   let questions = 0;
+  const closerQuestions: string[] = [];
   const parts: string[] = [];
   for (const r of clustered) {
     if (r.turns && r.turns.length > 0) {
+      const demo = demoStretch(r.turns);
       parts.push(
         r.turns
-          .map((t) => `${t.speaker === "caller" ? "Closer" : "Prospect"}: ${t.text}`)
+          .map((t, i) =>
+            t.speaker === "caller"
+              ? `${demo.has(i) ? "Demo" : "Closer"}: ${t.text}`
+              : `Prospect: ${t.text}`,
+          )
           .join("\n"),
       );
-      for (const t of r.turns) {
+      r.turns.forEach((t, i) => {
         const n = t.text.split(/\s+/).filter(Boolean).length;
         words.all += n;
-        if (t.speaker === "caller") {
+        // The agent demo is the presentation, not the closer talking.
+        if (t.speaker === "caller" && !demo.has(i)) {
           words.closer += n;
           questions += (t.text.match(/\?/g) ?? []).length;
+          for (const sentence of t.text.match(/[^.?!]*\?/g) ?? []) {
+            const q = sentence.replace(/^[\s,]+/, "").trim();
+            if (q.length > 6) closerQuestions.push(q.slice(0, 200));
+          }
         }
-      }
+      });
     } else if (r.text) {
       parts.push(r.text);
     }
@@ -178,6 +240,7 @@ export async function reviewSource(
     untranscribedIds,
     minutes,
     transcript,
+    closerQuestions,
     talk:
       words.all > 0
         ? {
@@ -250,7 +313,7 @@ function buildSystem(variant: Variant): string {
     : variant === "followup" ? [] : [
   "You review a recorded sales demo call and give the closer honest, specific feedback, scored against the reference method below.",
   "The closer sells an AI phone receptionist to a small service business. The call is a founder or closer talking to the business owner. Part of it is a demo: the closer may add the AI receptionist to the line and play a pretend customer while the owner listens. Treat that stretch as the presentation and do not mark the closer down for not asking questions during it; it may look garbled in the transcript. This is the second call with the owner: the caller who booked it only asked a few script questions, so the closer is still expected to find out what matters to this owner, but a demo is not held to the rule that 80% of the call is questions.",
-  "In the transcript, 'Closer' is our side and 'Prospect' is the business owner.",
+  "In the transcript, 'Closer' is our side and 'Prospect' is the business owner. Lines starting 'Demo' are the live AI receptionist demo, with the closer playing a pretend customer. They are neither the closer's own selling words nor the owner's. Never quote a Demo line as evidence, and never count it for or against the closer.",
     ]),
   "",
   variant === "followup" ? FOLLOWUP_RUBRIC_TEXT : variant === "demo" ? RUBRIC_TEXT : BOOKING_RUBRIC_TEXT,
@@ -278,6 +341,16 @@ function buildSystem(variant: Variant): string {
         "- ownerMoments: 0 to 6 lines where the OWNER (the Prospect) showed a strong feeling or changed course. The moment is about the owner, but for each one you must also judge how the closer handled it, plainly and without softening. Look for: refusing something, saying the same complaint again, a personal stake (years in the trade, a time they need to be somewhere), blaming or doubting the closer, saying the call is a waste of their time, and a sudden spark of interest. Pick the lines that are unusual and tell us the most. Skip polite filler and plain facts. quote is an exact quote of up to about 25 words copied character for character from the Prospect's lines only, never from the Closer. feeling is one short plain sentence on what the owner felt. closerNext is one short plain sentence on what the closer did right after, in the closer's own words where you can. howItWent: strong = the closer showed they heard it and got the owner to say more or moved the call forward; weak = agreed, sympathised, praised or changed the subject; none = ignored it. verdict is one blunt plain sentence saying whether that was good or bad and why, for example: Weak. He agreed and moved on, so the owner never said what a lost client costs. Never write a neutral sentence that only repeats what happened. tryThis is the exact words the closer should have said instead, one or two short sentences using the owner's own details, or an empty string when howItWent is strong. Put them in the order they happened. Empty list if the owner showed nothing strong.",
       ]
     : []),
+  ...(kind === "demo"
+    ? [
+        "- READ THE WHOLE REPLY. A closer's reply often runs across several turns: a short 'I got you' or 'okay' followed by a real answer or fix in the next turns is a full reply. Judge the closer by all of it. In closerReplied and closerLine quote the part that answers the owner, not only the first words.",
+        "- WORK OUT WHAT THE OWNER MEANT before you describe a feeling. Read the lines around it. Do not give the owner a feeling they did not show. Speech to text mishears (for example 'checks' for 'texts', or '$1.20' for $120): when a word makes little sense, use the meaning that fits the lines around it, or leave it out.",
+        "- A problem the owner plays down is not pain. If the owner says it is small or rare ('I don't miss that many'), say so, and do not coach the closer to dig for pain the owner said they do not have. Never quote only the half of a sentence that sounds like a problem.",
+        "- 'missed' means the closer made no attempt anywhere in the call. If the closer did it in any form, for example worked out the cost out loud with the owner's own numbers, it is partly at most, and the note must say what was done.",
+        "- Do not coach on a point the owner accepted straight away and moved on from. That is not a gap.",
+        "- You are also given a list of EVERY question the closer asked. Before you write any fix, nextSteps entry, tryThis or 'did not ask', check that list. If a question like it is there, even much later in the call or in different words, the closer did it: drop the advice and put it in wentWell instead.",
+      ]
+    : []),
   "- Be fair and specific. Do not praise a step that was not done, and do not mark a step missed when it was done in different words. Judge the method, not the outcome: a sale that was lost can still be a well run call.",
   "- Never use an em dash.",
 ].join("\n");
@@ -293,6 +366,15 @@ function userPrompt(s: ReviewSource, kind: ReviewKind): string {
   const parts = [`Business: ${s.company}`];
   if (s.niche) parts.push(`Trade: ${s.niche}`);
   parts.push(`Length: about ${s.minutes} minutes`);
+  if (s.closerQuestions && s.closerQuestions.length > 0) {
+    parts.push(
+      `\nEvery question the ${kind === "demo" ? "closer" : "caller"} asked, in order (the live demo is left out):\n` +
+        s.closerQuestions
+          .slice(0, 90)
+          .map((q, i) => `${i + 1}. ${q}`)
+          .join("\n"),
+    );
+  }
   parts.push(`\nTranscript of the ${kind === "demo" ? "demo" : "booking"} call:\n${s.transcript}`);
   return parts.join("\n");
 }
@@ -304,6 +386,83 @@ const clean = (v: unknown) =>
 // showed as doubled marks. Not applied to `when`, whose own quotes are parsed.
 const unq = (v: unknown) => clean(v).replace(/^["“”]+|["“”]+$/g, "").trim();
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+
+/**
+ * Did the closer deal with this line of the owner's, anywhere after it?
+ *
+ * The review model kept calling a moment weak when the closer's real answer
+ * came after the owner added another line ("I got you" / owner: "but if it
+ * says a dollar" / "don't worry, we can set it up for a specific number"), and
+ * kept advising a question the closer asked 50 turns later (Irvin's partner,
+ * 2026-10-07). So every moment it rates weak is checked on its own: the owner's
+ * line and the rest of the call go to a small second call, and the answer only
+ * counts when the quote it gives is really in the closer's lines. Returns null
+ * when the check cannot be made, which leaves the review's own rating alone.
+ */
+async function closerDealtWith(
+  transcript: string,
+  ownerQuote: string,
+  key: string,
+  closerHay: string,
+): Promise<{ quote: string; why: string } | null> {
+  try {
+    const lines = transcript.split("\n");
+    const first = normalise(ownerQuote.split(/\.\.\.|…/)[0] ?? "");
+    const words = first.split(" ").filter(Boolean);
+    if (words.length < 3) return null;
+    let at = -1;
+    for (const n of [6, 4, 3]) {
+      const needle = words.slice(0, n).join(" ");
+      at = lines.findIndex((l) => l.startsWith("Prospect: ") && normalise(l).includes(needle));
+      if (at >= 0) break;
+    }
+    if (at < 0) return null;
+    const rest = lines.slice(at, at + 90).join("\n").slice(0, 16_000);
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 250,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "You check one thing in a sales call transcript. Reply with one JSON object and nothing else: {\"addressed\": boolean, \"closerQuote\": string, \"why\": string}. 'addressed' is true if the Closer, at any later point in the lines given, gave a real answer, a fix or a reassurance that fits what the owner said, or asked a question that explores it, even in different words, even if the owner added another line first, and even if it came much later in the call. Judge the main point of the owner's line, not every detail in it. If the owner said they need to think it over or check with someone, the closer dealt with it by asking what that person will worry about or need, handling it, or setting up the next step to settle it. A short acknowledgement ('okay', 'sounds good', 'I got you'), agreeing, or repeating the owner's own words back does NOT count, and neither does a reply about something else. closerQuote is an exact quote of up to 30 words copied from a Closer line that does this, or an empty string. why is one short plain sentence. Lines starting 'Demo' are the live demo, not the closer. Never use an em dash.",
+          },
+          { role: "user", content: `The owner said:\n${ownerQuote}\n\nThe call from that point on:\n${rest}` },
+        ],
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    void recordAiUsage({
+      feature: "review",
+      model: MODEL,
+      inputTokens: body.usage?.prompt_tokens,
+      outputTokens: body.usage?.completion_tokens,
+    });
+    const out = JSON.parse(body.choices?.[0]?.message?.content ?? "{}") as {
+      addressed?: unknown;
+      closerQuote?: unknown;
+      why?: unknown;
+    };
+    const quote = unq(out.closerQuote);
+    if (out.addressed !== true || !quote) return null;
+    // The check's own claim is held to the same rule as every other quote.
+    const pieces = quote.split(/\.\.\.|…/).map(normalise).filter(Boolean);
+    if (pieces.length === 0 || !pieces.every((p) => ` ${closerHay} `.includes(` ${p} `))) return null;
+    return { quote, why: clean(out.why) };
+  } catch {
+    return null;
+  }
+}
 
 /** Write one review, or throw naming the vendor. */
 export async function writeReview(
@@ -372,6 +531,49 @@ export async function writeReview(
     const pieces = q.split(/\.\.\.|…/).map(normalise).filter(Boolean);
     return pieces.length > 0 && pieces.every((p) => ` ${ownerHay} `.includes(` ${p} `));
   };
+  // The closer's own lines, so the claim "you said X" can be checked. Demo
+  // transcripts label them "Closer", booking ones "Our caller".
+  const closerHay = normalise(
+    s.transcript
+      .split("\n")
+      .filter((l) => l.startsWith("Closer: ") || l.startsWith("Our caller: "))
+      .map((l) => l.replace(/^(Closer|Our caller): /, ""))
+      .join(" "),
+  );
+
+  // Moments the review rated weak that the closer in fact dealt with, found by
+  // a second look at the rest of the call (see `closerDealtWith`).
+  const dealt = new Map<string, { quote: string; why: string }>();
+  if (kind === "demo") {
+    const weak = new Set<string>();
+    const add = (q: unknown) => {
+      const t = unq(q);
+      if (t) weak.add(t);
+    };
+    for (const x of list(raw.moments)) {
+      const o = x as { ownerSaid?: unknown; howItWent?: unknown };
+      if (o.howItWent !== "strong") add(o.ownerSaid);
+    }
+    for (const x of list(raw.ownerMoments)) {
+      const o = x as { quote?: unknown; howItWent?: unknown };
+      if (o.howItWent !== "strong") add(o.quote);
+    }
+    for (const x of list(raw.objections)) add((x as { theySaid?: unknown }).theySaid);
+    for (const x of list(raw.stages)) {
+      const g = x as { ownerLine?: unknown; rating?: unknown };
+      if (g.rating === "partly" || g.rating === "missed") add(g.ownerLine);
+    }
+    const asked = [...weak].filter((q) => ownerSaid(q)).slice(0, 14);
+    const found = await Promise.all(
+      asked.map((q) => closerDealtWith(s.transcript as string, q, key, closerHay)),
+    );
+    asked.forEach((q, i) => {
+      const f = found[i];
+      if (f) dealt.set(normalise(q), f);
+    });
+  }
+  const dealtWith = (q: unknown) => dealt.get(normalise(unq(q)));
+
   const ownerMoments =
     kind === "demo"
       ? list(raw.ownerMoments)
@@ -388,6 +590,17 @@ export async function writeReview(
               o.howItWent === "strong" || o.howItWent === "weak" || o.howItWent === "none"
                 ? (o.howItWent as "strong" | "weak" | "none")
                 : undefined;
+            const d = how === "strong" ? undefined : dealtWith(o.quote);
+            if (d) {
+              return {
+                quote: unq(o.quote),
+                feeling: clean(o.feeling),
+                closerNext: d.quote,
+                howItWent: "strong" as const,
+                verdict: d.why || "The closer dealt with it.",
+                tryThis: undefined,
+              };
+            }
             return {
               quote: unq(o.quote),
               feeling: clean(o.feeling),
@@ -401,15 +614,6 @@ export async function writeReview(
           .slice(0, 6)
       : [];
 
-  // The closer's own lines, so the claim "you said X" can be checked. Demo
-  // transcripts label them "Closer", booking ones "Our caller".
-  const closerHay = normalise(
-    s.transcript
-      .split("\n")
-      .filter((l) => l.startsWith("Closer: ") || l.startsWith("Our caller: "))
-      .map((l) => l.replace(/^(Closer|Our caller): /, ""))
-      .join(" "),
-  );
   const saidBy = (hayOf: string, q: string) => {
     if (!hayOf) return inCall(q);
     const pieces = q.split(/\.\.\.|…/).map(normalise).filter(Boolean);
@@ -437,6 +641,8 @@ export async function writeReview(
     const fixDo = clean(fx?.do);
     const fixSay = unq(fx?.say);
     const gap = rating === "partly" || rating === "missed";
+    // The owner's line was dealt with later: no fix is shown for it.
+    const handledLater = gap && ownerQ ? dealtWith(ownerQ) : undefined;
     return {
       key: def.key,
       label: def.label,
@@ -444,9 +650,10 @@ export async function writeReview(
       rating,
       evidence,
       note: clean(got?.note),
-      ownerLine: gap && ownerQ && ownerSaid(ownerQ) ? ownerQ : undefined,
-      closerLine: gap && closerQ && saidBy(closerHay, closerQ) ? closerQ : undefined,
-      fix: gap && fixDo && fixSay ? { do: fixDo, say: fixSay } : undefined,
+      ownerLine: gap && !handledLater && ownerQ && ownerSaid(ownerQ) ? ownerQ : undefined,
+      closerLine:
+        gap && !handledLater && closerQ && saidBy(closerHay, closerQ) ? closerQ : undefined,
+      fix: gap && !handledLater && fixDo && fixSay ? { do: fixDo, say: fixSay } : undefined,
     };
   });
 
@@ -456,10 +663,11 @@ export async function writeReview(
     const o = x as { ownerSaid?: unknown; closerReplied?: unknown; howItWent?: unknown };
     const ownerSaidQ = unq(o.ownerSaid);
     const replied = unq(o.closerReplied);
+    const d = o.howItWent === "strong" ? undefined : dealtWith(ownerSaidQ);
     return {
       ownerSaid: ownerSaidQ && ownerSaid(ownerSaidQ) ? ownerSaidQ : "",
-      closerReplied: replied && saidBy(closerHay, replied) ? replied : "",
-      strong: o.howItWent === "strong",
+      closerReplied: d ? d.quote : replied && saidBy(closerHay, replied) ? replied : "",
+      strong: o.howItWent === "strong" || Boolean(d),
     };
   });
 
@@ -494,16 +702,32 @@ export async function writeReview(
   return {
     headline: clean(raw.headline),
     stages,
-    wentWell: list(raw.wentWell).map(clean).filter(Boolean).slice(0, 4),
+    wentWell: [
+      ...list(raw.wentWell).map(clean).filter(Boolean).slice(0, 4),
+      // What the second look found the closer did after all.
+      ...[...dealt.values()]
+        .filter((d, i, all) => all.findIndex((x) => x.quote === d.quote) === i)
+        .slice(0, 2)
+        .map(
+          (d) =>
+            `Dealt with a worry the owner raised: "${d.quote.length > 140 ? `${d.quote.slice(0, 140).trim()}...` : d.quote}"`,
+        ),
+    ].slice(0, 5),
     nextSteps: nextSteps.length > 0 ? nextSteps : undefined,
     // Kept for reviews written before nextSteps; new ones leave it empty.
     toImprove: [],
     objections: list(raw.objections)
-      .map((x) => ({
-        theySaid: unq((x as { theySaid?: unknown }).theySaid),
-        handled: clean((x as { handled?: unknown }).handled),
-        tryThis: clean((x as { tryThis?: unknown }).tryThis),
-      }))
+      .map((x) => {
+        const theySaid = unq((x as { theySaid?: unknown }).theySaid);
+        const d = dealtWith(theySaid);
+        return {
+          theySaid,
+          handled: d
+            ? `The closer dealt with it${d.why ? `. ${d.why}` : ""}: "${d.quote}"`
+            : clean((x as { handled?: unknown }).handled),
+          tryThis: d ? "" : clean((x as { tryThis?: unknown }).tryThis),
+        };
+      })
       .filter((x) => x.theySaid)
       .slice(0, 6),
     biggestFix: nextSteps[0]?.do ?? "",

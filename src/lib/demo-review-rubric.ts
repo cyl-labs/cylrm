@@ -58,7 +58,7 @@ export const REVIEW_STAGES: {
     label: "What it costs them to do nothing",
     method: "NEPQ",
     means:
-      "Got the prospect to say what the problem costs and what happens if nothing changes. Example: 'What happens if this is still going on six months from now?'",
+      "Got the prospect to say what the problem costs and what happens if nothing changes. Example: 'What happens if this is still going on six months from now?' If the closer instead worked out the cost out loud with the prospect's own numbers (calls missed times job value), that is partly, never missed.",
   },
   {
     key: "qualifying",
