@@ -3117,6 +3117,37 @@ pointer parses its own); `unq` does, for fields the screen wraps in marks itself
 built before the stages and the closer-lines check is defined above them: a `const` used before its
 definition threw at runtime in a first draft.
 
+### Demo review: fewer wrong "you did not ask" verdicts (2026-10-07)
+
+Found by checking a real review of Deserts Gambit (a 29.8 minute demo) against its transcript: the
+headline numbers were right, but most coaching was wrong. The review said the closer never asked what
+the partner would care about (he did, 90 seconds later: "what do you think he's gonna be worried
+about?"), read an owner worrying that personal calls would burn the agent's paid minutes as "wasting
+time" (the closer answered it in the next breath), quoted the voice agent's greeting as the closer's,
+and marked the cost step "missed" though the closer worked the cost out loud. Four changes in
+`lib/demo-review.ts`:
+
+- **The live agent demo is its own speaker.** `demoStretch` finds the agent's greeting and its sign off
+  on our side of the call and labels those turns "Demo", not "Closer". They no longer count toward
+  talk share or questions (Deserts Gambit: 46 questions and 57% became 36 and 52%), and they cannot be
+  quoted as the closer. Both ends must be found within eight minutes or nothing is marked.
+- **A list of every question the closer asked** goes in with the transcript, and the prompt says to
+  check it before writing any "did not ask".
+- **A second look at every moment rated weak** (`closerDealtWith`): the owner's line plus the rest of
+  the call go to a small second call that asks whether the closer dealt with it, now or later. Its
+  answer only counts if the closer quote it returns is really in the closer's lines, and a bare "okay"
+  or "sounds good" does not count. If yes, the moment becomes strong and the fix, "Do this" and
+  "Say instead" for it are dropped. This is what the prompt alone could not do: the first fix, wording
+  in the prompt, still marked the phone-number worry weak because the real answer came after the owner
+  added a line. A few cents more per review (up to 14 small calls).
+- Prompt rules: read the whole reply, work out what the owner meant (speech to text mishears "texts" as
+  "checks"), a played-down problem is not pain, "missed" means no attempt at all, and the cost step
+  counts working it out loud as partly.
+
+Still true: two runs can differ, and the reviewer cannot hear tone. On that call it correctly kept one
+point, that the closer did not ask what the owner wanted the other company to do better. "Review it
+again" on a review made before this reads it afresh.
+
 ### Follow-up calls are reviewed on their own steps (2026-10-06)
 
 `FOLLOWUP_STAGES` and `FOLLOWUP_RUBRIC_TEXT` in `lib/demo-review-rubric.ts`; `variantOf` in
