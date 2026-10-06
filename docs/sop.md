@@ -337,6 +337,11 @@ do we make it more visible without being annoying to experienced callers".
 Part 1 below. Part 1 only describes the trial agreement, so what the paid agreement walk-through
 said (monthly price and minutes, month to month, 7 days' notice to stop) is no longer written
 anywhere in the SOP.
+**Re-added the same day as one paragraph in Part 1** (founders: "the same as the free one, but
+instead of saying it's only a dollar, mention how the price works"): the monthly price, the minutes
+it covers and the extra-minute rate, read off the page rather than quoted, and that they only pay
+after the agent is built and they have fully heard it. Month to month and the 7 days' notice are
+still not written there.
 
 A founder explained it to the closers on a training call and several asked "what is the flow for
 the next step". A `<details>` fold in `procedure-closing-the-demo.md`, right after
