@@ -344,12 +344,15 @@ to 4 days, so book the follow-up 4 to 5 days out), the follow-up call showing th
 minute changes, payment asked only once they are happy and never on the day they sign, call
 forwarding instructions the same day (the trial starts when they are sent, not when set up), and
 a call after the 30 days on bookings, minutes used and money made, no strings, no hidden fees.
-- **Part 1 does name the $1**, as the founder does on real calls (a phone number has to be bought;
-  not taken until they have seen the finished agent; never a card number). The call flow note
-  below says the page does not do a setup fee; the trial agreement step already says "$1 to
-  start", so this agrees with that and not with the older note.
-- **It disagrees with the older "Then the questions" section**, which still says "give me two or
-  three days" and "about a week" to go live; left as it was until the founders say which they mean.
+- **Part 1 names the $1 as what the phone number costs, not a fee**, and says it does not come
+  to us, as the founder explains it on real calls (not asked for until they have seen the
+  finished agent; never a card number). The trial agreement step already says "$1 to start".
+- **Everything is quoted as "about a week"** (founders, 2026-10-06: "just to give us some
+  buffer keep it to a week"), though the real build is 3 to 4 days. Part 2's step 3 and the
+  section that used to be called "Then the questions, and a call to hear it working" (now "After
+  they sign: the form, and the next call") agree on this. That section used to say "two or three
+  days" for the call and a separate "about a week" to go live; the second promise is gone, since
+  they go live the same day they are happy with the agent.
 
 ### Closing the Demo opens with the call flow, in a collapsible box (2026-10-04)
 
