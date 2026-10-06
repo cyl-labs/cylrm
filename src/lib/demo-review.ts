@@ -415,13 +415,18 @@ async function closerDealtWith(
 ): Promise<{ quote: string; why: string } | null> {
   try {
     const lines = transcript.split("\n");
-    const first = normalise(ownerQuote.split(/\.\.\.|…/)[0] ?? "");
-    const words = first.split(" ").filter(Boolean);
+    // The whole quote's words, ellipses ignored: a quote that opens "Let me..."
+    // left two words once cut at the dots, and the check was skipped.
+    const words = normalise(ownerQuote).split(" ").filter(Boolean);
     if (words.length < 3) return null;
     let at = -1;
-    for (const n of [6, 4, 3]) {
-      const needle = words.slice(0, n).join(" ");
-      at = lines.findIndex((l) => l.startsWith("Prospect: ") && normalise(l).includes(needle));
+    for (const n of [6, 5, 4, 3]) {
+      if (words.length < n) continue;
+      // Slide along the quote: the owner's line may start mid-turn.
+      for (let i = 0; i + n <= Math.min(words.length, 14) && at < 0; i += 1) {
+        const needle = words.slice(i, i + n).join(" ");
+        at = lines.findIndex((l) => l.startsWith("Prospect: ") && normalise(l).includes(needle));
+      }
       if (at >= 0) break;
     }
     if (at < 0) return null;
@@ -438,7 +443,7 @@ async function closerDealtWith(
           {
             role: "system",
             content:
-              "You check one thing in a sales call transcript. Reply with one JSON object and nothing else: {\"addressed\": boolean, \"closerQuote\": string, \"why\": string}. 'addressed' is true if the Closer, at any later point in the lines given, gave a real answer, a fix or a reassurance that fits what the owner said, or asked a question that explores it, even in different words, even if the owner added another line first, and even if it came much later in the call. Judge the main point of the owner's line, not every detail in it. If the owner said they need to think it over or check with someone, the closer dealt with it by asking what that person will worry about or need, handling it, or setting up the next step to settle it. A short acknowledgement ('okay', 'sounds good', 'I got you'), agreeing, or repeating the owner's own words back does NOT count, and neither does a reply about something else. closerQuote is an exact quote of up to 20 words copied from a Closer line that does this, or an empty string. why is one short sentence at a third grade reading level: everyday words, under 12 words, one idea, and no words like address, concern, directly or intent. Lines starting 'Demo' are the live demo, not the closer. Never use an em dash.",
+              "You check one thing in a sales call transcript. Reply with one JSON object and nothing else: {\"addressed\": boolean, \"closerQuote\": string, \"why\": string}. 'addressed' is true if the Closer, at any later point in the lines given, gave a real answer, a fix or a reassurance that fits what the owner said, or asked a question that explores it, even in different words, even if the owner added another line first, and even if it came much later in the call. Judge the main point of the owner's line, not every detail in it. If the owner said they need to think it over or check with someone, the closer dealt with it by asking what that person will worry about or need, handling it, or setting up the next step to settle it. A short acknowledgement ('okay', 'sounds good', 'I got you'), agreeing, or repeating the owner's own words back does NOT count, and neither does a reply about something else. closerQuote is an exact quote of up to 20 words copied from a Closer line that does this, or an empty string. why is one short sentence at a third grade reading level: everyday words, under 12 words, one idea, and no words like address, concern, directly or intent. Always say 'the closer' or 'the owner', never 'he', 'she' or 'they', so it is clear who did what. Lines starting 'Demo' are the live demo, not the closer. Never use an em dash.",
           },
           { role: "user", content: `The owner said:\n${ownerQuote}\n\nThe call from that point on:\n${rest}` },
         ],

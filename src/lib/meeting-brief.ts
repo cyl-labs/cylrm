@@ -667,8 +667,8 @@ export async function writeBrief(
   // recording is sitting there unread.
   if (!source.transcript && !source.notes) {
     return source.hasRecording
-      ? "- The booking call was recorded but could not be transcribed. Open the recording on the meeting row to listen."
-      : "- No recording of the booking call, and the caller left no notes.";
+      ? "- The cold call was recorded but could not be transcribed. Open the recording on the meeting row to listen."
+      : "- No recording of the cold call, and the caller left no notes.";
   }
 
   const ask = async (system: string, user: string): Promise<string> => {

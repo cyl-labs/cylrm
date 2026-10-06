@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     }
     if (!got.hasRecording) {
       return Response.json(
-        { error: "There is no recording of the booking call, so there is nothing to review." },
+        { error: "There is no recording of the cold call, so there is nothing to review." },
         { status: 422 },
       );
     }

@@ -104,7 +104,7 @@ export function MeetingBriefFold({
       <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[13px] font-semibold">
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
         <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-        Summary of the booking call
+        Summary of the cold call
         <span
           className="font-normal text-muted-foreground"
           suppressHydrationWarning
@@ -118,12 +118,12 @@ export function MeetingBriefFold({
         ) : state === "writing" ? (
           <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <RefreshCw className="size-3.5 shrink-0 animate-spin" />
-            Reading the booking call and writing the briefing. This takes a
+            Reading the cold call and writing the briefing. This takes a
             few seconds.
           </p>
         ) : state !== "failed" ? (
           <p className="text-[13px] text-muted-foreground">
-            Opening this writes the briefing from the booking call.
+            Opening this writes the briefing from the cold call.
           </p>
         ) : null}
 
