@@ -220,7 +220,7 @@ Then say what each part means in plain English. This is the usual order:
 - **The top.** Have them check the business name and the date are right.
 - **Section 1: what the agent does.** It picks up the calls you miss, like a receptionist, and emails you a summary of each call: who called, what they want, their address.
 - **Section 2: what we cover.** We cover all the minutes for the trial and fix any bugs. We don't add new features halfway through.
-- **Section 3: how the trial works.** It lasts 30 days, and it starts when the agent is live, not when they sign, so they get the full month. It is $1 only because we have to buy a phone number to attach the agent to. We don't take that until they have seen the finished agent, and we never ask for a card number.
+- **Section 3: how the trial works.** It lasts 30 days, and it starts when the agent is live, not when they sign, so they get the full month. There is a $1, but it is not a fee and it does not come to us. It is just what the phone number costs, and we have to buy one to attach the agent to. We don't ask for it until they have seen the finished agent, and we never ask for a card number.
 - **Section 4: the end.** After the 30 days we have another call and go through the numbers. If they don't like it, there are no charges and no hidden fees. It is just removed.
 
 It also says we own the agent, so nobody tries to keep it after the trial. Say it as protecting both sides, then end on this: there is no obligation, and if it is not for them, we part ways.
@@ -229,7 +229,7 @@ It also says we own the agent, so nobody tries to keep it after the trial. Say i
 
 1. **We send the agreement and they sign it.** That is the video above.
 2. **As soon as they sign, send them the form.** The form is where we get all the information we need to build their agent.
-3. **We build the agent. It takes about 3 to 4 days.** So book the follow-up call about **4 to 5 days from now**, so the agent is finished before you ring them.
+3. **We build the agent. It takes about 3 to 4 days.** To leave some buffer, book the follow-up call for **about a week from now**, so the agent is always finished before you ring them.
 4. **On the follow-up call, show them the agent.** They can ask for any last minute changes.
 5. **Only when they are happy do we ask for payment.** We never ask on the day they sign. You can tell them that, it puts people at ease.
 6. **The same day they are happy, we send them the call forwarding instructions. That is when the trial starts.** It does not start when they set it up. It starts when we send the instructions.
@@ -237,15 +237,15 @@ It also says we own the agent, so nobody tries to keep it after the trial. Say i
 
 </details>
 
-## Then the questions, and a call to hear it working
+## After they sign: the form, and the next call
 
-Two things come after the signature. The first is the questions you need from them. The second is the day they hear it working. Say the second one second, but it is what makes them answer the first. Nobody fills in questions for fun.
+Two things come after the signature. The first is the form, which is the list of questions we build their agent from. The second is the next call, where they hear the agent working. Say the second one second, but it is what makes them fill in the first. Nobody fills in questions for fun.
 
 > **You say** Once that's done, I'll send you a short list of questions about your business. Like how you want it to answer and what you want it to ask people. That's what I build your agent from.
 
 _(let them answer)_
 
-> **You say** Send those back to me and give me two or three days. Let's pick a time now, and I'll show it to you, so you can hear it answer as your business.
+> **You say** Send those back to me and give me about a week. Let's pick a time now, and I'll show it to you, so you can hear it answer as your business.
 
 _(let them answer)_
 
@@ -253,4 +253,4 @@ Never end on "I'll follow up." Offer two times on two different days, the same w
 
 > **You say** What does your schedule look like? I have Thursday afternoon, or we could do Friday morning.
 
-**Going fully live takes about a week. That is a different promise from the call above.** The call in two or three days is to show them the agent with their answers in it. Going live means setting up call forwarding, running test calls, and getting it to answer the way they want. That takes about a week. Only say "a week" if they ask when it will be live. Never say it first. If you say a week while you are booking a call for Thursday, it sounds like a contradiction, and you lose the momentum you just built.
+**The call is about a week out on purpose.** The agent takes 3 to 4 days to build, and the rest is buffer. On that call they hear it and ask for any changes. Once they are happy, we send the call forwarding instructions the same day, and that is when the 30 day trial starts. Say "about a week" every time. The real build is quicker, and it is better to be early than late.
