@@ -110,9 +110,9 @@ export function TrainingAssign({
             The closer gets a meeting on their Meetings screen and rings the
             person you pick, who plays the prospect. It looks and works like a
             real meeting: they can call, text (a real text, to that person's
-            CRM line), fill in the contracts and log what happened. It is
-            practice only: nothing counts toward pay, stats or alerts, and no
-            contract goes to DocuSeal. You can remove it from the meeting.
+            CRM line), draft the contracts and open them, and log what happened.
+            It is practice only: nothing counts toward pay, stats or alerts, and
+            the agreements are made with no email so nothing reaches anyone. You can remove it from the meeting.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

@@ -3047,7 +3047,19 @@ revertible".
   branch: a founder or the closer it was handed to, no Team permission needed,
   stored with no lead and no meeting). For a closer without that permission
   `Texting.practiceOnly` gives them the composer on practice meetings only.
-  Contracts are still the practice form. Never through `/api/payroll/attendance`.
+  Never through `/api/payroll/attendance`.
+- **Practice contracts are real DocuSeal drafts now** (2026-10-07: a founder showing closers how to draft
+  one on a practice meeting found the chip greyed "practice only" with no link to open). The route
+  (`POST /api/meetings/[id]/contracts`) accepts a training meeting for a founder or the closer it was
+  handed to and **always drops the client's email** (the signer is named only, "Practice client" if
+  blank). With no address DocuSeal has nobody to email, and the signed copy workflow, which only runs when
+  there is an address, never runs and never tells the CRM, so a practice contract signed in DocuSeal
+  creates no Gmail draft and no "signed" event. The chip is the normal one: copy the client's link, open
+  the signing page, open our copy; founders can discard it. `meeting-stats.ts` skips training meetings in
+  the contracts count (`not m.training`), like every other reader of `call_meeting` that counts. The old
+  on-screen "practice" tick is gone. **A practice draft is a real submission on the shared DocuSeal
+  instance**, so discard one that is no longer wanted. Not tested against DocuSeal from a laptop (the
+  keys are only on the droplet); it is the same `draftContracts` path real meetings use.
 - **Reverting is a delete** (`DELETE /api/meetings/[id]/training`, founders):
   nothing else holds on to the row.
 

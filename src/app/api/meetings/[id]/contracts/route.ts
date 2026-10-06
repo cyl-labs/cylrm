@@ -66,13 +66,11 @@ export async function POST(
   if (!meeting) {
     return Response.json({ error: "Meeting not found." }, { status: 404 });
   }
-  // A real DocuSeal submission, which can email a real person.
-  if (meeting.training) {
-    return Response.json(
-      { error: "This is a training meeting. Contracts are not sent for these." },
-      { status: 400 },
-    );
-  }
+  // A practice meeting (2026-10-07) is drafted for real, so the closer can open
+  // the signing page and see what a client sees, but never with an email: the
+  // signer is named only, so DocuSeal has nobody to email and the signed copy
+  // workflow, which needs an address, never runs and never tells the CRM.
+  const practice = meeting.training;
   if (me.role === "closer" && meeting.closerUserId !== me.id) {
     return Response.json(
       { error: "That meeting has not been given to you to close." },
@@ -98,6 +96,11 @@ export async function POST(
         ) as ContractKind[])
       : [...KINDS],
   };
+
+  if (practice) {
+    input.signeeEmail = "";
+    if (!input.signeeName) input.signeeName = "Practice client";
+  }
 
   // Checked here and not only in the browser: a contract with an empty party
   // name is the one mistake this whole feature exists to prevent, and a

@@ -242,7 +242,7 @@ export async function getMeetingStats(
         cross join lateral (values
           ('drafted', c.created_at), ('sent', c.sent_at), ('signed', c.signed_at)
         ) as e(ev, at)
-        where e.at is not null and ${inWindow(w, sql`e.at`)} ${f}
+        where e.at is not null and not m.training and ${inWindow(w, sql`e.at`)} ${f}
       ) x
       group by day
     `),
