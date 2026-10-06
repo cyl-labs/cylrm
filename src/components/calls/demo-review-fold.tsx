@@ -185,7 +185,7 @@ export function DemoReviewFold({
           {stored ? `reviewed ${ago(stored.generatedAt)}` : "not reviewed yet"}
         </span>
       </summary>
-      <div className="space-y-3 border-t px-3 py-2.5 text-[13px] leading-snug">
+      <div className="space-y-6 border-t px-4 py-4 text-[14px] leading-relaxed sm:px-5">
         {!r ? (
           <p className="text-muted-foreground">
             {booking
@@ -197,14 +197,14 @@ export function DemoReviewFold({
             {(() => {
               const v = verdictOf(r, booking);
               return (
-                <div className={`rounded-md border px-2.5 py-2 ${VERDICT_STYLE[v.tone]}`}>
-                  <p className="text-[14px] font-bold">{v.title}</p>
-                  <p className="mt-0.5 text-[13px] text-foreground">{v.line}</p>
+                <div className={`rounded-md border px-3.5 py-3 ${VERDICT_STYLE[v.tone]}`}>
+                  <p className="text-[15px] font-bold">{v.title}</p>
+                  <p className="mt-1 text-[14px] text-foreground">{v.line}</p>
                 </div>
               );
             })()}
-            {r.headline && <p className="font-medium">{r.headline}</p>}
-            <p className="text-[12px] text-muted-foreground">
+            {r.headline && <p className="text-[15px] font-medium leading-snug">{r.headline}</p>}
+            <p className="-mt-2 text-[13px] text-muted-foreground">
               {booking ? "The caller" : "The closer"} spoke {r.talk.closerPercent}% of the time and asked{" "}
               {r.talk.closerQuestions}{" "}
               {r.talk.closerQuestions === 1 ? "question" : "questions"} in{" "}
@@ -212,17 +212,17 @@ export function DemoReviewFold({
             </p>
 
             {r.nextSteps && r.nextSteps.length > 0 ? (
-              <div className="rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
+              <div className="rounded-md border border-primary/30 bg-primary/5 px-3.5 py-3">
                 <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {booking || r.variant === "followup" ? "Do this on your next call" : "Do this on your next demo"}
                 </p>
-                <ol className="mt-1.5 space-y-2.5">
+                <ol className="mt-3 space-y-5">
                   {r.nextSteps.map((st, i) => (
                     <li key={i} className="flex gap-2">
                       <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
                         {i + 1}
                       </span>
-                      <div className="min-w-0 space-y-0.5">
+                      <div className="min-w-0 space-y-1.5">
                         {st.when && <p className="text-muted-foreground">{st.when}</p>}
                         {st.youDid && (
                           <p className="text-muted-foreground">
@@ -241,7 +241,7 @@ export function DemoReviewFold({
               </div>
             ) : (
               r.biggestFix && (
-                <div className="rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
+                <div className="rounded-md border border-primary/30 bg-primary/5 px-3.5 py-3">
                   <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
                     The one thing to change
                   </p>
@@ -263,7 +263,7 @@ export function DemoReviewFold({
             {r.toImprove.length > 0 && (
               <Section title="What to change">
                 {r.toImprove.map((t, i) => (
-                  <li key={i} className="space-y-0.5">
+                  <li key={i} className="space-y-1.5">
                     <Bullet>{t.what}</Bullet>
                     {t.tryThis && (
                       <p className="ml-4 text-muted-foreground">
@@ -278,7 +278,7 @@ export function DemoReviewFold({
             {r.objections.length > 0 && (
               <Section title="When they pushed back">
                 {r.objections.map((o, i) => (
-                  <li key={i} className="space-y-0.5">
+                  <li key={i} className="space-y-1.5">
                     <Bullet>
                       They said &ldquo;{o.theySaid}&rdquo;. {o.handled}
                     </Bullet>
@@ -297,21 +297,21 @@ export function DemoReviewFold({
                 <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
                   What the owner felt strongly about
                 </p>
-                <p className="mb-1 text-[12px] text-muted-foreground">
+                <p className="mb-3 mt-1 text-[13px] text-muted-foreground">
                   The owner&apos;s own words, in the order they said them. This is
                   about the owner, not a grade for the closer.
                 </p>
-                <ul className="space-y-1.5">
+                <ul className="space-y-3.5">
                   {r.ownerMoments.map((m, i) => (
-                    <li key={i} className="rounded-md border bg-card px-2.5 py-1.5">
+                    <li className="space-y-2 rounded-md border bg-card px-3.5 py-3" key={i}>
                       <p className="font-medium">&ldquo;{m.quote}&rdquo;</p>
-                      <p className="mt-0.5">{m.feeling}</p>
-                      <p className="mt-0.5 text-[12px] text-muted-foreground">
+                      <p>{m.feeling}</p>
+                      <p className="text-[13px] text-muted-foreground">
                         Then: {m.closerNext}
                       </p>
                       {m.verdict && (
                         <p
-                          className={`mt-1 rounded px-1.5 py-1 font-medium ${
+                          className={`rounded px-2.5 py-2 font-medium ${
                             m.howItWent === "strong"
                               ? "bg-success/10 text-success"
                               : "bg-destructive/10 text-destructive"
@@ -321,7 +321,7 @@ export function DemoReviewFold({
                         </p>
                       )}
                       {m.tryThis && (
-                        <p className="mt-1">
+                        <p>
                           <span className="text-muted-foreground">Say instead: </span>
                           &ldquo;{m.tryThis}&rdquo;
                         </p>
@@ -333,13 +333,13 @@ export function DemoReviewFold({
             )}
 
             <div>
-              <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
                 How each step went
               </p>
-              <ul className="space-y-1.5">
+              <ul className="space-y-3">
                 {shown.map((s) => (
-                  <li key={s.key} className="rounded-md border bg-card px-2.5 py-1.5">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <li key={s.key} className="space-y-1.5 rounded-md border bg-card px-3.5 py-3">
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                       <span
                         className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${BADGE[s.rating].cls}`}
                       >
@@ -350,24 +350,24 @@ export function DemoReviewFold({
                         {s.method}
                       </span>
                     </div>
-                    {s.note && <p className="mt-0.5">{s.note}</p>}
+                    {s.note && <p>{s.note}</p>}
                     {s.ownerLine && (
-                      <p className="mt-1 text-[12px] text-muted-foreground">
+                      <p className="text-[13px] text-muted-foreground">
                         Owner said: &ldquo;{s.ownerLine}&rdquo;
                       </p>
                     )}
                     {s.closerLine && (
-                      <p className="mt-0.5 text-[12px] text-muted-foreground">
+                      <p className="text-[13px] text-muted-foreground">
                         You said: &ldquo;{s.closerLine}&rdquo;
                       </p>
                     )}
                     {!s.ownerLine && !s.closerLine && s.evidence && (
-                      <p className="mt-0.5 text-[12px] text-muted-foreground">
+                      <p className="text-[13px] text-muted-foreground">
                         &ldquo;{s.evidence}&rdquo;
                       </p>
                     )}
                     {s.fix && (
-                      <div className="mt-1.5 rounded bg-primary/5 px-2 py-1.5">
+                      <div className="space-y-1 rounded bg-primary/5 px-3 py-2.5">
                         <p className="font-semibold">Do this: {s.fix.do}</p>
                         <p>
                           <span className="text-muted-foreground">Say: </span>
@@ -485,17 +485,17 @@ export function DemoReviewFold({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="mb-2.5 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
         {title}
       </p>
-      <ul className="space-y-1">{children}</ul>
+      <ul className="space-y-3">{children}</ul>
     </div>
   );
 }
 
 function Bullet({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2.5">
       <span className="select-none text-muted-foreground">&bull;</span>
       <span>{children}</span>
     </div>

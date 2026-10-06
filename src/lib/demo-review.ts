@@ -387,6 +387,12 @@ const clean = (v: unknown) =>
 const unq = (v: unknown) => clean(v).replace(/^["“”]+|["“”]+$/g, "").trim();
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
+/** A quote cut to about twenty words, so it fits a line of the fold. */
+const shortQuote = (q: string, words = 20) => {
+  const w = q.split(/\s+/);
+  return w.length <= words ? q : `${w.slice(0, words).join(" ")}...`;
+};
+
 /**
  * Did the closer deal with this line of the owner's, anywhere after it?
  *
@@ -430,7 +436,7 @@ async function closerDealtWith(
           {
             role: "system",
             content:
-              "You check one thing in a sales call transcript. Reply with one JSON object and nothing else: {\"addressed\": boolean, \"closerQuote\": string, \"why\": string}. 'addressed' is true if the Closer, at any later point in the lines given, gave a real answer, a fix or a reassurance that fits what the owner said, or asked a question that explores it, even in different words, even if the owner added another line first, and even if it came much later in the call. Judge the main point of the owner's line, not every detail in it. If the owner said they need to think it over or check with someone, the closer dealt with it by asking what that person will worry about or need, handling it, or setting up the next step to settle it. A short acknowledgement ('okay', 'sounds good', 'I got you'), agreeing, or repeating the owner's own words back does NOT count, and neither does a reply about something else. closerQuote is an exact quote of up to 30 words copied from a Closer line that does this, or an empty string. why is one short plain sentence. Lines starting 'Demo' are the live demo, not the closer. Never use an em dash.",
+              "You check one thing in a sales call transcript. Reply with one JSON object and nothing else: {\"addressed\": boolean, \"closerQuote\": string, \"why\": string}. 'addressed' is true if the Closer, at any later point in the lines given, gave a real answer, a fix or a reassurance that fits what the owner said, or asked a question that explores it, even in different words, even if the owner added another line first, and even if it came much later in the call. Judge the main point of the owner's line, not every detail in it. If the owner said they need to think it over or check with someone, the closer dealt with it by asking what that person will worry about or need, handling it, or setting up the next step to settle it. A short acknowledgement ('okay', 'sounds good', 'I got you'), agreeing, or repeating the owner's own words back does NOT count, and neither does a reply about something else. closerQuote is an exact quote of up to 20 words copied from a Closer line that does this, or an empty string. why is one short sentence at a third grade reading level: everyday words, under 12 words, one idea, and no words like address, concern, directly or intent. Lines starting 'Demo' are the live demo, not the closer. Never use an em dash.",
           },
           { role: "user", content: `The owner said:\n${ownerQuote}\n\nThe call from that point on:\n${rest}` },
         ],
@@ -458,7 +464,8 @@ async function closerDealtWith(
     // The check's own claim is held to the same rule as every other quote.
     const pieces = quote.split(/\.\.\.|…/).map(normalise).filter(Boolean);
     if (pieces.length === 0 || !pieces.every((p) => ` ${closerHay} `.includes(` ${p} `))) return null;
-    return { quote, why: clean(out.why) };
+    const why = clean(out.why);
+    return { quote: shortQuote(quote), why: why.length <= 90 ? why : "" };
   } catch {
     return null;
   }
@@ -597,7 +604,7 @@ export async function writeReview(
                 feeling: clean(o.feeling),
                 closerNext: d.quote,
                 howItWent: "strong" as const,
-                verdict: d.why || "The closer dealt with it.",
+                verdict: d.why || "The closer answered it.",
                 tryThis: undefined,
               };
             }
@@ -699,7 +706,7 @@ export async function writeReview(
     .filter((x): x is NonNullable<typeof x> => x !== null && Boolean(x.do && x.say))
     .slice(0, 3);
 
-  return {
+  const review: DemoReview = {
     headline: clean(raw.headline),
     stages,
     wentWell: [
@@ -708,10 +715,7 @@ export async function writeReview(
       ...[...dealt.values()]
         .filter((d, i, all) => all.findIndex((x) => x.quote === d.quote) === i)
         .slice(0, 2)
-        .map(
-          (d) =>
-            `Dealt with a worry the owner raised: "${d.quote.length > 140 ? `${d.quote.slice(0, 140).trim()}...` : d.quote}"`,
-        ),
+        .map((d) => `The owner had a worry. The closer answered it: "${d.quote}"`),
     ].slice(0, 5),
     nextSteps: nextSteps.length > 0 ? nextSteps : undefined,
     // Kept for reviews written before nextSteps; new ones leave it empty.
@@ -723,7 +727,7 @@ export async function writeReview(
         return {
           theySaid,
           handled: d
-            ? `The closer dealt with it${d.why ? `. ${d.why}` : ""}: "${d.quote}"`
+            ? `The closer dealt with it. The closer said: "${d.quote}"`
             : clean((x as { handled?: unknown }).handled),
           tryThis: d ? "" : clean((x as { tryThis?: unknown }).tryThis),
         };
@@ -736,6 +740,95 @@ export async function writeReview(
     variant: variant === "followup" ? "followup" : undefined,
     recordingIds: s.recordingIds.length > 0 ? s.recordingIds : undefined,
   };
+  return plainReadingLevel(review, key);
+}
+
+/**
+ * Hold the review to a third grade reading level (2026-10-07).
+ *
+ * The prompt already asks for it and the model still writes "directly
+ * addressing the owner's main point". So the text is measured, and anything with
+ * a long sentence or a long word is rewritten in one small batched call. Quotes
+ * (the owner's and the closer's own words) and the lines to say are never
+ * touched, since they are what was or should be said. If the rewrite cannot be
+ * used, the original text stays.
+ */
+const sentenceWords = (t: string) =>
+  t
+    .split(/[.!?]+\s/)
+    .map((x) => x.split(/\s+/).filter(Boolean).length);
+const needsPlainer = (t: string) =>
+  t.length > 0 &&
+  !/["“”]/.test(t) &&
+  (Math.max(...sentenceWords(t)) > 13 || /[A-Za-z]{11,}/.test(t));
+
+async function plainReadingLevel(review: DemoReview, key: string): Promise<DemoReview> {
+  type Slot = { get: () => string; set: (v: string) => void };
+  const slots: Slot[] = [];
+  const add = (get: () => string, set: (v: string) => void) => {
+    if (needsPlainer(get())) slots.push({ get, set });
+  };
+  add(() => review.headline, (v) => (review.headline = v));
+  review.wentWell.forEach((_, i) =>
+    add(() => review.wentWell[i], (v) => (review.wentWell[i] = v)),
+  );
+  review.stages.forEach((st) => {
+    add(() => st.note, (v) => (st.note = v));
+    if (st.fix) {
+      const fx = st.fix;
+      add(() => fx.do, (v) => (fx.do = v));
+    }
+  });
+  review.nextSteps?.forEach((n) => add(() => n.do, (v) => (n.do = v)));
+  review.objections.forEach((o) => add(() => o.handled, (v) => (o.handled = v)));
+  review.ownerMoments?.forEach((m) => {
+    add(() => m.feeling, (v) => (m.feeling = v));
+    if (m.verdict) add(() => m.verdict as string, (v) => (m.verdict = v));
+  });
+  if (slots.length === 0) return review;
+  try {
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 3000,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "Rewrite each text so a third grader could read it. Use short everyday words. Keep every sentence under 12 words, one idea each. Keep the meaning, names and numbers. Add nothing new. Say owner, not prospect. Always say 'the owner' or 'the closer'. Never use 'he', 'she' or 'they' for either one, so it is clear who did what. Never use an em dash. Reply with one JSON object and nothing else: {\"texts\": [string, ...]} with exactly as many items as you were given, in the same order.",
+          },
+          { role: "user", content: JSON.stringify(slots.map((x) => x.get())) },
+        ],
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (!res.ok) return review;
+    const body = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    void recordAiUsage({
+      feature: "review",
+      model: MODEL,
+      inputTokens: body.usage?.prompt_tokens,
+      outputTokens: body.usage?.completion_tokens,
+    });
+    const out = (JSON.parse(body.choices?.[0]?.message?.content ?? "{}") as { texts?: unknown })
+      .texts;
+    if (!Array.isArray(out) || out.length !== slots.length) return review;
+    slots.forEach((slot, i) => {
+      const v = clean(out[i]);
+      // Only a real rewrite that is not longer than what it replaces.
+      if (v && v.length <= slot.get().length + 10) slot.set(v);
+    });
+  } catch {
+    // The review is still good, just not simplified.
+  }
+  return review;
 }
 
 /**

@@ -3144,6 +3144,15 @@ and marked the cost step "missed" though the closer worked the cost out loud. Fo
   "checks"), a played-down problem is not pain, "missed" means no attempt at all, and the cost step
   counts working it out loud as partly.
 
+- **Roomier fold and a reading level check** (same day, "its super cramped, make sure it uses 3rd grade
+  reading level"). `demo-review-fold.tsx` has more padding, a larger type size and gaps between
+  sections and cards. `plainReadingLevel` measures every sentence the model wrote (headline, notes,
+  went well, what was done, how the owner felt); one with a sentence over 13 words or a word of 11 or
+  more letters is rewritten in one batched call at a third grade level, saying "the owner" and "the
+  closer" rather than "he". Quotes and the "say this" lines are never touched, and a rewrite that is
+  empty or longer is ignored. The text added by the second look is short plain templates with quotes
+  cut to about 20 words.
+
 Still true: two runs can differ, and the reviewer cannot hear tone. On that call it correctly kept one
 point, that the closer did not ask what the owner wanted the other company to do better. "Review it
 again" on a review made before this reads it afresh.
