@@ -205,9 +205,27 @@ Press play to see the buttons. It is the real screen. Nothing in it sends anythi
 [contract-walkthrough]
 
 <details>
-<summary>What happens after they sign (the whole flow, start to finish)</summary>
+<summary>The agreement, and what happens after they sign</summary>
 
-Some of you asked what the next steps are once the agreement is out. This is the order, all in one place.
+**Part 1. How we explain the agreement**
+
+The goal is to get them to sign **on the call**. So don't just send it. Send it, ask them to open it, and go through it together while you are both looking at it, so there is no confusion.
+
+The way it is usually put: it is only one page. Other companies send 15 pages of legal words. Ours is short on purpose, and you will walk them through it so they know what they are signing.
+
+> **You say** I made it one page so you don't have to spend all day on it. Most people send you fifteen pages of legal words. We wanted to keep it simple, so let me walk you through it while we're on the call and there's no confusion.
+
+Then say what each part means in plain English. This is the usual order:
+
+- **The top.** Have them check the business name and the date are right.
+- **Section 1: what the agent does.** It picks up the calls you miss, like a receptionist, and emails you a summary of each call: who called, what they want, their address.
+- **Section 2: what we cover.** We cover all the minutes for the trial and fix any bugs. We don't add new features halfway through.
+- **Section 3: how the trial works.** It lasts 30 days, and it starts when the agent is live, not when they sign, so they get the full month. It is $1 only because we have to buy a phone number to attach the agent to. We don't take that until they have seen the finished agent, and we never ask for a card number.
+- **Section 4: the end.** After the 30 days we have another call and go through the numbers. If they don't like it, there are no charges and no hidden fees. It is just removed.
+
+It also says we own the agent, so nobody tries to keep it after the trial. Say it as protecting both sides, then end on this: there is no obligation, and if it is not for them, we part ways.
+
+**Part 2. What happens next, in order**
 
 1. **We send the agreement and they sign it.** That is the video above.
 2. **As soon as they sign, send them the form.** The form is where we get all the information we need to build their agent.
@@ -215,13 +233,7 @@ Some of you asked what the next steps are once the agreement is out. This is the
 4. **On the follow-up call, show them the agent.** They can ask for any last minute changes.
 5. **Only when they are happy do we ask for payment.** We never ask on the day they sign. You can tell them that, it puts people at ease.
 6. **The same day they are happy, we send them the call forwarding instructions. That is when the trial starts.** It does not start when they set it up. It starts when we send the instructions.
-7. **After the 30 days, we do one more call.** We go over the numbers: how many bookings it took, how many minutes it used, and how much money it made them. They decide right there whether to carry on or not.
-
-If they ask about paying, or about being locked in:
-
-> **You say** We don't ask for any payment today. You see it working first, we make any changes you want, and only when you're happy with it do we ask for payment.
-
-> **You say** After the 30 days we go through the numbers together, and you decide then and there if you want to continue. If you don't, you just cancel. No strings, and no hidden fees.
+7. **After the 30 days, we do one more call.** We go over the numbers: how many bookings it took, how many minutes it used, and how much money it made them. They decide right there whether to carry on or not. No strings. If they cancel, there are no hidden fees.
 
 </details>
 
