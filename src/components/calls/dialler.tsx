@@ -510,14 +510,18 @@ function HowToBook() {
           three boxes — it is the payroll bar, not a thing to work through. */}
       <p className="mt-2.5 border-t pt-2 text-[12px] leading-snug text-muted-foreground">
         Only counts if all three:{" "}
-        <span className="font-bold">decision maker</span>,{" "}
-        <span className="font-bold">interested</span>, and{" "}
-        <span className="font-bold">a specific date and time agreed</span>.
-        You are paid when they{" "}
+        <span className="font-bold">you spoke to the owner</span>,{" "}
+        <span className="font-bold">they are genuinely interested</span> (a
+        real yes, not a yes to end the call, and not somebody who says they
+        would never use AI on their phone), and{" "}
+        <span className="font-bold">
+          they know the exact date and time and agreed to it
+        </span>
+        . You are paid when they{" "}
         <span className="font-bold">
           pick up at that time and stay on while we add the agent
         </span>
-        .
+        . A booking with no real chance of closing is not paid.
       </p>
     </div>
   );
