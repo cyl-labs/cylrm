@@ -206,8 +206,10 @@ export default async function PayrollPage() {
             {formatMoney(MEETING_CENTS)} each
           </span>,
           however long ago they were booked. Showed up means they picked up at
-          the booked time and stayed on while the agent was brought in. Most
-          owed first. The two are paid separately, and paying the meetings
+          the booked time and stayed on while the agent was brought in, and the
+          booking was a real one: the owner, genuinely interested, who agreed
+          to that date and time. A booking with no real chance of closing is
+          marked Not a real booking and pays nothing. Most owed first. The two are paid separately, and paying the meetings
           leaves the pickup counter running. Nothing here pays anybody. Press
           a button once the money has actually gone out.
         </p>

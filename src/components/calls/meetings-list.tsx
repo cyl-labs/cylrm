@@ -1790,7 +1790,7 @@ export function MeetingsList({
                           saying: this answer is what the caller is paid on. */}
                       <p className="max-w-60 px-2 pb-1.5 text-[12px] leading-snug text-muted-foreground">
                         {hasStarted
-                          ? "Showed up means they picked up and stayed on while the agent was brought in. Ringing out or voicemail is a no show. Picked up but could not talk now? Move it to a new time from More instead."
+                          ? "Showed up means they picked up and stayed on while the agent was brought in. Ringing out or voicemail is a no show. Picked up but could not talk now? Move it to a new time from More instead. Not the owner, or never really interested (said yes to end the call)? Pick Not a real booking: it is not paid."
                           : "This has not started yet. Answer now only to write off a booking that is not real. Moving the meeting to a new time clears the answer."}
                       </p>
                       {(

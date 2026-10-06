@@ -181,12 +181,26 @@ off yourself.
 
 ## When you get paid
 
-**If they show up, you are paid.** Whether they buy is not your problem and
-does not change anything: turning up is the whole bar.
+**A meeting only pays if it was a real one, and then if they show up.** Whether
+they buy is not your problem, but the meeting has to have been worth booking.
+It counts only if all three are true:
+
+- **You spoke to the owner** (the decision maker).
+- **They are genuinely interested.** A real yes, not a yes to end the call and get
+  rid of you, and not somebody who has told you they would never use AI to answer
+  their phone. If it took a hundred no's and then a yes to the meeting, they are
+  not interested.
+- **They know the exact date and time and agreed to it.** They have to know the
+  demo is scheduled and be expecting the call.
+
+We pay you when we cannot close because of our own skills. We do not pay for a
+meeting with no real chance of closing, however many people answered. We trust
+you to tell the difference, and it is a founder's call if there is doubt.
 
 **What showing up means now that the demo is a phone call.** At the booked
 time we ring them. It counts as a meeting when they **pick up and stay on the
-line while we bring the agent in**. That is all it takes.
+line while we bring the agent in**. Once it was a real meeting, that is all it
+takes.
 
 It does not count if they do not answer, or if they pick up but cannot stay for
 it ("can you call me next week?"). Either way it is logged as a no show, and it
