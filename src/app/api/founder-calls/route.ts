@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { parseCallbackAt, prospectZone } from "@/lib/call-time";
 import { zoneForLead } from "@/lib/calls";
 import { readerZone } from "@/lib/users";
+import { callBackDetail, logMeetingEvent } from "@/lib/meeting-log";
 
 /**
  * Put a call on the Meetings calendar for the founders to make themselves —
@@ -88,6 +89,13 @@ export async function POST(request: Request) {
           ${startAt.toISOString()}, ${notes}, ${me.id})
         returning id, start_at
       `)) as { id: number; start_at: string }[]);
+
+  await logMeetingEvent({
+    meetingId,
+    userId: me.id,
+    action: open ? "callback_moved" : "callback_set",
+    detail: callBackDetail(startAt, await readerZone(me.id), notes),
+  });
 
   return Response.json({
     id: Number(row.id),

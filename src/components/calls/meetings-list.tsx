@@ -968,6 +968,33 @@ export function MeetingsList({
     }
   }
 
+  /** Founders only (2026-10-08): the undo for a call back set by mistake.
+   *  The meeting goes back to its own time; nothing reaches the prospect. */
+  async function removeCallBack(meeting: Meeting) {
+    if (!meeting.callBack) return;
+    const who = meeting.company ?? meeting.attendeeName ?? "meeting";
+    if (!window.confirm(`Remove the call back for ${who}? The meeting goes back to its own time.`)) {
+      return;
+    }
+    setBusy(meeting.id);
+    try {
+      const res = await fetch(`/api/founder-calls/${meeting.callBack.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(data.error ?? "Could not remove the call back.");
+        return;
+      }
+      toast.success(`Call back removed: ${who} is back at its meeting time.`);
+      router.refresh();
+    } catch {
+      toast.error("Could not remove the call back: network error.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function closeCallBack(
     meeting: Meeting,
     result: "rescheduled" | "cancelled",
@@ -2243,6 +2270,17 @@ export function MeetingsList({
                                   Change the call back time
                                   <span className="text-[11px] text-muted-foreground">
                                     The meeting stays as it was.
+                                  </span>
+                                </span>
+                              </DropdownMenuItem>
+                            ) : null}
+                            {m.callBack ? (
+                              <DropdownMenuItem onSelect={() => void removeCallBack(m)}>
+                                <Undo2 className="size-3.5" />
+                                <span className="flex flex-col">
+                                  Remove the call back
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Set by mistake? Puts the meeting back at its own time.
                                   </span>
                                 </span>
                               </DropdownMenuItem>

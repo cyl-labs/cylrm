@@ -36,6 +36,30 @@ export async function logMeetingEvent(e: {
   }
 }
 
+/**
+ * "for Fri 9 Oct, 05:00 (SGT)", plus the note when there is one: the detail
+ * on a call back's log line (2026-10-08). Written in the clock of the founder
+ * who set it, and named, because the line is stored as text and cannot be
+ * re-read in somebody else's zone later.
+ */
+export function callBackDetail(
+  at: Date,
+  zone: { tz: string; label: string },
+  notes?: string | null,
+): string {
+  const time = new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: zone.tz,
+  }).format(at);
+  return [`for ${time} (${zone.label})`, notes?.trim() || null]
+    .filter(Boolean)
+    .join(": ");
+}
+
 export type MeetingLogEntry = {
   id: number;
   at: string;

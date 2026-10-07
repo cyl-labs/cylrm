@@ -17,6 +17,10 @@ const LABEL: Record<string, string> = {
   followup_confirmed: "Follow-up: confirmed",
   followup_no_answer: "Follow-up: no answer",
   followup_rescheduled: "Follow-up: rescheduled",
+  followup_cancelled: "Follow-up: not rebooking",
+  callback_set: "Call back set",
+  callback_moved: "Call back moved",
+  callback_removed: "Call back removed",
   taken_off: "Taken off Meetings",
 };
 
@@ -73,7 +77,8 @@ export default async function MeetingLogPage() {
           Everything said about a meeting, newest first: who logged it, when, and
           which meeting it was about. Times are on your clock ({zone.label}). To
           take an answer back, open the meeting under Upcoming or Past meetings
-          and choose Undo.
+          and choose Undo. To take a call back off, open the meeting, then More,
+          then Remove the call back.
         </p>
         {entries.length === 0 ? (
           <div className="rounded-xl border p-6 text-center text-[14px] text-muted-foreground">
