@@ -2158,6 +2158,13 @@ and the sidebar badge read the new columns on every page).
   the digest (`notAnsweredYet`). **`for_start_at` is copied in SQL, never via a
   JS `Date`**: start_at has microseconds, a Date keeps milliseconds, and the
   round trip stored a time that never matched.
+- **A closer can open the cold call on a meeting they close** (2026-10-07: "my closers are not able to
+  view the cold call + transcript"; the sheet said "Recording not found"). `recordingVisibleTo` had no
+  branch for it: the demo branch starts at the booking call's logged time on purpose, and the list branch
+  needs a list they own, so a booking made by another caller was visible in the briefing but not
+  playable. It now admits any recording of a logged call on the meeting's lead for a closer whose
+  `closer_user_id` is theirs (not practice meetings). Playback, transcripts and summaries all use this one
+  clause, so all three are fixed together.
 - **Callers can hear the demo call now.** `recordingVisibleTo` had no branch
   for it — the demo writes no call row — so every caller's "Demo call" button
   404'd on play and on Get transcript. It now admits a recording to the lead's

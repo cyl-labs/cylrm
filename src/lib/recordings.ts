@@ -84,6 +84,23 @@ export const recordingVisibleTo = (
               coalesce((select bk.called_at from "call" bk where bk.id = m.call_id), '-infinity')
             )
         )
+        -- The cold calls on a meeting they close (2026-10-07). The branch above
+        -- starts at the booking call and so leaves it out on purpose, and the
+        -- list branch only reaches a lead on a list they own, so a closer
+        -- handed Harry's booking could read its briefing but got "Recording not
+        -- found" on the cold call and its transcript. Any logged call on the
+        -- meeting's lead counts, whoever made it.
+        or exists (
+          select 1
+          from call_meeting m
+          join call_lead l on l.id = m.call_lead_id
+          where m.closer_user_id = ${userId}
+            and not m.training
+            and exists (
+              select 1 from call c
+              where c.call_lead_id = l.id and c.telnyx_session_id = r.call_session_id
+            )
+        )
       )`;
 
 export type LeadRecording = {
