@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { parseCallbackAt, prospectZone } from "@/lib/call-time";
 import { zoneForLead } from "@/lib/calls";
 import { readerZone } from "@/lib/users";
+import { callBackDetail, logMeetingEvent } from "@/lib/meeting-log";
 
 /**
  * A meeting moved to a founders' call back: log what came of the call, move
@@ -25,7 +26,8 @@ import { readerZone } from "@/lib/users";
  *   "Change time". Nothing is ever sent to the prospect: this is not a Cal.com
  *   reschedule, which is the reason it exists.
  *
- * DELETE removes it.
+ * DELETE removes an open one, putting the meeting back at its own time: the
+ * undo for a call back set by mistake (2026-10-08, founders only).
  */
 
 const RESULTS = ["no_answer", "confirmed", "rescheduled", "cancelled"] as const;
@@ -149,6 +151,19 @@ export async function PATCH(
     }
   });
 
+  // Recently logged (2026-10-08): a call back moved, set aside or logged went
+  // nowhere before, so a founder who tapped the wrong time had no trace of it.
+  if (result || startAt) {
+    await logMeetingEvent({
+      meetingId: fc.meeting_id,
+      userId: me.id,
+      action: result ? `followup_${result}` : "callback_moved",
+      detail: startAt
+        ? callBackDetail(startAt, await readerZone(me.id), notes)
+        : notes,
+    });
+  }
+
   return Response.json({
     ok: true,
     closed: result === "rescheduled" || result === "cancelled",
@@ -162,6 +177,18 @@ export async function DELETE(
 ) {
   const g = await guard(params);
   if ("error" in g) return g.error;
-  await db.execute(sql`delete from founder_call where id = ${g.id}`);
+  // Only an open one: a closed call back is the record of how a follow-up
+  // ended, and removing it would quietly put the meeting back on the list.
+  const [gone] = (await db.execute(sql`
+    delete from founder_call where id = ${g.id} and done_at is null
+    returning meeting_id, start_at
+  `)) as { meeting_id: number | null; start_at: string }[];
+  if (!gone) return Response.json({ error: "Call back not found." }, { status: 404 });
+  await logMeetingEvent({
+    meetingId: gone.meeting_id === null ? null : Number(gone.meeting_id),
+    userId: g.me.id,
+    action: "callback_removed",
+    detail: `was ${callBackDetail(new Date(gone.start_at), await readerZone(g.me.id))}`,
+  });
   return Response.json({ ok: true });
 }
