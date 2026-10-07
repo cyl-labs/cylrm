@@ -128,6 +128,9 @@ export type MeetingSyncResult = {
   matched: number;
   unmatched: number;
   cancelled: number;
+  /** Future bookings Cal.com no longer lists at all (deleted there, not
+   *  cancelled), marked cancelled here. */
+  vanished: number;
   /** More bookings existed than one page holds. Said out loud so a run that
    *  silently synced the first hundred cannot look like a complete one. */
   hasMore: boolean;
@@ -238,6 +241,7 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
     matched: 0,
     unmatched: 0,
     cancelled: 0,
+    vanished: 0,
     hasMore: false,
   };
   if (!calConfigured()) return { ...empty, skipped: "unconfigured" };
@@ -400,7 +404,58 @@ export async function syncMeetings(): Promise<MeetingSyncResult> {
     if (written[0]?.inserted === true) result.created += 1;
   }
 
+  result.vanished = await markVanished(bookings, hasMore);
+
   return result;
+}
+
+/**
+ * A booking deleted on Cal.com, rather than cancelled, simply stops being
+ * returned, so the loop above never hears of it and its row stays `accepted`
+ * for ever (2026-10-07). Its Reschedule button then opens a booking Cal.com no
+ * longer has, which falls back to the logged-in founder's own name, email and
+ * phone and would book the follow-up under them.
+ *
+ * So a future, non-manual row whose uid is missing from a complete listing is
+ * marked cancelled. If the booking ever comes back the upsert above restores it.
+ * Three guards, because the cost of a wrong guess is a real meeting vanishing
+ * from the diary: an empty listing is a failed read and not "everything is
+ * gone"; a listing cut short at a page only vouches for bookings up to its last
+ * start time; and more than ten at once is refused and logged.
+ */
+async function markVanished(
+  bookings: CalBooking[],
+  hasMore: boolean,
+): Promise<number> {
+  const live = bookings.filter((b) => b.status !== "cancelled");
+  if (live.length === 0) return 0;
+
+  const horizon = hasMore
+    ? live.reduce((m, b) => (b.startAt > m ? b.startAt : m), live[0].startAt)
+    : null;
+  const known = sql.join(live.map((b) => sql`${b.uid}`), sql`, `);
+
+  const gone = (await db.execute(sql`
+    select id from call_meeting
+    where status not in ('cancelled', 'rejected')
+      and cal_booking_uid not like 'crm-%'
+      and cal_start_at > now()
+      and cal_booking_uid not in (${known})
+      ${horizon ? sql`and cal_start_at <= ${horizon}` : sql``}
+  `)) as Row[];
+  if (gone.length === 0) return 0;
+  if (gone.length > 10) {
+    console.error(
+      `meetings sync: ${gone.length} future bookings missing from Cal.com, left alone`,
+    );
+    return 0;
+  }
+
+  const ids = sql.join(gone.map((r) => sql`${n(r.id)}`), sql`, `);
+  await db.execute(
+    sql`update call_meeting set status = 'cancelled', synced_at = now() where id in (${ids})`,
+  );
+  return gone.length;
 }
 
 /* ------------------------------------------------------------------ *
