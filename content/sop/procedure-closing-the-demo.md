@@ -11,7 +11,7 @@ title: Closing the Demo
 
 > **You say** Hey, is this [name]? Someone from my team talked to you last week. We set up a time for a voice agent demo. Do you remember?
 
-If they don't answer, send a text. Then call again.
+If they don't answer, follow **If they don't pick up** below.
 
 **To bring the agent in,** use the buttons on the lead's call screen:
 
@@ -20,6 +20,27 @@ Call them  →  Add call  →  pick the agent's line  →  Merge calls
 ```
 
 Press **Merge calls** while the agent is still ringing. It joins the second the agent answers. The agent starts talking right away. Keep this tab open. If you close it, both calls drop.
+
+## If they don't pick up
+
+Try them for **three days**, the same way each day. If they still haven't picked up on the third day, the meeting is dead.
+
+**Each day:**
+
+1. **Call once.** If it goes to voicemail, hang up without leaving a message.
+2. **Call straight back.** A phone on Do Not Disturb lets a second call from the same number through if it comes within a few minutes, so the second ring often reaches somebody the first one didn't.
+3. **Still nothing: leave a voicemail and send a text.** Remind them about the demo and leave your number.
+4. **Call one more time, 30 minutes to an hour later.**
+
+> **You say** (voicemail) Hi [name], it's [your name]. We had your voice agent demo booked for today. Give me a call back on [your number] and we'll get it going.
+
+**Then log it on the Meetings screen**, so it comes back to you the next day:
+
+- **Day 1, the demo day:** Log what happened → **No show**, then pick **Tomorrow**. It comes back on your Meetings screen at the same time of day as the demo.
+- **Day 2:** the same four steps. No pickup: log the call back as **No answer** and pick **Tomorrow** again.
+- **Day 3:** the same four steps. No pickup: log it as **Not rebooking**. That takes them off your list.
+
+If they pick up on any try, run the demo there and then if they can stay for it. If they can't, agree a new time before you hang up.
 
 ## Before you bring the agent in
 
