@@ -44,6 +44,14 @@ logging at `/api/meetings/[id]/followup`. Schema in `2026-08-30-call-meeting.sql
   time passed. `past` is excluded because it would re-upsert the hundred most
   recent finished meetings on every one of the day's 288 ticks; a one-off
   backfill of history is that array plus one word.
+  **A booking deleted on Cal.com, rather than cancelled, stops being returned
+  at all**, so `markVanished` (`lib/meetings.ts`, 2026-10-07) marks a future,
+  non-`crm-` row cancelled when its uid is missing from a complete listing. Found
+  when a founder rescheduled and then deleted the new booking: the CRM kept it
+  `accepted`, its Reschedule button opened a booking Cal.com no longer had, and
+  Cal.com pre-filled the form with the logged-in founder's own name, email and
+  phone. Guards: an empty listing does nothing, a listing cut at a page only
+  vouches up to its last start time, and more than ten at once is refused.
 ### List or calendar (2026-09-18, calendar by default 2026-09-19)
 
 `?view=calendar` draws the grid above the list and **is the default**;
