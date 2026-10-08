@@ -103,6 +103,28 @@ const RECONNECT_BACKOFF_MS = [2_000, 5_000, 12_000, 30_000, 60_000];
  *  being pushed off by something, and escalates instead. */
 const STABLE_MS = 30_000;
 
+/** Tell the server's log that this phone lost or regained its line, so a
+ *  flashing header can be explained afterwards (`/api/phone-events`). Best
+ *  effort: never allowed to disturb the phone. */
+function reportPhone(event: string, detail: Record<string, unknown> = {}) {
+  try {
+    void fetch("/api/phone-events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event,
+        ...detail,
+        visible: document.visibilityState,
+        online: navigator.onLine,
+        ua: navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 60),
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Never allowed to disturb the phone.
+  }
+}
+
 /** How often the line is asked whether it is still registered, and how long a
  *  silent connection gets to answer. A live socket replies in milliseconds. */
 const WATCHDOG_MS = 20_000;
@@ -490,6 +512,14 @@ export function useTelnyxCall(
     } | null = null;
     /** One check at a time: a silent line takes up to two answers' wait. */
     let checking = false;
+    /** Whether THIS connection has ever answered the registration question,
+     *  and how many checks in a row it has then left unanswered. Silence only
+     *  counts as a dead line from a connection that was seen to answer, and
+     *  only when it repeats: if the question were never answered on a healthy
+     *  line, or answered only now and then, acting on one silence would knock
+     *  working phones off every minute. */
+    let answeredOnce = false;
+    let silentChecks = 0;
 
     const start = async (attempt: number) => {
       try {
@@ -547,6 +577,7 @@ export function useTelnyxCall(
           // across a connection change keeps its old registration, so the call
           // rings a room nobody is in — invisible without this.
           console.log("[telnyx] registered, ready for calls");
+          reportPhone("registered");
           if (!cancelled) {
             setReady(true);
             // Cleared, not left standing. `problem` was write-once until
@@ -596,6 +627,7 @@ export function useTelnyxCall(
           console.warn(
             `[telnyx] line lost (${why}) after ${Math.round(upFor / 1000)}s up, registering again in ${wait / 1000}s`,
           );
+          reportPhone("line_lost", { why, upForS: Math.round(upFor / 1000) });
           setReady(false);
           try {
             client.disconnect();
@@ -637,7 +669,10 @@ export function useTelnyxCall(
             );
             return;
           }
-          if (!cancelled) setProblem("Telnyx refused the connection.");
+          if (!cancelled) {
+            reportPhone("gave_up", { why: "refused the connection" });
+            setProblem("Telnyx refused the connection.");
+          }
         });
         client.on("telnyx.notification", (n: { type: string; call?: TelnyxCall }) => {
           // Every notification, not only the ones acted on. Inbound calling was
@@ -920,12 +955,23 @@ export function useTelnyxCall(
           const ask = () => asking.getIsRegistered!();
           let answer = await askGateway(ask, GATEWAY_ANSWER_MS);
           if (answer === "silent") answer = await askGateway(ask, GATEWAY_ANSWER_MS);
-          down = answer === "down" || answer === "silent";
+          if (answer === "registered" || answer === "down") {
+            answeredOnce = true;
+            silentChecks = 0;
+          } else if (answer === "silent") {
+            silentChecks += 1;
+          }
+          down =
+            answer === "down" ||
+            (answer === "silent" && answeredOnce && silentChecks >= 2);
           if (answer === "silent") why = `${why}, no answer from the line`;
         }
         // Re-checked after the awaits: a call can have started while it ran.
         if (down && !cancelled && !retry && !callRef.current) {
           console.warn(`[telnyx] line is down (${why}), registering again`);
+          reportPhone("line_down", { why, answers: answeredOnce });
+          answeredOnce = false;
+          silentChecks = 0;
           setReady(false);
           // The old connection is closed first, as `reconnect` does. A dead
           // one that wakes later would otherwise hold a second registration on
