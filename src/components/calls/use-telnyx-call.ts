@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { askGateway } from "@/components/calls/gateway-check";
 import { bridgeCalls, type AudioBridge } from "./audio-bridge";
 
 /**
@@ -101,6 +102,11 @@ const RECONNECT_BACKOFF_MS = [2_000, 5_000, 12_000, 30_000, 60_000];
  *  earns the fast retry again. One that drops seconds after registering is
  *  being pushed off by something, and escalates instead. */
 const STABLE_MS = 30_000;
+
+/** How often the line is asked whether it is still registered, and how long a
+ *  silent connection gets to answer. A live socket replies in milliseconds. */
+const WATCHDOG_MS = 20_000;
+const GATEWAY_ANSWER_MS = 6_000;
 
 /**
  * How the last call ended, kept until the next dial or `reset()`.
@@ -480,7 +486,10 @@ export function useTelnyxCall(
     let live: {
       connected?: boolean;
       getIsRegistered?: () => Promise<boolean>;
+      disconnect?: () => void;
     } | null = null;
+    /** One check at a time: a silent line takes up to two answers' wait. */
+    let checking = false;
 
     const start = async (attempt: number) => {
       try {
@@ -895,28 +904,45 @@ export function useTelnyxCall(
      * cannot fight the ladder or hang up on anybody.
      */
     const recheck = async (why: string) => {
-      if (cancelled || retry || callRef.current || !live) return;
-      let down = live.connected === false;
-      if (!down && live.getIsRegistered) {
-        // The socket is up; ask whether the gateway behind it still is.
-        // Treated as fine if it throws, since an unanswerable question is not
-        // evidence of a dead line and re-registering on a guess would drop a
-        // working one.
-        try {
-          down = (await live.getIsRegistered()) === false;
-        } catch {
-          down = false;
+      if (cancelled || retry || callRef.current || !live || checking) return;
+      checking = true;
+      try {
+        const asking = live;
+        let down = asking.connected === false;
+        if (!down && asking.getIsRegistered) {
+          // The socket says it is up; ask whether the gateway behind it still
+          // is. A question that throws is not evidence of a dead line, and
+          // re-registering on a guess would drop a working one. A question
+          // that is simply never answered is: the SDK waits for the reply with
+          // no timeout, so on a half-dead socket this used to hang for ever
+          // and the light stayed on (see `askGateway`). Asked twice, so one
+          // slow answer on a bad network does not cost a re-registration.
+          const ask = () => asking.getIsRegistered!();
+          let answer = await askGateway(ask, GATEWAY_ANSWER_MS);
+          if (answer === "silent") answer = await askGateway(ask, GATEWAY_ANSWER_MS);
+          down = answer === "down" || answer === "silent";
+          if (answer === "silent") why = `${why}, no answer from the line`;
         }
-      }
-      // Re-checked after the await: a call can have started while it ran.
-      if (down && !cancelled && !retry && !callRef.current) {
-        console.warn(`[telnyx] line is down (${why}), registering again`);
-        setReady(false);
-        retry = setTimeout(() => start(0), 0);
+        // Re-checked after the awaits: a call can have started while it ran.
+        if (down && !cancelled && !retry && !callRef.current) {
+          console.warn(`[telnyx] line is down (${why}), registering again`);
+          setReady(false);
+          // The old connection is closed first, as `reconnect` does. A dead
+          // one that wakes later would otherwise hold a second registration on
+          // the same login, and two of those knock each other off.
+          try {
+            asking.disconnect?.();
+          } catch {
+            // Already gone; that is what is being recovered from.
+          }
+          retry = setTimeout(() => start(0), 0);
+        }
+      } finally {
+        checking = false;
       }
     };
 
-    const watchdog = setInterval(() => void recheck("watchdog"), 60_000);
+    const watchdog = setInterval(() => void recheck("watchdog"), WATCHDOG_MS);
 
     // The two moments a dead line is most likely, and least likely to have
     // said so: coming back online, and coming back to the tab.
