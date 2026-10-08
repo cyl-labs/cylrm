@@ -2,6 +2,7 @@ import { cache } from "react";
 import { sql } from "drizzle-orm";
 import { countFounderCallsDue } from "@/lib/founder-calls";
 import { db } from "@/db";
+import { DEMO_WINDOW_OPENS } from "@/lib/demo-window";
 import { answersMeeting, notAnsweredYet } from "@/lib/attendance-sql";
 import { dncBlockReason } from "@/lib/dnc";
 import { dialCountry, e164 } from "@/lib/phone";
@@ -54,7 +55,22 @@ const DEMO_REDIAL_GAP_MINUTES = 20;
  */
 export function clusterDemoRecordings<
   T extends { recordingId: string; durationMs: number | null; startedAt: string },
->(recordings: T[]): T[] {
+>(recordings: T[], keepBefore?: string | null): T[] {
+  // A meeting that was moved keeps every call made before its current slot
+  // opened (2026-10-08): those are the attempts at the time it had before, not
+  // "something else rung afterwards", so they are not thinned out. Only what
+  // falls inside the current window is clustered. On a meeting that was never
+  // moved nothing is earlier than the window, so this changes nothing.
+  if (keepBefore) {
+    const cut = new Date(keepBefore).getTime();
+    const earlier = recordings.filter((r) => new Date(r.startedAt).getTime() < cut);
+    if (earlier.length > 0) {
+      const rest = recordings.filter((r) => new Date(r.startedAt).getTime() >= cut);
+      return [...earlier, ...clusterDemoRecordings(rest)].sort(
+        (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+      );
+    }
+  }
   if (recordings.length <= 1) return [...recordings];
 
   const sorted = [...recordings].sort(
@@ -901,7 +917,7 @@ export const DEMO_RECORDING_WHERE = sql`
   -- ends, after the recording started), or a demo booked the same day
   -- would offer the cold call as the demo.
   and cr.started_at >= greatest(
-    m.start_at - interval '12 hours',
+    ${DEMO_WINDOW_OPENS},
     coalesce((select bk.called_at from "call" bk where bk.id = m.call_id), '-infinity')
   )
   and cr.started_at < coalesce(
@@ -1729,6 +1745,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
         startedAt: d.startedAt,
         summary: ((d.summary ?? "").trim() || null),
       })),
+      new Date(new Date(r.start_at as string).getTime() - 12 * 3_600_000).toISOString(),
     ),
     otherRecordings: (
       (r.other_recordings as
