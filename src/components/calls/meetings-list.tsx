@@ -1633,6 +1633,12 @@ export function MeetingsList({
                 for it. This meeting also stays under Past meetings.
               </p>
             )}
+            {m.calStartAt && m.moveNote && (
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                Note on the move:{" "}
+                <span className="text-foreground">{m.moveNote}</span>
+              </p>
+            )}
 
             {/* A follow-up already on the calendar (2026-09-25). Without it a
                 demo row looked like one still to arrange, with "Book a

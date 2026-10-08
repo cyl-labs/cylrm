@@ -517,6 +517,8 @@ export type Meeting = {
    *  differs (2026-09-28). Null when the two agree. Cal.com's own reminder
    *  email still goes out for this time, which is why the row names it. */
   calStartAt: string | null;
+  /** The note typed when a founder moved it quietly (2026-10-09), or null. */
+  moveNote: string | null;
   endAt: string | null;
   status: string;
   title: string | null;
@@ -956,7 +958,7 @@ const REPLACED_BY = sql`
 `;
 
 const meetingSelect = sql`
-  m.id, m.cal_booking_uid, m.start_at, m.end_at, m.cal_start_at, m.status, m.title,
+  m.id, m.cal_booking_uid, m.start_at, m.end_at, m.cal_start_at, m.move_note, m.status, m.title,
   -- The caller's own name typed into the booking form in place of the
   -- prospect's (2026-09-24: Alex booked Jason's Jacksonville Junk Removal as
   -- "Alex"). Cal.com cannot rename an attendee and the sync rewrites this
@@ -1658,6 +1660,7 @@ function toMeeting(r: Row, dids: DidMap): Meeting {
       r.cal_start_at && iso(r.cal_start_at) !== iso(r.start_at)
         ? iso(r.cal_start_at)
         : null,
+    moveNote: ((r.move_note as string | null) ?? "").trim() || null,
     endAt: iso(r.end_at),
     status: String(r.status),
     title: (r.title as string | null) ?? null,

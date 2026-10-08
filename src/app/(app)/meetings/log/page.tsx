@@ -22,6 +22,7 @@ const LABEL: Record<string, string> = {
   callback_moved: "Call back moved",
   callback_removed: "Call back removed",
   taken_off: "Taken off Meetings",
+  moved_quietly: "Moved quietly",
 };
 
 /**

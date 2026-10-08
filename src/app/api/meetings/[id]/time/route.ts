@@ -4,9 +4,12 @@ import { getCurrentUser } from "@/lib/session";
 import { parseCallbackAt, prospectZone } from "@/lib/call-time";
 import { zoneForLead } from "@/lib/calls";
 import { readerZone } from "@/lib/users";
+import { logMeetingEvent } from "@/lib/meeting-log";
 
 /**
- * Move a meeting on our calendar only, `{ at }` (2026-09-28).
+ * Move a meeting on our calendar only, `{ at, notes? }` (2026-09-28). The
+ * optional note (2026-10-09) is why it was moved, kept on the row while the move
+ * stands, and the move is written to Recently logged like every other answer.
  *
  * Asked for as "just move meetings without sending a new calcom or having to
  * mark as no show". Cal.com is not told, so the prospect gets no email from
@@ -61,7 +64,14 @@ export async function PATCH(
 
   // Their clock, the way every time box in the app is read: a datetime-local
   // value carries no offset, and "10am" means the prospect's morning.
-  const body = (await request.json().catch(() => null)) as { at?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as {
+    at?: unknown;
+    notes?: unknown;
+  } | null;
+  const notes =
+    typeof body?.notes === "string" && body.notes.trim()
+      ? body.notes.trim().slice(0, 500)
+      : null;
   const zone =
     prospectZone(
       m.call_lead_id === null ? null : await zoneForLead(m.call_lead_id),
@@ -77,12 +87,31 @@ export async function PATCH(
       end_at = case when end_at is null then null
         else ${startAt.toISOString()}::timestamptz + (end_at - start_at) end,
       start_at = ${startAt.toISOString()}::timestamptz,
+      -- A new move replaces the last one's reason, or clears it: yesterday's
+      -- "she is travelling" must not sit under a time it no longer explains.
+      move_note = ${notes},
       -- Rows synced before the column existed have it filled by the
       -- migration; this is only a guard for one that somehow was not.
       cal_start_at = coalesce(cal_start_at, start_at)
     where id = ${id}
     returning start_at
   `)) as { start_at: string }[];
+
+  const when = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(startAt);
+  await logMeetingEvent({
+    meetingId: id,
+    userId: me.id,
+    action: "moved_quietly",
+    detail: notes ? `to ${when}: ${notes}` : `to ${when}`,
+  });
 
   return Response.json({ startAt: new Date(row.start_at).toISOString() });
 }

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { wallClockIn } from "@/lib/call-time";
 
 /** An instant as the wall clock a date or time box shows, in `tz`. */
@@ -75,6 +76,7 @@ export function MoveQuietly({
   const [day, setDay] = React.useState(initial.slice(0, 10));
   const [time, setTime] = React.useState(initial.slice(11, 16));
   const [saving, setSaving] = React.useState(false);
+  const [notes, setNotes] = React.useState("");
 
   const wall = `${day}T${time}`;
   const at = day && time ? wallClockIn(wall, zone) : null;
@@ -88,7 +90,7 @@ export function MoveQuietly({
       const res = await fetch(`/api/meetings/${meetingId}/time`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ at: wall }),
+        body: JSON.stringify({ at: wall, notes }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -165,6 +167,18 @@ export function MoveQuietly({
               <span className="text-muted-foreground">Pick a day and a time.</span>
             )}
           </p>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="move-note">Note (optional)</Label>
+            <Textarea
+              id="move-note"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="Why it moved, or anything to remember for the call"
+            />
+          </div>
 
           <p className="text-[12px] text-muted-foreground">
             Cal.com still has it at {say(calTime, zone)}
