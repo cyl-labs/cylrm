@@ -789,6 +789,40 @@ export type SmsSendResult =
  * and pressing send again could text the prospect twice. Or texting is simply
  * not configured.
  */
+/**
+ * Where Telnyx says a text is right now (2026-10-09), or null when it cannot be
+ * read. Used to catch up on what a webhook delivered before the row existed.
+ */
+export async function getSmsState(
+  id: string,
+): Promise<{ status: string; sentAt: string | null; errors: unknown[] } | null> {
+  const apiKey = process.env.TELNYX_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(`${API}/messages/${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json().catch(() => ({}))) as {
+      data?: {
+        sent_at?: string | null;
+        errors?: unknown[];
+        to?: { status?: string }[];
+      };
+    };
+    const status = body.data?.to?.[0]?.status;
+    if (!status) return null;
+    return {
+      status,
+      sentAt: body.data?.sent_at ?? null,
+      errors: Array.isArray(body.data?.errors) ? body.data.errors : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function sendSms(
   from: string,
   to: string,

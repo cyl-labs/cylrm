@@ -6,6 +6,7 @@ import { phoneKeyCandidates } from "@/lib/calls";
 import { pushToUser } from "@/lib/push";
 import { notifyFounderText } from "@/lib/notify";
 import { conversationHref } from "@/lib/text-key";
+import { getSmsState } from "@/lib/telnyx";
 
 /**
  * Texting: sending a prospect a text, and everything that arrives on our
@@ -272,6 +273,31 @@ export async function recordOutbound(input: {
           )
         )
     `);
+  }
+}
+
+/**
+ * Catch up on a text's state a few seconds after it was sent (2026-10-09).
+ *
+ * Telnyx reports `message.sent` within half a second, which is **before** the
+ * row below it exists: `recordOutbound` runs after `sendSms` returns, so the
+ * webhook found nothing to update and was thrown away. A picture text then sat
+ * on "Sending…" until the carrier confirmed, which for a picture can be minutes
+ * or never. This asks Telnyx where it stands and moves the row forward through
+ * the same forward-only rule the webhook uses. "sending" with a sent time means
+ * handed to the carrier, which is what `sent` is.
+ *
+ * Fire and forget, and never throws: it is a convenience, not part of sending.
+ */
+export async function settleOutbound(telnyxId: string): Promise<void> {
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 4_000));
+    const state = await getSmsState(telnyxId);
+    if (!state) return;
+    const raw = state.status === "sending" && state.sentAt ? "sent" : state.status;
+    await updateTextStatus({ id: telnyxId, to: [{ status: raw }], errors: state.errors });
+  } catch {
+    // Left as it was; the webhook may still move it.
   }
 }
 
