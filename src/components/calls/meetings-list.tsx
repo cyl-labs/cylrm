@@ -1181,6 +1181,14 @@ export function MeetingsList({
         // A call with no time sorts first rather than last: the only one
         // without is the cold call, which came before everything else.
         chips.sort((a, b) => (a.at ? Date.parse(a.at) : 0) - (b.at ? Date.parse(b.at) : 0));
+        // How many short calls THIS card has, for the switch under it
+        // (2026-10-09): the one at the top of the list meant scrolling up and
+        // back down to see a voicemail on a card at the bottom.
+        const cardShort =
+          (m.recordingId && isShort(m.recordingMs) ? 1 : 0) +
+          m.earlierDemoRecordings.filter((r) => isShort(r.durationMs)).length +
+          m.demoRecordings.filter((r) => isShort(r.durationMs)).length +
+          m.otherRecordings.filter((r) => isShort(r.durationMs)).length;
         const cancelled = m.status === "cancelled";
         // Every recording that could be the demo, for the review's picker
         // (2026-10-03): the automatic pick plus every other call to this
@@ -2516,7 +2524,8 @@ export function MeetingsList({
             {(m.recordingId && keep(m.recordingMs)) ||
             earlierDemo.length > 0 ||
             ownRecordings.length > 0 ||
-            otherCalls.length > 0 ? (
+            otherCalls.length > 0 ||
+            cardShort > 0 ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="text-[12px] font-semibold text-muted-foreground">
                   Recordings
@@ -2542,6 +2551,23 @@ export function MeetingsList({
                     kind={recordingKinds[c.recordingId] ?? "unknown"}
                   />
                 ))}
+                {/* The same switch as the one above the list, under the card it
+                    is about. Only on a card that has a short call, so it never
+                    offers to change nothing. A card whose every call is short
+                    would otherwise show no recordings at all, with no way to
+                    see why. */}
+                {cardShort > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setHideShort(!hideShort)}
+                    title="Calls under 30 seconds, mostly voicemails and dropped calls. This changes it for every meeting."
+                    className="h-7 rounded-md border border-dashed px-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    {hideShort
+                      ? `Show ${cardShort} short ${cardShort === 1 ? "call" : "calls"}`
+                      : "Hide short calls"}
+                  </button>
+                )}
                 {/* Where they asked to be rung back on a call nothing else
                     recorded. A call back is otherwise only made by marking a
                     no-show, so a promise made on a quick call had nowhere to
