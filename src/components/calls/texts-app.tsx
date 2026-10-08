@@ -29,6 +29,7 @@ import { CopyNumber } from "@/components/calls/inbound-list";
 import { RingBackButton } from "@/components/calls/ring-back-button";
 import { classifyPhone, e164, spokenNumber } from "@/lib/phone";
 import { conversationHref } from "@/lib/text-key";
+import { outboundStatusLabel } from "@/lib/text-status";
 import type {
   Conversation,
   ConversationDemo,
@@ -1286,12 +1287,11 @@ function Bubble({
       ) : (
         out &&
         showStatus && (
-          <p className="mr-1 mt-0.5 text-[11px] font-medium text-muted-foreground">
-            {m.status === "delivered"
-              ? "Delivered"
-              : m.status === "queued"
-                ? "Sending…"
-                : "Sent"}
+          <p
+            className="mr-1 mt-0.5 text-[11px] font-medium text-muted-foreground"
+            suppressHydrationWarning
+          >
+            {outboundStatusLabel(m.status, m.at)}
           </p>
         )
       )}

@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import type { Meeting, MeetingFollowupResult } from "@/lib/meetings";
 import type { CallOutcome } from "@/lib/calls";
 import { OUTCOME_LABELS } from "@/components/calls/outcome";
-import type { SmsStatus, Texting } from "@/lib/sms";
+import type { Texting } from "@/lib/sms";
 import { classifyPhone, dialableNumber, spokenNumber } from "@/lib/phone";
 import { prospectZone, theirClock } from "@/lib/call-time";
 import { calBookingHref, calRescheduleHref } from "@/lib/cal-link";
@@ -51,6 +51,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmSend } from "@/components/confirm-send";
+import { outboundStatusLabel } from "@/lib/text-status";
 import {
   AttachButton,
   AttachmentPreview,
@@ -124,14 +125,8 @@ const FOLLOWUP_DONE: Record<MeetingFollowupResult, string> = {
   cancelled: "Not rebooking",
 };
 
-/** How an outbound text is doing, as the thread says it. */
-const TEXT_STATUS: Record<SmsStatus, string> = {
-  queued: "Sending",
-  sent: "Sent",
-  delivered: "Delivered",
-  failed: "Didn't go through",
-  received: "",
-};
+// How an outbound text is doing is worded by `outboundStatusLabel`, shared with
+// the Texts screen so the two say the same thing.
 
 /**
  * How long after a text the screen keeps checking for a reply.
@@ -3082,8 +3077,9 @@ export function MeetingsList({
                               t.status === "failed" &&
                                 "font-semibold text-destructive",
                             )}
+                            suppressHydrationWarning
                           >
-                            {` · ${TEXT_STATUS[t.status]}`}
+                            {` · ${outboundStatusLabel(t.status, t.at)}`}
                           </span>
                         )}
                       </p>

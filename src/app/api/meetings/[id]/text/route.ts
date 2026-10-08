@@ -7,6 +7,7 @@ import {
   explainTextError,
   isOptedOut,
   recordOutbound,
+  settleOutbound,
   smsEnabled,
 } from "@/lib/sms";
 import { resolveOutgoing } from "@/lib/sms-out-media";
@@ -119,6 +120,7 @@ export async function POST(
       userId: me.id,
       media: mediaRecord,
     });
+    void settleOutbound(practiceSent.id);
     return Response.json({ ok: true });
   }
   if (!mayText) {
@@ -194,6 +196,7 @@ export async function POST(
     userId: me.id,
     media: mediaRecord,
   });
+  void settleOutbound(sent.id);
 
   return Response.json({ ok: true });
 }

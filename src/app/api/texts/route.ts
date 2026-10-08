@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/session";
 import { callerNumberOf, canSendTexts } from "@/lib/users";
 import { classifyPhone, e164 } from "@/lib/phone";
 import { sendSms } from "@/lib/telnyx";
-import { explainTextError, recordOutbound, smsEnabled } from "@/lib/sms";
+import { explainTextError, recordOutbound, settleOutbound, smsEnabled } from "@/lib/sms";
 import { conversationOptedOut, leadForConversation } from "@/lib/texts";
 import { conversationKey } from "@/lib/text-key";
 import { resolveOutgoing } from "@/lib/sms-out-media";
@@ -124,5 +124,6 @@ export async function POST(request: Request) {
       : null,
   });
 
+  void settleOutbound(sent.id);
   return Response.json({ ok: true, key: conversationKey(to, from) });
 }
