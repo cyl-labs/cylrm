@@ -1391,6 +1391,9 @@ export const callMeeting = pgTable(
     /** The name was corrected by hand (2026-10-05), so the Cal.com sync leaves
      *  it alone. Cal.com cannot be told, and its own emails keep the old one. */
     attendeeNameEdited: boolean("attendee_name_edited").notNull().default(false),
+    /** Why it was moved quietly, typed in the dialog (2026-10-09). Shown beside
+     *  "Moved quietly from ..." and kept only while the move stands. */
+    moveNote: text("move_note"),
     /** A practice meeting for a new closer (2026-10-05): kept out of every real
      *  number, alert and fee. Its answer goes in `trainingOutcome`, never in
      *  `call_demo_attendance`, so payroll cannot see it. */
