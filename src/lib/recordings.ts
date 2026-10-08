@@ -1,5 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
+import { DEMO_WINDOW_OPENS } from "@/lib/demo-window";
 import type { TranscriptTurn } from "@/db/schema";
 import type { CurrentUser } from "@/lib/session";
 import { reportIdsOf } from "@/lib/managers";
@@ -80,7 +81,7 @@ export const recordingVisibleTo = (
           where (cl.assigned_user_id = ${userId} or m.closer_user_id = ${userId})
             and r.to_number in ('+' || l.phone_key, '+' || l.direct_phone_key, m.attendee_phone)
             and r.started_at >= greatest(
-              m.start_at - interval '12 hours',
+              ${DEMO_WINDOW_OPENS},
               coalesce((select bk.called_at from "call" bk where bk.id = m.call_id), '-infinity')
             )
         )
