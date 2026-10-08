@@ -41,6 +41,7 @@ export function ConfirmSend({
   from,
   subject,
   body,
+  picture,
   onCancel,
   onConfirm,
 }: {
@@ -52,6 +53,8 @@ export function ConfirmSend({
   from?: string | null;
   subject?: string;
   body: string;
+  /** A picture going with a text (2026-10-09), shown exactly as it will arrive. */
+  picture?: string | null;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -93,7 +96,15 @@ export function ConfirmSend({
 
           <div className="max-h-60 overflow-y-auto rounded-lg border bg-muted/40 px-3 py-2 text-[14px] leading-snug">
             {subject && <p className="mb-1.5 font-semibold">{subject}</p>}
-            <p className="whitespace-pre-wrap break-words">{body}</p>
+            {body && <p className="whitespace-pre-wrap break-words">{body}</p>}
+            {picture && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={picture}
+                alt="The picture being sent"
+                className={`max-h-48 rounded-md border ${body ? "mt-2" : ""}`}
+              />
+            )}
           </div>
 
           {hasLink && (

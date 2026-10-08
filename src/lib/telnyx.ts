@@ -793,6 +793,9 @@ export async function sendSms(
   from: string,
   to: string,
   text: string,
+  /** Public links Telnyx fetches to send a picture message (2026-10-09). With
+   *  one the text may be empty: a picture on its own is a message. */
+  mediaUrls: string[] = [],
 ): Promise<SmsSendResult> {
   const apiKey = process.env.TELNYX_API_KEY;
   if (!apiKey) return { ok: false, code: "unconfigured" };
@@ -807,7 +810,12 @@ export async function sendSms(
       },
       // No messaging profile id: the `from` number belongs to one, and that is
       // what Telnyx sends it under.
-      body: JSON.stringify({ from, to, text }),
+      body: JSON.stringify({
+        from,
+        to,
+        ...(text ? { text } : {}),
+        ...(mediaUrls.length > 0 ? { media_urls: mediaUrls, type: "MMS" } : {}),
+      }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (err) {

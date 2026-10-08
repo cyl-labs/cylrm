@@ -231,14 +231,18 @@ export async function recordOutbound(input: {
   meetingId: number | null;
   leadId: number | null;
   userId: number;
+  /** The picture that went with it (2026-10-09), shown in the thread through
+   *  the same route a received one is. Null for a plain text. */
+  media?: SmsMedia[] | null;
 }): Promise<void> {
   await db.execute(sql`
     insert into call_sms (
       telnyx_message_id, direction, from_number, to_number, body, status,
-      meeting_id, call_lead_id, user_id
+      meeting_id, call_lead_id, user_id, media
     ) values (
       ${input.telnyxId}, 'out', ${input.from}, ${input.to}, ${input.body},
-      ${input.status}, ${input.meetingId}, ${input.leadId}, ${input.userId}
+      ${input.status}, ${input.meetingId}, ${input.leadId}, ${input.userId},
+      ${input.media && input.media.length > 0 ? JSON.stringify(input.media) : null}::jsonb
     )
     on conflict (telnyx_message_id) do nothing
   `);

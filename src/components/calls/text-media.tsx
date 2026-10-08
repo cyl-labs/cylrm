@@ -49,7 +49,7 @@ export function bubbleText(body: string, hasMedia: boolean) {
   if (!hasMedia) return body;
   return body
     .split("\n")
-    .filter((line) => !/^\[They sent .*\]$/.test(line.trim()))
+    .filter((line) => !/^\[(They|You) sent .*\]$/.test(line.trim()))
     .join("\n")
     .trim();
 }
