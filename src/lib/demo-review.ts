@@ -331,8 +331,8 @@ function buildSystem(variant: Variant): string {
   "Rules:",
   "- READING LEVEL: write everything the reader sees at a third grade reading level. Use short everyday words. Keep sentences under 12 words, one idea each. Never use sales words such as discovery, qualify, consequence, reframe, transition, objection, rapport, insight, framework, leverage, value proposition, or pain point. Say what to do, not what to explore. Say owner, not prospect.",
   "- headline: one plain sentence on how the call went.",
-  "- moments: FILL THIS FIRST, before anything else, by reading the whole call in order. A moment is each time the owner raised a worry, a pushback, a problem in their business, a question, or a sign of interest. 3 to 8 moments, in the order they happened, skipping small talk. ownerSaid is an exact quote of up to about 25 words from the Prospect's lines. closerReplied is an exact quote of up to about 30 words of what the Closer said right after, copied from the Closer's lines; look at the next few Closer turns, not just the first, because a follow up question can come a turn later; use an empty string if the Closer said nothing useful back. howItWent: strong = the closer showed they heard it AND either answered it well or asked a follow up that got the owner to say more (what it costs them, how often, how it feels) or moved the call forward; weak = the closer only agreed, sympathised, praised or changed the subject, or asked about the topic but dropped it as soon as the owner answered; none = the closer ignored it. A closer who asks a question about a problem and then does nothing with the answer is weak, not strong. gap is one plain sentence on what a sharper closer would have done at that exact point, using the owner's own details (empty for strong).",
-  "- nextSteps: 1 to 3 steps for the NEXT call, most important first. Each step must be built on ONE moment that you rated weak or none: moment is its number in the moments list, counting from 1. Never build a step on a strong moment, and never tell the closer to do what the Closer lines show they already did. Pick the weak moments that would have changed the result the most, and never use two steps for the same lesson. If every moment was strong, give one step that would make the call better still. when points at that moment: start with what the owner said and put a few of their exact words in double quotes, for example: When the owner said \"many people do not like talking to a machine\". do is one thing to do instead of what the closer did, starting with a verb, in plain words. say is the exact words to say, one or two short sentences, a question where the method calls for one, using the owner's own details. Never make up facts about the owner: do and say may only rely on things the owner actually said in the moment you point at (do not mention a tool, a system or a worry the owner never brought up). A step must make sense to someone who reads only that step, so when always quotes the owner.",
+  "- moments: FILL THIS FIRST, before anything else, by reading the whole call in order. A moment is each time the owner raised a worry, a pushback, a problem in their business, a question, or a sign of interest. 3 to 8 moments, in the order they happened, skipping small talk. ownerSaid is an exact quote of up to about 25 words from the Prospect's lines. closerReplied is an exact quote of up to about 30 words of what the Closer said right after, copied from the Closer's lines; look at the next few Closer turns, not just the first, because a follow up question can come a turn later; use an empty string if the Closer said nothing useful back or only spoke before the owner's line. howItWent: strong = the closer showed they heard it AND either answered it well or asked a follow up that got the owner to say more (what it costs them, how often, how it feels) or moved the call forward; weak = the closer only agreed, sympathised, praised or changed the subject, or asked about the topic but dropped it as soon as the owner answered; none = the closer ignored it. A closer who asks a question about a problem and then does nothing with the answer is weak, not strong. gap is one plain sentence on what a sharper closer would have done at that exact point, using the owner's own details (empty for strong).",
+  "- nextSteps: 1 to 3 steps for the NEXT call, most important first. Each step must be built on ONE moment that you rated weak or none: moment is its number in the moments list, counting from 1. Never build a step on a strong moment, and never tell the closer to do what the Closer lines show they already did. Pick the weak moments that would have changed the result the most, and never use two steps for the same lesson. Two steps must rest on two DIFFERENT moments and quote two different owner lines: if only one moment was weak, give one step, not two. The Closer's words you describe must come AFTER the owner's line in the call, never before it. If every moment was strong, give one step that would make the call better still. when points at that moment: start with what the owner said and put a few of their exact words in double quotes, for example: When the owner said \"many people do not like talking to a machine\". do is one thing to do instead of what the closer did, starting with a verb, in plain words. say is the exact words to say, one or two short sentences, a question where the method calls for one, using the owner's own details. Never make up facts about the owner: do and say may only rely on things the owner actually said in the moment you point at (do not mention a tool, a system or a worry the owner never brought up). A step must make sense to someone who reads only that step, so when always quotes the owner.",
   "- Anything in moments rated strong also belongs in wentWell, naming it by what the owner said, never by its number.",
   "- Before you write a step, check ALL the Closer's later lines too: if the closer asked that question or made that point anywhere later in the call, the step is wrong, so drop it or pick another moment. Prefer moments where the owner revealed real stakes (a crash, lost jobs, lost money, hours of work, a personal cost) and the closer did not turn it into a number or a feeling (how often, what it cost, what it did to the day), because that is what moves an owner to want a fix. Prefer these over a closer who agreed politely.",
   "- stages: all the keys above, in the order given. note is one short plain sentence saying what happened. evidence is an exact quote of up to about 25 words copied character for character from ONE speaker in the transcript. Every done, partly and missed step needs one: for done and partly it is the line that shows what was done; for missed it is the line where the step should have happened (for example the caller offering times before any time zone was asked). Use null only for not_reached. The quote must prove the note, so never quote an unrelated line (an email address does not prove a time was read back). Never write evidence that is not in the transcript. The note must agree with the rating and with the quote: do not write a note that says the step was done fully when the rating is partly. For EVERY step that is partly or missed, also give: ownerLine, an exact quote (up to about 25 words, from the Prospect only) of what the owner said that made this step the right moment, or an empty string if the owner said nothing relevant; closerLine, an exact quote (up to about 30 words, from the Closer only) of what the closer actually said at that moment, or an empty string if the closer said nothing about it; and fix, an object with do (one thing the closer should have done, starting with a verb, in plain words, using the owner's own details) and say (the exact words to say, one or two short sentences). Each partly or missed step must use its own moment: do not reuse the same quote on two steps unless one line really shows both. For done and not_reached steps leave ownerLine and closerLine empty and fix null. The fix must be something the closer did not do anywhere in the call.",
@@ -341,6 +341,13 @@ function buildSystem(variant: Variant): string {
   ...(kind === "demo"
     ? [
         "- ownerMoments: 0 to 6 lines where the OWNER (the Prospect) showed a strong feeling or changed course. The moment is about the owner, but for each one you must also judge how the closer handled it, plainly and without softening. Look for: refusing something, saying the same complaint again, a personal stake (years in the trade, a time they need to be somewhere), blaming or doubting the closer, saying the call is a waste of their time, and a sudden spark of interest. Pick the lines that are unusual and tell us the most. Skip polite filler and plain facts. quote is an exact quote of up to about 25 words copied character for character from the Prospect's lines only, never from the Closer. feeling is one short plain sentence on what the owner felt. closerNext is one short plain sentence on what the closer did right after, in the closer's own words where you can. howItWent: strong = the closer showed they heard it and got the owner to say more or moved the call forward; weak = agreed, sympathised, praised or changed the subject; none = ignored it. verdict is one blunt plain sentence saying whether that was good or bad and why, for example: Weak. He agreed and moved on, so the owner never said what a lost client costs. Never write a neutral sentence that only repeats what happened. tryThis is the exact words the closer should have said instead, one or two short sentences using the owner's own details, or an empty string when howItWent is strong. Put them in the order they happened. Empty list if the owner showed nothing strong.",
+      ]
+    : []),
+  ...(kind === "booking"
+    ? [
+        "- THE SCRIPT IS THE HOUSE METHOD. A caller who says the script's lines is following the method, so never mark a step down, and never write a fix, for saying what the script says. The script opens with 'can I ask what time you close today?', then what happens to calls after that, then 'have you considered using a voice agent?'. That is a full opener. Judge what the script does not cover: what the caller did when the owner pushed back, and the booking steps.",
+        "- When the owner pushes back, check it against the house answers in the reference before you suggest anything. Do not tell the caller to ask a different question when the house answer was given. If the owner says they do not get enough calls or plays the problem down, do not coach the caller to dig for pain the owner said they do not have.",
+        "- closerReplied is what the caller said AFTER the owner's line. A question the caller asked BEFORE the owner spoke is not a reply to it.",
       ]
     : []),
   ...(kind === "demo"
@@ -783,14 +790,33 @@ export async function writeReview(
 
   // What the owner said and what the closer did about it. A quote that is not
   // in the right speaker's lines is cut, not shown.
+  const padded = ` ${hay} `;
+  const firstAt = (q: string) => {
+    const piece = q.split(/\.\.\.|…/).map(normalise).filter(Boolean)[0];
+    return piece ? padded.indexOf(` ${piece} `) : -1;
+  };
+  const lastAt = (q: string) => {
+    const piece = q.split(/\.\.\.|…/).map(normalise).filter(Boolean)[0];
+    return piece ? padded.lastIndexOf(` ${piece} `) : -1;
+  };
   const moments = list(raw.moments).map((x) => {
     const o = x as { ownerSaid?: unknown; closerReplied?: unknown; howItWent?: unknown };
     const ownerSaidQ = unq(o.ownerSaid);
     const replied = unq(o.closerReplied);
     const d = o.howItWent === "strong" ? undefined : dealtWith(ownerSaidQ);
+    const ownerOk = ownerSaidQ && ownerSaid(ownerSaidQ) ? ownerSaidQ : "";
+    // A reply has to come after what it replies to. The model sometimes picks
+    // the closer's question that PROVOKED the owner's line (2026-10-08,
+    // Holzfaller), which then reads as "you said X" under advice about the
+    // answer. The latest place the words occur has to be past the owner's line.
+    const afterOwner = !ownerOk || !replied || lastAt(replied) > firstAt(ownerOk);
     return {
-      ownerSaid: ownerSaidQ && ownerSaid(ownerSaidQ) ? ownerSaidQ : "",
-      closerReplied: d ? d.quote : replied && saidBy(closerHay, replied) ? replied : "",
+      ownerSaid: ownerOk,
+      closerReplied: d
+        ? d.quote
+        : replied && saidBy(closerHay, replied) && afterOwner
+          ? replied
+          : "",
       strong: o.howItWent === "strong" || Boolean(d),
     };
   });
@@ -799,11 +825,36 @@ export async function writeReview(
   // call are cut out rather than shown, the same rule the evidence follows.
   // A step must rest on a moment the closer handled weakly or not at all:
   // advice about something they did well is the bug this guards against.
+  // Which moment a step is really about is decided by the owner's words it
+  // quotes, not by the number the model gave: it wrote the same quote on two
+  // steps that pointed at different moments (2026-10-08), so each printed the
+  // same "When the owner said" over a different "You said". A step whose quote
+  // sits in another moment is moved there, and two steps that end up on one
+  // moment are one lesson, so the second is dropped.
+  const within = (text: string, quote: string) => {
+    const pieces = quote.split(/\.\.\.|…/).map(normalise).filter(Boolean);
+    return pieces.length > 0 && pieces.every((p) => ` ${normalise(text)} `.includes(` ${p} `));
+  };
+  const usedMoments = new Set<number>();
+  const usedLines = new Set<string>();
   const nextSteps = list(raw.nextSteps)
     .map((x) => {
       const o = x as { moment?: unknown; when?: unknown; do?: unknown; say?: unknown };
-      const m = moments[Number(o.moment) - 1];
+      const asked = Number(o.moment) - 1;
+      const quoted = [...clean(o.when).matchAll(/["“]([^"“”]+)["”]/g)].map((q) => q[1]);
+      const fits = (i: number) =>
+        Boolean(moments[i]?.ownerSaid) &&
+        quoted.length > 0 &&
+        quoted.every((q) => within(moments[i].ownerSaid, q));
+      const at = fits(asked) ? asked : moments.findIndex((_, i) => fits(i));
+      const m = at >= 0 ? moments[at] : moments[asked];
       if (m?.strong) return null;
+      if (at >= 0) {
+        const line = normalise(moments[at].ownerSaid);
+        if (usedMoments.has(at) || usedLines.has(line)) return null;
+        usedMoments.add(at);
+        usedLines.add(line);
+      }
       const when = clean(o.when).replace(/["“]([^"“”]+)["”]/g, (all, q: string) =>
         inCall(q) ? all : "",
       );
@@ -818,7 +869,14 @@ export async function writeReview(
       // dropped rather than shown bare.
       if (!tidy && m?.ownerSaid) tidy = `When the owner said "${m.ownerSaid}"`;
       if (!tidy) return null;
-      return { when: tidy, do: clean(o.do), say: unq(o.say), youDid: m?.closerReplied || undefined };
+      // "You said" is only shown when the step is tied to a moment by its own
+      // quote; a step the quote could not place has nothing safe to put there.
+      return {
+        when: tidy,
+        do: clean(o.do),
+        say: unq(o.say),
+        youDid: at >= 0 ? m?.closerReplied || undefined : undefined,
+      };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null && Boolean(x.do && x.say))
     .slice(0, 3);
