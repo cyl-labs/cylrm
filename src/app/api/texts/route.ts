@@ -5,6 +5,7 @@ import { sendSms } from "@/lib/telnyx";
 import { explainTextError, recordOutbound, smsEnabled } from "@/lib/sms";
 import { conversationOptedOut, leadForConversation } from "@/lib/texts";
 import { conversationKey } from "@/lib/text-key";
+import { resolveOutgoing } from "@/lib/sms-out-media";
 
 /** Three texts' worth, the same cap the Meetings screen uses. */
 const MAX_LENGTH = 480;
@@ -43,9 +44,16 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     to?: unknown;
     text?: unknown;
+    mediaId?: unknown;
   } | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
-  if (!text) {
+  // One picture at most (2026-10-09), kept by `/api/texts/upload`. With one, the
+  // words are optional: a picture on its own is a message.
+  const media = await resolveOutgoing(body?.mediaId);
+  if (media && "error" in media) {
+    return Response.json({ error: media.error }, { status: 400 });
+  }
+  if (!text && !media) {
     return Response.json({ error: "Write something to send." }, { status: 400 });
   }
   if (text.length > MAX_LENGTH) {
@@ -83,7 +91,7 @@ export async function POST(request: Request) {
     return Response.json({ error: explainTextError("40300") }, { status: 409 });
   }
 
-  const sent = await sendSms(from, to, text);
+  const sent = await sendSms(from, to, text, media ? [media.url] : []);
   if (!sent.ok) {
     if (sent.code === "unreachable") {
       // The one failure that must not invite a second press: the request may
@@ -106,11 +114,14 @@ export async function POST(request: Request) {
     telnyxId: sent.id,
     from,
     to,
-    body: text,
+    body: text || "[You sent a picture]",
     status: sent.status,
     meetingId: lead?.meetingId ?? null,
     leadId: lead?.id ?? null,
     userId: me.id,
+    media: media
+      ? [{ url: media.url, contentType: media.contentType, size: media.size, hash: null }]
+      : null,
   });
 
   return Response.json({ ok: true, key: conversationKey(to, from) });

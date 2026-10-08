@@ -51,6 +51,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmSend } from "@/components/confirm-send";
+import {
+  AttachButton,
+  AttachmentPreview,
+  pastedImage,
+  useAttachment,
+} from "@/components/calls/text-attach";
 import { useClaimLine } from "@/components/calls/line-presence";
 import { cn } from "@/lib/utils";
 import { LogRecording } from "@/components/calls/log-recording";
@@ -435,6 +441,10 @@ export function MeetingsList({
   /** Send text pressed, waiting on the last look (`ConfirmSend`). One at a
    *  time, like the composer it belongs to. */
   const [confirmingText, setConfirmingText] = React.useState(false);
+  /** A picture to go with the text being written, pasted or picked
+   *  (2026-10-09). One composer is open at a time, so one slot serves them all;
+   *  it is cleared whenever a composer opens, closes or sends. */
+  const { attachment, uploading, attach, clear } = useAttachment();
 
   /**
    * Keep the page fresh while a reply could be on its way.
@@ -464,7 +474,7 @@ export function MeetingsList({
       const res = await fetch(`/api/meetings/${meeting.id}/text`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: body }),
+        body: JSON.stringify({ text: body, mediaId: attachment?.id }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -472,6 +482,7 @@ export function MeetingsList({
         return;
       }
       setComposing(null);
+      clear();
       toast.success(
         `Texted ${meeting.attendeeName ?? meeting.company ?? "them"}`,
       );
@@ -2071,13 +2082,14 @@ export function MeetingsList({
                     type="button"
                     disabled={busy === m.id}
                     aria-expanded={composing?.meetingId === m.id}
-                    onClick={() =>
+                    onClick={() => {
+                      clear();
                       setComposing(
                         composing?.meetingId === m.id
                           ? null
                           : { meetingId: m.id, body: textDraft(m, senderName) },
-                      )
-                    }
+                      );
+                    }}
                     className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
                   >
                     <MessageSquare className="size-3.5" />
@@ -2798,13 +2810,32 @@ export function MeetingsList({
                       onChange={(e) =>
                         setComposing({ ...composing, body: e.target.value })
                       }
+                      onPaste={(e) => {
+                        const picture = pastedImage(e);
+                        if (picture) {
+                          e.preventDefault();
+                          void attach(picture);
+                        }
+                      }}
                       className="mt-2 min-h-[64px]"
+                    />
+                    <AttachmentPreview
+                      attachment={attachment}
+                      uploading={uploading}
+                      onRemove={clear}
+                      className="mt-2"
                     />
                     {/* Drops the link in rather than making somebody switch
                         tabs to copy it and paste it back. Each press appends
                         to whatever is already written, so the contract and
                         the form link can both be added to the same text. */}
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <AttachButton
+                        onFile={(f) => void attach(f)}
+                        disabled={uploading || busy === m.id}
+                        label="Add picture"
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[12px] font-semibold transition-colors hover:bg-muted [&>svg]:size-3"
+                      />
                       {m.contracts.map((c) => (
                         <button
                           key={c.kind}
@@ -2850,7 +2881,11 @@ export function MeetingsList({
                   {texting.from && !lead?.optedOut && (
                     <Button
                       size="sm"
-                      disabled={busy === m.id || !composing.body.trim()}
+                      disabled={
+                        busy === m.id ||
+                        uploading ||
+                        (!composing.body.trim() && !attachment)
+                      }
                       onClick={() => setConfirmingText(true)}
                     >
                       {busy === m.id ? "Sending…" : "Send text"}
@@ -2860,7 +2895,10 @@ export function MeetingsList({
                     size="sm"
                     variant="outline"
                     disabled={busy === m.id}
-                    onClick={() => setComposing(null)}
+                    onClick={() => {
+                      setComposing(null);
+                      clear();
+                    }}
                   >
                     {texting.from && !lead?.optedOut ? "Cancel" : "Close"}
                   </Button>
@@ -2875,6 +2913,7 @@ export function MeetingsList({
                     }}
                     from={spokenNumber(texting.from)}
                     body={composing.body.trim()}
+                    picture={attachment?.previewUrl ?? null}
                     onCancel={() => setConfirmingText(false)}
                     onConfirm={() => {
                       setConfirmingText(false);

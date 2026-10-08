@@ -19,6 +19,12 @@ import {
 import { TextMedia, bubbleText } from "@/components/calls/text-media";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmSend } from "@/components/confirm-send";
+import {
+  AttachButton,
+  AttachmentPreview,
+  pastedImage,
+  useAttachment,
+} from "@/components/calls/text-attach";
 import { CopyNumber } from "@/components/calls/inbound-list";
 import { RingBackButton } from "@/components/calls/ring-back-button";
 import { classifyPhone, e164, spokenNumber } from "@/lib/phone";
@@ -773,6 +779,8 @@ function ThreadView({
   const { conversation: c, messages, optedOut } = thread;
   const [details, setDetails] = React.useState(false);
   const [text, setText] = React.useState("");
+  /** A picture to go with the next text, pasted or picked (2026-10-09). */
+  const { attachment, uploading, attach, clear } = useAttachment();
   /**
    * The text being sent, shown faded at the bottom until the refreshed thread
    * has it. Hidden by comparing lengths rather than by clearing state in an
@@ -841,7 +849,7 @@ function ThreadView({
     // hit that on 2026-09-16 and worked around it by refreshing between every
     // text. This goes false the moment the refreshed thread has the message,
     // and the screen re-polls every 10s, so it recovers by itself.
-    if (!body || showPending) return;
+    if ((!body && !attachment) || uploading || showPending) return;
     if (body.length > MAX_LENGTH) {
       toast.error(`Keep it under ${MAX_LENGTH} characters.`);
       return;
@@ -852,14 +860,14 @@ function ThreadView({
   async function deliver(body: string) {
     setConfirming(null);
     nearBottom.current = true;
-    setPending({ body, base: messages.length });
+    setPending({ body: body || "Picture", base: messages.length });
     setText("");
     if (input.current) input.current.style.height = "auto";
     try {
       const res = await fetch("/api/texts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: c.their, text: body }),
+        body: JSON.stringify({ to: c.their, text: body, mediaId: attachment?.id }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -870,6 +878,7 @@ function ThreadView({
         if (res.status !== 502) setText(body);
         return;
       }
+      clear();
       router.refresh();
     } catch {
       toast.error("Couldn't reach the CRM, so it may not have sent. Check before sending again.");
@@ -908,9 +917,10 @@ function ThreadView({
         to={{ name: c.name, address: spokenNumber(c.their) }}
         from={spokenNumber(c.ours)}
         body={confirming ?? ""}
+        picture={attachment?.previewUrl ?? null}
         onCancel={() => setConfirming(null)}
         onConfirm={() => {
-          if (confirming) void deliver(confirming);
+          if (confirming !== null) void deliver(confirming);
         }}
       />
       <header className="relative shrink-0 border-b bg-[var(--imsg-pane)] px-24 pb-2 pt-2">
@@ -1026,7 +1036,18 @@ function ThreadView({
           }}
           className="shrink-0 border-t bg-[var(--imsg-pane)] px-3 py-2"
         >
-          <div className="flex min-h-9 items-end rounded-[18px] border border-[#c7c7cc] py-[3px] pl-3 pr-[3px] dark:border-[#48484a]">
+          <AttachmentPreview
+            attachment={attachment}
+            uploading={uploading}
+            onRemove={clear}
+            className="mb-2 ml-1"
+          />
+          <div className="flex min-h-9 items-end rounded-[18px] border border-[#c7c7cc] py-[3px] pl-1.5 pr-[3px] dark:border-[#48484a]">
+            <AttachButton
+              onFile={(f) => void attach(f)}
+              disabled={showPending || uploading}
+              className="mb-px mr-1 flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+            />
             <textarea
               ref={input}
               rows={1}
@@ -1045,13 +1066,20 @@ function ThreadView({
                   void send();
                 }
               }}
+              onPaste={(e) => {
+                const picture = pastedImage(e);
+                if (picture) {
+                  e.preventDefault();
+                  void attach(picture);
+                }
+              }}
               placeholder="Text Message • SMS"
               aria-label="Message"
               className="min-w-0 flex-1 resize-none bg-transparent py-[5px] text-[15px] leading-[1.35] outline-none placeholder:text-muted-foreground"
             />
             <button
               type="submit"
-              disabled={!text.trim() || showPending}
+              disabled={(!text.trim() && !attachment) || uploading || showPending}
               aria-label="Send"
               className="mb-px ml-2 flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--imsg-sent)] text-white transition-opacity disabled:opacity-40"
             >

@@ -3234,3 +3234,30 @@ whether he could act. By then he had agreed to the trial.
   "scammed"); quotes stay exact.
 - Checked on a condensed version of the Santa Fe call: it marked doubts handled and signing done, and caught
   the "I'm in a different country" line and the owner's dependence on "him". Not checked on the full call.
+
+### Texting a picture (2026-10-09)
+
+`lib/sms-out-media.ts`, `/api/texts/upload`, `/api/texts/out/[name]`, `components/calls/text-attach.tsx`,
+`sendSms(..., mediaUrls)` in `lib/telnyx.ts`, `mediaId` on `/api/texts` and `/api/meetings/[id]/text`.
+
+- **Asked for as** "am i not able to paste in images?" on the Texts screen. Receiving pictures worked
+  (2026-09-16); sending did not exist. Both composers now take one picture, pasted into the box or picked
+  with the paperclip (Texts) or **Add picture** (the box under a meeting). The words become optional.
+- **Telnyx sends a picture message from a public link it fetches itself**, so an uploaded picture is a
+  file under `SMS_MEDIA_DIR/out/` (outside `/root/crm`, so a deploy does not erase it) served from
+  `PUBLIC_APP_URL/api/texts/out/<name>` **with no sign-in**. The name is 192 random bits and that is the
+  whole protection; never list it. No table, so no row-security work on Supabase.
+- **Shrunk in the browser first**: carriers cap a picture message at about 1 MB, so it is redrawn at
+  1600px as a JPEG until it is under 850 KB. A GIF is sent as is or refused. The server re-checks the
+  type from the first bytes and the size (`OUT_MAX_BYTES`, 900,000), never from the label the browser sent.
+- **One picture per text**, and it goes through `ConfirmSend` like every other text, which now shows the
+  picture. The thread row stores it in `call_sms.media` with our own link as `url`, so the existing
+  `/api/texts/media/[id]` route and `TextMedia` draw it. A picture-only text has the body
+  `[You sent a picture]`, which `bubbleText` hides.
+- **Numbers**: the three checked on 2026-10-09 (Founders, Aaron, Akshansh) report `mms.domestic_two_way`
+  true. A number without it would be refused by Telnyx and the screen would say so.
+- **Not done**: old files in `out/` are never deleted, and the practice-meeting path accepts a picture
+  but only a login with the Team text permission can upload one.
+- **Verified** against a stand-in Telnyx (`TELNYX_API_BASE`: the request carries `media_urls` and
+  `type: "MMS"`, and a plain text is unchanged) and the shrinking in a real headless browser. Not yet
+  verified: a real picture arriving on a real phone.
