@@ -56,7 +56,19 @@ export function BriefLine({ line }: { line: string }): React.ReactElement {
  */
 export function BriefList({ lines }: { lines: string[] }): React.ReactElement {
   const short = lines.find((l) => /^In short:/i.test(l));
-  const rest = lines.filter((l) => l !== short);
+  const others = lines.filter((l) => l !== short);
+  // After hours sits straight under Trial (2026-10-09): what happens to their
+  // calls once they close is as important as whether a trial was suggested.
+  const after = others.find((l) => /^After hours:/i.test(l));
+  const withoutAfter = others.filter((l) => l !== after);
+  const trialAt = withoutAfter.findIndex((l) => /^Trial:/i.test(l));
+  const rest = after
+    ? [
+        ...withoutAfter.slice(0, trialAt + 1),
+        after,
+        ...withoutAfter.slice(trialAt + 1),
+      ]
+    : others;
   return (
     <div className="space-y-2">
       {short && (
@@ -66,7 +78,7 @@ export function BriefList({ lines }: { lines: string[] }): React.ReactElement {
       )}
       <ul className="space-y-1.5">
         {rest.map((line, i) =>
-          /^Trial:/i.test(line) ? (
+          /^(Trial|After hours):/i.test(line) ? (
             <li
               key={i}
               className="rounded-md border-l-4 border-primary bg-primary/10 px-2.5 py-1.5 text-[13px] leading-snug"

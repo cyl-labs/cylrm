@@ -3276,3 +3276,12 @@ seconds or tagged Voicemail (`ShortCallsFold`, `meetings-list.tsx`). The cold
 call that won the booking is never folded. This **replaced the "hide calls under
 30 seconds" switch** (and its localStorage key), which hid them outright, so a
 card gave no sign it had any.
+
+### Demo review skips what the cold call covered; After hours is highlighted (2026-10-10)
+
+The demo review's "Learning how they run things now" step no longer marks the
+closer down for not asking how calls are handled, and never suggests it as a fix
+(`DEMO_SOP_TEXT`): the cold call script covers it. Briefs draw the After hours
+line as the same highlighted panel as Trial, directly under it (`BriefList`).
+Existing reviews regenerate on demand since the prompt is part of their
+fingerprint; stored briefs only change in how they are drawn.
