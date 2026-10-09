@@ -106,6 +106,22 @@ const STABLE_MS = 30_000;
 /** Tell the server's log that this phone lost or regained its line, so a
  *  flashing header can be explained afterwards (`/api/phone-events`). Best
  *  effort: never allowed to disturb the phone. */
+// Which page load and which browser profile said it (2026-10-09), so a log of
+// drops can tell one tab fighting itself from two browsers fighting each other.
+const TAB_ID = Math.random().toString(36).slice(2, 6);
+function browserId(): string {
+  try {
+    let id = localStorage.getItem("cylrm-browser-id");
+    if (!id) {
+      id = Math.random().toString(36).slice(2, 6);
+      localStorage.setItem("cylrm-browser-id", id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+}
+
 function reportPhone(event: string, detail: Record<string, unknown> = {}) {
   try {
     void fetch("/api/phone-events", {
@@ -115,6 +131,8 @@ function reportPhone(event: string, detail: Record<string, unknown> = {}) {
         event,
         ...detail,
         visible: document.visibilityState,
+        tab: TAB_ID,
+        browser: browserId(),
         online: navigator.onLine,
         ua: navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 60),
       }),

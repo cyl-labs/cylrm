@@ -23,8 +23,8 @@ export async function POST(request: Request) {
   if (!EVENTS.has(event)) return Response.json({ error: "Unknown event." }, { status: 400 });
   const short = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v).slice(0, 60) : "");
   console.log(
-    `[phone] ${me.name} (${me.id}) ${event} why=${short(body?.why)} upFor=${short(body?.upForS)}s ` +
-      `visible=${short(body?.visible)} online=${short(body?.online)} ` +
+    `[phone] ${new Date().toISOString()} ${me.name} (${me.id}) ${event} why=${short(body?.why)} upFor=${short(body?.upForS)}s ` +
+      `visible=${short(body?.visible)} tab=${short(body?.tab)} browser=${short(body?.browser)} online=${short(body?.online)} ` +
       `answers=${short(body?.answers)} ua=${short(body?.ua)}`,
   );
   return Response.json({ ok: true });
