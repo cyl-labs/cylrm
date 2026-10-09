@@ -1090,3 +1090,13 @@ G729, no Opus, so a browser call is transcoded at Telnyx. None of that makes an 
 from the microphone hearing the speakers: **headphones fix it outright**, and Meet masks it with
 heavier processing. Telnyx noise suppression is a per-connection setting and is **not** turned on
 (it may be billed per minute, and it removes background noise, not echo).
+
+### Jitter buffer turned on (2026-10-10)
+
+A caller's audio was breaking up mid-sentence and the prospect heard it too, so it
+was the live call, not the recording or our player (playback redirects straight to
+Telnyx storage). `jitter_buffer.enable_jitter_buffer` was **false** on every
+credential connection. Set to true on all 14 `cylrm-*` connections (min 60 ms, max
+200 ms, unchanged), read back after each. New hires copy `cylrm-dialler`, so they
+get it too. To undo, set it back to false per connection. Not yet confirmed to
+fix the glitching: ask whether it recurs.
