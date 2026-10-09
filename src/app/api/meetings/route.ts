@@ -122,10 +122,8 @@ export async function POST(request: Request) {
       ${startAt.toISOString()}::timestamptz, ${endAt.toISOString()}::timestamptz,
       'accepted', ${title},
       ${lead.name}, ${lead.email}, ${zone}, 'demo',
-      -- A closer closes the meetings they booked (2026-10-06).
-      (select c.user_id from "call" c
-        join app_user u on u.id = c.user_id
-        where c.id = ${bc?.id ?? null}::int and u.role = 'closer' and u.active),
+      -- Founders' own until handed to a closer (2026-10-09).
+      null,
       now()
     )
     returning id

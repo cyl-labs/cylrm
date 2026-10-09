@@ -2133,7 +2133,13 @@ and the sidebar badge read the new columns on every page).
   They also read `procedure-closing-the-demo` (`CLOSER_SOP_SLUGS` — named one by
   one, so the next `audience: admins` document does not leak to them). Undoing
   a contract, no-show call backs, Team, Payroll and Stats stay founders only.
-- **A closer closes the meetings they booked by default** (2026-10-06, "let all
+- **SWITCHED OFF 2026-10-09: every meeting is the founders' by default.** Callers
+  could not tell which meetings a founder wanted them to close, so the sync and
+  `POST /api/meetings` now insert `closer_user_id` null and a founder hands a
+  meeting over from the row. Meetings auto-assigned before that kept their
+  closer (not cleared: a deliberate handover looks the same). What follows is
+  the history of the old rule.
+- **A closer closed the meetings they booked by default** (2026-10-06, "let all
   closers close their own meetings by default"). No handing over needed:
   `closer_user_id` is set to the booking call's caller when it is a closer, in
   the Cal.com sync (on insert, and in the update that first links the booking
