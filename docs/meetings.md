@@ -3267,3 +3267,12 @@ whether he could act. By then he had agreed to the trial.
 - **Verified** against a stand-in Telnyx (`TELNYX_API_BASE`: the request carries `media_urls` and
   `type: "MMS"`, and a plain text is unchanged) and the shrinking in a real headless browser. Not yet
   verified: a real picture arriving on a real phone.
+
+### Voicemails and short calls fold on each card (2026-10-09)
+
+A meeting card's recordings are the conversations in time order, plus one
+"Voicemails and short calls (N)" button that opens the rest: anything under 20
+seconds or tagged Voicemail (`ShortCallsFold`, `meetings-list.tsx`). The cold
+call that won the booking is never folded. This **replaced the "hide calls under
+30 seconds" switch** (and its localStorage key), which hid them outright, so a
+card gave no sign it had any.

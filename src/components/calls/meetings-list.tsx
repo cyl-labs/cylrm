@@ -202,51 +202,43 @@ function useNow(intervalMs = 30_000) {
 }
 
 /**
- * Hide recordings under 30 seconds on the meeting rows (2026-09-28, a minute
- * until 2026-10-01, when a 45 second demo call was being hidden): voicemails,
- * rings nobody answered and calls that dropped straight away, which sat on a
- * row as "Follow-up call 3 0:18" beside the one conversation worth hearing.
- * On by default, remembered per browser, and switched off in one tap for the
- * day somebody needs to prove a voicemail was left.
+ * Short calls are folded, not hidden (2026-10-09). Under 20 seconds, or tagged
+ * Voicemail, a recording goes into one "Voicemails and short calls" fold on
+ * the card instead of sitting among the conversations. It replaces the old
+ * "hide calls under 30 seconds" switch: that one hid them, so a founder could
+ * not tell a card had any, and a card of only short calls looked empty.
  */
-const SHORT_CALL_MS = 30_000;
-const HIDE_SHORT_KEY = "cylrm-hide-short-calls";
-const HIDE_SHORT_EVENT = "cylrm-hide-short-calls";
-
-function readHideShort(): boolean {
-  try {
-    return localStorage.getItem(HIDE_SHORT_KEY) !== "0";
-  } catch {
-    return true;
-  }
-}
-
-function useHideShortCalls(): [boolean, (v: boolean) => void] {
-  const hide = React.useSyncExternalStore(
-    (onChange) => {
-      window.addEventListener("storage", onChange);
-      window.addEventListener(HIDE_SHORT_EVENT, onChange);
-      return () => {
-        window.removeEventListener("storage", onChange);
-        window.removeEventListener(HIDE_SHORT_EVENT, onChange);
-      };
-    },
-    readHideShort,
-    // The default on the server, so the HTML matches a browser that never
-    // changed it.
-    () => true,
-  );
-  const set = React.useCallback((v: boolean) => {
-    try {
-      localStorage.setItem(HIDE_SHORT_KEY, v ? "1" : "0");
-    } catch {}
-    window.dispatchEvent(new Event(HIDE_SHORT_EVENT));
-  }, []);
-  return [hide, set];
-}
+const SHORT_CALL_MS = 20_000;
 
 /** A recording with no length is kept: not knowing is not the same as short. */
 const isShort = (ms: number | null) => ms !== null && ms < SHORT_CALL_MS;
+
+/** The folded chips, closed until asked. State is local to each card. */
+function ShortCallsFold({
+  count,
+  children,
+}: {
+  count: number;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        title="Voicemails and calls under 20 seconds."
+        className="h-7 rounded-md border border-dashed px-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        {open
+          ? "Hide voicemails and short calls"
+          : `Voicemails and short calls (${count})`}
+      </button>
+      {open && children}
+    </>
+  );
+}
 
 function when(iso: string, now: number | null) {
   const mins = Math.round((new Date(iso).getTime() - (now ?? Date.now())) / 60000);
@@ -411,18 +403,6 @@ export function MeetingsList({
   // the button for saying what happened was still absent — the screen said
   // the demo was under way and offered no way to record it.
   const now = useNow();
-  const [hideShort, setHideShort] = useHideShortCalls();
-  // How many a row would lose, for the switch's label. Counted over every
-  // recording a row can show, so the number matches what disappears.
-  const shortCount = meetings.reduce(
-    (n, m) =>
-      n +
-      (m.recordingId && isShort(m.recordingMs) ? 1 : 0) +
-      m.earlierDemoRecordings.filter((r) => isShort(r.durationMs)).length +
-      m.demoRecordings.filter((r) => isShort(r.durationMs)).length +
-      m.otherRecordings.filter((r) => isShort(r.durationMs)).length,
-    0,
-  );
   const [busy, setBusy] = React.useState<number | null>(null);
   /**
    * A text being written. Under the row rather than in a dialog, for the reason
@@ -1084,31 +1064,11 @@ export function MeetingsList({
 
   return (
     <>
-    {/* Only when there is something to hide, so the switch never sits over a
-        list it cannot change. */}
-    {shortCount > 0 && (
-      <label className="flex w-fit cursor-pointer items-center gap-2 text-[13px] text-muted-foreground">
-        <input
-          type="checkbox"
-          className="size-4 accent-primary"
-          checked={hideShort}
-          onChange={(e) => setHideShort(e.target.checked)}
-        />
-        Hide calls under 30 seconds (voicemails and dropped calls)
-        <span className="tabular-nums">
-          {hideShort ? `(${shortCount} hidden)` : `(${shortCount} showing)`}
-        </span>
-      </label>
-    )}
     <ul className="flex flex-col gap-2">
       {meetings.map((m) => {
-        // The recordings this row shows, short ones dropped when the switch
-        // above says so, and numbered after dropping so the labels still
-        // count 1, 2, 3.
-        const keep = (ms: number | null) => !hideShort || !isShort(ms);
-        const earlierDemo = m.earlierDemoRecordings.filter((r) => keep(r.durationMs));
-        const ownRecordings = m.demoRecordings.filter((r) => keep(r.durationMs));
-        const otherCalls = m.otherRecordings.filter((r) => keep(r.durationMs));
+        const earlierDemo = m.earlierDemoRecordings;
+        const ownRecordings = m.demoRecordings;
+        const otherCalls = m.otherRecordings;
         // Every recording on this row as one list, oldest first (2026-10-05).
         // They used to be drawn group by group (cold call, then the demo, then
         // other calls), which is not the order anything happened in: a quick
@@ -1127,7 +1087,7 @@ export function MeetingsList({
           company: string;
         }[] = [];
         const stamp = (iso: string) => `${format.format(new Date(iso))} ${zoneLabel}`;
-        if (m.recordingId && keep(m.recordingMs)) {
+        if (m.recordingId) {
           chips.push({
             key: "cold",
             recordingId: m.recordingId,
@@ -1187,14 +1147,13 @@ export function MeetingsList({
         // A call with no time sorts first rather than last: the only one
         // without is the cold call, which came before everything else.
         chips.sort((a, b) => (a.at ? Date.parse(a.at) : 0) - (b.at ? Date.parse(b.at) : 0));
-        // How many short calls THIS card has, for the switch under it
-        // (2026-10-09): the one at the top of the list meant scrolling up and
-        // back down to see a voicemail on a card at the bottom.
-        const cardShort =
-          (m.recordingId && isShort(m.recordingMs) ? 1 : 0) +
-          m.earlierDemoRecordings.filter((r) => isShort(r.durationMs)).length +
-          m.demoRecordings.filter((r) => isShort(r.durationMs)).length +
-          m.otherRecordings.filter((r) => isShort(r.durationMs)).length;
+        // Short calls and voicemails go in one fold, the cold call never
+        // (it is the call that won the booking).
+        const isFolded = (c: { key: string; recordingId: string; ms: number | null }) =>
+          c.key !== "cold" &&
+          (isShort(c.ms) || recordingKinds[c.recordingId] === "voicemail");
+        const mainChips = chips.filter((c) => !isFolded(c));
+        const foldedChips = chips.filter(isFolded);
         const cancelled = m.status === "cancelled";
         // Every recording that could be the demo, for the review's picker
         // (2026-10-03): the automatic pick plus every other call to this
@@ -2528,11 +2487,10 @@ export function MeetingsList({
 
             {/* The recordings on a line of their own, under the actions
                 rather than mixed in with them (2026-09-28). */}
-            {(m.recordingId && keep(m.recordingMs)) ||
+            {m.recordingId ||
             earlierDemo.length > 0 ||
             ownRecordings.length > 0 ||
-            otherCalls.length > 0 ||
-            cardShort > 0 ? (
+            otherCalls.length > 0 ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="text-[12px] font-semibold text-muted-foreground">
                   Recordings
@@ -2546,7 +2504,7 @@ export function MeetingsList({
                     a founder guessing which they were about to hear. A demo
                     that drops and is redialled is two recordings, one chip
                     each, numbered from the second. */}
-                {chips.map((c) => (
+                {mainChips.map((c) => (
                   <LogRecording
                     key={c.key}
                     recordingId={c.recordingId}
@@ -2558,22 +2516,21 @@ export function MeetingsList({
                     kind={recordingKinds[c.recordingId] ?? "unknown"}
                   />
                 ))}
-                {/* The same switch as the one above the list, under the card it
-                    is about. Only on a card that has a short call, so it never
-                    offers to change nothing. A card whose every call is short
-                    would otherwise show no recordings at all, with no way to
-                    see why. */}
-                {cardShort > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setHideShort(!hideShort)}
-                    title="Calls under 30 seconds, mostly voicemails and dropped calls. This changes it for every meeting."
-                    className="h-7 rounded-md border border-dashed px-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    {hideShort
-                      ? `Show ${cardShort} short ${cardShort === 1 ? "call" : "calls"}`
-                      : "Hide short calls"}
-                  </button>
+                {foldedChips.length > 0 && (
+                  <ShortCallsFold count={foldedChips.length}>
+                    {foldedChips.map((c) => (
+                      <LogRecording
+                        key={c.key}
+                        recordingId={c.recordingId}
+                        recordingMs={c.ms}
+                        startedAt={c.startedAt}
+                        company={c.company}
+                        callerName={c.callerName}
+                        label={c.label}
+                        kind={recordingKinds[c.recordingId] ?? "unknown"}
+                      />
+                    ))}
+                  </ShortCallsFold>
                 )}
                 {/* Where they asked to be rung back on a call nothing else
                     recorded. A call back is otherwise only made by marking a
