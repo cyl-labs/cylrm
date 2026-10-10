@@ -1208,6 +1208,44 @@ Telnyx webhook carry replies and delivery receipts. Schema in
   is the proof the deploy does not need the migration. The first real send is
   what is still to watch.
 
+### Reminder text before a demo (built 2026-10-10, off by default)
+
+`lib/demo-text-reminder.ts`, `/api/cron/demo-texts` on the five-minute worker
+loop. A text to the prospect 60 to 15 minutes before a booked demo: "Hi Paul, a
+quick reminder that we're calling you at 2:00 PM your time (in about an hour)
+about your demo. Please pick up when this number rings."
+
+- **Why.** The booking is low friction and the no-shows are busy people who
+  forgot. Show rate was 41% overall and 29% over the two weeks before this
+  (attendance table, 2026-09-14 to 2026-10-10). Cal.com's 24h and 1h emails do not
+  reach a tradesman on a job site. **This reopens the earlier decision not to
+  text the prospect** (see "The push reminders stayed" above) on a different
+  basis: it asks for no reply and no confirmation, so it is not the confirmation
+  call again. Judge it by the show rate, not by feel: compare `showed_up` against
+  `no_show` before and after the switch-on date.
+- **Off unless `DEMO_TEXT_REMINDERS=1`** in `/root/crm/.env`, and
+  `TELNYX_SMS_ENABLED=1` must also be on. Unset and restart to stop. No
+  migration: the claim is a `meeting_reminder_sent` row of kind `prospect_text`.
+- **Demos only** (not follow-ups, not practice meetings), accepted and not
+  already answered. **Once per booked time**: the unique key carries
+  `for_start_at`, so a moved demo is reminded about its new slot.
+- **Skipped, never queued:** a booking made less than an hour ahead (it was its
+  own reminder), a lead texted in the last 90 minutes (a founder's own text), a
+  STOP, a screened-out or non-US number, and 9pm to 7am in the prospect's zone.
+  The skip reasons come back in the job's JSON and the worker log.
+- **From the closer's own number**, the one that rings them. A demo with no
+  closer (29 of 68 since 21 Sep) uses the first active admin's number.
+- **A failed send keeps its claim.** The opposite of the Telegram alert: a text
+  Telnyx may have accepted must not go twice to a stranger. The failure is
+  logged with the explained reason.
+- **No company name**, same as the manual text. The first name is used only if
+  the booking name looks like one.
+- **Tested on 2026-10-10** against a stand-in Telnyx and the local database
+  (one send, a second run sending nothing, a late booking, a demo inside the
+  15-minute floor, a Singapore number and the 9pm-7am rule all behaving). Never
+  against the real API: the first real send is what is still to watch. Do not
+  point a test at the live database, which holds real prospects.
+
 ### Texts screen (2026-09-15)
 
 `/texts` is every text to and from our numbers, laid out like Messages on an

@@ -73,6 +73,9 @@ async function run() {
   // A Telegram message when a number turns probably flagged as spam. Says
   // nothing on all but the tick a number first flips; see lib/number-alerts.
   await tick("number-alerts");
+  // The reminder text to a prospect about an hour before their demo. Does
+  // nothing unless DEMO_TEXT_REMINDERS=1 is set on the app.
+  await tick("demo-texts");
 }
 
 /**

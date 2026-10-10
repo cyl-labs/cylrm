@@ -1750,7 +1750,7 @@ export const meetingReminderSent = pgTable(
      *  cannot do without a TTY. */
     kind: text("kind")
       .notNull()
-      .$type<"day_before" | "same_day" | "telegram_day_before" | "telegram_30_min">(),
+      .$type<"day_before" | "same_day" | "telegram_day_before" | "telegram_30_min" | "prospect_text">(),
     /**
      * The meeting time this was sent for.
      *
