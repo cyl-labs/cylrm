@@ -1091,6 +1091,35 @@ connection" bursts the same day are a different fault and are not this.
 - **Still true:** the load of the page, not the deploy, brings the fix. Anyone with a tab
   open from before keeps the old election until they reload it.
 
+### One drop made two reconnects, and the two clients evicted each other (2026-10-10)
+
+After the Web Lock fix the Founders phone still lost its line over and over from a **single**
+tab (`[phone]` log: `line_lost upFor=31s`, then 3s, 6s, 13s, then 31s again, repeating, each
+re-registered about half a second after the drop). That sequence is `RECONNECT_BACKOFF_MS`
+(2, 5, 12, 30 seconds) plus a second: our own ladder, played against itself.
+
+- **Cause (read from the code and the log, not reproduced).** `reconnect()` tears the old
+  client down with `disconnect()`, and that makes the SDK announce `telnyx.socket.close` again
+  (and `socket error`: the log shows both at the same millisecond), which ran `reconnect()` a
+  second time. Two timers, `retry` overwritten so one could not be cancelled, two `start(0)`
+  calls, two clients on one login. Each registration evicts the other, each eviction runs
+  `reconnect()`, and the ladder escalates 2, 5, 12, 30s and starts over.
+- **Fix** (`use-telnyx-call.ts`): `reconnect()` returns at once while a retry is pending;
+  every `start()` bumps a `generation` and the ready, close, error handlers ignore a client that
+  is no longer the latest; `start()` disconnects the previous client first; and retries go through
+  `later()`, which **clears `retry` when it fires**. It never was: `recheck` (the watchdog and the
+  tab-focus check) returns while `retry` is set, so after the first reconnect of a page's life it
+  never ran again. It runs again now, as designed.
+- **Verified:** a forced server-side close gives exactly one new socket and one registration, and
+  the line then stays up. The old code did the same for that clean close, so **the duel itself was
+  not reproduced locally**: a real network drop (error plus close together) was not simulated. The
+  evidence it is the cause is the log's timing, not a reproduction. After a deploy, `[phone]` for
+  a single tab should show `line_lost` rarely and never in the 3 / 6 / 13 / 31 second rhythm.
+- **Do not test the phone with `.env.local` as it stands.** It holds the real Telnyx key, so a
+  local login with a DID mints a real credential on the shared connection (`cylrm:<username>`)
+  and registers for real. Two went out on 2026-10-10 and were deleted. Delete the id in
+  `app_user.telnyx_credential_id` afterwards, or point `TELNYX_API_BASE` at a stand-in.
+
 ### Dropping the agent without hanging up on the person (2026-10-04)
 
 "I can't disconnect the agent when I conference it in from the Keypad or when picking up

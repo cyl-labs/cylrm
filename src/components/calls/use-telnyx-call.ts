@@ -509,6 +509,27 @@ export function useTelnyxCall(
     // tearing the client down to retry then would drop the conversation.
     let everReady = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * Which client is current (2026-10-10). Bumped by every `start`, and every
+     * handler below ignores a client that is no longer the latest. Tearing a
+     * connection down makes it announce that its socket closed, and that
+     * announcement used to run `reconnect` a second time: two timers, two
+     * clients, two registrations on one login, each evicting the other for as
+     * long as the page stayed open. The phone log showed it as a socket error
+     * and a socket closed at the same millisecond, then a line that held for 31s,
+     * then 3s, 6s and 13s: our own retry ladder, played against itself.
+     */
+    let generation = 0;
+    /** The one pending retry. Cleared when it fires, so "a retry is pending"
+     *  means exactly that — it stayed set for good before, which also switched
+     *  the watchdog below off after the first reconnect. */
+    const later = (fn: () => void, ms: number) => {
+      if (retry) clearTimeout(retry);
+      retry = setTimeout(() => {
+        retry = null;
+        fn();
+      }, ms);
+    };
     /** Consecutive drops that each came too soon after registering. Reset by a
      *  connection that held — see `STABLE_MS`. */
     let outages = 0;
@@ -540,6 +561,13 @@ export function useTelnyxCall(
     let silentChecks = 0;
 
     const start = async (attempt: number) => {
+      const mine = ++generation;
+      // The previous connection goes first, so two can never be up at once.
+      try {
+        (clientRef.current as { disconnect?: () => void } | null)?.disconnect?.();
+      } catch {
+        // Already gone.
+      }
       try {
         const res = await fetch("/api/telnyx/token", { method: "POST" });
         if (!res.ok) {
@@ -550,10 +578,7 @@ export function useTelnyxCall(
           // during a restart, see the deploy notes in `AGENTS.md`. Asking once
           // and giving up left the phone dead for the rest of the shift.
           if (!everReady && !cancelled && attempt + 1 < REGISTER_TRIES) {
-            retry = setTimeout(
-              () => start(attempt + 1),
-              REGISTER_BACKOFF_MS[attempt] ?? 12_000,
-            );
+            later(() => start(attempt + 1), REGISTER_BACKOFF_MS[attempt] ?? 12_000);
             return;
           }
           // Logged in full, shown in four words — the rule the `telnyx.error`
@@ -570,7 +595,7 @@ export function useTelnyxCall(
           password?: string;
         };
         const { TelnyxRTC } = await import("@telnyx/webrtc");
-        if (cancelled) return;
+        if (cancelled || mine !== generation) return;
 
         // SIP credentials when the server sends them, the ephemeral token
         // otherwise. The difference is not cosmetic: a token authenticates a
@@ -583,6 +608,7 @@ export function useTelnyxCall(
             : { login_token: cred.token ?? "" },
         );
         client.on("telnyx.ready", () => {
+          if (mine !== generation) return;
           everReady = true;
           readySince = Date.now();
           // A fresh registration with no call up has nothing ringing and no
@@ -629,7 +655,9 @@ export function useTelnyxCall(
         // call, which is the reason the ladders were gated on `everReady` in
         // the first place.
         const reconnect = (why: string) => {
-          if (cancelled || callRef.current) return;
+          // A stale client's farewell, or a second announcement of the same
+          // drop while the first is already being handled.
+          if (cancelled || callRef.current || mine !== generation || retry) return;
           // How long it held before this. A line that was up for a while and
           // then dropped is a fresh outage and earns the fast retry; one that
           // drops seconds after registering is being pushed off by something,
@@ -655,12 +683,13 @@ export function useTelnyxCall(
           // Attempt 0 on the *start-up* ladder either way: this is a fresh
           // registration, not a continuation of one that failed at boot. Only
           // the wait before it escalates.
-          retry = setTimeout(() => start(0), wait);
+          later(() => start(0), wait);
         };
 
         client.on("telnyx.socket.close", () => reconnect("socket closed"));
         client.on("telnyx.socket.error", () => reconnect("socket error"));
         client.on("telnyx.error", (e: unknown) => {
+          if (mine !== generation) return;
           // Logged as well as shown: the message on screen is the same four
           // words whatever went wrong, which is right for a caller mid-shift
           // and useless for working out what Telnyx actually objected to.
@@ -681,10 +710,7 @@ export function useTelnyxCall(
             // A fresh token each time, not this one again: if the credential
             // behind it was the problem, presenting it a second time asks the
             // same question.
-            retry = setTimeout(
-              () => start(attempt + 1),
-              REGISTER_BACKOFF_MS[attempt] ?? 12_000,
-            );
+            later(() => start(attempt + 1), REGISTER_BACKOFF_MS[attempt] ?? 12_000);
             return;
           }
           if (!cancelled) {
@@ -999,7 +1025,7 @@ export function useTelnyxCall(
           } catch {
             // Already gone; that is what is being recovered from.
           }
-          retry = setTimeout(() => start(0), 0);
+          later(() => start(0), 0);
         }
       } finally {
         checking = false;
