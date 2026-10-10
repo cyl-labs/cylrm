@@ -85,28 +85,14 @@ export function reminderText(input: {
   name: string | null;
   startAt: Date;
   now: Date;
-  zone: string | null;
 }): string {
   const minutes = Math.round((input.startAt.getTime() - input.now.getTime()) / 60_000);
   const away =
     minutes >= 50
       ? "in about an hour"
       : `in about ${Math.max(5, Math.round(minutes / 5) * 5)} minutes`;
-  let when = away;
-  if (input.zone) {
-    try {
-      const clock = new Intl.DateTimeFormat("en-US", {
-        timeZone: input.zone,
-        hour: "numeric",
-        minute: "2-digit",
-      }).format(input.startAt);
-      when = `at ${clock} your time (${away})`;
-    } catch {
-      // An unknown zone name: say it in minutes instead.
-    }
-  }
   const hello = firstName(input.name);
-  return `${hello ? `Hi ${hello}, a` : "A"} quick reminder that we're calling you ${when} about your demo. Please pick up when this number rings.`;
+  return `Hey${hello ? ` ${hello}` : ""}, just a heads up, calling you about your voice agent ${away}`;
 }
 
 async function senderNumber(closerUserId: number | null): Promise<{
@@ -206,7 +192,7 @@ export async function sendDemoTextReminders(
     `)) as Row[];
     if (claimed.length === 0) continue;
 
-    const body = reminderText({ name: meeting.attendeeName, startAt, now, zone });
+    const body = reminderText({ name: meeting.attendeeName, startAt, now });
     const sent = await sendSms(sender.number, to, body);
     if (!sent.ok) {
       result.failed += 1;

@@ -1211,9 +1211,10 @@ Telnyx webhook carry replies and delivery receipts. Schema in
 ### Reminder text before a demo (built 2026-10-10, off by default)
 
 `lib/demo-text-reminder.ts`, `/api/cron/demo-texts` on the five-minute worker
-loop. A text to the prospect 60 to 15 minutes before a booked demo: "Hi Paul, a
-quick reminder that we're calling you at 2:00 PM your time (in about an hour)
-about your demo. Please pick up when this number rings."
+loop. A text to the prospect 60 to 15 minutes before a booked demo: "Hey Paul, just
+a heads up, calling you about your voice agent in about an hour" (minutes
+instead of "an hour" when it goes out closer to the call; no greeting name when
+the booking name does not look like a first name; no time of day).
 
 - **Why.** The booking is low friction and the no-shows are busy people who
   forgot. Show rate was 41% overall and 29% over the two weeks before this
