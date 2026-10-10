@@ -45,6 +45,8 @@ const STALE_MS = 3500;
 /** Long enough for peers to answer the opening hello, short enough to vanish
  *  behind the token fetch and the SDK import that follow it. */
 const SETTLE_MS = 300;
+/** One Web Lock per tab, held for as long as the page lives (2026-10-10). */
+const LOCK_PREFIX = "cylrm-tab:";
 
 /**
  * A backgrounded tab ranks below a visible one.
@@ -110,6 +112,12 @@ const LISTENING_HIDDEN = 1;
  * again. What "Use the phone here" does to every other tab — see `take`.
  */
 const YIELDED = 0;
+/**
+ * What a tab we can see is alive but have not heard from counts as: a hidden
+ * calling tab, a hair above so it keeps a tie against one that has just opened.
+ * See the Web Locks note in the election.
+ */
+const UNHEARD = CALLING_HIDDEN + 0.25;
 
 type Peer = { priority: number; seen: number };
 type Message = {
@@ -226,6 +234,37 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
     const channel = new BroadcastChannel(CHANNEL);
     let stopped = false;
 
+    /**
+     * Whether a peer is alive is asked of the browser, not inferred from its
+     * heartbeat (2026-10-10).
+     *
+     * The election used to write a tab off after 3.5s without a beat. A hidden
+     * tab's timers are throttled to once a minute and then frozen, so every
+     * hidden tab was written off by every other, each took the line, and each
+     * held a SIP registration at once: Telnyx evicts the older, the evicted tab
+     * registers again whenever its throttled timer fires, and the header strobes
+     * between Phone on and Phone not connected. The log of 2026-10-10 showed it:
+     * eight tabs on one browser, hidden ones registering minutes apart, and the
+     * tab in front losing the line three to thirty seconds after getting it.
+     *
+     * Every tab holds a Web Lock named for its id. The browser releases it when
+     * the page goes, crash and discard included, and keeps it while the page is
+     * merely frozen, so "lock held" is exactly "tab exists". A silent tab with
+     * a lock still counts, at the priority it last announced (that is sent on
+     * the event of being hidden, which is not throttled). Without Web Locks the
+     * old beat rule stands.
+     */
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    let alive: Set<string> | null = null;
+    /** Said bye: never re-added from a lock snapshot taken a moment too early. */
+    const departed = new Set<string>();
+    let releaseLock = () => {};
+    if (locks?.request) {
+      locks
+        .request(LOCK_PREFIX + id, () => new Promise<void>((resolve) => (releaseLock = resolve)))
+        .catch(() => {});
+    }
+
     const post = (t: Message["t"]) =>
       channel.postMessage({ t, id, priority: priorityRef.current } as Message);
     postRef.current = post;
@@ -241,7 +280,13 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
       let win = true;
       let top = -1;
       for (const [pid, p] of peers) {
-        if (now - p.seen > STALE_MS) {
+        const gone =
+          alive !== null
+            ? // Locked means alive however long since it spoke. The grace is
+              // for a tab that has just opened and is not in the last answer.
+              !alive.has(pid) && now - p.seen > STALE_MS
+            : now - p.seen > STALE_MS;
+        if (gone) {
           peers.delete(pid);
           continue;
         }
@@ -261,10 +306,37 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
     };
     electRef.current = elect;
 
+    const refreshAlive = async () => {
+      if (!locks?.query) return;
+      try {
+        const snapshot = await locks.query();
+        if (stopped) return;
+        const next = new Set<string>();
+        for (const l of snapshot.held ?? []) {
+          if (l.name?.startsWith(LOCK_PREFIX)) next.add(l.name.slice(LOCK_PREFIX.length));
+        }
+        alive = next;
+        // A tab that exists and has not spoken to us, because it is frozen or
+        // we are newer: assumed to be a hidden calling tab, so a tab opened in
+        // the background does not walk off with a line it is holding.
+        for (const pid of next) {
+          if (pid !== id && !peers.has(pid) && !departed.has(pid)) {
+            peers.set(pid, { priority: UNHEARD, seen: Date.now() });
+          }
+        }
+        elect();
+      } catch {
+        // Keep the beat rule.
+      }
+    };
+
     channel.onmessage = (e: MessageEvent<Message>) => {
       const m = e.data;
       if (!m || m.id === id) return;
-      if (m.t === "bye") peers.delete(m.id);
+      if (m.t === "bye") {
+        peers.delete(m.id);
+        departed.add(m.id);
+      }
       else {
         // Another tab has asked for the phone: stand down until somebody uses
         // this one again. Losing the line tears down its registration and, with
@@ -284,9 +356,11 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
     };
 
     post("hi");
+    void refreshAlive();
     const settle = setTimeout(elect, SETTLE_MS);
     const beat = setInterval(() => {
       post("beat");
+      void refreshAlive();
       elect();
     }, BEAT_MS);
 
@@ -302,6 +376,7 @@ export function LinePresence({ children }: { children: React.ReactNode }) {
       clearInterval(beat);
       window.removeEventListener("pagehide", leave);
       leave();
+      releaseLock();
       postRef.current = null;
       electRef.current = null;
       channel.close();

@@ -1060,6 +1060,37 @@ through a telephony credential, not the connection's own user. Do not use it to 
 The detail records are the evidence: `GET /v2/detail_records?filter[record_type]=sip-trunking`
 shows `hangup_cause: SUBSCRIBER_ABSENT` for a refused call.
 
+### Hidden tabs were written off by the election, so several held the line (2026-10-10)
+
+"It hung up over and over and flickered between Phone on and Phone not connected", with
+several CRM tabs open. The server log (`[phone]` lines, `pm2 logs crm`) showed eight page
+loads of one browser in twenty minutes, hidden ones **registering minutes apart**, and the
+tab in front losing the line 3 to 31 seconds after getting it. Aaron's "refused the
+connection" bursts the same day are a different fault and are not this.
+
+- **Cause.** `line-presence.tsx` decided a tab was gone after 3.5s without a beat. A hidden
+  tab's timers are throttled to once a minute and then frozen, so every hidden tab wrote
+  off every other, each took the line, and each held a SIP registration. Telnyx evicts the
+  older one, which registers again whenever its throttled timer next fires.
+- **Fix.** Every tab now holds a **Web Lock** named for its id (`cylrm-tab:<id>`); the
+  browser releases it when the page is gone (close, crash, discard) and keeps it while the
+  page is only frozen. A peer whose lock is held is alive however long since it spoke, at the
+  priority it last announced (sent on the visibility event, which is not throttled). A tab
+  that holds a lock but has never been heard from counts as a hidden calling tab
+  (`UNHEARD`, a hair above hidden-calling), so a tab opened in the background does not
+  take a line a frozen tab is holding. No Web Locks (old browsers): the beat rule stands.
+- **Reproduced and fixed in a real browser** (Playwright, local dev, three tabs, the
+  leader's timers paused to stand in for a throttled tab): before, a second tab became a
+  second leader within 9s; after, none. Handover on closing the leader took 0.5s; a visible
+  tab still beats a hidden leader; a hidden tab opened beside a frozen leader does not
+  steal. **Not tested:** a tab killed without a `bye` (crash). That rests on the browser
+  releasing the lock, which it guarantees. **Not tested against real Telnyx**, and Chrome's
+  real freezing differs from paused timers, so watch `[phone]` after a deploy: hidden
+  tabs should stop appearing with `registered`, and `line_lost why=socket closed upFor=<30s`
+  in runs should stop. Only reaches a tab on reload.
+- **Still true:** the load of the page, not the deploy, brings the fix. Anyone with a tab
+  open from before keeps the old election until they reload it.
+
 ### Dropping the agent without hanging up on the person (2026-10-04)
 
 "I can't disconnect the agent when I conference it in from the Keypad or when picking up
