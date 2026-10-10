@@ -39,6 +39,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     leadId?: unknown;
     at?: unknown;
+    now?: unknown;
   } | null;
   const leadId = Number(body?.leadId);
   if (!Number.isInteger(leadId) || leadId <= 0) {
@@ -61,13 +62,25 @@ export async function POST(request: Request) {
   }[];
   if (!lead) return Response.json({ error: "Business not found." }, { status: 404 });
 
+  // The demo is happening on this call (2026-10-10): a closer conferenced the
+  // demo line in and is doing it now, so there is no booking to wait for, and
+  // the contracts and the text need a meeting to hang off. Closers and
+  // founders only; it is theirs to close (a founder's stays the founders').
+  const onTheSpot = body?.now === true;
+  if (onTheSpot && me.role !== "admin" && me.role !== "closer") {
+    return Response.json(
+      { error: "Demos on the spot are for closers and founders." },
+      { status: 403 },
+    );
+  }
+
   const leadZone = prospectZone(await zoneForLead(leadId), null);
   const zone = leadZone ?? (await readerZone(me.id)).tz;
-  const startAt = parseCallbackAt(body?.at, zone);
+  const startAt = onTheSpot ? new Date() : parseCallbackAt(body?.at, zone);
   if (!startAt) {
     return Response.json({ error: "Pick a day and a time." }, { status: 400 });
   }
-  if (startAt.getTime() < Date.now() - 15 * 60_000) {
+  if (!onTheSpot && startAt.getTime() < Date.now() - 15 * 60_000) {
     return Response.json(
       { error: "That time has already passed. Pick a time that is still ahead." },
       { status: 400 },
@@ -88,11 +101,26 @@ export async function POST(request: Request) {
   // then here) cannot put two on the screen: a second attendance fee is what
   // `call_demo_attendance`'s unique index exists to refuse.
   const [existing] = (await db.execute(sql`
-    select start_at from call_meeting
+    select id, start_at, closer_user_id from call_meeting
     where call_lead_id = ${leadId} and kind = 'demo' and status = 'accepted'
       and start_at > now() - interval '12 hours'
     order by start_at limit 1
-  `)) as { start_at: string }[];
+  `)) as { id: number; start_at: string; closer_user_id: number | null }[];
+  if (existing && onTheSpot) {
+    // Pressed twice, or the demo was already on Meetings: carry on with that
+    // one rather than refusing, as long as it is theirs to work.
+    const mine =
+      me.role === "admin" || Number(existing.closer_user_id) === me.id;
+    if (!mine) {
+      return Response.json(
+        {
+          error: `This business already has a demo on Meetings, ${when(new Date(existing.start_at))} their time, and it was not given to you. Ask a founder to hand it over.`,
+        },
+        { status: 409 },
+      );
+    }
+    return Response.json({ id: existing.id, existing: true });
+  }
   if (existing) {
     return Response.json(
       {
@@ -122,8 +150,9 @@ export async function POST(request: Request) {
       ${startAt.toISOString()}::timestamptz, ${endAt.toISOString()}::timestamptz,
       'accepted', ${title},
       ${lead.name}, ${lead.email}, ${zone}, 'demo',
-      -- Founders' own until handed to a closer (2026-10-09).
-      null,
+      -- Founders' own until handed to a closer (2026-10-09). On the spot, the
+      -- closer doing it is the closer.
+      ${onTheSpot && me.role === "closer" ? me.id : null},
       now()
     )
     returning id

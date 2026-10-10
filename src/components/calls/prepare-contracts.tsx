@@ -83,6 +83,7 @@ export function PrepareContracts({
   signingBase,
   canDiscard = false,
   practice = false,
+  onChange,
 }: {
   meeting: Meeting;
   /** The screen's clock, so the effective date is the date where the reader
@@ -102,6 +103,10 @@ export function PrepareContracts({
    *  only ticks the agreement off on this screen. Nothing is created in
    *  DocuSeal, stored or sent, so a new closer can practise the whole step. */
   practice?: boolean;
+  /** Called wherever this refreshes the page, for a screen that holds the
+   *  meeting in the browser and so has to fetch it again (the dial card's
+   *  demo on the spot, 2026-10-10). */
+  onChange?: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -214,7 +219,10 @@ export function PrepareContracts({
         toast.error(data.error ?? "Could not draft the contracts.");
         // A partial failure still made something, so the screen has to catch
         // up or the next press would look like the first.
-        if (data.contracts?.length) router.refresh();
+        if (data.contracts?.length) {
+          router.refresh();
+          onChange?.();
+        }
         return;
       }
       const made = (data.contracts ?? []).filter((c) => !c.existing).length;
@@ -225,6 +233,7 @@ export function PrepareContracts({
       );
       setOpen(false);
       router.refresh();
+      onChange?.();
     } catch {
       toast.error("Could not draft the contracts: network error.");
     } finally {
@@ -276,6 +285,7 @@ export function PrepareContracts({
         `${KIND_LABEL[kind]} agreement discarded. Draft it again whenever you are ready.`,
       );
       router.refresh();
+      onChange?.();
     } catch {
       toast.error("Could not discard that agreement: network error.");
     } finally {
