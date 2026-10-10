@@ -15,6 +15,7 @@ import { getDiallerSop } from "@/lib/sop";
 import {
   callerNumberOf,
   callRegionOf,
+  canSendTexts,
   canUseLiveHints,
   dialMethodOf,
   hidesAlwaysOpen,
@@ -22,6 +23,7 @@ import {
   readerZone,
 } from "@/lib/users";
 import { CALLING_HOURS_LABEL, sopRegionFor } from "@/lib/calls";
+import { smsEnabled, textSenderName } from "@/lib/sms";
 import { spokenNumber } from "@/lib/phone";
 import { PageShell } from "@/components/page-shell";
 import { Dialler } from "@/components/calls/dialler";
@@ -458,6 +460,20 @@ export default async function CallListPage({
               (await canUseLiveHints(me?.id))
             }
             lines={dialMethod === "browser" ? await getSavedLines() : []}
+            onTheSpot={
+              me && (me.role === "admin" || me.role === "closer")
+                ? {
+                    signingBase:
+                      process.env.DOCUSEAL_PUBLIC_URL ??
+                      process.env.DOCUSEAL_URL ??
+                      "",
+                    canText:
+                      smsEnabled() && (await canSendTexts(me.id, me.role)),
+                    canDiscard: me.role === "admin",
+                    senderName: textSenderName(me.name),
+                  }
+                : undefined
+            }
             script={sop.script}
             objections={sop.objections}
         leads={leads}

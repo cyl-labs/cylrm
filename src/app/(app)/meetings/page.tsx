@@ -16,7 +16,12 @@ import type { CalendarEvent } from "@/components/calls/meetings-calendar";
 import { getSavedLines } from "@/lib/calls";
 import { calConfigured } from "@/lib/cal";
 import { UnbookedDemos } from "@/components/calls/unbooked-demos";
-import { getTextsByLead, smsEnabled, type Texting } from "@/lib/sms";
+import {
+  getTextsByLead,
+  smsEnabled,
+  textSenderName,
+  type Texting,
+} from "@/lib/sms";
 import { classifyPhone, spokenNumber } from "@/lib/phone";
 import { YourNumber } from "@/components/calls/your-number";
 import { callScope, getCurrentUser } from "@/lib/session";
@@ -796,11 +801,4 @@ export default async function MeetingsPage({
       </div>
     </PageShell>
   );
-}
-
-/** The first word of the account's name, for the text a person sends from this
- *  screen. The shared "Founders" login falls back to Mark, as before. */
-function textSenderName(accountName: string | undefined): string {
-  const first = accountName?.trim().split(/\s+/)[0] ?? "";
-  return !first || /^(founders?|unknown)$/i.test(first) ? "Mark" : first;
 }

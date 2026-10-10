@@ -2157,6 +2157,31 @@ and the sidebar badge read the new columns on every page).
 - **Founders hand meetings out** from the "Closing it:" control on each row
   (only drawn once somebody is a closer). Only an active closer can be named.
   Closers get the push reminders for their meetings alongside the niche owner.
+- **A closer can draft contracts and text from a cold call** (2026-10-10, "Contracts
+  and text for this demo" on the dial card). Closers were given the demo line to
+  conference into a cold call and run the demo on the spot, but contracts and texts
+  hang off a `call_meeting`, and a demo done on the call has none. The button makes
+  the same silent meeting the Spreadsheet can (`POST /api/meetings` with `now: true`,
+  `components/calls/demo-on-the-spot.tsx`), then reuses the Meetings screen's own
+  `PrepareContracts` and `POST /api/meetings/[id]/text`; there is no second copy of
+  either. The meeting is held in the browser and read back through the new
+  `GET /api/meetings/[id]` (founders, and a closer on their own meeting), because the
+  dialler changes lead without a page load.
+  - **Closers and founders only** (a caller gets a 403 and no button). The meeting's
+    `closer_user_id` is the closer who pressed it, which is the one case where a
+    meeting is not the founders' by default, since they are the one running it.
+    A founder pressing it leaves it null.
+  - **Pressing it twice, or on a lead that already has a demo within 12 hours,
+    carries on with that meeting** when it is theirs (a founder: any). A closer on
+    a meeting a founder holds is refused and told to ask for it to be handed over.
+  - **Texting still needs the Team "text access" permission**; without it the
+    panel shows contracts only. The text is not sent until Send is pressed, and
+    the contract links are added to it with a button, as on Meetings.
+  - **The meeting lands on Meetings and in the founders' "what happened" list**
+    with a start time of the moment it was pressed. Attendance, and so the $30
+    fee, is still a founder's answer, never automatic (see above: a closer can
+    log "showed up" on a meeting they booked, which is the same exposure).
+  - No migration. Not exercised against DocuSeal or Telnyx from a laptop.
 - **Made a closer on Team** ("Make closer" / "Make caller" on a floor row, or
   the role on Add person). The role is now read from the database on every
   request with the `active` check, not off the cookie, so it takes effect on

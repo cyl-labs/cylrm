@@ -30,6 +30,7 @@ import { ObjectionDrawer } from "@/components/sop/objection-drawer";
 import { IncomingCall } from "@/components/calls/incoming-call";
 import { PhoneElsewhere } from "@/components/calls/phone-elsewhere";
 import { BookDemoFields } from "@/components/calls/book-demo";
+import { DemoOnTheSpot } from "@/components/calls/demo-on-the-spot";
 import { useObjectionHints } from "@/components/calls/use-objection-hints";
 import {
   useClaimLine,
@@ -934,8 +935,18 @@ export function Dialler({
   liveHints = false,
   market = null,
   panelLeft: initialPanel = "objections",
+  onTheSpot,
 }: {
   leads: QueueLead[];
+  /** Contracts and a text for a demo run on the cold call itself (2026-10-10).
+   *  Set for closers and founders only, who are the ones allowed to close;
+   *  absent for a caller, so their card is unchanged. */
+  onTheSpot?: {
+    signingBase: string;
+    canText: boolean;
+    canDiscard: boolean;
+    senderName: string;
+  };
   /** The clock this caller reads the app in, from the picker at the top of
    *  Stats. Only reached for a lead whose number belongs to no place. */
   readerTz: string;
@@ -1437,6 +1448,14 @@ export function Dialler({
         {/* The owner's own number, when a gatekeeper handed it over. Keyed on
             the lead rather than the call, so what was saved here survives
             the call it started. */}
+        {onTheSpot && !readOnly && (
+          <DemoOnTheSpot
+            key={`spot-${current.id}`}
+            leadId={current.id}
+            tz={readerTz}
+            {...onTheSpot}
+          />
+        )}
         <DirectLine
           key={`direct-${current.id}`}
           lead={current}

@@ -38,6 +38,14 @@ import { getSmsState } from "@/lib/telnyx";
 
 export const smsEnabled = () => process.env.TELNYX_SMS_ENABLED === "1";
 
+/** The first word of the account's name, for the text a person sends. The
+ *  shared "Founders" login falls back to Mark, as the Meetings screen always
+ *  did. */
+export function textSenderName(accountName: string | undefined): string {
+  const first = accountName?.trim().split(/\s+/)[0] ?? "";
+  return !first || /^(founders?|unknown)$/i.test(first) ? "Mark" : first;
+}
+
 export type SmsStatus = "queued" | "sent" | "delivered" | "failed" | "received";
 
 export type SmsMessage = {
